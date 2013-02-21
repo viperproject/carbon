@@ -1,0 +1,7 @@
+syntax: glob
+.idea
+.idea_modules
+project/project
+project/target
+target
+bin/**
