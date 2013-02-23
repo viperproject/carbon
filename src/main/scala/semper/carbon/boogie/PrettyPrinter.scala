@@ -24,7 +24,6 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
       case typ: Type => showType(typ)
       case p: Program => showProgram(p)
       case m: Decl => showDecl(m)
-      case _: LocalVarDecl => sys.error("local variable declarations should be shown with special routines depending on their type")
     }
   }
 
@@ -50,7 +49,11 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
   }
 
   def showVar(variable: LocalVarDecl) = {
-    variable.name <> ":" <+> showType(variable.typ)
+    variable.name <> ":" <+> showType(variable.typ) <>
+    (variable.where match {
+      case Some(e) => space <> "where" <+> show(e)
+      case None => empty
+    })
   }
 
   def showTrigger(t: Trigger) = {
@@ -69,11 +72,10 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
           ("•" or "::") <+>
           ssep(triggers map showTrigger, space) <+>
           show(exp))
-      case Exists(vars, triggers, exp) =>
+      case Exists(vars, exp) =>
         parens(("∃" or "exists") <+>
           ssep(vars map showVar, comma <> space) <+>
           ("•" or "::") <+>
-          ssep(triggers map showTrigger, space) <+>
           show(exp))
       case LocalVar(name, typ) => value(name)
       case _: PrettyUnaryExpression | _: PrettyBinaryExpression => super.toParenDoc(e)
