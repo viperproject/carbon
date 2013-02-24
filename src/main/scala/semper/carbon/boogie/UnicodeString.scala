@@ -15,5 +15,5 @@ class UnicodeString(val s: String) {
   }
 }
 object UnicodeString {
-  implicit def lift(s: String) = new UnicodeString(s)
+  implicit def string2unicodestring(s: String) = new UnicodeString(s)
 }

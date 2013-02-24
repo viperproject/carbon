@@ -2,7 +2,7 @@
 package semper.carbon.boogie
 
 import org.kiama.output._
-import UnicodeString.lift
+import UnicodeString.string2unicodestring
 import language.implicitConversions
 
 object Implicits {
@@ -17,8 +17,6 @@ sealed trait Node {
 /** A local variable declaration.  Note that this is not a statement, as local variables do not have to be declared. */
 case class LocalVarDecl(name: String, typ: Type, where: Option[MaybeBool] = None) extends Node
 
-case class Lbl(name: String) extends Node
-
 // --- Types
 
 sealed trait Type extends Node
@@ -27,8 +25,7 @@ case object Int extends BuiltInType
 case object Bool extends BuiltInType
 case object Real extends BuiltInType
 case class TypeVar(name: String) extends Type
-case class Map(domains: Seq[Type], range: Type, typArgs: Seq[TypeVar]) extends BuiltInType
-case class NamedType(name: String, typArgs: Seq[TypeVar]) extends Type
+case class MapType(domains: Seq[Type], range: Type, typVars: Seq[TypeVar] = Nil) extends BuiltInType
 
 // --- Expressions
 
@@ -130,6 +127,7 @@ case class Exists(vars: Seq[LocalVarDecl], exp: MaybeBool) extends QuantifiedExp
 case class Trigger(exps: Seq[Exp]) extends Node
 
 case class CondExp(cond: MaybeBool, thn: Exp, els: Exp) extends MaybeBool
+case class Old(exp: Exp) extends MaybeNum with MaybeBool
 
 case class LocalVar(name: String, typ: Type) extends Lhs with MaybeNum with MaybeBool
 case class FuncApp(name: String, args: Seq[Exp]) extends MaybeNum with MaybeBool
@@ -138,11 +136,13 @@ case class MapSelect(map: Exp, idxs: Seq[Exp]) extends Lhs with MaybeNum with Ma
 // --- Statements
 
 sealed trait Stmt extends Node
+case class Lbl(name: String)
+case class Goto(dests: Seq[Lbl]) extends Stmt
+case class Label(lbl: Lbl) extends Stmt
 case class Assume(exp: MaybeBool) extends Stmt
 case class Assert(exp: MaybeBool) extends Stmt
 case class Assign(lhs: Lhs, rhs: Exp) extends Stmt
 case class Havoc(vars: Seq[LocalVar]) extends Stmt
-case class Goto(dests: Seq[Lbl]) extends Stmt
 case class If(cond: MaybeBool, thn: Seq[Stmt], els: Seq[Stmt]) extends Stmt
 case class NondetIf(thn: Seq[Stmt], els: Seq[Stmt]) extends Stmt
 /** A single-line comment (s should not contain new-lines) */
@@ -155,12 +155,10 @@ case class CommentBlock(s: String, stmts: Seq[Stmt]) extends Stmt
 
 // --- Declarations
 
-case class Label(lbl: Lbl) extends Stmt
 case class Program(decls: Seq[Decl]) extends Node
 sealed trait Decl extends Node
-case class TypeDecl(name: String) extends Decl
 case class Const(name: String, typ: Type) extends Decl
-case class Func(name: String, args: Seq[LocalVarDecl], typ: Type, typArgs: Seq[TypeVar]) extends Decl
+case class Func(name: String, args: Seq[LocalVarDecl], typ: Type) extends Decl
 case class Axiom(exp: MaybeBool) extends Decl
 case class GlobalVarDecl(name: String, typ: Type) extends Decl
-case class Procedure(name: String, ins: Seq[LocalVarDecl], outs: Seq[LocalVarDecl], modifies: Seq[String], body: Stmt) extends Decl
+case class Procedure(name: String, ins: Seq[LocalVarDecl], outs: Seq[LocalVarDecl], body: Seq[Stmt]) extends Decl
