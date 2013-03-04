@@ -8,7 +8,9 @@ object CarbonBuild extends Build {
           organization := "semper",
           version := "1.0-SNAPSHOT",
           scalaVersion := "2.10.0",
-          scalacOptions in Compile ++= Seq("-deprecation", "-unchecked", "-feature"))
+          scalacOptions in Compile ++= Seq("-deprecation", "-unchecked", "-feature"),
+          libraryDependencies += "org.rogach" %% "scallop" % "0.8.1"
+       )
   )
 
   lazy val carbon = {
