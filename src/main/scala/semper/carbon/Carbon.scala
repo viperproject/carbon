@@ -1,6 +1,6 @@
 package semper.carbon
 
-import modules.CarbonVerifier
+import CarbonVerifier
 import semper.sil.frontend.SilFrontend
 import semper.sil.verifier.Verifier
 
