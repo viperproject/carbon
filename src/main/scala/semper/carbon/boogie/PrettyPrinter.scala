@@ -24,6 +24,9 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
       case typ: Type => showType(typ)
       case p: Program => showProgram(p)
       case m: Decl => showDecl(m)
+      case t: Trigger => showTrigger(t)
+      case l: LocalVarDecl =>
+        "var" <+> showVar(l)
     }
   }
 
@@ -49,10 +52,10 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
       (doms flatMap freeTypVars) ++ freeTypVars(range)
   }
 
-  def showStmt(stmt: Stmt) = {
-    def showIf(cond: Doc, thn: Seq[Stmt], els: Seq[Stmt]): Doc = {
+  def showStmt(stmt: Stmt): Doc = {
+    def showIf(cond: Doc, thn: Stmt, els: Stmt): Doc = {
       "if" <+> "(" <> cond <> ")" <+> showBlock(thn) <> {
-        if (els.size == 0) empty
+        if (els.children.size == 0) empty
         else space <> "else" <+> showBlock(els)
       }
     }
@@ -75,18 +78,20 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
         showIf("*", thn, els)
       case Comment(s) =>
         "//" <+> s
-      case CommentBlock(s, stmts) =>
+      case CommentBlock(s, stmt) =>
         show(Comment(s)) <>
           nest(
-            line <> showStmts(stmts)
+            line <> showStmt(stmt)
           )
+      case Seqn(ss) =>
+        showStmts(ss)
     }
   }
 
-  def showBlock(stmts: Seq[Stmt]) = {
+  def showBlock(stmt: Stmt) = {
     braces(nest(
-      (if (stmts.isEmpty) empty else line) <>
-        showStmts(stmts)
+      (if (stmt.children.isEmpty) empty else line) <>
+        showStmt(stmt)
     ) <> line)
   }
 
