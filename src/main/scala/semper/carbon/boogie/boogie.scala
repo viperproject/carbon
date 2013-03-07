@@ -135,7 +135,18 @@ case class MapSelect(map: Exp, idxs: Seq[Exp]) extends Lhs with MaybeNum with Ma
 
 // --- Statements
 
-sealed trait Stmt extends Node
+sealed trait Stmt extends Node {
+  /**
+   * Returns a list of all actual statements contained in this statement.  That
+   * is, all statements except `Seqn`, including statements in both branches of
+   * conditionals.
+   */
+  def children: Seq[Stmt] = this match {
+    case If(_, thn, els) => Seq(this, thn, els)
+    case NondetIf(thn, els) => Seq(this, thn, els)
+    case _ => Seq(this)
+  }
+}
 case class Lbl(name: String)
 case class Goto(dests: Seq[Lbl]) extends Stmt
 case class Label(lbl: Lbl) extends Stmt
@@ -143,15 +154,16 @@ case class Assume(exp: MaybeBool) extends Stmt
 case class Assert(exp: MaybeBool) extends Stmt
 case class Assign(lhs: Lhs, rhs: Exp) extends Stmt
 case class Havoc(vars: Seq[LocalVar]) extends Stmt
-case class If(cond: MaybeBool, thn: Seq[Stmt], els: Seq[Stmt]) extends Stmt
-case class NondetIf(thn: Seq[Stmt], els: Seq[Stmt]) extends Stmt
+case class If(cond: MaybeBool, thn: Stmt, els: Stmt) extends Stmt
+case class Seqn(stmts: Seq[Stmt]) extends Stmt
+case class NondetIf(thn: Stmt, els: Stmt) extends Stmt
 /** A single-line comment (s should not contain new-lines) */
 case class Comment(s: String) extends Stmt
 /**
  * A comment block can be used to group together a sequence of statements that
  * belong together, as described by a comment.
  */
-case class CommentBlock(s: String, stmts: Seq[Stmt]) extends Stmt
+case class CommentBlock(s: String, stmt: Stmt) extends Stmt
 
 // --- Declarations
 
@@ -161,4 +173,4 @@ case class Const(name: String, typ: Type) extends Decl
 case class Func(name: String, args: Seq[LocalVarDecl], typ: Type) extends Decl
 case class Axiom(exp: MaybeBool) extends Decl
 case class GlobalVarDecl(name: String, typ: Type) extends Decl
-case class Procedure(name: String, ins: Seq[LocalVarDecl], outs: Seq[LocalVarDecl], body: Seq[Stmt]) extends Decl
+case class Procedure(name: String, ins: Seq[LocalVarDecl], outs: Seq[LocalVarDecl], body: Stmt) extends Decl
