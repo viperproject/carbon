@@ -18,6 +18,11 @@ case class CarbonVerifier() extends Verifier with sil.verifier.Verifier {
   def stmtModule = new DefaultStmtModule(this)
   def expModule = new DefaultExpModule(this)
   def typeModule = new DefaultTypeModule(this)
+  def exhaleModule = new DefaultExhaleModule(this)
+  def inhaleModule = new DefaultInhaleModule(this)
+  def heapModule = new DefaultHeapModule(this)
+  def funcPredModule = new DefaultFuncPredModule(this)
+  def permModule = new DefaultPermModule(this)
 
   /** The (unresolved) path where Boogie is supposed to be located. */
   var _boogiePath: String = "${BOOGIE_EXE}"

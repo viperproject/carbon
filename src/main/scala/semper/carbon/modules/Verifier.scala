@@ -9,4 +9,9 @@ trait Verifier {
   def stmtModule: StmtModule
   def expModule: ExpModule
   def typeModule: TypeModule
+  def exhaleModule: ExhaleModule
+  def inhaleModule: InhaleModule
+  def heapModule: HeapModule
+  def funcPredModule: FuncPredModule
+  def permModule: PermModule
 }
