@@ -29,7 +29,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with AllModul
       case sil.MethodCall(m, rcv, args, targets) =>
         ???
       case sil.Seqn(ss) =>
-        ???
+        Seqn(ss map translateStmt)
       case sil.While(cond, invs, locals, body) =>
         ???
       case sil.If(cond, thn, els) =>
