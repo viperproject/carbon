@@ -77,6 +77,7 @@ case class FalseLit() extends BoolLit(false)
 sealed abstract class BoolLit(val b: Boolean) extends Exp with MaybeBool
 object BoolLit {
   def unapply(b: BoolLit) = Some(b.b)
+  def apply(b: Boolean) = if (b) TrueLit() else FalseLit()
 }
 
 case class BinExp(left: Exp, binop: BinOp, right: Exp) extends Exp with PrettyBinaryExpression with MaybeNum with MaybeBool {
