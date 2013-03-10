@@ -98,8 +98,7 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
   def showStmts(stmts: Seq[Stmt]) = ssep(stmts map show, line)
 
   def showProgram(p: Program) = {
-    val decls = p.decls
-    ssep(decls map show, line <> line)
+    ssep(p.decls map show, line <> line)
   }
 
   def showDecl(decl: Decl) = {
@@ -123,6 +122,9 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
         "returns" <+>
         parens(commasep(outs)) <+>
         showBlock(body)
+      case CommentedDecl(s, d) =>
+        "//" <+> value(s) <> line <>
+          show(d)
     }
   }
 
