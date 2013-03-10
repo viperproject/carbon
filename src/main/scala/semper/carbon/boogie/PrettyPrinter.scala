@@ -98,7 +98,8 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
   def showStmts(stmts: Seq[Stmt]) = ssep(stmts map show, line)
 
   def showProgram(p: Program) = {
-    ssep(p.decls map show, line <> line)
+    ssep(p.header map (s => value("// " + s)), line) <> line <>
+      ssep(p.decls map show, line <> line)
   }
 
   def showDecl(decl: Decl) = {

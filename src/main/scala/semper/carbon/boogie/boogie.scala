@@ -163,7 +163,7 @@ case class CommentBlock(s: String, stmt: Stmt) extends Stmt
 
 // --- Declarations
 
-case class Program(decls: Seq[Decl]) extends Node
+case class Program(header: Seq[String], decls: Seq[Decl]) extends Node
 sealed trait Decl extends Node
 case class Const(name: String, typ: Type) extends Decl
 case class Func(name: String, args: Seq[LocalVarDecl], typ: Type) extends Decl
