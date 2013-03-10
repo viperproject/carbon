@@ -15,18 +15,17 @@ import java.util.Date
 class DefaultMainModule(val verifier: Verifier) extends MainModule with AllModule {
   def name = "Main module"
 
-  /** The SIL program currently being translated. */
-  var currentProgram: sil.Program = null
-
   override def translate(p: sil.Program): Program = {
-    currentProgram = p
-    val res = p match {
+    p match {
       case sil.Program(name, domains, fields, functions, predicates, methods) =>
-        val decls = (domains flatMap translateDomain) ++
+        val members = (domains flatMap translateDomain) ++
           (fields flatMap translateFieldDecl) ++
           (functions flatMap translateFunction) ++
           (predicates flatMap translatePredicate) ++
           (methods flatMap translateMethod)
+
+        // some header information for debugging
+        val deps = verifier.dependencyDescs map ("  " + _)
         val header = Seq(
           "",
           s"Translation of SIL program '$name'.",
@@ -34,12 +33,11 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with AllModul
           "Date:      " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()),
           "Tool:      " + verifier.toolDesc,
           "Arguments: " + verifier.fullCmd,
-          ""
-        )
-        Program(header, decls)
+          "Dependencies:"
+        ) ++ deps ++
+        Seq("")
+        Program(header, members)
     }
-    currentProgram = null
-    res
   }
 
   def translateMethod(m: sil.Method): Seq[Decl] = {
