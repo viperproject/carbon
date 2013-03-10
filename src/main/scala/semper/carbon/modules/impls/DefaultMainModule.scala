@@ -2,8 +2,10 @@ package semper.carbon.modules.impls
 
 import semper.carbon.modules._
 import semper.sil.{ast => sil}
-import semper.carbon.boogie.{Procedure, Decl, Program}
+import semper.carbon.boogie.{CommentedDecl, Procedure, Decl, Program}
 import semper.carbon.boogie.Implicits._
+import java.text.SimpleDateFormat
+import java.util.Date
 
 /**
  * The default implementation of a [[semper.carbon.modules.MainModule]].
@@ -13,14 +15,31 @@ import semper.carbon.boogie.Implicits._
 class DefaultMainModule(val verifier: Verifier) extends MainModule with AllModule {
   def name = "Main module"
 
-  override def translate(p: sil.Program): Program = {
-    p match {
-      case sil.Program(name, domains, fields, functions, predicates, methods) =>
-        // TODO translate domains, fields, functions and predicates
+  /** The SIL program currently being translated. */
+  var currentProgram: sil.Program = null
 
-        //
-        Program(Nil)
+  override def translate(p: sil.Program): Program = {
+    currentProgram = p
+    val res = p match {
+      case sil.Program(name, domains, fields, functions, predicates, methods) =>
+        val decls = (domains flatMap translateDomain) ++
+          (fields flatMap translateFieldDecl) ++
+          (functions flatMap translateFunction) ++
+          (predicates flatMap translatePredicate) ++
+          (methods flatMap translateMethod)
+        val header = Seq(
+          "",
+          s"Translation of SIL program '$name'.",
+          "",
+          "Date:      " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()),
+          "Tool:      " + verifier.toolDesc,
+          "Arguments: " + verifier.fullCmd,
+          ""
+        )
+        Program(header, decls)
     }
+    currentProgram = null
+    res
   }
 
   def translateMethod(m: sil.Method): Seq[Decl] = {
@@ -30,7 +49,8 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with AllModul
         // TODO: handle arguments
         // TODO: handle locals
         val tBody = translateStmt(body)
-        Procedure(name, Nil, Nil, tBody)
+        val proc = Procedure(name, Nil, Nil, tBody)
+        CommentedDecl(s"Translation of method $name", proc)
     }
   }
 

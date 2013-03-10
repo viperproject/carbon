@@ -13,7 +13,7 @@ import sil.verifier.Dependency
  *
  * @author Stefan Heule
  */
-case class CarbonVerifier() extends Verifier with sil.verifier.Verifier {
+case class CarbonVerifier(fullCmd: String) extends Verifier with sil.verifier.Verifier {
 
   def stmtModule = new DefaultStmtModule(this)
   def expModule = new DefaultExpModule(this)
@@ -40,6 +40,8 @@ case class CarbonVerifier() extends Verifier with sil.verifier.Verifier {
   def name: String = "carbon"
   def version: String = "1.0"
   def copyright: String = "(c) 2013 Stefan Heule"
+
+  def toolDesc = s"$name $version"
 
   def commandLineArgs(options: Seq[String]) {}
 

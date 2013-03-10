@@ -9,6 +9,16 @@ import semper.carbon.boogie.Program
  * @author Stefan Heule
  */
 trait Verifier {
+  /**
+   * The full command used to invoke this verification
+   */
+  def fullCmd: String
+
+  /**
+   * The tool (including version) used for this translation.
+   */
+  def toolDesc: String
+
   def stmtModule: StmtModule
   def expModule: ExpModule
   def typeModule: TypeModule
