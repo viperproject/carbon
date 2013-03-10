@@ -17,13 +17,5 @@ trait Verifier {
   def heapModule: HeapModule
   def funcPredModule: FuncPredModule
   def permModule: PermModule
-
-  /**
-   * Translate a SIL program into a Boogie program.
-   */
-  def translate(p: sil.Program): Program = {
-    p match {
-      case sil.Program(name, domains, fields, functions, predicates, methods) => Program(Nil)
-    }
-  }
+  def mainModule: MainModule
 }

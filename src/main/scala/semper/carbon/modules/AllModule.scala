@@ -12,4 +12,5 @@ trait AllModule extends Module {
   def translateStmt(s: sil.Stmt): Stmt = verifier.stmtModule.translateStmt(s)
   def translateExp(e: sil.Exp): Exp = verifier.expModule.translateExp(e)
   def translateType(t: sil.Type): Type = verifier.typeModule.translateType(t)
+  def translate(p: sil.Program): Program = verifier.mainModule.translate(p)
 }
