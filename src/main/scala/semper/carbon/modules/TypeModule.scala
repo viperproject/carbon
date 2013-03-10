@@ -8,6 +8,6 @@ import semper.carbon.boogie.Type
  *
  * @author Stefan Heule
  */
-trait TypeModule extends Module with AllModule {
+trait TypeModule extends Module {
   def translateType(typ: sil.Type): Type
 }
