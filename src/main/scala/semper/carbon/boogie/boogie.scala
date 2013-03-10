@@ -41,15 +41,15 @@ sealed trait Lhs extends Exp {
 
 /** A trait for expressions that might be of type int. */
 sealed trait MaybeNum extends Exp {
-  def +(other: MaybeNum) = BinExp(this, Add, other)
-  def -(other: MaybeNum) = BinExp(this, Sub, other)
-  def *(other: MaybeNum) = BinExp(this, Mul, other)
-  def /(other: MaybeNum) = BinExp(this, Div, other)
-  def %(other: MaybeNum) = BinExp(this, Mod, other)
-  def <(other: MaybeNum) = BinExp(this, LtCmp, other)
-  def >(other: MaybeNum) = BinExp(this, GtCmp, other)
-  def <=(other: MaybeNum) = BinExp(this, LeCmp, other)
-  def >=(other: MaybeNum) = BinExp(this, GeCmp, other)
+  def +(other: Exp) = BinExp(this, Add, other)
+  def -(other: Exp) = BinExp(this, Sub, other)
+  def *(other: Exp) = BinExp(this, Mul, other)
+  def /(other: Exp) = BinExp(this, Div, other)
+  def %(other: Exp) = BinExp(this, Mod, other)
+  def <(other: Exp) = BinExp(this, LtCmp, other)
+  def >(other: Exp) = BinExp(this, GtCmp, other)
+  def <=(other: Exp) = BinExp(this, LeCmp, other)
+  def >=(other: Exp) = BinExp(this, GeCmp, other)
   def neg = UnExp(Neg, this)
 }
 
