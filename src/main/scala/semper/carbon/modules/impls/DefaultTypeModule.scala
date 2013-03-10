@@ -17,15 +17,15 @@ class DefaultTypeModule(val verifier: Verifier) extends TypeModule {
       case sil.Int =>
         Int
       case sil.Ref =>
-        Bool // TODO
+        ???
       case sil.Perm =>
-        Bool // TODO
+        ???
       case sil.Pred =>
-        Bool // TODO
+        ???
       case sil.TypeVar(v) =>
         sys.error("Did not expect a type variable here.")
       case sil.DomainType(domain, typVarsMap) =>
-        Bool // TODO
+        ???
     }
   }
 }
