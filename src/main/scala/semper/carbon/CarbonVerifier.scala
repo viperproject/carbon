@@ -68,8 +68,8 @@ case class CarbonVerifier(fullCmd: String) extends Verifier with sil.verifier.Ve
         // Note: call exitValue to block until Boogie has finished
         // Note: we call boogie with an empty input "file" on stdin and parse the output
         Seq(boogiePath, "stdin.bpl").run(new ProcessIO(_.close(), out, _.close())).exitValue()
-        if (res.startsWith("Boogie program modules version ")) {
-          res.substring(0, res.indexOf(",")).substring("Boogie program modules version ".length)
+        if (res.startsWith("Boogie program verifier version ")) {
+          res.substring(0, res.indexOf(",")).substring("Boogie program verifier version ".length)
         } else {
           unknownVersion
         }
