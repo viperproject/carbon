@@ -42,6 +42,11 @@ case class CarbonVerifier(fullCmd: String) extends Verifier with sil.verifier.Ve
   def copyright: String = "(c) 2013 Stefan Heule"
 
   def toolDesc = s"$name $version"
+  def dependencyDescs = {
+    (dependencies map (dep => {
+      s"${dep.name} ${dep.version}, located at ${dep.location}."
+    }))
+  }
 
   def commandLineArgs(options: Seq[String]) {}
 

@@ -19,6 +19,11 @@ trait Verifier {
    */
   def toolDesc: String
 
+  /**
+   * A descriptive string for every dependency
+   */
+  def dependencyDescs: Seq[String]
+
   def stmtModule: StmtModule
   def expModule: ExpModule
   def typeModule: TypeModule
