@@ -55,10 +55,10 @@ sealed trait MaybeNum extends Exp {
 
 /** A trait for expressions that might be of type bool. */
 sealed trait MaybeBool extends Exp {
-  def &&(other: MaybeBool) = BinExp(this, And, other)
-  def ||(other: MaybeBool) = BinExp(this, Or, other)
-  def ==>(other: MaybeBool) = BinExp(this, Implies, other)
-  def <==>(other: MaybeBool) = BinExp(this, Equiv, other)
+  def &&(other: Exp) = BinExp(this, And, other)
+  def ||(other: Exp) = BinExp(this, Or, other)
+  def ==>(other: Exp) = BinExp(this, Implies, other)
+  def <==>(other: Exp) = BinExp(this, Equiv, other)
   def forall(vars: Seq[LocalVarDecl], triggers: Seq[Trigger]) =
     Forall(vars, triggers, this)
   def exists(vars: Seq[LocalVarDecl]) =
@@ -66,7 +66,7 @@ sealed trait MaybeBool extends Exp {
   def not = UnExp(Not, this)
   def thn(thn: Exp) = PartialCondExp(this, thn)
 }
-case class PartialCondExp(cond: MaybeBool, thn: Exp) {
+case class PartialCondExp(cond: Exp, thn: Exp) {
   def els(els: Exp) = CondExp(cond, thn, els)
 }
 
@@ -123,10 +123,10 @@ sealed trait QuantifiedExp extends Exp with MaybeBool {
   def exp: Exp
 }
 case class Forall(vars: Seq[LocalVarDecl], triggers: Seq[Trigger], exp: MaybeBool) extends QuantifiedExp
-case class Exists(vars: Seq[LocalVarDecl], exp: MaybeBool) extends QuantifiedExp
+case class Exists(vars: Seq[LocalVarDecl], exp: Exp) extends QuantifiedExp
 case class Trigger(exps: Seq[Exp]) extends Node
 
-case class CondExp(cond: MaybeBool, thn: Exp, els: Exp) extends MaybeBool
+case class CondExp(cond: Exp, thn: Exp, els: Exp) extends MaybeBool
 case class Old(exp: Exp) extends MaybeNum with MaybeBool
 
 case class LocalVar(name: String, typ: Type) extends Lhs with MaybeNum with MaybeBool
@@ -150,11 +150,11 @@ sealed trait Stmt extends Node {
 case class Lbl(name: String)
 case class Goto(dests: Seq[Lbl]) extends Stmt
 case class Label(lbl: Lbl) extends Stmt
-case class Assume(exp: MaybeBool) extends Stmt
-case class Assert(exp: MaybeBool) extends Stmt
+case class Assume(exp: Exp) extends Stmt
+case class Assert(exp: Exp) extends Stmt
 case class Assign(lhs: Lhs, rhs: Exp) extends Stmt
 case class Havoc(vars: Seq[LocalVar]) extends Stmt
-case class If(cond: MaybeBool, thn: Stmt, els: Stmt) extends Stmt
+case class If(cond: Exp, thn: Stmt, els: Stmt) extends Stmt
 case class Seqn(stmts: Seq[Stmt]) extends Stmt
 case class NondetIf(thn: Stmt, els: Stmt) extends Stmt
 /** A single-line comment (s should not contain new-lines) */
@@ -171,6 +171,6 @@ case class Program(decls: Seq[Decl]) extends Node
 sealed trait Decl extends Node
 case class Const(name: String, typ: Type) extends Decl
 case class Func(name: String, args: Seq[LocalVarDecl], typ: Type) extends Decl
-case class Axiom(exp: MaybeBool) extends Decl
+case class Axiom(exp: Exp) extends Decl
 case class GlobalVarDecl(name: String, typ: Type) extends Decl
 case class Procedure(name: String, ins: Seq[LocalVarDecl], outs: Seq[LocalVarDecl], body: Stmt) extends Decl
