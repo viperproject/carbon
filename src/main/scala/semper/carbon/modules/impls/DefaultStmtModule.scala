@@ -11,7 +11,7 @@ import semper.carbon.boogie._
  */
 class DefaultStmtModule(val verifier: Verifier) extends StmtModule with AllModule {
   override def translateStmt(stmt: sil.Stmt): Stmt = {
-    stmt match {
+    val translation = stmt match {
       case sil.LocalVarAssign(lhs, rhs) =>
         Assign(translateExp(lhs).asInstanceOf[Lhs], translateExp(rhs))
       case sil.FieldAssign(lhs, rhs) =>
@@ -40,5 +40,6 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with AllModul
       case sil.FreshReadPerm(vars, body) =>
         ???
     }
+    CommentBlock("-- Translation of statement: " + stmt.toString, translation)
   }
 }
