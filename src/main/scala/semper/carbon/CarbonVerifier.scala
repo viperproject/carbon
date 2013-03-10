@@ -1,5 +1,6 @@
 package semper.carbon
 
+import modules.impls._
 import modules.Verifier
 import semper._
 import sil.ast.Program
@@ -13,6 +14,10 @@ import sil.verifier.Dependency
  * @author Stefan Heule
  */
 case class CarbonVerifier() extends Verifier with sil.verifier.Verifier {
+
+  def stmtModule = new DefaultStmtModule(this)
+  def expModule = new DefaultExpModule(this)
+  def typeModule = new DefaultTypeModule(this)
 
   /** The (unresolved) path where Boogie is supposed to be located. */
   var _boogiePath: String = "${BOOGIE_EXE}"

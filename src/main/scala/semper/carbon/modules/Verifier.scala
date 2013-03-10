@@ -6,5 +6,7 @@ package semper.carbon.modules
  * @author Stefan Heule
  */
 trait Verifier {
-
+  def stmtModule: StmtModule
+  def expModule: ExpModule
+  def typeModule: TypeModule
 }
