@@ -3,11 +3,6 @@ package semper.carbon.boogie
 
 import org.kiama.output._
 import UnicodeString.string2unicodestring
-import language.implicitConversions
-
-object Implicits {
-  implicit def lift[A](x: A): Seq[A] = Seq(x)
-}
 
 /** The root of the Boogie AST. */
 sealed trait Node {
