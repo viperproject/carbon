@@ -10,4 +10,5 @@ import semper.carbon.boogie._
  * @author Stefan Heule
  */
 class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule {
+  def name = "Function and predicate module"
 }

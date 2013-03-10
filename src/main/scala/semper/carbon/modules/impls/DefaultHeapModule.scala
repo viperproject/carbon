@@ -10,4 +10,5 @@ import semper.carbon.boogie._
  * @author Stefan Heule
  */
 class DefaultHeapModule(val verifier: Verifier) extends HeapModule {
+  def name = "Heap module"
 }

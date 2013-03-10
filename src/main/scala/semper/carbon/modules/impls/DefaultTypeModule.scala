@@ -10,6 +10,7 @@ import semper.carbon.boogie._
  * @author Stefan Heule
  */
 class DefaultTypeModule(val verifier: Verifier) extends TypeModule {
+  def name = "Type module"
   override def translateType(t: sil.Type): Type = {
     t match {
       case sil.Bool =>

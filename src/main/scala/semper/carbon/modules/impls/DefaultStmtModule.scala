@@ -10,6 +10,7 @@ import semper.carbon.boogie._
  * @author Stefan Heule
  */
 class DefaultStmtModule(val verifier: Verifier) extends StmtModule with AllModule {
+  def name = "Statement module"
   override def translateStmt(stmt: sil.Stmt): Stmt = {
     val translation = stmt match {
       case sil.LocalVarAssign(lhs, rhs) =>

@@ -10,6 +10,7 @@ import semper.carbon.boogie._
  * @author Stefan Heule
  */
 class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
+  def name = "Exhale module"
   override def exhale(t: sil.Exp): Stmt = {
     ???
   }

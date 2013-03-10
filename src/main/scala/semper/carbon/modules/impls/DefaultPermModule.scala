@@ -10,4 +10,5 @@ import semper.carbon.boogie._
  * @author Stefan Heule
  */
 class DefaultPermModule(val verifier: Verifier) extends PermModule {
+  def name = "Permission module"
 }

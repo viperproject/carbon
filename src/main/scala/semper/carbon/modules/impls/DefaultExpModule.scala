@@ -10,6 +10,7 @@ import semper.carbon.boogie._
  * @author Stefan Heule
  */
 class DefaultExpModule(val verifier: Verifier) extends ExpModule with AllModule {
+  def name = "Expression module"
   override def translateExp(e: sil.Exp): Exp = {
     e match {
       case sil.IntLit(i) =>
