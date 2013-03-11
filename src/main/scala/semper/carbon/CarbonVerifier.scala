@@ -1,11 +1,11 @@
 package semper.carbon
 
 import modules.impls._
-import modules.Verifier
 import semper._
 import sil.ast.Program
 import sil.utility.Paths
 import sil.verifier.Dependency
+import verifier.Verifier
 
 /**
  * The main class to perform verification of SIL programs.  Deals with command-line arguments, configuration

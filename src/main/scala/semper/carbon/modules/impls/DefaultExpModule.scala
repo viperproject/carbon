@@ -1,8 +1,9 @@
 package semper.carbon.modules.impls
 
-import semper.carbon.modules.{ExpModule, Verifier, AllModule}
+import semper.carbon.modules.{ExpModule, AllModule}
 import semper.sil.{ast => sil}
 import semper.carbon.boogie._
+import semper.carbon.verifier.Verifier
 
 /**
  * The default implementation of [[semper.carbon.modules.ExpModule]].

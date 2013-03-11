@@ -1,6 +1,7 @@
-package semper.carbon.modules
+package semper.carbon.verifier
 
 import semper.sil.{ast => sil}
+import semper.carbon.modules._
 
 /**
  * A verifier for SIL in Carbon (defines what modules need to be available).

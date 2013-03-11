@@ -2,6 +2,7 @@ package semper.carbon.modules
 
 import semper.sil.{ast => sil}
 import semper.carbon.boogie.Decl
+import semper.carbon.verifier.Verifier
 
 /**
  * Common trait for modules.

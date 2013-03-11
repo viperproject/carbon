@@ -6,6 +6,7 @@ import semper.carbon.boogie.{CommentedDecl, Procedure, Decl, Program}
 import semper.carbon.boogie.Implicits._
 import java.text.SimpleDateFormat
 import java.util.Date
+import semper.carbon.verifier.Verifier
 
 /**
  * The default implementation of a [[semper.carbon.modules.MainModule]].
