@@ -13,7 +13,7 @@ import verifier.Verifier
  *
  * @author Stefan Heule
  */
-case class CarbonVerifier(fullCmd: String) extends Verifier with sil.verifier.Verifier {
+case class CarbonVerifier(debugInfo: Seq[(String, Any)]) extends Verifier with sil.verifier.Verifier {
 
   def stmtModule = new DefaultStmtModule(this)
   def expModule = new DefaultExpModule(this)

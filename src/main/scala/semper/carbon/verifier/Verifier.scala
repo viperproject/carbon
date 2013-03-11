@@ -10,9 +10,9 @@ import semper.carbon.modules._
  */
 trait Verifier {
   /**
-   * The full command used to invoke this verification
+   * Debug information (e.g., the full command used to invoke this verification).
    */
-  def fullCmd: String
+  def debugInfo: Seq[(String, Any)]
 
   /**
    * The tool (including version) used for this translation.

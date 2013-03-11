@@ -39,11 +39,11 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with AllModul
           "",
           s"Translation of SIL program '$name'.",
           "",
-          "Date:      " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()),
-          "Tool:      " + verifier.toolDesc,
-          "Arguments: " + verifier.fullCmd,
-          "Dependencies:"
-        ) ++ deps ++
+          "Date:         " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()),
+          "Tool:         " + verifier.toolDesc) ++
+          (verifier.debugInfo map (a => a._1 + ": " + (" " * (12 - a._1.size)) + a._2)) ++
+          Seq("Dependencies:") ++
+          deps ++
           Seq("")
         Program(header, preambles ++ members)
     }

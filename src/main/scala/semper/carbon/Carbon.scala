@@ -14,5 +14,5 @@ object Carbon extends SilFrontend {
     execute(args)
   }
 
-  def createVerifier(fullCmd: String) = CarbonVerifier(fullCmd)
+  def createVerifier(fullCmd: String) = CarbonVerifier(Seq("Arguments: " -> fullCmd))
 }
