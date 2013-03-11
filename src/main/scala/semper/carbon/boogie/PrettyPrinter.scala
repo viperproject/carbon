@@ -52,14 +52,14 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
       (doms flatMap freeTypVars) ++ freeTypVars(range)
   }
 
-  def showStmt(stmt: Stmt): Doc = {
+  def showStmt(s: Stmt): Doc = {
     def showIf(cond: Doc, thn: Stmt, els: Stmt): Doc = {
       "if" <+> "(" <> cond <> ")" <+> showBlock(thn) <> {
         if (els.children.size == 0) empty
         else space <> "else" <+> showBlock(els)
       }
     }
-    stmt match {
+    s match {
       case Assume(e) =>
         "assume" <+> show(e) <> semi
       case Assert(e) =>
@@ -76,10 +76,10 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
         showIf(show(cond), thn, els)
       case NondetIf(thn, els) =>
         showIf("*", thn, els)
-      case Comment(s) =>
-        "//" <+> s
-      case CommentBlock(s, stmt) =>
-        show(Comment(s)) <>
+      case Comment(c) =>
+        "//" <+> c
+      case CommentBlock(c, stmt) =>
+        show(Comment(c)) <>
           nest(
             line <> showStmt(stmt)
           )
@@ -98,8 +98,12 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
   def showStmts(stmts: Seq[Stmt]) = ssep(stmts map show, line)
 
   def showProgram(p: Program) = {
-    ssep(p.header map (s => value("// " + s)), line) <> line <>
-      ssep(p.decls map show, line <> line)
+    ssep(p.header map (s => value("// " + s)), line) <> line <> line <>
+      showDecls(p.decls)
+  }
+
+  def showDecls(ds: Seq[Decl]): PrettyPrinter.Doc = {
+    ssep(ds map show, line <> line)
   }
 
   def showDecl(decl: Decl) = {
@@ -118,14 +122,16 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
         "axiom" <+> show(exp) <> semi
       case Procedure(name, ins, outs, body) =>
         "procedure" <+>
-        name <>
-        parens(commasep(ins)) <+>
-        "returns" <+>
-        parens(commasep(outs)) <+>
-        showBlock(body)
+          name <>
+          parens(commasep(ins)) <+>
+          "returns" <+>
+          parens(commasep(outs)) <+>
+          showBlock(body)
       case CommentedDecl(s, d) =>
-        "//" <+> value(s) <> line <>
-          show(d)
+        "// ------------------------------------------" <> line <>
+          "//" <+> value(s) <> line <>
+          "// ------------------------------------------" <> line <>
+          showDecls(d)
     }
   }
 
