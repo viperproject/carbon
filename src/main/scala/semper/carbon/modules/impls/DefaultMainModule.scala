@@ -18,11 +18,19 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with AllModul
   override def translate(p: sil.Program): Program = {
     p match {
       case sil.Program(name, domains, fields, functions, predicates, methods) =>
+        // translate all members
         val members = (domains flatMap translateDomain) ++
           (fields flatMap translateFieldDecl) ++
           (functions flatMap translateFunction) ++
           (predicates flatMap translatePredicate) ++
           (methods flatMap translateMethod)
+
+        // get the preambles
+        val preambles = verifier.allModules flatMap {
+          m =>
+            if (m.preamble.size > 0) Seq(CommentedDecl(s"Preamble of ${m.name}.", m.preamble))
+            else Nil
+        }
 
         // some header information for debugging
         val deps = verifier.dependencyDescs map ("  " + _)
@@ -35,8 +43,8 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with AllModul
           "Arguments: " + verifier.fullCmd,
           "Dependencies:"
         ) ++ deps ++
-        Seq("")
-        Program(header, members)
+          Seq("")
+        Program(header, preambles ++ members)
     }
   }
 
