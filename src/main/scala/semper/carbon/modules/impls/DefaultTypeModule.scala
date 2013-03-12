@@ -10,7 +10,7 @@ import semper.carbon.verifier.Verifier
  *
  * @author Stefan Heule
  */
-class DefaultTypeModule(val verifier: Verifier) extends TypeModule {
+class DefaultTypeModule(val verifier: Verifier) extends TypeModule with AllModule {
   def name = "Type module"
   override def translateType(t: sil.Type): Type = {
     t match {
@@ -19,7 +19,7 @@ class DefaultTypeModule(val verifier: Verifier) extends TypeModule {
       case sil.Int =>
         Int
       case sil.Ref =>
-        ???
+        refType
       case sil.Perm =>
         ???
       case sil.Pred =>
