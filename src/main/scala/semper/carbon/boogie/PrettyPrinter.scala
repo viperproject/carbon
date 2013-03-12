@@ -36,6 +36,7 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
       case Bool => value("bool")
       case Real => value("real")
       case TypeVar(name) => value(name)
+      case NamedType(name) => value(name)
       case MapType(doms, range, typVars) =>
         val tvs = typVars match {
           case Nil => empty
@@ -110,6 +111,8 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
     decl match {
       case Const(name, typ) =>
         "const" <+> name <+> show(typ) <> semi
+      case TypeDecl(name) =>
+        "type" <+> name <> semi
       case Func(name, args, typ) =>
         "function" <+>
           name <>
