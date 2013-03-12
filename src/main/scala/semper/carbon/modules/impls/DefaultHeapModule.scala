@@ -13,4 +13,12 @@ import semper.carbon.verifier.Verifier
  */
 class DefaultHeapModule(val verifier: Verifier) extends HeapModule {
   def name = "Heap module"
+
+  private val refTypeName = "ref"
+
+  override def refType = NamedType(refTypeName)
+
+  override def preamble = {
+    TypeDecl(refTypeName)
+  }
 }
