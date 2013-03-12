@@ -17,8 +17,8 @@ trait MainModule extends Module {
   def translate(p: sil.Program): Program
 
   /**
-   * Translate a local variable declaration, and register the variable with
-   * the environment.
+   * Translate a local variable declaration.  Assumes that the variables is already
+   * defined in the current environment.
    */
   def translateLocalVarDecl(l: sil.LocalVarDecl): LocalVarDecl
 

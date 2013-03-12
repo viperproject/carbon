@@ -25,7 +25,6 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with AllModul
   override def env = _env
 
   override def translateLocalVarDecl(l: sil.LocalVarDecl): LocalVarDecl = {
-    env.define(l.localVar)
     LocalVarDecl(env.get(l.localVar).name, translateType(l.typ))
   }
 
