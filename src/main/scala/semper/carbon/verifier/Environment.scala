@@ -13,6 +13,9 @@ case class Environment(verifier: Verifier, member: sil.Member) {
 
   private val names = NameGenerator()
 
+  /** The current mapping of variables. */
+  private val currentMapping = collection.mutable.HashMap[sil.AbstractLocalVar, LocalVar]()
+
   // register 'this'
   define(sil.ThisLit()())
 
@@ -31,9 +34,6 @@ case class Environment(verifier: Verifier, member: sil.Member) {
       }
     case sil.Domain(name, functions, axioms, typVars) =>
   }
-
-  /** The current mapping of variables. */
-  private val currentMapping = collection.mutable.HashMap[sil.AbstractLocalVar, LocalVar]()
 
   /**
    * Returns the Boogie variable for a given SIL variable (it has to be defined first,
