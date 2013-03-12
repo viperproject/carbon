@@ -15,7 +15,7 @@ import verifier.{Environment, Verifier}
  */
 case class CarbonVerifier(debugInfo: Seq[(String, Any)]) extends Verifier with sil.verifier.Verifier {
 
-  var env = Environment(this, null)
+  var env = null
 
   def stmtModule = new DefaultStmtModule(this)
   def expModule = new DefaultExpModule(this)
