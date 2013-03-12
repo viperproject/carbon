@@ -26,4 +26,22 @@ trait Module {
    * if certain features are needed, and only output parts of the preamble that are used.
    */
   def preamble: Seq[Decl] = Nil
+
+  /**
+   * Returns true for variables and constants that this module might declare.  Note all elements
+   * for which true is returned need to actually occur in the end, but every variable or constant that
+   * does occur, it must returns true here.
+   *
+   * By default, no names are defined.
+   */
+  def definesGlobalVar(s: String): Boolean = false
+
+  /**
+   * Returns true for functions that this module might declare.  Note all elements
+   * for which true is returned need to actually occur in the end, but every function that
+   * does occur, it must returns true here.
+   *
+   * By default, no names are defined.
+   */
+  def definesGlobalFunc(s: String): Boolean = false
 }
