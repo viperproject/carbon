@@ -5,7 +5,7 @@ import semper._
 import sil.ast.Program
 import sil.utility.Paths
 import sil.verifier.Dependency
-import verifier.Verifier
+import verifier.{Environment, Verifier}
 
 /**
  * The main class to perform verification of SIL programs.  Deals with command-line arguments, configuration
@@ -14,6 +14,8 @@ import verifier.Verifier
  * @author Stefan Heule
  */
 case class CarbonVerifier(debugInfo: Seq[(String, Any)]) extends Verifier with sil.verifier.Verifier {
+
+  var env = Environment(this, null)
 
   def stmtModule = new DefaultStmtModule(this)
   def expModule = new DefaultExpModule(this)

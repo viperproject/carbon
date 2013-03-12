@@ -2,11 +2,15 @@ package semper.carbon.modules.impls
 
 import semper.carbon.modules._
 import semper.sil.{ast => sil}
-import semper.carbon.boogie.{CommentedDecl, Procedure, Decl, Program}
+import semper.carbon.boogie._
 import semper.carbon.boogie.Implicits._
 import java.text.SimpleDateFormat
 import java.util.Date
 import semper.carbon.verifier.Verifier
+import semper.carbon.boogie.CommentedDecl
+import semper.carbon.boogie.Procedure
+import semper.carbon.boogie.Program
+import semper.carbon.verifier.Environment
 
 /**
  * The default implementation of a [[semper.carbon.modules.MainModule]].
@@ -15,6 +19,15 @@ import semper.carbon.verifier.Verifier
  */
 class DefaultMainModule(val verifier: Verifier) extends MainModule with AllModule {
   def name = "Main module"
+
+  /** The current environment. */
+  var _env: Environment = null
+  override def env = _env
+
+  override def translateLocalVarDecl(l: sil.LocalVarDecl): LocalVarDecl = {
+    env.define(l.localVar)
+    LocalVarDecl(env.get(l.localVar).name, translateType(l.typ))
+  }
 
   override def translate(p: sil.Program): Program = {
     p match {
@@ -50,15 +63,18 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with AllModul
   }
 
   def translateMethod(m: sil.Method): Seq[Decl] = {
-    m match {
+    _env = Environment(verifier, m)
+    val res = m match {
       case sil.Method(name, formalArgs, formalReturns, pres, posts, locals, body) =>
         // TODO: handle pre/post
-        // TODO: handle arguments
-        // TODO: handle locals
-        val tBody = translateStmt(body)
-        val proc = Procedure(name, Nil, Nil, tBody)
+        val proc = Procedure(name,
+          formalArgs map translateLocalVarDecl,
+          formalReturns map translateLocalVarDecl,
+          translateStmt(body))
         CommentedDecl(s"Translation of method $name", proc)
     }
+    _env = null
+    res
   }
 
   def translateFunction(f: sil.Function): Seq[Decl] = ???

@@ -9,6 +9,25 @@ import semper.carbon.modules._
  * @author Stefan Heule
  */
 trait Verifier {
+
+  // Modules
+  def mainModule: MainModule
+  def heapModule: HeapModule
+  def stmtModule: StmtModule
+  def expModule: ExpModule
+  def typeModule: TypeModule
+  def exhaleModule: ExhaleModule
+  def inhaleModule: InhaleModule
+  def funcPredModule: FuncPredModule
+  def permModule: PermModule
+
+  /**
+   * A list of all modules.
+   */
+  def allModules: Seq[Module] =
+    Seq(mainModule, heapModule, stmtModule, expModule, typeModule,
+      exhaleModule, inhaleModule, funcPredModule, permModule)
+
   /**
    * Debug information (e.g., the full command used to invoke this verification).
    */
@@ -23,21 +42,4 @@ trait Verifier {
    * A descriptive string for every dependency
    */
   def dependencyDescs: Seq[String]
-
-  /**
-   * A list of all modules.
-   */
-  def allModules: Seq[Module] =
-    Seq(mainModule, heapModule, stmtModule, expModule, typeModule,
-      exhaleModule, inhaleModule, funcPredModule, permModule)
-
-  def mainModule: MainModule
-  def heapModule: HeapModule
-  def stmtModule: StmtModule
-  def expModule: ExpModule
-  def typeModule: TypeModule
-  def exhaleModule: ExhaleModule
-  def inhaleModule: InhaleModule
-  def funcPredModule: FuncPredModule
-  def permModule: PermModule
 }
