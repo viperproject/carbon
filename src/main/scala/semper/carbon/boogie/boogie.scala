@@ -9,7 +9,10 @@ sealed trait Node {
   override def toString = PrettyPrinter.pretty(this)
 }
 
-/** A local variable declaration.  Note that this is not a statement, as local variables do not have to be declared. */
+/**
+ * A local variable declaration.  Note that this is not a statement, as local variables do not
+ * have to be declared.
+ */
 case class LocalVarDecl(name: String, typ: Type, where: Option[MaybeBool] = None) extends Node
 
 // --- Types
