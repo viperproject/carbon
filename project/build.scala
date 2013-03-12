@@ -22,7 +22,7 @@ object CarbonBuild extends Build {
         ++ Seq(
               name := "Carbon",
               testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oD"),
-              traceLevel := 10,
+              traceLevel := 20,
               maxErrors := 6,
               classDirectory in Test <<= classDirectory in Compile,
               libraryDependencies ++= Seq()))
