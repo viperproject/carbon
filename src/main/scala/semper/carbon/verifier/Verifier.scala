@@ -13,6 +13,7 @@ trait Verifier {
   // Modules
   def mainModule: MainModule
   def heapModule: HeapModule
+  def stateModule: StateModule
   def stmtModule: StmtModule
   def expModule: ExpModule
   def typeModule: TypeModule

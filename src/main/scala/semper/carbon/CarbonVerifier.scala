@@ -28,6 +28,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
   def funcPredModule = new DefaultFuncPredModule(this)
   def permModule = new DefaultPermModule(this)
   def mainModule = new DefaultMainModule(this)
+  def stateModule = new DefaultStateModule(this)
 
   /** The (unresolved) path where Boogie is supposed to be located. */
   var _boogiePath: String = "${BOOGIE_EXE}"
