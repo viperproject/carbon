@@ -1,6 +1,6 @@
 package semper.carbon.modules.impls
 
-import semper.carbon.modules.{AllModule, StmtModule}
+import semper.carbon.modules.StmtModule
 import semper.sil.{ast => sil}
 import semper.carbon.boogie._
 import semper.carbon.verifier.Verifier
@@ -10,7 +10,10 @@ import semper.carbon.verifier.Verifier
  *
  * @author Stefan Heule
  */
-class DefaultStmtModule(val verifier: Verifier) extends StmtModule with AllModule {
+class DefaultStmtModule(val verifier: Verifier) extends StmtModule {
+
+  import verifier.expModule._
+
   def name = "Statement module"
   override def translateStmt(stmt: sil.Stmt): Stmt = {
     val translation = stmt match {

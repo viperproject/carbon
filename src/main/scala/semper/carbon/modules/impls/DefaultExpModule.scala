@@ -1,6 +1,6 @@
 package semper.carbon.modules.impls
 
-import semper.carbon.modules.{ExpModule, AllModule}
+import semper.carbon.modules.ExpModule
 import semper.sil.{ast => sil}
 import semper.carbon.boogie._
 import semper.carbon.verifier.Verifier
@@ -10,7 +10,10 @@ import semper.carbon.verifier.Verifier
  *
  * @author Stefan Heule
  */
-class DefaultExpModule(val verifier: Verifier) extends ExpModule with AllModule {
+class DefaultExpModule(val verifier: Verifier) extends ExpModule {
+
+  import verifier.typeModule._
+
   def name = "Expression module"
   override def translateExp(e: sil.Exp): Exp = {
     e match {

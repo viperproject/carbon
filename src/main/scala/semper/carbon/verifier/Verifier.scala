@@ -11,16 +11,16 @@ import semper.carbon.modules._
 trait Verifier {
 
   // Modules
-  def mainModule: MainModule
-  def heapModule: HeapModule
-  def stateModule: StateModule
-  def stmtModule: StmtModule
-  def expModule: ExpModule
-  def typeModule: TypeModule
-  def exhaleModule: ExhaleModule
-  def inhaleModule: InhaleModule
-  def funcPredModule: FuncPredModule
-  def permModule: PermModule
+  val mainModule: MainModule
+  val heapModule: HeapModule
+  val stateModule: StateModule
+  val stmtModule: StmtModule
+  val expModule: ExpModule
+  val typeModule: TypeModule
+  val exhaleModule: ExhaleModule
+  val inhaleModule: InhaleModule
+  val funcPredModule: FuncPredModule
+  val permModule: PermModule
 
   /**
    * A list of all modules.

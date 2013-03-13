@@ -1,6 +1,6 @@
 package semper.carbon.modules.impls
 
-import semper.carbon.modules.{TypeModule, AllModule}
+import semper.carbon.modules.TypeModule
 import semper.sil.{ast => sil}
 import semper.carbon.boogie._
 import semper.carbon.verifier.Verifier
@@ -10,7 +10,10 @@ import semper.carbon.verifier.Verifier
  *
  * @author Stefan Heule
  */
-class DefaultTypeModule(val verifier: Verifier) extends TypeModule with AllModule {
+class DefaultTypeModule(val verifier: Verifier) extends TypeModule {
+
+  import verifier.heapModule._
+
   def name = "Type module"
   override def translateType(t: sil.Type): Type = {
     t match {

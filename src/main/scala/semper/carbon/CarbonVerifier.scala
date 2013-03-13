@@ -19,16 +19,16 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
 
   var env = null
 
-  def stmtModule = new DefaultStmtModule(this)
-  def expModule = new DefaultExpModule(this)
-  def typeModule = new DefaultTypeModule(this)
-  def exhaleModule = new DefaultExhaleModule(this)
-  def inhaleModule = new DefaultInhaleModule(this)
-  def heapModule = new DefaultHeapModule(this)
-  def funcPredModule = new DefaultFuncPredModule(this)
-  def permModule = new DefaultPermModule(this)
-  def mainModule = new DefaultMainModule(this)
-  def stateModule = new DefaultStateModule(this)
+  val stmtModule = new DefaultStmtModule(this)
+  val expModule = new DefaultExpModule(this)
+  val typeModule = new DefaultTypeModule(this)
+  val exhaleModule = new DefaultExhaleModule(this)
+  val inhaleModule = new DefaultInhaleModule(this)
+  val heapModule = new DefaultHeapModule(this)
+  val funcPredModule = new DefaultFuncPredModule(this)
+  val permModule = new DefaultPermModule(this)
+  val mainModule = new DefaultMainModule(this)
+  val stateModule = new DefaultStateModule(this)
 
   /** The (unresolved) path where Boogie is supposed to be located. */
   var _boogiePath: String = "${BOOGIE_EXE}"

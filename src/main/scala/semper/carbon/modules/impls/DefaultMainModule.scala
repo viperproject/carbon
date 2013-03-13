@@ -17,7 +17,11 @@ import semper.carbon.verifier.Environment
  *
  * @author Stefan Heule
  */
-class DefaultMainModule(val verifier: Verifier) extends MainModule with AllModule {
+class DefaultMainModule(val verifier: Verifier) extends MainModule {
+
+  import verifier.typeModule._
+  import verifier.stmtModule._
+
   def name = "Main module"
 
   /** The current environment. */
