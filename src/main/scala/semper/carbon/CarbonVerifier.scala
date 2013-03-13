@@ -11,9 +11,11 @@ import verifier.{Environment, Verifier}
  * The main class to perform verification of SIL programs.  Deals with command-line arguments, configuration
  * of modules and choosing which module implementations to use.
  *
+ * Debug information can either be set using the constructor argument or the setter.
+ *
  * @author Stefan Heule
  */
-case class CarbonVerifier(debugInfo: Seq[(String, Any)]) extends Verifier with sil.verifier.Verifier {
+case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) extends Verifier with sil.verifier.Verifier {
 
   var env = null
 
@@ -42,6 +44,11 @@ case class CarbonVerifier(debugInfo: Seq[(String, Any)]) extends Verifier with s
   def name: String = "carbon"
   def version: String = "1.0"
   def copyright: String = "(c) 2013 Stefan Heule"
+
+  def debugInfo = _debugInfo
+  def debugInfo_=(info: Seq[(String, Any)]) = {
+    _debugInfo = info
+  }
 
   def toolDesc = s"$name $version"
   def dependencyDescs = {
