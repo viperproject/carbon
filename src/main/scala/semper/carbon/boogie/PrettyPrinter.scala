@@ -47,7 +47,7 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
   }
 
   def freeTypVars(t: Type): Seq[TypeVar] = t match {
-    case Int | Bool | Real => Nil
+    case Int | Bool | Real | _: NamedType => Nil
     case tv@TypeVar(name) => Seq(tv)
     case MapType(doms, range, typVars) =>
       (doms flatMap freeTypVars) ++ freeTypVars(range)
