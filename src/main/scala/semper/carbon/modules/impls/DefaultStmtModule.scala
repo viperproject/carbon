@@ -44,6 +44,8 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule {
         ???
       case sil.FreshReadPerm(vars, body) =>
         ???
+      case sil.NewStmt(target) =>
+        ???
     }
     CommentBlock("-- Translation of statement: " + stmt.toString, translation)
   }
