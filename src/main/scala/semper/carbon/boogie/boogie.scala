@@ -71,7 +71,7 @@ case object Int extends BuiltInType
 case object Bool extends BuiltInType
 case object Real extends BuiltInType
 case class TypeVar(name: String) extends Type
-case class NamedType(name: String) extends Type
+case class NamedType(name: String, typVars: Seq[TypeVar] = Nil) extends Type
 case class MapType(domains: Seq[Type], range: Type, typVars: Seq[TypeVar] = Nil) extends BuiltInType
 
 // --- Expressions
@@ -219,7 +219,7 @@ case class CommentBlock(s: String, stmt: Stmt) extends Stmt
 case class Program(header: Seq[String], decls: Seq[Decl]) extends Node
 sealed trait Decl extends Node
 case class Const(name: String, typ: Type) extends Decl
-case class TypeDecl(name: String) extends Decl
+case class TypeDecl(t: NamedType) extends Decl
 case class Func(name: String, args: Seq[LocalVarDecl], typ: Type) extends Decl
 case class Axiom(exp: Exp) extends Decl
 case class GlobalVarDecl(name: String, typ: Type) extends Decl
