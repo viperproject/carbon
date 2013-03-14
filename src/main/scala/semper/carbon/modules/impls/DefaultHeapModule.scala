@@ -22,14 +22,15 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
     verifier.stateModule.register(this)
   }
 
-  private val refTypeName = "ref"
-  private val heapTyp = Bool
+  private val fieldType = NamedType("Field", TypeVar("T"))
+  private val heapTyp = MapType(Seq(refType, fieldType), TypeVar("T"), Seq(TypeVar("T")))
   private var heap: LocalVar = null
-
-  override def refType = NamedType(refTypeName)
+  override def refType = NamedType("ref")
 
   override def preamble = {
-    TypeDecl(refTypeName)
+    TypeDecl(refType) ::
+      TypeDecl(fieldType) ::
+      Nil
   }
 
   def initState: Stmt = {
