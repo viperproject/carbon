@@ -22,6 +22,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
   import verifier.typeModule._
   import verifier.stmtModule._
   import verifier.stateModule._
+  import verifier.exhaleModule._
 
   def name = "Main module"
 
@@ -75,7 +76,8 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
         val outs: Seq[LocalVarDecl] = formalReturns map translateLocalVarDecl
         val init = initState
         val body: Stmt = translateStmt(b)
-        val proc = Procedure(name, ins, outs, Seqn(Seq(init, body)))
+        val end = exhale(posts)
+        val proc = Procedure(name, ins, outs, Seq(init, body, end))
         CommentedDecl(s"Translation of method $name", proc)
     }
     _env = null

@@ -36,7 +36,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
       case sil.Old(exp) =>
         ???
       case sil.CondExp(cond, thn, els) =>
-        CondExp(translateExp(cond).asInstanceOf[MaybeBool], translateExp(thn), translateExp(els))
+        CondExp(translateExp(cond), translateExp(thn), translateExp(els))
       case sil.Exists(v, exp) =>
         ???
       case sil.Forall(v, exp) =>
@@ -57,7 +57,18 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
         ???
       case sil.AccessPredicate(loc, perm) =>
         ???
-      case sil.BinExp(left, right) =>
+      case sil.EqCmp(left, right) =>
+        BinExp(translateExp(left), EqCmp, translateExp(right))
+      case sil.NeCmp(left, right) =>
+        BinExp(translateExp(left), NeCmp, translateExp(right))
+      case sil.DomainBinExp(left, op, right) =>
+        val bop = op match {
+          case sil.OrOp =>
+            Or
+          case _ => ???
+        }
+        BinExp(translateExp(left), bop, translateExp(right))
+      case b@sil.BinExp(left, right) =>
         ???
       case sil.UnExp(exp) =>
         ???
