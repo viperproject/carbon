@@ -13,11 +13,18 @@ import semper.carbon.verifier.Verifier
  * @author Stefan Heule
  */
 class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateComponent {
+
+  import verifier.mainModule._
+
   def name = "Heap module"
 
-  private val refTypeName = "ref"
+  override def initialize() {
+    verifier.stateModule.register(this)
+  }
 
-  var heap: LocalVar = null
+  private val refTypeName = "ref"
+  private val heapTyp = Bool
+  private var heap: LocalVar = null
 
   override def refType = NamedType(refTypeName)
 
@@ -25,7 +32,10 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
     TypeDecl(refTypeName)
   }
 
-  def initState: Stmt = Havoc(heap)
-  def stateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(heap.name, heap.typ))
+  def initState: Stmt = {
+    heap = env.define("Heap", heapTyp)
+    Havoc(heap)
+  }
+  def stateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl("Heap", heapTyp))
   def currentStateContributions: Seq[Exp] = Seq(heap)
 }
