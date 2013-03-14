@@ -187,6 +187,8 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
           ("•" or "::") <+>
           show(exp))
       case LocalVar(name, typ) => value(name)
+      case FuncApp(name, args) =>
+        name <> parens(commasep(args))
       case _: PrettyUnaryExpression | _: PrettyBinaryExpression => super.toParenDoc(e)
     }
   }
