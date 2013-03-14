@@ -61,7 +61,7 @@ sealed trait Node {
  * A local variable declaration.  Note that this is not a statement, as local variables do not
  * have to be declared.
  */
-case class LocalVarDecl(name: String, typ: Type, where: Option[MaybeBool] = None) extends Node
+case class LocalVarDecl(name: String, typ: Type, where: Option[Exp] = None) extends Node
 
 // --- Types
 
@@ -79,15 +79,7 @@ case class MapType(domains: Seq[Type], range: Type, typVars: Seq[TypeVar] = Nil)
 sealed trait Exp extends Node with PrettyExpression {
   def ===(other: Exp) = BinExp(this, EqCmp, other)
   def !==(other: Exp) = BinExp(this, NeCmp, other)
-}
-
-/** A common trait for expressions that one can assign a new value to. */
-sealed trait Lhs extends Exp {
   def :=(rhs: Exp) = Assign(this, rhs)
-}
-
-/** A trait for expressions that might be of type int. */
-sealed trait MaybeNum extends Exp {
   def +(other: Exp) = BinExp(this, Add, other)
   def -(other: Exp) = BinExp(this, Sub, other)
   def *(other: Exp) = BinExp(this, Mul, other)
@@ -98,10 +90,6 @@ sealed trait MaybeNum extends Exp {
   def <=(other: Exp) = BinExp(this, LeCmp, other)
   def >=(other: Exp) = BinExp(this, GeCmp, other)
   def neg = UnExp(Neg, this)
-}
-
-/** A trait for expressions that might be of type bool. */
-sealed trait MaybeBool extends Exp {
   def &&(other: Exp) = BinExp(this, And, other)
   def ||(other: Exp) = BinExp(this, Or, other)
   def ==>(other: Exp) = BinExp(this, Implies, other)
@@ -113,27 +101,28 @@ sealed trait MaybeBool extends Exp {
   def not = UnExp(Not, this)
   def thn(thn: Exp) = PartialCondExp(this, thn)
 }
+
 case class PartialCondExp(cond: Exp, thn: Exp) {
   def els(els: Exp) = CondExp(cond, thn, els)
 }
 
-case class IntLit(i: BigInt) extends MaybeNum
-case class RealLit(d: Double) extends MaybeNum
+case class IntLit(i: BigInt) extends Exp
+case class RealLit(d: Double) extends Exp
 case class TrueLit() extends BoolLit(true)
 case class FalseLit() extends BoolLit(false)
-sealed abstract class BoolLit(val b: Boolean) extends Exp with MaybeBool
+sealed abstract class BoolLit(val b: Boolean) extends Exp
 object BoolLit {
   def unapply(b: BoolLit) = Some(b.b)
   def apply(b: Boolean) = if (b) TrueLit() else FalseLit()
 }
 
-case class BinExp(left: Exp, binop: BinOp, right: Exp) extends Exp with PrettyBinaryExpression with MaybeNum with MaybeBool {
+case class BinExp(left: Exp, binop: BinOp, right: Exp) extends Exp with PrettyBinaryExpression {
   lazy val op = binop.name
   lazy val priority = binop.priority
   lazy val fixity = binop.fixity
 }
 
-case class UnExp(unop: UnOp, exp: Exp) extends Exp with PrettyUnaryExpression with MaybeNum with MaybeBool {
+case class UnExp(unop: UnOp, exp: Exp) extends Exp with PrettyUnaryExpression {
   lazy val op = unop.name
   lazy val priority = unop.priority
   lazy val fixity = unop.fixity
@@ -166,20 +155,20 @@ sealed abstract class UnOp(val name: String, val priority: Int, val fixity: Fixi
 case object Not extends UnOp("¬" or "!", 1, Prefix)
 case object Neg extends UnOp("-", 1, Prefix)
 
-sealed trait QuantifiedExp extends Exp with MaybeBool {
+sealed trait QuantifiedExp extends Exp {
   def vars: Seq[LocalVarDecl]
   def exp: Exp
 }
-case class Forall(vars: Seq[LocalVarDecl], triggers: Seq[Trigger], exp: MaybeBool) extends QuantifiedExp
+case class Forall(vars: Seq[LocalVarDecl], triggers: Seq[Trigger], exp: Exp) extends QuantifiedExp
 case class Exists(vars: Seq[LocalVarDecl], exp: Exp) extends QuantifiedExp
 case class Trigger(exps: Seq[Exp]) extends Node
 
-case class CondExp(cond: Exp, thn: Exp, els: Exp) extends MaybeBool
-case class Old(exp: Exp) extends MaybeNum with MaybeBool
+case class CondExp(cond: Exp, thn: Exp, els: Exp) extends Exp
+case class Old(exp: Exp) extends Exp
 
-case class LocalVar(name: String, typ: Type) extends Lhs with MaybeNum with MaybeBool
-case class FuncApp(name: String, args: Seq[Exp]) extends MaybeNum with MaybeBool
-case class MapSelect(map: Exp, idxs: Seq[Exp]) extends Lhs with MaybeNum with MaybeBool
+case class LocalVar(name: String, typ: Type) extends Exp
+case class FuncApp(name: String, args: Seq[Exp]) extends Exp
+case class MapSelect(map: Exp, idxs: Seq[Exp]) extends Exp
 
 // --- Statements
 
@@ -201,7 +190,7 @@ case class Goto(dests: Seq[Lbl]) extends Stmt
 case class Label(lbl: Lbl) extends Stmt
 case class Assume(exp: Exp) extends Stmt
 case class Assert(exp: Exp) extends Stmt
-case class Assign(lhs: Lhs, rhs: Exp) extends Stmt
+case class Assign(lhs: Exp, rhs: Exp) extends Stmt
 case class Havoc(vars: Seq[LocalVar]) extends Stmt
 case class If(cond: Exp, thn: Stmt, els: Stmt) extends Stmt
 case class Seqn(stmts: Seq[Stmt]) extends Stmt
