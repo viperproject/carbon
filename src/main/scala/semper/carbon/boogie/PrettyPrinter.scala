@@ -82,7 +82,7 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
       case Comment(c) =>
         "//" <+> c
       case CommentBlock(c, stmt) =>
-        show(Comment(c)) <>
+        line <> show(Comment(c)) <>
           nest(
             line <> showStmt(stmt)
           )
