@@ -35,7 +35,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule {
       case sil.MethodCall(m, rcv, args, targets) =>
         ???
       case sil.Seqn(ss) =>
-        Seqn(ss map translateStmt)
+        return Seqn(ss map translateStmt)
       case sil.While(cond, invs, locals, body) =>
         ???
       case sil.If(cond, thn, els) =>
