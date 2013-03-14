@@ -96,6 +96,12 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
     ) <> line)
   }
 
+  def showBlock(d: Doc) = {
+    braces(nest(
+      line <> d
+    ) <> line)
+  }
+
   def showStmts(stmts: Seq[Stmt]) = ssep(stmts map show, line)
 
   def showProgram(p: Program) = {
@@ -124,12 +130,16 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
       case Axiom(exp) =>
         "axiom" <+> show(exp) <> semi
       case Procedure(name, ins, outs, body) =>
+        val body2 = show(body)
+        val vars = body.undeclLocalVars map (v => LocalVarDecl(v.name, v.typ, None))
+        val vars2 = vars map (v => "var" <+> show(v) <> ";")
+        val vars3 = ssep(vars2, line) <> (if (vars2.size == 0) empty else line)
         "procedure" <+>
           name <>
           parens(commasep(ins)) <+>
           "returns" <+>
           parens(commasep(outs)) <+>
-          showBlock(body)
+          showBlock(vars3 <> body2)
       case CommentedDecl(s, d) =>
         "// ------------------------------------------" <> line <>
           "//" <+> value(s) <> line <>
