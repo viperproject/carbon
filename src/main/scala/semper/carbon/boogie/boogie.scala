@@ -220,6 +220,7 @@ case class Program(header: Seq[String], decls: Seq[Decl]) extends Node
 sealed trait Decl extends Node
 case class Const(name: String, typ: Type) extends Decl
 case class TypeDecl(t: NamedType) extends Decl
+case class TypeAlias(name: NamedType, definition: Type) extends Decl
 case class Func(name: String, args: Seq[LocalVarDecl], typ: Type) extends Decl
 case class Axiom(exp: Exp) extends Decl
 case class GlobalVarDecl(name: String, typ: Type) extends Decl

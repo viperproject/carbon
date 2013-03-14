@@ -121,6 +121,8 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
         "const" <+> name <+> show(typ) <> semi
       case TypeDecl(name) =>
         "type" <+> show(name) <> semi
+      case TypeAlias(name, definition) =>
+        "type" <+> show(name) <+> "=" <+> show(definition) <> semi
       case Func(name, args, typ) =>
         "function" <+>
           name <>

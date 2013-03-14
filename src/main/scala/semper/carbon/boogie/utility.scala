@@ -89,6 +89,7 @@ object Nodes {
         d match {
           case Const(name, typ) => Nil
           case TypeDecl(name) => Nil
+          case TypeAlias(n, d) => Nil
           case Func(name, args, typ) => args
           case Axiom(exp) => Seq(exp)
           case GlobalVarDecl(name, typ) => Nil
