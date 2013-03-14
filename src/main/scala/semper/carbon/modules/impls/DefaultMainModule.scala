@@ -21,6 +21,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
 
   import verifier.typeModule._
   import verifier.stmtModule._
+  import verifier.stateModule._
 
   def name = "Main module"
 
@@ -68,12 +69,13 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
   def translateMethod(m: sil.Method): Seq[Decl] = {
     _env = Environment(verifier, m)
     val res = m match {
-      case sil.Method(name, formalArgs, formalReturns, pres, posts, locals, body) =>
+      case sil.Method(name, formalArgs, formalReturns, pres, posts, locals, b) =>
         // TODO: handle pre/post
-        val proc = Procedure(name,
-          formalArgs map translateLocalVarDecl,
-          formalReturns map translateLocalVarDecl,
-          translateStmt(body))
+        val ins: Seq[LocalVarDecl] = formalArgs map translateLocalVarDecl
+        val outs: Seq[LocalVarDecl] = formalReturns map translateLocalVarDecl
+        val init = initState
+        val body: Stmt = translateStmt(b)
+        val proc = Procedure(name, ins, outs, Seqn(Seq(init, body)))
         CommentedDecl(s"Translation of method $name", proc)
     }
     _env = null
