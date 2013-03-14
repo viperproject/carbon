@@ -128,7 +128,7 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
           name <>
           parens(commasep(args)) <>
           colon <+>
-          show(typ)
+          show(typ) <> semi
       case GlobalVarDecl(name, typ) =>
         "var" <+> name <> colon <+> show(typ)
       case Axiom(exp) =>
