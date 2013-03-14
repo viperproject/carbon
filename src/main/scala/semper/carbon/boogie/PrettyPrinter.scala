@@ -135,7 +135,8 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
         "axiom" <+> show(exp) <> semi
       case Procedure(name, ins, outs, body) =>
         val body2 = show(body)
-        val vars = body.undeclLocalVars map (v => LocalVarDecl(v.name, v.typ, None))
+        val undecl = body.undeclLocalVars filter (v1 => (ins ++ outs).forall(v2 => v2.name != v1.name))
+        val vars = undecl map (v => LocalVarDecl(v.name, v.typ, None))
         val vars2 = vars map (v => "var" <+> show(v) <> ";")
         val vars3 = ssep(vars2, line) <> (if (vars2.size == 0) empty else line)
         "procedure" <+>
