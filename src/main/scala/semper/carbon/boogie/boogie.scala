@@ -6,6 +6,54 @@ import UnicodeString.string2unicodestring
 
 /** The root of the Boogie AST. */
 sealed trait Node {
+  /**
+   * Returns a list of all direct sub-nodes of this node.
+   */
+  def subnodes = Nodes.subnodes(this)
+
+  /**
+   * Applies the function `f` to the node and the results of the subnodes.
+   */
+  def reduce[T](f: (Node, Seq[T]) => T) = Visitor.reduce[T](this)(f)
+
+  /**
+   * More powerful version of reduce that also carries a context argument through the tree.
+   */
+  def reduce[C, R](context: C, enter: (Node, C) => C, combine: (Node, C, Seq[R]) => R) = {
+    Visitor.reduce[C, R](this)(context, enter, combine)
+  }
+
+  /**
+   * Applies the function `f` to the AST node, then visits all subnodes.
+   */
+  def visit(f: Node => Unit) {
+    Visitor.visit(this)(f)
+  }
+
+  /**
+   * Applies the function `f1` to the AST node, then visits all subnodes,
+   * and finally calls `f2` to the AST node.
+   */
+  def visit(n: Node, f1: Node => Unit, f2: Node => Unit) {
+    Visitor.visit(this, f1, f2)
+  }
+
+  /**
+   * Applies the function `f` to the AST node, then visits all subnodes if `f`
+   * returned true.
+   */
+  def visitOpt(n: Node)(f: Node => Boolean) {
+    Visitor.visitOpt(this)(f)
+  }
+
+  /**
+   * Applies the function `f1` to the AST node, then visits all subnodes if `f1`
+   * returned true, and finally calls `f2` to the AST node.
+   */
+  def visitOpt(n: Node, f1: Node => Boolean, f2: Node => Unit) {
+    Visitor.visitOpt(this, f1, f2)
+  }
+
   override def toString = PrettyPrinter.pretty(this)
 }
 
@@ -138,14 +186,15 @@ case class MapSelect(map: Exp, idxs: Seq[Exp]) extends Lhs with MaybeNum with Ma
 sealed trait Stmt extends Node {
   /**
    * Returns a list of all actual statements contained in this statement.  That
-   * is, all statements except `Seqn`, including statements in both branches of
-   * conditionals.
+   * is, all statements except `Seqn`, including statements in the body of loops, etc.
    */
-  def children: Seq[Stmt] = this match {
-    case If(_, thn, els) => Seq(this, thn, els)
-    case NondetIf(thn, els) => Seq(this, thn, els)
-    case _ => Seq(this)
-  }
+  def children = Statements.children(this)
+
+  /**
+   * Returns a list of all undeclared local variables contained in this statement and
+   * throws an exception if the same variable is used with different types.
+   */
+  def undeclLocalVars = Statements.undeclLocalVars(this)
 }
 case class Lbl(name: String)
 case class Goto(dests: Seq[Lbl]) extends Stmt
