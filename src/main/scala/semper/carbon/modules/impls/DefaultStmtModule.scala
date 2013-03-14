@@ -18,10 +18,10 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule {
 
   def name = "Statement module"
   override def translateStmt(stmt: sil.Stmt): Stmt = {
-    var comment = "-- Translation of statement: " + stmt.toString
+    var comment = "Translating statement: " + stmt.toString
     val translation = (stmt match {
       case sil.LocalVarAssign(lhs, rhs) =>
-        Assign(translateExp(lhs).asInstanceOf[Lhs], translateExp(rhs))
+        Assign(translateExp(lhs), translateExp(rhs))
       case sil.FieldAssign(lhs, rhs) =>
         ???
       case sil.Fold(e) =>
@@ -41,7 +41,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule {
       case sil.While(cond, invs, locals, body) =>
         ???
       case sil.If(cond, thn, els) =>
-        comment = s"Translation of statement: if ($cond)"
+        comment = s"Translating statement: if ($cond)"
         If(translateExp(cond),
           translateStmt(thn),
           translateStmt(els))
@@ -50,7 +50,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule {
       case sil.Goto(target) =>
         ???
       case sil.FreshReadPerm(vars, body) =>
-        comment = s"Translation of statement: fresh(${vars.mkString(", ")})"
+        comment = s"Translating statement: fresh(${vars.mkString(", ")})"
         ???
       case sil.NewStmt(target) =>
         ???
