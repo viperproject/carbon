@@ -22,6 +22,8 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   }
 
   def initState: Stmt = {
+    // initialize the state of all components and assume that afterwards the
+    // whole state is good
     Seqn(
       (components map (_.initState)) :+
         assumeGoodState
