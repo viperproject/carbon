@@ -18,6 +18,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule {
 
   def name = "Statement module"
   override def translateStmt(stmt: sil.Stmt): Stmt = {
+    var comment = "-- Translation of statement: " + stmt.toString
     val translation = (stmt match {
       case sil.LocalVarAssign(lhs, rhs) =>
         Assign(translateExp(lhs).asInstanceOf[Lhs], translateExp(rhs))
@@ -35,22 +36,27 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule {
       case sil.MethodCall(m, rcv, args, targets) =>
         ???
       case sil.Seqn(ss) =>
+        // return to avoid adding a comment, and to avoid the extra 'assumeGoodState'
         return Seqn(ss map translateStmt)
       case sil.While(cond, invs, locals, body) =>
         ???
       case sil.If(cond, thn, els) =>
-        ???
+        comment = s"Translation of statement: if ($cond)"
+        If(translateExp(cond),
+          translateStmt(thn),
+          translateStmt(els))
       case sil.Label(name) =>
         ???
       case sil.Goto(target) =>
         ???
       case sil.FreshReadPerm(vars, body) =>
+        comment = s"Translation of statement: fresh(${vars.mkString(", ")})"
         ???
       case sil.NewStmt(target) =>
         ???
     }) ::
       assumeGoodState ::
       Nil
-    CommentBlock("-- Translation of statement: " + stmt.toString, translation)
+    CommentBlock(comment, translation)
   }
 }
