@@ -10,7 +10,9 @@ import semper.carbon.modules._
  */
 trait Verifier {
 
-  // Modules
+  // All modules
+  // Note: we use vals to make it possible to import methods from other modules for
+  // convenience.
   val mainModule: MainModule
   val heapModule: HeapModule
   val stateModule: StateModule
