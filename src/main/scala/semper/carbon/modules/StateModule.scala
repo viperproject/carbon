@@ -10,6 +10,6 @@ import semper.sil.{ast => sil}
  *
  * @author Stefan Heule
  */
-trait StateModule extends Module with ComponentRegistry[StateComponent] {
+trait StateModule extends Module with StateComponent with ComponentRegistry[StateComponent] {
 
 }
