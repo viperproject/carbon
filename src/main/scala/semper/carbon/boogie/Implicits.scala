@@ -9,4 +9,5 @@ import language.implicitConversions
  */
 object Implicits {
   implicit def lift[T](t: T): Seq[T] = Seq(t)
+  implicit def liftStmt(ss: Seq[Stmt])= Seqn(ss)
 }

@@ -15,6 +15,8 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   def name = "State module"
   private val isGoodState = "IsGoodState"
 
+  override def assumeGoodState = Assume(FuncApp(isGoodState, currentStateContributions))
+
   override def preamble = {
     Func(isGoodState, stateContributions, Bool)
   }
@@ -22,7 +24,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   def initState: Stmt = {
     Seqn(
       (components map (_.initState)) :+
-        Assume(FuncApp(isGoodState, currentStateContributions))
+        assumeGoodState
     )
   }
   def stateContributions: Seq[LocalVarDecl] = components flatMap (_.stateContributions)
