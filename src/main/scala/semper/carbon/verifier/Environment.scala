@@ -22,7 +22,7 @@ case class Environment(verifier: Verifier, member: sil.Member) {
   // register types from member
   member match {
     case l: sil.Location =>
-      // none
+    // none
     case sil.Method(name, args, returns, pres, posts, locals, body) =>
       for (v <- args ++ returns ++ locals) {
         define(v.localVar)
@@ -47,9 +47,10 @@ case class Environment(verifier: Verifier, member: sil.Member) {
   }
 
   /**
-   * Defines a local variable in this environment for a given (Boogie) type.
+   * Defines a local variable in this environment for a given SIL variable, and returns the corresponding
+   * Boogie variable.
    */
-  def define(variable: sil.AbstractLocalVar) {
+  def define(variable: sil.AbstractLocalVar): LocalVar = {
     currentMapping.get(variable) match {
       case Some(t) =>
         sys.error(s"Internal Error: variable $variable is already defined.")
@@ -60,10 +61,29 @@ case class Environment(verifier: Verifier, member: sil.Member) {
         if (!conflict) {
           val bvar = LocalVar(name, verifier.typeModule.translateType(variable.typ))
           currentMapping.put(variable, bvar)
+          bvar
         } else {
           // try another name (the uniqueName method will use another one next time)
           define(variable)
         }
+    }
+  }
+
+  /**
+   * Defines a local variable in this environment for a given name and (Boogie) type.
+   * The name is uniquified and the Boogie variable is returned.  Note that variables defined
+   * this way (instead of providing a [[semper.sil.ast.AbstractLocalVar]]) cannot be retrieved
+   * again.
+   */
+  def define(name: String, typ: Type): LocalVar = {
+    val uName = uniqueName(name)
+    // check for conflicts with any of the modules
+    val conflict = verifier.allModules exists (_.definesGlobalVar(name))
+    if (!conflict) {
+      LocalVar(uName, typ)
+    } else {
+      // try another name (the uniqueName method will use another one next time)
+      define(name, typ)
     }
   }
 
