@@ -28,7 +28,7 @@ trait Verifier {
    * A list of all modules.
    */
   def allModules: Seq[Module] =
-    Seq(mainModule, heapModule, stmtModule, expModule, typeModule,
+    Seq(mainModule, stateModule, heapModule, stmtModule, expModule, typeModule,
       exhaleModule, inhaleModule, funcPredModule, permModule)
 
   /**
