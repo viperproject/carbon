@@ -66,7 +66,7 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
       case Assert(e) =>
         "assert" <+> show(e) <> semi
       case Havoc(vars) =>
-        "assume" <+> commasep(vars) <> semi
+        "havoc" <+> commasep(vars) <> semi
       case Goto(dests) =>
         "goto" <+> ssep(dests map value, comma <> space)
       case Assign(lhs, rhs) =>
