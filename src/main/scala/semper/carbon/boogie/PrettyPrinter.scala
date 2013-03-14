@@ -26,7 +26,7 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
       case m: Decl => showDecl(m)
       case t: Trigger => showTrigger(t)
       case l: LocalVarDecl =>
-        "var" <+> showVar(l)
+        showVar(l)
     }
   }
 
