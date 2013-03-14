@@ -30,6 +30,11 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
   val mainModule = new DefaultMainModule(this)
   val stateModule = new DefaultStateModule(this)
 
+  // initialize all modules
+  allModules foreach (m => {
+    m.initialize()
+  })
+
   /** The (unresolved) path where Boogie is supposed to be located. */
   var _boogiePath: String = "${BOOGIE_EXE}"
 

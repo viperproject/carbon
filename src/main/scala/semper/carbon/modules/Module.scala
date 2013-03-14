@@ -19,6 +19,13 @@ trait Module {
   def name: String
 
   /**
+   * Initialize this module and register any potential components with other modules.  At the point
+   * where this method is called, all modules in Verifier have been set, but the other modules
+   * might not have been fully initialized (by calling this method).
+   */
+  def initialize() {}
+
+  /**
    * The Boogie code that this module will insert into the preamble (optional).
    *
    * The convention is that the verifier will first translate the full SIL program, and only after the
