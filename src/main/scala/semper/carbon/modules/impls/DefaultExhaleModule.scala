@@ -22,8 +22,7 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
   }
 
   override def exhale(exps: Seq[sil.Exp]): Stmt = {
-    CommentBlock("Exhaling postcondition",
-      exps map exhaleConnective)
+    exps map exhaleConnective
   }
 
   /**

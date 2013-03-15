@@ -15,6 +15,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule {
 
   import verifier.expModule._
   import verifier.stateModule._
+  import verifier.exhaleModule._
 
   def name = "Statement module"
   override def translateStmt(stmt: sil.Stmt): Stmt = {
@@ -31,8 +32,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule {
       case sil.Inhale(e) =>
         ???
       case sil.Exhale(e) =>
-        // TODO: use the exhale module
-        Assert(translateExp(e))
+        exhale(e)
       case sil.MethodCall(m, rcv, args, targets) =>
         ???
       case sil.Seqn(ss) =>

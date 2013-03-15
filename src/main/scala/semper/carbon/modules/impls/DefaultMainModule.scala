@@ -74,9 +74,9 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
         // TODO: handle pre/post
         val ins: Seq[LocalVarDecl] = formalArgs map translateLocalVarDecl
         val outs: Seq[LocalVarDecl] = formalReturns map translateLocalVarDecl
-        val init = initState
+        val init = CommentBlock("Initializing the state", initState)
         val body: Stmt = translateStmt(b)
-        val end = exhale(posts)
+        val end = CommentBlock("Exhaling postcondition", exhale(posts))
         val proc = Procedure(name, ins, outs, Seq(init, body, end))
         CommentedDecl(s"Translation of method $name", proc)
     }
