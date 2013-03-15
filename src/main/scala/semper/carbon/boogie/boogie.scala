@@ -3,6 +3,7 @@ package semper.carbon.boogie
 
 import org.kiama.output._
 import UnicodeString.string2unicodestring
+import semper.sil.verifier.VerificationError
 
 /** The root of the Boogie AST. */
 sealed trait Node {
@@ -189,7 +190,16 @@ case class Lbl(name: String)
 case class Goto(dests: Seq[Lbl]) extends Stmt
 case class Label(lbl: Lbl) extends Stmt
 case class Assume(exp: Exp) extends Stmt
-case class Assert(exp: Exp) extends Stmt
+case class Assert(exp: Exp, error: VerificationError) extends Stmt {
+  var id = AssertIds.next // Used for mapping errors in the output back to VerificationErrors
+}
+object AssertIds {
+  var id = 0
+  def next = {
+    id += 1
+    id - 1
+  }
+}
 case class Assign(lhs: Exp, rhs: Exp) extends Stmt
 case class Havoc(vars: Seq[LocalVar]) extends Stmt
 case class If(cond: Exp, thn: Stmt, els: Stmt) extends Stmt

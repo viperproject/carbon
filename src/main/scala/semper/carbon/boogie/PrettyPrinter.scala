@@ -2,6 +2,7 @@ package semper.carbon.boogie
 
 import org.kiama.output._
 import UnicodeString.string2unicodestring
+import semper.sil.verifier.VerificationError
 
 /**
  * A pretty printer for the Boogie AST.
@@ -65,8 +66,11 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
     s match {
       case Assume(e) =>
         "assume" <+> show(e) <> semi
-      case Assert(e) =>
-        "assert" <+> show(e) <> semi
+      case a@Assert(e, error) =>
+        "assert" <+>
+          "{:msg" <+> "\"  " <> showError(error, a.id) <> "\"}" <+>
+          show(e) <>
+          semi
       case Havoc(vars) =>
         "havoc" <+> commasep(vars) <> semi
       case Goto(dests) =>
@@ -89,6 +93,10 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
       case Seqn(ss) =>
         showStmts(ss)
     }
+  }
+
+  def showError(error: VerificationError, id: Int) = {
+    s"${error.readableMessage} [${id}]"
   }
 
   def showBlock(stmt: Stmt) = {

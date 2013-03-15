@@ -99,7 +99,7 @@ object Nodes {
       case s: Stmt =>
         s match {
           case Assign(lhs, rhs) => Seq(lhs, rhs)
-          case Assert(e) => Seq(e)
+          case Assert(e, error) => Seq(e)
           case Assume(e) => Seq(e)
           case Havoc(es) => es
           case Comment(s) => Nil

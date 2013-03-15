@@ -11,6 +11,7 @@ import semper.carbon.boogie.CommentedDecl
 import semper.carbon.boogie.Procedure
 import semper.carbon.boogie.Program
 import semper.carbon.verifier.Environment
+import semper.sil.verifier.errors
 
 /**
  * The default implementation of a [[semper.carbon.modules.MainModule]].
@@ -72,11 +73,12 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
     val res = m match {
       case sil.Method(name, formalArgs, formalReturns, pres, posts, locals, b) =>
         // TODO: handle pre/post
+        val postsWithErrors = posts map (p => (p, errors.PostconditionViolated(p)))
         val ins: Seq[LocalVarDecl] = formalArgs map translateLocalVarDecl
         val outs: Seq[LocalVarDecl] = formalReturns map translateLocalVarDecl
         val init = CommentBlock("Initializing the state", initState)
         val body: Stmt = translateStmt(b)
-        val end = CommentBlock("Exhaling postcondition", exhale(posts))
+        val end = CommentBlock("Exhaling postcondition", exhale(postsWithErrors))
         val proc = Procedure(name, ins, outs, Seq(init, body, end))
         CommentedDecl(s"Translation of method $name", proc)
     }

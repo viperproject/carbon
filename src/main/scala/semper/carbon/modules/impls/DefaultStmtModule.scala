@@ -5,6 +5,7 @@ import semper.sil.{ast => sil}
 import semper.carbon.boogie._
 import semper.carbon.verifier.Verifier
 import Implicits._
+import semper.sil.verifier.errors
 
 /**
  * The default implementation of a [[semper.carbon.modules.StmtModule]].
@@ -32,7 +33,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule {
       case sil.Inhale(e) =>
         ???
       case sil.Exhale(e) =>
-        exhale(e)
+        exhale((e, errors.AssertionViolated(e)))
       case sil.MethodCall(m, rcv, args, targets) =>
         ???
       case sil.Seqn(ss) =>

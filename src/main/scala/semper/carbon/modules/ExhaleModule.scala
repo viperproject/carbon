@@ -3,6 +3,7 @@ package semper.carbon.modules
 import components.{ExhaleComponent, ComponentRegistry}
 import semper.sil.{ast => sil}
 import semper.carbon.boogie.{Stmt, Exp}
+import semper.sil.verifier.PartialVerificationError
 
 /**
  * A module for translating exhale statements.  The module takes care of the basic
@@ -17,5 +18,5 @@ import semper.carbon.boogie.{Stmt, Exp}
  * @author Stefan Heule
  */
 trait ExhaleModule extends Module with ExhaleComponent with ComponentRegistry[ExhaleComponent] {
-  def exhale(exp: Seq[sil.Exp]): Stmt
+  def exhale(exp: Seq[(sil.Exp, PartialVerificationError)]): Stmt
 }
