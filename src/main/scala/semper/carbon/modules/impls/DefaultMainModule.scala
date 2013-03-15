@@ -73,7 +73,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
     val res = m match {
       case sil.Method(name, formalArgs, formalReturns, pres, posts, locals, b) =>
         // TODO: handle pre/post
-        val postsWithErrors = posts map (p => (p, errors.PostconditionViolated(p)))
+        val postsWithErrors = posts map (p => (p, errors.PostconditionViolated(p, m)))
         val ins: Seq[LocalVarDecl] = formalArgs map translateLocalVarDecl
         val outs: Seq[LocalVarDecl] = formalReturns map translateLocalVarDecl
         val init = CommentBlock("Initializing the state", initState)
