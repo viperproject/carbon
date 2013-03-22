@@ -126,7 +126,7 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
   def showDecl(decl: Decl) = {
     decl match {
       case Const(name, typ) =>
-        "const" <+> name <+> show(typ) <> semi
+        "const" <+> name <> colon <+> show(typ) <> semi
       case TypeDecl(name) =>
         "type" <+> show(name) <> semi
       case TypeAlias(name, definition) =>
