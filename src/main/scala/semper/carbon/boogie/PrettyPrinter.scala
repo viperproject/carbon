@@ -9,7 +9,16 @@ import semper.sil.verifier.VerificationError
  *
  * @author Stefan Heule
  */
-object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrinter {
+object PrettyPrinter {
+  def pretty(n: Node): String = {
+    (new PrettyPrinter {}).pretty(n)
+  }
+}
+
+/**
+ * The class that implements most of the pretty-printing functionality.
+ */
+trait PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrinter {
 
   override val defaultIndent = 2
   /** Pretty-print any AST node. */
@@ -119,7 +128,7 @@ object PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrin
       showDecls(p.decls)
   }
 
-  def showDecls(ds: Seq[Decl]): PrettyPrinter.Doc = {
+  def showDecls(ds: Seq[Decl]): Doc = {
     ssep(ds map show, line <> line)
   }
 
