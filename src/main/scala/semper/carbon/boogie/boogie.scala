@@ -72,7 +72,7 @@ case object Int extends BuiltInType
 case object Bool extends BuiltInType
 case object Real extends BuiltInType
 case class TypeVar(name: String) extends Type
-case class NamedType(name: String, typVars: Seq[TypeVar] = Nil) extends Type
+case class NamedType(name: String, typVars: Seq[Type] = Nil) extends Type
 case class MapType(domains: Seq[Type], range: Type, typVars: Seq[TypeVar] = Nil) extends BuiltInType
 
 // --- Expressions
