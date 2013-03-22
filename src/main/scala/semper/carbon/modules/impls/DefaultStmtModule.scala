@@ -47,9 +47,9 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule {
           translateStmt(thn),
           translateStmt(els))
       case sil.Label(name) =>
-        ???
+        Label(Lbl(name))
       case sil.Goto(target) =>
-        ???
+        Goto(Lbl(target))
       case sil.FreshReadPerm(vars, body) =>
         comment = s"Translating statement: fresh(${vars.mkString(", ")})"
         ???
