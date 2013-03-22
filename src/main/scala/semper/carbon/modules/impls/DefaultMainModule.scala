@@ -24,6 +24,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
   import verifier.stmtModule._
   import verifier.stateModule._
   import verifier.exhaleModule._
+  import verifier.heapModule._
 
   def name = "Main module"
 
@@ -40,7 +41,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
       case sil.Program(name, domains, fields, functions, predicates, methods) =>
         // translate all members
         val members = (domains flatMap translateDomain) ++
-          (fields flatMap translateFieldDecl) ++
+          (CommentedDecl("Translation of all fields", fields flatMap translateFieldDecl)) ++
           (functions flatMap translateFunction) ++
           (predicates flatMap translatePredicate) ++
           (methods flatMap translateMethod)
@@ -86,8 +87,11 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
     res
   }
 
+  def translateFieldDecl(f: sil.Field): Seq[Decl] = {
+    translateField(f)
+  }
+
   def translateFunction(f: sil.Function): Seq[Decl] = ???
   def translateDomain(d: sil.Domain): Seq[Decl] = ???
-  def translateFieldDecl(f: sil.Field): Seq[Decl] = ???
   def translatePredicate(p: sil.Predicate): Seq[Decl] = ???
 }

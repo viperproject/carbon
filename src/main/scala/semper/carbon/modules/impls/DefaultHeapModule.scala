@@ -15,6 +15,7 @@ import semper.carbon.verifier.Verifier
 class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateComponent {
 
   import verifier.mainModule._
+  import verifier.typeModule._
 
   def name = "Heap module"
 
@@ -32,6 +33,10 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
       TypeDecl(fieldType) ::
       TypeAlias(heapTyp, MapType(Seq(refType, fieldType), TypeVar("T"), Seq(TypeVar("T")))) ::
       Nil
+  }
+
+  override def translateField(f: sil.Field) = {
+    Const(f.name, NamedType("Field", translateType(f.typ)))
   }
 
   def initState: Stmt = {

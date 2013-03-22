@@ -1,7 +1,7 @@
 package semper.carbon.modules
 
 import semper.sil.{ast => sil}
-import semper.carbon.boogie.{Type, Exp}
+import semper.carbon.boogie.{Decl, Type, Exp}
 
 /**
  * A module for translating heap expressions (access, updating) and determining
@@ -15,4 +15,9 @@ trait HeapModule extends Module {
    * The type used for references.
    */
   def refType: Type
+
+  /**
+   * Definitions for a field.
+   */
+  def translateField(f: sil.Field): Seq[Decl]
 }
