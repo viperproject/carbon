@@ -4,7 +4,6 @@ import org.kiama.output._
 import UnicodeString.string2unicodestring
 import semper.sil.verifier.VerificationError
 import semper.sil.utility.NameGenerator
-import semper.sil.ast
 
 /**
  * A pretty printer for the Boogie AST.
@@ -34,7 +33,7 @@ trait PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrint
   /**
     * Map an identifier to a string, making it unique first if necessary.
    */
-  implicit def ident2string(i: Identifier): Doc = {
+  implicit def ident2doc(i: Identifier): Doc = {
     map.get(i) match {
       case Some(s) => s
       case None =>
@@ -66,12 +65,12 @@ trait PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrint
 
   def showType(t: Type): Doc = {
     t match {
-      case Int => value("int")
-      case Bool => value("bool")
-      case Real => value("real")
-      case TypeVar(name) => value(name)
+      case Int => "int"
+      case Bool => "bool"
+      case Real => "real"
+      case TypeVar(name) => name
       case NamedType(name, typVars) =>
-        value(name) <> (if (typVars.size == 0) empty
+        name <> (if (typVars.size == 0) empty
         else space <> ssep(typVars map show, space))
       case MapType(doms, range, typVars) =>
         val tvs = typVars match {
@@ -107,7 +106,7 @@ trait PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrint
       case Havoc(vars) =>
         "havoc" <+> commasep(vars) <> semi
       case Goto(dests) =>
-        "goto" <+> ssep(dests map value, comma <> space)
+        "goto" <+> ssep(dests map (x => ident2doc(x.name)), comma <> space)
       case Assign(lhs, rhs) =>
         show(lhs) <+> ":=" <+> show(rhs) <> semi
       case Label(lbl) =>
@@ -129,7 +128,7 @@ trait PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrint
   }
 
   def showError(error: VerificationError, id: Int) = {
-    s"${error.readableMessage} [${id}]"
+    s"${error.readableMessage} [$id]"
   }
 
   def showBlock(stmt: Stmt) = {
@@ -228,7 +227,7 @@ trait PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrint
           commasep(vars) <+>
           ("•" or "::") <+>
           show(exp))
-      case LocalVar(name, typ) => value(name)
+      case LocalVar(name, typ) => name
       case FuncApp(name, args) =>
         name <> parens(commasep(args))
       case _: PrettyUnaryExpression | _: PrettyBinaryExpression => super.toParenDoc(e)
