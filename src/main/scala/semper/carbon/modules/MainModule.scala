@@ -25,6 +25,9 @@ trait MainModule extends Module {
   /** The current environment. */
   def env: Environment
 
+  /** The namespace for SIL local variables. */
+  def silVarNamespace: Namespace
+
   def translateFunction(f: sil.Function): Seq[Decl]
   def translateDomain(d: sil.Domain): Seq[Decl]
   def translateFieldDecl(f: sil.Field): Seq[Decl]

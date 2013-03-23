@@ -1,7 +1,7 @@
 package semper.carbon.verifier
 
 import semper.sil.{ast => sil}
-import semper.carbon.boogie.LocalVar
+import semper.carbon.boogie.{Identifier, LocalVar}
 import semper.sil.utility.NameGenerator
 
 /**
@@ -54,7 +54,7 @@ case class Environment(verifier: Verifier, member: sil.Member) {
         sys.error(s"Internal Error: variable $variable is already defined.")
       case None =>
         val name = uniqueName(variable.name)
-        val bvar = LocalVar(name, verifier.typeModule.translateType(variable.typ))
+        val bvar = LocalVar(Identifier(name)(verifier.mainModule.silVarNamespace), verifier.typeModule.translateType(variable.typ))
         currentMapping.put(variable, bvar)
         bvar
     }

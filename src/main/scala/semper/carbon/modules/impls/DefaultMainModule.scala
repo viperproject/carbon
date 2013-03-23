@@ -32,6 +32,9 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
   var _env: Environment = null
   override def env = _env
 
+  override val silVarNamespace = verifier.freshNamespace("main.silvar")
+  implicit val mainNamespace = verifier.freshNamespace("main")
+
   override def translateLocalVarDecl(l: sil.LocalVarDecl): LocalVarDecl = {
     LocalVarDecl(env.get(l.localVar).name, translateType(l.typ))
   }
@@ -80,7 +83,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
         val init = CommentBlock("Initializing the state", initState)
         val body: Stmt = translateStmt(b)
         val end = CommentBlock("Exhaling postcondition", exhale(postsWithErrors))
-        val proc = Procedure(name, ins, outs, Seq(init, body, end))
+        val proc = Procedure(Identifier(name), ins, outs, Seq(init, body, end))
         CommentedDecl(s"Translation of method $name", proc)
     }
     _env = null

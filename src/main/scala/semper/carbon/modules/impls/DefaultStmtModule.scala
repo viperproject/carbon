@@ -18,6 +18,8 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule {
   import verifier.stateModule._
   import verifier.exhaleModule._
 
+  val lblNamespace = verifier.freshNamespace("stmt.lbl")
+
   def name = "Statement module"
   override def translateStmt(stmt: sil.Stmt): Stmt = {
     var comment = "Translating statement: " + stmt.toString
@@ -47,9 +49,9 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule {
           translateStmt(thn),
           translateStmt(els))
       case sil.Label(name) =>
-        Label(Lbl(name))
+        Label(Lbl(Identifier(name)(lblNamespace)))
       case sil.Goto(target) =>
-        Goto(Lbl(target))
+        Goto(Lbl(Identifier(target)(lblNamespace)))
       case sil.FreshReadPerm(vars, body) =>
         comment = s"Translating statement: fresh(${vars.mkString(", ")})"
         ???

@@ -39,7 +39,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   }
 
   override def translateField(f: sil.Field) = {
-    Const(Identifier(f.name, fieldNamespace), NamedType(fieldTypeName, translateType(f.typ)))
+    Const(Identifier(f.name)(fieldNamespace), NamedType(fieldTypeName, translateType(f.typ)))
   }
 
   def initState: Stmt = {

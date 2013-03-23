@@ -70,27 +70,32 @@ case class LocalVarDecl(name: Identifier, typ: Type, where: Option[Exp] = None) 
  * identifiers refer to the same thing), but the pretty-printer then tries to use
  * the name `preferredName` if possible.
  */
-case class Identifier(name: String, namespace: Namespace) {
+trait Identifier {
+  def name: String
+  def namespace: Namespace
   def preferredName = name
+  override def equals(o: Any) = {
+    o match {
+      case Identifier(n, ns) => n == name && ns == namespace
+      case _ => false
+    }
+  }
+  override def hashCode = List(name, namespace).hashCode
 }
 case object Identifier {
-  def apply(name: String)(implicit namespace: Namespace): Identifier = Identifier(name, namespace)
+  def apply(n: String)(implicit ns: Namespace): Identifier =
+    new Identifier {
+      val name = n
+      val namespace = ns
+    }
+  def unapply(i: Identifier) = Some(i.name, i.namespace)
 }
 /**
  * A namespace to make it easier to avoid duplicated entities in the Boogie output.
  * @param name The name of the namespace; only used for debugging purposes.
  * @param id The ID of this namespace; used to identify the namespace.
- * @param typ Which of the different categories for Boogie identifiers does
- *            this namespace fall into.
  */
-case class Namespace(name: String, id: Int, typ: NamespaceType.Value = NamespaceType.Variables)
-/**
- * Type of a namespace (see Boogie manual on identifiers).
- */
-object NamespaceType extends Enumeration {
-  type NamespaceType = Value
-  val Variables, Procedures, Types, Functions, Attributes = Value
-}
+case class Namespace(name: String, id: Int)
 
 
 // --- Types

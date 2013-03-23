@@ -15,10 +15,12 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   def name = "State module"
   private val isGoodState = "IsGoodState"
 
-  override def assumeGoodState = Assume(FuncApp(isGoodState, currentStateContributions))
+  implicit val stateNamespace = verifier.freshNamespace("state")
+
+  override def assumeGoodState = Assume(FuncApp(Identifier(isGoodState), currentStateContributions))
 
   override def preamble = {
-    Func(isGoodState, stateContributions, Bool)
+    Func(Identifier(isGoodState), stateContributions, Bool)
   }
 
   def initState: Stmt = {
