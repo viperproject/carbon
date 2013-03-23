@@ -1,11 +1,14 @@
 package semper.carbon.verifier
 
 import semper.sil.{ast => sil}
-import semper.carbon.boogie.{Type, LocalVar}
+import semper.carbon.boogie.LocalVar
 import semper.sil.utility.NameGenerator
 
 /**
- * An environment that defines mapping of variables during the translation.
+ * An environment that assigns unique names to SIL variables;  in SIL, loops can have
+ * local variables and thus a method might have two declarations of a local variable
+ * with the same name (in different loops).  In Boogie on the other hand, all variables
+ * need to be unique.
  *
  * @author Stefan Heule
  */
@@ -14,21 +17,16 @@ case class Environment(verifier: Verifier, member: sil.Member) {
   private val names = NameGenerator()
 
   /** The current mapping of variables. */
-  private val currentMapping = collection.mutable.HashMap[sil.AbstractLocalVar, LocalVar]()
-
-  // register 'this'
-  define(sil.ThisLit()())
+  private val currentMapping = collection.mutable.HashMap[sil.LocalVar, LocalVar]()
 
   // register types from member
   member match {
     case l: sil.Location =>
-    // none
     case sil.Method(name, args, returns, pres, posts, locals, body) =>
       for (v <- args ++ returns ++ locals) {
         define(v.localVar)
       }
     case f@sil.Function(name, args, pres, posts, exp) =>
-      define(f.result)
       for (v <- args) {
         define(v.localVar)
       }
@@ -50,40 +48,15 @@ case class Environment(verifier: Verifier, member: sil.Member) {
    * Defines a local variable in this environment for a given SIL variable, and returns the corresponding
    * Boogie variable.
    */
-  def define(variable: sil.AbstractLocalVar): LocalVar = {
+  def define(variable: sil.LocalVar): LocalVar = {
     currentMapping.get(variable) match {
       case Some(t) =>
         sys.error(s"Internal Error: variable $variable is already defined.")
       case None =>
         val name = uniqueName(variable.name)
-        // check for conflicts with any of the modules
-        val conflict = verifier.allModules exists (_.definesGlobalVar(name))
-        if (!conflict) {
-          val bvar = LocalVar(name, verifier.typeModule.translateType(variable.typ))
-          currentMapping.put(variable, bvar)
-          bvar
-        } else {
-          // try another name (the uniqueName method will use another one next time)
-          define(variable)
-        }
-    }
-  }
-
-  /**
-   * Defines a local variable in this environment for a given name and (Boogie) type.
-   * The name is uniquified and the Boogie variable is returned.  Note that variables defined
-   * this way (instead of providing a [[semper.sil.ast.AbstractLocalVar]]) cannot be retrieved
-   * again.
-   */
-  def define(name: String, typ: Type): LocalVar = {
-    val uName = uniqueName(name)
-    // check for conflicts with any of the modules
-    val conflict = verifier.allModules exists (_.definesGlobalVar(name))
-    if (!conflict) {
-      LocalVar(uName, typ)
-    } else {
-      // try another name (the uniqueName method will use another one next time)
-      define(name, typ)
+        val bvar = LocalVar(name, verifier.typeModule.translateType(variable.typ))
+        currentMapping.put(variable, bvar)
+        bvar
     }
   }
 

@@ -2,6 +2,7 @@ package semper.carbon.verifier
 
 import semper.sil.{ast => sil}
 import semper.carbon.modules._
+import semper.carbon.boogie.Namespace
 
 /**
  * A verifier for SIL in Carbon (defines what modules need to be available).
@@ -45,4 +46,9 @@ trait Verifier {
    * A descriptive string for every dependency
    */
   def dependencyDescs: Seq[String]
+
+  /**
+   * Create a new namespace with a unique ID.
+   */
+  def freshNamespace(name: String): Namespace
 }

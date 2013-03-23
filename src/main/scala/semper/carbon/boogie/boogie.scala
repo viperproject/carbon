@@ -62,7 +62,36 @@ sealed trait Node {
  * A local variable declaration.  Note that this is not a statement, as local variables do not
  * have to be declared.
  */
-case class LocalVarDecl(name: String, typ: Type, where: Option[Exp] = None) extends Node
+case class LocalVarDecl(name: Identifier, typ: Type, where: Option[Exp] = None) extends Node
+
+/**
+ * An identifier of a Boogie program.  Creators of identifiers must make sure that
+ * names from the same category are unique in any given program (otherwise, the two
+ * identifiers refer to the same thing), but the pretty-printer then tries to use
+ * the name `preferredName` if possible.
+ */
+case class Identifier(name: String, namespace: Namespace) {
+  def preferredName = name
+}
+case object Identifier {
+  def apply(name: String)(implicit namespace: Namespace): Identifier = Identifier(name, namespace)
+}
+/**
+ * A namespace to make it easier to avoid duplicated entities in the Boogie output.
+ * @param name The name of the namespace; only used for debugging purposes.
+ * @param id The ID of this namespace; used to identify the namespace.
+ * @param typ Which of the different categories for Boogie identifiers does
+ *            this namespace fall into.
+ */
+case class Namespace(name: String, id: Int, typ: NamespaceType.Value = NamespaceType.Variables)
+/**
+ * Type of a namespace (see Boogie manual on identifiers).
+ */
+object NamespaceType extends Enumeration {
+  type NamespaceType = Value
+  val Variables, Procedures, Types, Functions, Attributes = Value
+}
+
 
 // --- Types
 
@@ -167,8 +196,8 @@ case class Trigger(exps: Seq[Exp]) extends Node
 case class CondExp(cond: Exp, thn: Exp, els: Exp) extends Exp
 case class Old(exp: Exp) extends Exp
 
-case class LocalVar(name: String, typ: Type) extends Exp
-case class FuncApp(name: String, args: Seq[Exp]) extends Exp
+case class LocalVar(name: Identifier, typ: Type) extends Exp
+case class FuncApp(name: Identifier, args: Seq[Exp]) extends Exp
 case class MapSelect(map: Exp, idxs: Seq[Exp]) extends Exp
 
 // --- Statements
@@ -186,7 +215,7 @@ sealed trait Stmt extends Node {
    */
   def undeclLocalVars = Statements.undeclLocalVars(this)
 }
-case class Lbl(name: String)
+case class Lbl(name: Identifier)
 case class Goto(dests: Seq[Lbl]) extends Stmt
 case class Label(lbl: Lbl) extends Stmt
 case class Assume(exp: Exp) extends Stmt
@@ -217,11 +246,11 @@ case class CommentBlock(s: String, stmt: Stmt) extends Stmt
 
 case class Program(header: Seq[String], decls: Seq[Decl]) extends Node
 sealed trait Decl extends Node
-case class Const(name: String, typ: Type) extends Decl
+case class Const(name: Identifier, typ: Type) extends Decl
 case class TypeDecl(t: NamedType) extends Decl
 case class TypeAlias(name: NamedType, definition: Type) extends Decl
-case class Func(name: String, args: Seq[LocalVarDecl], typ: Type) extends Decl
+case class Func(name: Identifier, args: Seq[LocalVarDecl], typ: Type) extends Decl
 case class Axiom(exp: Exp) extends Decl
-case class GlobalVarDecl(name: String, typ: Type) extends Decl
-case class Procedure(name: String, ins: Seq[LocalVarDecl], outs: Seq[LocalVarDecl], body: Stmt) extends Decl
+case class GlobalVarDecl(name: Identifier, typ: Type) extends Decl
+case class Procedure(name: Identifier, ins: Seq[LocalVarDecl], outs: Seq[LocalVarDecl], body: Stmt) extends Decl
 case class CommentedDecl(s: String, d: Seq[Decl]) extends Decl

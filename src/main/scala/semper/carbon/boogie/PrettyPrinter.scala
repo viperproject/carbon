@@ -3,6 +3,8 @@ package semper.carbon.boogie
 import org.kiama.output._
 import UnicodeString.string2unicodestring
 import semper.sil.verifier.VerificationError
+import semper.sil.utility.NameGenerator
+import semper.sil.ast
 
 /**
  * A pretty printer for the Boogie AST.
@@ -19,6 +21,28 @@ object PrettyPrinter {
  * The class that implements most of the pretty-printing functionality.
  */
 trait PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrinter {
+
+  /** NameGenerator instance. */
+  private val names = NameGenerator()
+
+  /**
+   * The current mapping from identifier to names.
+   */
+  private val map = collection.mutable.HashMap[Identifier, String]()
+
+  import language.implicitConversions
+  /**
+    * Map an identifier to a string, making it unique first if necessary.
+   */
+  implicit def ident2string(i: Identifier): Doc = {
+    map.get(i) match {
+      case Some(s) => s
+      case None =>
+        val s = names.createUniqueIdentifier(i.preferredName)
+        map.put(i, s)
+        s
+    }
+  }
 
   override val defaultIndent = 2
   /** Pretty-print any AST node. */

@@ -1,5 +1,6 @@
 package semper.carbon
 
+import boogie.Namespace
 import modules.impls._
 import semper._
 import sil.ast.Program
@@ -18,6 +19,12 @@ import verifier.{Environment, Verifier}
 case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) extends Verifier with sil.verifier.Verifier {
 
   var env = null
+
+  private var namespaceId = 0
+  override def freshNamespace(name: String): Namespace = {
+    namespaceId += 1
+    Namespace(name, namespaceId)
+  }
 
   val stmtModule = new DefaultStmtModule(this)
   val expModule = new DefaultExpModule(this)
