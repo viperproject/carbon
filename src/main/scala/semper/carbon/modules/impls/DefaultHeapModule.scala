@@ -28,15 +28,19 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
 
   private val fieldTypeName = "Field"
   private val fieldType = NamedType(fieldTypeName, TypeVar("T"))
-  private val selfName = "this"
-  private val self = LocalVar(Identifier(selfName), refType)
+  private val selfName = Identifier("self")
+  private val self = LocalVar(selfName, refType)
   private val heapTyp = NamedType("HeapType")
-  private val heapName = "Heap"
+  private val heapName = Identifier("Heap")
   private var heap: LocalVar = null
+  private val nullName = Identifier("null")
+  private val nullLit = ConstUse(nullName)
+  private val freshObjectVar = LocalVar(Identifier("freshObj"), refType)
   override def refType = NamedType("Ref")
 
   override def preamble = {
     TypeDecl(refType) ::
+      Const(nullName, refType) ::
       TypeDecl(fieldType) ::
       TypeAlias(heapTyp, MapType(Seq(refType, fieldType), TypeVar("T"), Seq(TypeVar("T")))) ::
       Nil
@@ -60,7 +64,10 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
       case sil.FieldAssign(lhs, rhs) =>
         translateFieldAccess(lhs) := translateExp(rhs)
       case sil.NewStmt(target) =>
-        ???
+        Havoc(freshObjectVar) ::
+          Assume(freshObjectVar !== nullLit) ::
+          (translateExp(target) := freshObjectVar) ::
+          Nil
       case _ => Statements.EmptyStmt
     }
   }
@@ -68,9 +75,9 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   override def translateThis(): Exp = self
 
   def initState: Stmt = {
-    heap = LocalVar(Identifier(heapName), heapTyp)
+    heap = LocalVar(heapName, heapTyp)
     Havoc(heap)
   }
-  def stateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(Identifier(heapName), heapTyp))
+  def stateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(heapName, heapTyp))
   def currentStateContributions: Seq[Exp] = Seq(heap)
 }
