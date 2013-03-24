@@ -36,6 +36,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   private val nullName = Identifier("null")
   private val nullLit = Const(nullName)
   private val freshObjectVar = LocalVar(Identifier("freshObj"), refType)
+  private val allocName = Identifier("$alloc")(fieldNamespace)
   override def refType = NamedType("Ref")
 
   override def preamble = {
@@ -43,6 +44,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
       ConstDecl(nullName, refType) ::
       TypeDecl(fieldType) ::
       TypeAlias(heapTyp, MapType(Seq(refType, fieldType), TypeVar("T"), Seq(TypeVar("T")))) ::
+      ConstDecl(allocName, NamedType(fieldTypeName, Bool), unique = true) ::
       Nil
   }
 
@@ -64,8 +66,12 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
       case sil.FieldAssign(lhs, rhs) =>
         translateFieldAccess(lhs) := translateExp(rhs)
       case sil.NewStmt(target) =>
+        val allocField = MapSelect(heap, Seq(freshObjectVar, Const(allocName)))
         Havoc(freshObjectVar) ::
-          Assume(freshObjectVar !== nullLit) ::
+          Assume(
+            freshObjectVar !== nullLit &&
+              allocField === FalseLit()) ::
+          (allocField := TrueLit()) ::
           (translateExp(target) := freshObjectVar) ::
           Nil
       case _ => Statements.EmptyStmt
