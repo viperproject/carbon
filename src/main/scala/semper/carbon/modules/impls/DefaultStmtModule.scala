@@ -6,7 +6,7 @@ import semper.carbon.boogie._
 import semper.carbon.verifier.Verifier
 import Implicits._
 import semper.sil.verifier.errors
-import semper.carbon.modules.components.{StmtComponent, ComponentRegistry}
+import semper.carbon.modules.components.StmtComponent
 
 /**
  * The default implementation of a [[semper.carbon.modules.StmtModule]].
@@ -28,34 +28,34 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
 
   override def handleStmt(stmt: sil.Stmt): Stmt = {
     stmt match {
-    case sil.LocalVarAssign(lhs, rhs) =>
-      Assign(translateExp(lhs), translateExp(rhs))
-    case sil.Fold(e) =>
-      ???
-    case sil.Unfold(e) =>
-      ???
-    case sil.Inhale(e) =>
-      ???
-    case exh@sil.Exhale(e) =>
-      exhale((e, errors.ExhaleFailed(exh)))
-    case sil.MethodCall(m, rcv, args, targets) =>
-      ???
-    case sil.While(cond, invs, locals, body) =>
-      ???
-    case sil.If(cond, thn, els) =>
-      If(translateExp(cond),
-        translateStmt(thn),
-        translateStmt(els))
-    case sil.Label(name) =>
-      Label(Lbl(Identifier(name)(lblNamespace)))
-    case sil.Goto(target) =>
-      Goto(Lbl(Identifier(target)(lblNamespace)))
-    case sil.FreshReadPerm(vars, body) =>
-      ???
-    case _ =>
-      Statements.EmptyStmt
+      case sil.LocalVarAssign(lhs, rhs) =>
+        Assign(translateExp(lhs), translateExp(rhs))
+      case sil.Fold(e) =>
+        ???
+      case sil.Unfold(e) =>
+        ???
+      case sil.Inhale(e) =>
+        ???
+      case exh@sil.Exhale(e) =>
+        exhale((e, errors.ExhaleFailed(exh)))
+      case sil.MethodCall(m, rcv, args, targets) =>
+        ???
+      case sil.While(cond, invs, locals, body) =>
+        ???
+      case sil.If(cond, thn, els) =>
+        If(translateExp(cond),
+          translateStmt(thn),
+          translateStmt(els))
+      case sil.Label(name) =>
+        Label(Lbl(Identifier(name)(lblNamespace)))
+      case sil.Goto(target) =>
+        Goto(Lbl(Identifier(target)(lblNamespace)))
+      case sil.FreshReadPerm(vars, body) =>
+        ???
+      case _ =>
+        Statements.EmptyStmt
+    }
   }
-}
 
   override def translateStmt(stmt: sil.Stmt): Stmt = {
     var comment = "Translating statement: " + stmt.toString
