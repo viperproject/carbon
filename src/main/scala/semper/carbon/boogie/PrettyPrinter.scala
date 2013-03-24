@@ -162,7 +162,7 @@ trait PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrint
 
   def showDecl(decl: Decl) = {
     decl match {
-      case Const(name, typ, unique) =>
+      case ConstDecl(name, typ, unique) =>
         "const" <+>
           (if (unique) "unique" <> space else empty) <>
           name <>
@@ -238,7 +238,7 @@ trait PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrint
           ("•" or "::") <+>
           show(exp))
       case LocalVar(name, typ) => name
-      case ConstUse(name) => name
+      case Const(name) => name
       case MapSelect(map, idxs) =>
         show(map) <> "[" <> commasep(idxs) <> "]"
       case FuncApp(name, args) =>

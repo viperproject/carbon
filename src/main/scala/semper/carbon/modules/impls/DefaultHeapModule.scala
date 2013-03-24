@@ -34,20 +34,20 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   private val heapName = Identifier("Heap")
   private var heap: LocalVar = null
   private val nullName = Identifier("null")
-  private val nullLit = ConstUse(nullName)
+  private val nullLit = Const(nullName)
   private val freshObjectVar = LocalVar(Identifier("freshObj"), refType)
   override def refType = NamedType("Ref")
 
   override def preamble = {
     TypeDecl(refType) ::
-      Const(nullName, refType) ::
+      ConstDecl(nullName, refType) ::
       TypeDecl(fieldType) ::
       TypeAlias(heapTyp, MapType(Seq(refType, fieldType), TypeVar("T"), Seq(TypeVar("T")))) ::
       Nil
   }
 
   override def translateField(f: sil.Field) = {
-    Const(fieldIdentifier(f), NamedType(fieldTypeName, translateType(f.typ)), unique = true)
+    ConstDecl(fieldIdentifier(f), NamedType(fieldTypeName, translateType(f.typ)), unique = true)
   }
 
   /** Return the identifier corresponding to a SIL field. */
@@ -56,7 +56,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   }
 
   override def translateFieldAccess(f: sil.FieldAccess): Exp = {
-    MapSelect(heap, Seq(translateExp(f.rcv), ConstUse(fieldIdentifier(f.field))))
+    MapSelect(heap, Seq(translateExp(f.rcv), Const(fieldIdentifier(f.field))))
   }
 
   override def handleStmt(stmt: sil.Stmt): Stmt = {
