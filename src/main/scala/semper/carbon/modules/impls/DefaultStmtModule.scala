@@ -70,7 +70,6 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
       case _ =>
     }
     val all = Seqn(components map (_.handleStmt(stmt)))
-    println(all.children(0).getClass)
     if (all.children.size == 0) {
       assert(false, "Translation of " + stmt + " is not defined")
     }
