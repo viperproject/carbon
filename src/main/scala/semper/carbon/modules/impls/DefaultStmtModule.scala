@@ -76,6 +76,6 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
     val translation = all ::
       assumeGoodState ::
       Nil
-    CommentBlock(comment, translation)
+    CommentBlock(comment + s" -- ${stmt.pos}", translation)
   }
 }
