@@ -13,6 +13,7 @@ import semper.carbon.verifier.Verifier
 class DefaultExpModule(val verifier: Verifier) extends ExpModule {
 
   import verifier.typeModule._
+  import verifier.heapModule._
 
   def name = "Expression module"
   override def translateExp(e: sil.Exp): Exp = {
@@ -25,10 +26,12 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
         ???
       case l@sil.LocalVar(name) =>
         LocalVar(Identifier(name)(verifier.mainModule.silVarNamespace), translateType(l.typ))
-      case sil.AbstractLocalVar(n) =>
+      case sil.ThisLit() =>
+        translateThis()
+      case sil.Result() =>
         ???
-      case sil.FieldAccess(rcv, field) =>
-        ???
+      case f@sil.FieldAccess(rcv, field) =>
+        translateFieldAccess(f)
       case sil.PredicateAccess(rcv, predicate) =>
         ???
       case sil.Unfolding(acc, exp) =>
@@ -63,8 +66,15 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
         BinExp(translateExp(left), NeCmp, translateExp(right))
       case sil.DomainBinExp(left, op, right) =>
         val bop = op match {
-          case sil.OrOp =>
-            Or
+          case sil.OrOp => Or
+          case sil.LeOp => LeCmp
+          case sil.LtOp => LtCmp
+          case sil.GeOp => GeCmp
+          case sil.GtOp => GtCmp
+          case sil.AddOp => Add
+          case sil.SubOp => Sub
+          case sil.DivOp => Div
+          case sil.ModOp => Mod
           case _ => ???
         }
         BinExp(translateExp(left), bop, translateExp(right))

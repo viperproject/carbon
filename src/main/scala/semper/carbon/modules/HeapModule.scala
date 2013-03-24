@@ -20,4 +20,14 @@ trait HeapModule extends Module {
    * Definitions for a field.
    */
   def translateField(f: sil.Field): Seq[Decl]
+
+  /**
+   * Translation of a field read.
+   */
+  def translateFieldAccess(f: sil.FieldAccess): Exp
+
+  /**
+   * Translation of the this literal.
+   */
+  def translateThis(): Exp
 }

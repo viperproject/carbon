@@ -15,6 +15,7 @@ import semper.carbon.verifier.Verifier
 class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateComponent {
 
   import verifier.typeModule._
+  import verifier.expModule._
 
   def name = "Heap module"
   implicit val heapNamespace = verifier.freshNamespace("heap")
@@ -26,10 +27,12 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
 
   private val fieldTypeName = "Field"
   private val fieldType = NamedType(fieldTypeName, TypeVar("T"))
+  private val selfName = "this"
+  private val self = LocalVar(Identifier(selfName), refType)
   private val heapTyp = NamedType("HeapType")
   private val heapName = "Heap"
   private var heap: LocalVar = null
-  override def refType = NamedType("ref")
+  override def refType = NamedType("Ref")
 
   override def preamble = {
     TypeDecl(refType) ::
@@ -39,8 +42,19 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   }
 
   override def translateField(f: sil.Field) = {
-    Const(Identifier(f.name)(fieldNamespace), NamedType(fieldTypeName, translateType(f.typ)))
+    Const(fieldIdentifier(f), NamedType(fieldTypeName, translateType(f.typ)))
   }
+
+  /** Return the identifier corresponding to a SIL field. */
+  private def fieldIdentifier(f: sil.Field): Identifier = {
+    Identifier(f.name)(fieldNamespace)
+  }
+
+  override def translateFieldAccess(f: sil.FieldAccess): Exp = {
+    MapSelect(heap, Seq(translateExp(f.rcv), ConstUse(fieldIdentifier(f.field))))
+  }
+
+  override def translateThis(): Exp = self
 
   def initState: Stmt = {
     heap = LocalVar(Identifier(heapName), heapTyp)
