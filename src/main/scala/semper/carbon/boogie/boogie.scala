@@ -180,9 +180,9 @@ case object GeCmp extends RelOp("≥" or ">=")
 case object EqCmp extends RelOp("==")
 case object NeCmp extends RelOp("≠" or "!=")
 
+// Note: Boogie uses the same priority for 'and' and 'or'.
 case object Or extends BinOp("∨" or "||", 3, Infix(LeftAssoc))
 case object And extends BinOp("∧" or "&&", 3, Infix(LeftAssoc))
-// Note: Boogie uses the same priority for 'and' and 'or'.
 case object Implies extends BinOp("⇒" or "==>", 4, Infix(RightAssoc))
 case object Equiv extends BinOp("⇔" or "<==>", 5, Infix(NonAssoc))
 
