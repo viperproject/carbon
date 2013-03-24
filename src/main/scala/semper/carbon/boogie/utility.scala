@@ -87,7 +87,7 @@ object Nodes {
       case t: Type => Nil
       case d: Decl =>
         d match {
-          case Const(name, typ) => Nil
+          case Const(name, typ, unique) => Nil
           case TypeDecl(name) => Nil
           case TypeAlias(n, d) => Nil
           case Func(name, args, typ) => args
