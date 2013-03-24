@@ -27,18 +27,18 @@ trait PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrint
   /**
    * The current mapping from identifier to names.
    */
-  private val map = collection.mutable.HashMap[Identifier, String]()
+  private val idnMap = collection.mutable.HashMap[Identifier, String]()
 
   import language.implicitConversions
   /**
     * Map an identifier to a string, making it unique first if necessary.
    */
   implicit def ident2doc(i: Identifier): Doc = {
-    map.get(i) match {
+    idnMap.get(i) match {
       case Some(s) => s
       case None =>
         val s = names.createUniqueIdentifier(i.preferredName)
-        map.put(i, s)
+        idnMap.put(i, s)
         s
     }
   }
@@ -100,8 +100,8 @@ trait PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrint
         "assume" <+> show(e) <> semi
       case a@Assert(e, error) =>
         "assert" <+>
-          "{:msg" <+> "\"  " <> showError(error, a.id) <> "\"}" <+>
-          show(e) <>
+          "{:msg" <+> "\"  " <> showError(error, a.id) <> "\"}" <> line <>
+          space <> space <> show(e) <>
           semi
       case Havoc(vars) =>
         "havoc" <+> commasep(vars) <> semi
@@ -228,6 +228,9 @@ trait PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrint
           ("•" or "::") <+>
           show(exp))
       case LocalVar(name, typ) => name
+      case ConstUse(name) => name
+      case MapSelect(map, idxs) =>
+        show(map) <> "[" <> commasep(idxs) <> "]"
       case FuncApp(name, args) =>
         name <> parens(commasep(args))
       case _: PrettyUnaryExpression | _: PrettyBinaryExpression => super.toParenDoc(e)
