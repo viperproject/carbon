@@ -1,7 +1,7 @@
 package semper.carbon.modules.impls
 
 import semper.carbon.modules._
-import components.StateComponent
+import components.{StmtComponent, StateComponent}
 import semper.sil.{ast => sil}
 import semper.carbon.boogie._
 import semper.carbon.boogie.Implicits._
@@ -12,7 +12,7 @@ import semper.carbon.verifier.Verifier
  *
  * @author Stefan Heule
  */
-class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateComponent {
+class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateComponent with StmtComponent {
 
   import verifier.typeModule._
   import verifier.expModule._
@@ -23,6 +23,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
 
   override def initialize() {
     verifier.stateModule.register(this)
+    verifier.stmtModule.register(this)
   }
 
   private val fieldTypeName = "Field"
@@ -52,6 +53,16 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
 
   override def translateFieldAccess(f: sil.FieldAccess): Exp = {
     MapSelect(heap, Seq(translateExp(f.rcv), ConstUse(fieldIdentifier(f.field))))
+  }
+
+  override def handleStmt(stmt: sil.Stmt): Stmt = {
+    stmt match {
+      case sil.FieldAssign(lhs, rhs) =>
+        translateFieldAccess(lhs) := translateExp(rhs)
+      case sil.NewStmt(target) =>
+        ???
+      case _ => Statements.EmptyStmt
+    }
   }
 
   override def translateThis(): Exp = self

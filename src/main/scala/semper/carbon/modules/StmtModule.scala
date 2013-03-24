@@ -1,5 +1,6 @@
 package semper.carbon.modules
 
+import components.{StmtComponent, ComponentRegistry}
 import semper.sil.{ast => sil}
 import semper.carbon.boogie.Stmt
 
@@ -8,6 +9,6 @@ import semper.carbon.boogie.Stmt
  *
  * @author Stefan Heule
  */
-trait StmtModule extends Module {
+trait StmtModule extends Module with ComponentRegistry[StmtComponent] {
   def translateStmt(stmt: sil.Stmt): Stmt
 }
