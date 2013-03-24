@@ -202,6 +202,7 @@ case class CondExp(cond: Exp, thn: Exp, els: Exp) extends Exp
 case class Old(exp: Exp) extends Exp
 
 case class LocalVar(name: Identifier, typ: Type) extends Exp
+case class ConstUse(name: Identifier) extends Exp
 case class FuncApp(name: Identifier, args: Seq[Exp]) extends Exp
 case class MapSelect(map: Exp, idxs: Seq[Exp]) extends Exp
 
