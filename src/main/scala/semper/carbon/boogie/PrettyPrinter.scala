@@ -30,8 +30,9 @@ trait PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrint
   private val idnMap = collection.mutable.HashMap[Identifier, String]()
 
   import language.implicitConversions
+
   /**
-    * Map an identifier to a string, making it unique first if necessary.
+   * Map an identifier to a string, making it unique first if necessary.
    */
   implicit def ident2doc(i: Identifier): Doc = {
     idnMap.get(i) match {
@@ -144,7 +145,11 @@ trait PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrint
     ) <> line)
   }
 
-  def showStmts(stmts: Seq[Stmt]) = ssep(stmts map show, line)
+  def showStmts(stmts: Seq[Stmt]) = {
+    // filter out empty Seqn statements
+    val ss = stmts filter (x => !x.isInstanceOf[Seqn] || x.children.size != 0)
+    ssep(ss map show, line)
+  }
 
   def showProgram(p: Program) = {
     ssep(p.header map (s => value("// " + s)), line) <> line <> line <>
