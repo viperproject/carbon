@@ -21,7 +21,7 @@ object Statements {
     s match {
       case If(_, thn, els) => Seq(s) ++ children(thn) ++ children(els)
       case NondetIf(thn, els) => Seq(s) ++ children(thn) ++ children(els)
-      case Seqn(ss) => ss
+      case Seqn(ss) => ss flatMap children
       case _ => List(s)
     }
   }
