@@ -193,7 +193,7 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
           colon <+>
           show(typ) <> semi
       case GlobalVarDecl(name, typ) =>
-        "var" <+> name <> colon <+> show(typ)
+        "var" <+> name <> colon <+> show(typ) <> semi
       case Axiom(exp) =>
         "axiom" <+> show(exp) <> semi
       case Procedure(name, ins, outs, body) =>
