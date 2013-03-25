@@ -57,6 +57,9 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
     Identifier(f.name)(fieldNamespace)
   }
 
+  /** Returns a heap-lookup of the allocated field of an object. */
+  private def alloc(o: Exp) = MapSelect(heap, Seq(o, Const(allocName)))
+
   override def translateFieldAccess(f: sil.FieldAccess): Exp = {
     MapSelect(heap, Seq(translateExp(f.rcv), Const(fieldIdentifier(f.field))))
   }
@@ -66,15 +69,14 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
       case sil.FieldAssign(lhs, rhs) =>
         translateFieldAccess(lhs) := translateExp(rhs)
       case sil.NewStmt(target) =>
-        val allocField = MapSelect(heap, Seq(freshObjectVar, Const(allocName)))
         Havoc(freshObjectVar) ::
           Assume(
             freshObjectVar !== nullLit &&
               // assume we consider a newly allocated cell, which gives the prover
               // the information that this object is different from anything allocated
               // earlier.
-              allocField === FalseLit()) ::
-          (allocField := TrueLit()) ::
+              alloc(freshObjectVar) === FalseLit()) ::
+          (alloc(freshObjectVar) := TrueLit()) ::
           (translateExp(target) := freshObjectVar) ::
           Nil
       case _ => Statements.EmptyStmt
