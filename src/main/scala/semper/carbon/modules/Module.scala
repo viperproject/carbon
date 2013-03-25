@@ -1,7 +1,7 @@
 package semper.carbon.modules
 
 import semper.sil.{ast => sil}
-import semper.carbon.boogie.Decl
+import semper.carbon.boogie.{LocalVar, Exp, Decl}
 import semper.carbon.verifier.Verifier
 
 /**
@@ -33,4 +33,9 @@ trait Module {
    * if certain features are needed, and only output parts of the preamble that are used.
    */
   def preamble: Seq[Decl] = Nil
+
+  /**
+   * The where clause of local variables and parameters of a given type.
+   */
+  def whereClause(typ: sil.Type, variable: LocalVar): Option[Exp] = None
 }
