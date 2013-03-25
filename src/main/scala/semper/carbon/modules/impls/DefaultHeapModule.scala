@@ -35,7 +35,8 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   private var heap: LocalVar = null
   private val nullName = Identifier("null")
   private val nullLit = Const(nullName)
-  private val freshObjectVar = LocalVar(Identifier("freshObj"), refType)
+  private val freshObjectName = Identifier("freshObj")
+  private val freshObjectVar = LocalVar(freshObjectName, refType)
   private val allocName = Identifier("$allocated")(fieldNamespace)
   override def refType = NamedType("Ref")
 
@@ -70,12 +71,6 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
         translateFieldAccess(lhs) := translateExp(rhs)
       case sil.NewStmt(target) =>
         Havoc(freshObjectVar) ::
-          Assume(
-            freshObjectVar !== nullLit &&
-              // assume we consider a newly allocated cell, which gives the prover
-              // the information that this object is different from anything allocated
-              // earlier.
-              alloc(freshObjectVar) === FalseLit()) ::
           (alloc(freshObjectVar) := TrueLit()) ::
           (translateExp(target) := freshObjectVar) ::
           Nil
@@ -93,6 +88,14 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
       LocalVarWhereDecl(selfName,
         translateThis !== nullLit &&
           alloc(translateThis)) ::
+      // define where clause for the fresh object variable (it is not allocated!).
+      // this means that whenever we allocate a new object and havoc freshObjectVar, we
+      // assume that we consider a newly allocated cell, which gives the prover
+      // the information that this object is different from anything allocated
+      // earlier.
+      LocalVarWhereDecl(freshObjectName,
+        freshObjectVar !== nullLit &&
+          alloc(freshObjectVar).not) ::
       Nil
   }
   def stateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(heapName, heapTyp))
