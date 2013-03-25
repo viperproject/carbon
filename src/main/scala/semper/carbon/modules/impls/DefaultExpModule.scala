@@ -12,8 +12,10 @@ import semper.carbon.verifier.Verifier
  */
 class DefaultExpModule(val verifier: Verifier) extends ExpModule {
 
-  import verifier.typeModule._
-  import verifier.heapModule._
+  import verifier._
+  import typeModule._
+  import heapModule._
+  import mainModule._
 
   def name = "Expression module"
   override def translateExp(e: sil.Exp): Exp = {
@@ -41,7 +43,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
       case sil.CondExp(cond, thn, els) =>
         CondExp(translateExp(cond), translateExp(thn), translateExp(els))
       case sil.Exists(v, exp) =>
-        ???
+        Exists(Seq(translateLocalVarDecl(v)), translateExp(exp))
       case sil.Forall(v, exp) =>
         ???
       case sil.ReadPerm() =>
