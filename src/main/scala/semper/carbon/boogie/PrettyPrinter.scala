@@ -183,8 +183,8 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
       showDecls(p.decls)
   }
 
-  def showDecls(ds: Seq[Decl]): Doc = {
-    ssep(ds map show, line <> line)
+  def showDecls(ds: Seq[Decl], sep: Doc = line <> line): Doc = {
+    ssep(ds map show, sep)
   }
 
   def showDecl(decl: Decl) = {
@@ -239,7 +239,7 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
         "// ------------------------------------------" <> line <>
           "//" <+> value(s) <> line <>
           "// ------------------------------------------" <> line <>
-          showDecls(d)
+          showDecls(d, line)
     }
   }
 
