@@ -168,11 +168,13 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
   }
 
   def showStmts(stmts: Seq[Stmt]) = {
+    def needsPrinting(x: Stmt): Boolean = {
+      !((x.isInstanceOf[Seqn] && (x.children.filter(needsPrinting)).size == 0) ||
+        x.isInstanceOf[LocalVarWhereDecl])
+    }
     // filter out statements that do not need to be printed such as
     // empty Seqn or LocalVarWhereDecl
-    val ss = stmts filter (x =>
-      !((x.isInstanceOf[Seqn] && x.children.size == 0) ||
-        x.isInstanceOf[LocalVarWhereDecl]))
+    val ss = stmts filter needsPrinting
     ssep(ss map show, line)
   }
 
