@@ -81,7 +81,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
 
   override def whereClause(typ: sil.Type, variable: LocalVar): Option[Exp] = {
     typ match {
-      case sil.Ref => Some(refWhere(variable))
+      case sil.Ref => Some(variable === nullLit || alloc(variable))
       case _ => None
     }
   }
@@ -89,18 +89,10 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   override def translateThis: Exp = self
   override def translateNull: Exp = nullLit
 
-  /**
-   * The where clause for reference-typed variables.
-   */
-  private def refWhere(v: Exp): BinExp = {
-    v !== nullLit && alloc(v)
-  }
-
   def initState: Stmt = {
-    Havoc(heap) ::
-      // define where claus of the this literal
-      LocalVarWhereDecl(selfName,
-        refWhere(translateThis)) ::
+    // define whrere claus of the this literal
+    LocalVarWhereDecl(selfName,
+      translateThis !== nullLit && alloc(translateThis)) ::
       // define where clause for the fresh object variable (it is not allocated!).
       // this means that whenever we allocate a new object and havoc freshObjectVar, we
       // assume that we consider a newly allocated cell, which gives the prover
