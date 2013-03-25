@@ -39,7 +39,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
         inhale(e)
       case exh@sil.Exhale(e) =>
         exhale((e, errors.ExhaleFailed(exh)))
-      case sil.MethodCall(m, args, targets) =>
+      case sil.MethodCall(method, args, targets) =>
         ???
       case sil.While(cond, invs, locals, body) =>
         ???
