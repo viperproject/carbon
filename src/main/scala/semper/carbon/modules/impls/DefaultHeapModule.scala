@@ -32,7 +32,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   private val self = LocalVar(selfName, refType)
   private val heapTyp = NamedType("HeapType")
   private val heapName = Identifier("Heap")
-  private var heap: LocalVar = null
+  private var heap: Var = GlobalVar(heapName, heapTyp)
   private val nullName = Identifier("null")
   private val nullLit = Const(nullName)
   private val freshObjectName = Identifier("freshObj")
@@ -42,6 +42,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
 
   override def preamble = {
     TypeDecl(refType) ::
+      GlobalVarDecl(heapName, heapTyp) ::
       ConstDecl(nullName, refType) ::
       TypeDecl(fieldType) ::
       TypeAlias(heapTyp, MapType(Seq(refType, fieldType), TypeVar("T"), Seq(TypeVar("T")))) ::
@@ -96,7 +97,6 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   }
 
   def initState: Stmt = {
-    heap = LocalVar(heapName, heapTyp)
     Havoc(heap) ::
       // define where claus of the this literal
       LocalVarWhereDecl(selfName,
