@@ -85,10 +85,10 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
             sys.error("permission operations not handled in expression module")
         }
         BinExp(translateExp(left), bop, translateExp(right))
-      case b@sil.BinExp(left, right) =>
-        ???
-      case sil.UnExp(exp) =>
-        ???
+      case sil.Neg(exp) =>
+        UnExp(Neg, translateExp(exp))
+      case sil.Not(exp) =>
+        UnExp(Not, translateExp(exp))
       case sil.FuncApp(func, rcv, args) =>
         ???
       case sil.DomainFuncApp(func, args) =>
