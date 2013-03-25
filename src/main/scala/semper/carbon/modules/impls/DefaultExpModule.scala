@@ -23,11 +23,11 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
       case sil.BoolLit(b) =>
         BoolLit(b)
       case sil.NullLit() =>
-        ???
+        translateNull
       case l@sil.LocalVar(name) =>
         LocalVar(Identifier(name)(verifier.mainModule.silVarNamespace), translateType(l.typ))
       case sil.ThisLit() =>
-        translateThis()
+        translateThis
       case sil.Result() =>
         ???
       case f@sil.FieldAccess(rcv, field) =>

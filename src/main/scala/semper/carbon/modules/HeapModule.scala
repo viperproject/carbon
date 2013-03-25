@@ -29,5 +29,10 @@ trait HeapModule extends Module {
   /**
    * Translation of the this literal.
    */
-  def translateThis(): Exp
+  def translateThis: Exp
+
+  /**
+   * Translation of the null literal.
+   */
+  def translateNull: Exp
 }

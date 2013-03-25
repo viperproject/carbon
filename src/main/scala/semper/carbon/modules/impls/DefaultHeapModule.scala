@@ -78,7 +78,8 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
     }
   }
 
-  override def translateThis(): Exp = self
+  override def translateThis: Exp = self
+  override def translateNull: Exp = nullLit
 
   def initState: Stmt = {
     heap = LocalVar(heapName, heapTyp)
