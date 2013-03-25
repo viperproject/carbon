@@ -28,7 +28,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
 
   private val fieldTypeName = "Field"
   private val fieldType = NamedType(fieldTypeName, TypeVar("T"))
-  private val selfName = Identifier("self")
+  private val selfName = Identifier("this")
   private val self = LocalVar(selfName, refType)
   private val heapTyp = NamedType("HeapType")
   private val heapName = Identifier("Heap")
