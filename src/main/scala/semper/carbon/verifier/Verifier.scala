@@ -35,7 +35,7 @@ trait Verifier {
   /**
    * Debug information (e.g., the full command used to invoke this verification).
    */
-  def debugInfo: Seq[(String, Any)]
+  def getDebugInfo: Seq[(String, Any)]
 
   /**
    * The tool (including version) used for this translation.

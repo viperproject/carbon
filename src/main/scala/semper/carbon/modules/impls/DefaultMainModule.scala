@@ -69,7 +69,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
           "",
           "Date:         " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()),
           "Tool:         " + verifier.toolDesc) ++
-          (verifier.debugInfo map (a => a._1 + ": " + (" " * (12 - a._1.size)) + a._2)) ++
+          (verifier.getDebugInfo map (a => a._1 + ": " + (" " * (12 - a._1.size)) + a._2)) ++
           Seq("Dependencies:") ++
           deps ++
           Seq("")

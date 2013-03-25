@@ -6,7 +6,7 @@ import semper._
 import sil.ast.Program
 import sil.utility.Paths
 import sil.verifier.Dependency
-import verifier.{Environment, Verifier}
+import verifier.Verifier
 
 /**
  * The main class to perform verification of SIL programs.  Deals with command-line arguments, configuration
@@ -56,10 +56,11 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
 
   def name: String = "carbon"
   def version: String = "1.0"
+  def buildVersion = version
   def copyright: String = "(c) 2013 Stefan Heule"
 
-  def debugInfo = _debugInfo
-  def debugInfo_=(info: Seq[(String, Any)]) = {
+  def getDebugInfo = _debugInfo
+  def debugInfo(info: Seq[(String, Any)]) {
     _debugInfo = info
   }
 
