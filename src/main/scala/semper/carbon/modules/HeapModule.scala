@@ -27,11 +27,6 @@ trait HeapModule extends Module {
   def translateFieldAccess(f: sil.FieldAccess): Exp
 
   /**
-   * Translation of the this literal.
-   */
-  def translateThis: Exp
-
-  /**
    * Translation of the null literal.
    */
   def translateNull: Exp

@@ -28,8 +28,6 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
         translateNull
       case l@sil.LocalVar(name) =>
         LocalVar(Identifier(name)(verifier.mainModule.silVarNamespace), translateType(l.typ))
-      case sil.ThisLit() =>
-        translateThis
       case sil.Result() =>
         ???
       case f@sil.FieldAccess(rcv, field) =>
@@ -89,7 +87,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
         UnExp(Neg, translateExp(exp))
       case sil.Not(exp) =>
         UnExp(Not, translateExp(exp))
-      case sil.FuncApp(func, rcv, args) =>
+      case sil.FuncApp(func, args) =>
         ???
       case sil.DomainFuncApp(func, args) =>
         ???

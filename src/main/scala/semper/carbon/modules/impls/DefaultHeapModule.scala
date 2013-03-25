@@ -28,8 +28,6 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
 
   private val fieldTypeName = "Field"
   private val fieldType = NamedType(fieldTypeName, TypeVar("T"))
-  private val selfName = Identifier("this")
-  private val self = LocalVar(selfName, refType)
   private val heapTyp = NamedType("HeapType")
   private val heapName = Identifier("Heap")
   private var heap: Var = GlobalVar(heapName, heapTyp)
@@ -86,21 +84,16 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
     }
   }
 
-  override def translateThis: Exp = self
   override def translateNull: Exp = nullLit
 
   def initState: Stmt = {
-    // define whrere claus of the this literal
-    LocalVarWhereDecl(selfName,
-      translateThis !== nullLit && alloc(translateThis)) ::
-      // define where clause for the fresh object variable (it is not allocated!).
-      // this means that whenever we allocate a new object and havoc freshObjectVar, we
-      // assume that we consider a newly allocated cell, which gives the prover
-      // the information that this object is different from anything allocated
-      // earlier.
-      LocalVarWhereDecl(freshObjectName,
-        freshObjectVar !== nullLit &&
-          alloc(freshObjectVar).not) ::
+    // define where clause for the fresh object variable (it is not allocated!).
+    // this means that whenever we allocate a new object and havoc freshObjectVar, we
+    // assume that we consider a newly allocated cell, which gives the prover
+    // the information that this object is different from anything allocated
+    // earlier.
+    LocalVarWhereDecl(freshObjectName,
+      freshObjectVar !== nullLit && alloc(freshObjectVar).not) ::
       Nil
   }
 
