@@ -36,7 +36,12 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
   implicit val mainNamespace = verifier.freshNamespace("main")
 
   override def translateLocalVarDecl(l: sil.LocalVarDecl): LocalVarDecl = {
-    LocalVarDecl(env.get(l.localVar).name, translateType(l.typ))
+    val typ: Type = translateType(l.typ)
+    val name: Identifier = env.get(l.localVar).name
+    // ask all modules to contribute to the where clause if they want to
+    val wheres = verifier.allModules map (_.whereClause(l.typ, LocalVar(name, typ)))
+    val where = wheres.filter(_.isDefined).map(_.get)
+    LocalVarDecl(name, typ, where.allOption)
   }
 
   override def translate(p: sil.Program): Program = {
