@@ -25,6 +25,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
   import verifier.stateModule._
   import verifier.exhaleModule._
   import verifier.heapModule._
+  import verifier.inhaleModule._
 
   def name = "Main module"
 
@@ -81,14 +82,14 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
     _env = Environment(verifier, m)
     val res = m match {
       case sil.Method(name, formalArgs, formalReturns, pres, posts, locals, b) =>
-        // TODO: handle pre/post
         val ins: Seq[LocalVarDecl] = formalArgs map translateLocalVarDecl
         val outs: Seq[LocalVarDecl] = formalReturns map translateLocalVarDecl
         val init = CommentBlock("Initializing the state", initState)
+        val inhalePre = CommentBlock("Inhaling precondition", inhale(pres))
         val body: Stmt = translateStmt(b)
         val postsWithErrors = posts map (p => (p, errors.PostconditionViolated(p, m)))
-        val end = CommentBlock("Exhaling postcondition", exhale(postsWithErrors))
-        val proc = Procedure(Identifier(name), ins, outs, Seq(init, body, end))
+        val exhalePost = CommentBlock("Exhaling postcondition", exhale(postsWithErrors))
+        val proc = Procedure(Identifier(name), ins, outs, Seq(init, inhalePre, body, exhalePost))
         CommentedDecl(s"Translation of method $name", proc)
     }
     _env = null
