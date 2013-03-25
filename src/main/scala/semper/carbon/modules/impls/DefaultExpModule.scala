@@ -75,7 +75,12 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
           case sil.SubOp => Sub
           case sil.DivOp => Div
           case sil.ModOp => Mod
-          case _ => ???
+          case sil.MulOp => Mul
+          case sil.AndOp | sil.ImpliesOp =>
+            sys.error("&& and ==> are not handled in expression module")
+          case sil.PermGeOp | sil.PermGtOp | sil.PermLeOp | sil.PermLtOp |
+               sil.PermAddOp | sil.PermMulOp | sil.PermSubOp | sil.IntPermMulOp =>
+            sys.error("permission operations not handled in expression module")
         }
         BinExp(translateExp(left), bop, translateExp(right))
       case b@sil.BinExp(left, right) =>
