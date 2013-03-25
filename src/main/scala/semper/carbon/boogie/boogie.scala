@@ -239,6 +239,7 @@ case class Assign(lhs: Exp, rhs: Exp) extends Stmt
 case class Havoc(vars: Seq[LocalVar]) extends Stmt
 case class If(cond: Exp, thn: Stmt, els: Stmt) extends Stmt
 case class Seqn(stmts: Seq[Stmt]) extends Stmt
+/** A non-deterministic if statement. */
 case class NondetIf(thn: Stmt, els: Stmt) extends Stmt
 /** A single-line comment (s should not contain new-lines) */
 case class Comment(s: String) extends Stmt
