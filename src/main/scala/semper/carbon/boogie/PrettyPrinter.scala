@@ -258,6 +258,7 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
           ("•" or "::") <+>
           show(exp))
       case LocalVar(name, typ) => name
+      case GlobalVar(name, typ) => name
       case Const(name) => name
       case MapSelect(map, idxs) =>
         show(map) <> "[" <> commasep(idxs) <> "]"

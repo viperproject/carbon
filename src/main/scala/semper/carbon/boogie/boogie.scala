@@ -202,7 +202,9 @@ case class Trigger(exps: Seq[Exp]) extends Node
 case class CondExp(cond: Exp, thn: Exp, els: Exp) extends Exp
 case class Old(exp: Exp) extends Exp
 
-case class LocalVar(name: Identifier, typ: Type) extends Exp
+sealed abstract class Var(name: Identifier, typ: Type) extends Exp
+case class LocalVar(name: Identifier, typ: Type) extends Var(name, typ)
+case class GlobalVar(name: Identifier, typ: Type) extends Var(name, typ)
 case class Const(name: Identifier) extends Exp
 case class FuncApp(name: Identifier, args: Seq[Exp]) extends Exp
 case class MapSelect(map: Exp, idxs: Seq[Exp]) extends Exp
@@ -237,7 +239,7 @@ object AssertIds {
   }
 }
 case class Assign(lhs: Exp, rhs: Exp) extends Stmt
-case class Havoc(vars: Seq[LocalVar]) extends Stmt
+case class Havoc(vars: Seq[Var]) extends Stmt
 case class If(cond: Exp, thn: Stmt, els: Stmt) extends Stmt
 case class Seqn(stmts: Seq[Stmt]) extends Stmt
 /** A non-deterministic if statement. */

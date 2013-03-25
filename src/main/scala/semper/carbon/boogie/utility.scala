@@ -119,6 +119,7 @@ object Nodes {
           case BoolLit(b) => Nil
           case RealLit(b) => Nil
           case LocalVar(n, t) => Nil
+          case GlobalVar(n, t) => Nil
           case Const(i) => Nil
           case MapSelect(map, idxs) => Seq(map) ++ idxs
           case Old(exp) => Seq(exp)
