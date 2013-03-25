@@ -88,7 +88,12 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
 
   def initState: Stmt = {
     heap = LocalVar(heapName, heapTyp)
-    Havoc(heap)
+    Havoc(heap) ::
+      // define where claus of the this literal
+      LocalVarWhereDecl(selfName,
+        translateThis !== nullLit &&
+          alloc(translateThis)) ::
+      Nil
   }
   def stateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(heapName, heapTyp))
   def currentStateContributions: Seq[Exp] = Seq(heap)
