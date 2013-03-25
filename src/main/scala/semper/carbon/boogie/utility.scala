@@ -109,6 +109,7 @@ object Nodes {
           case NondetIf(thn, els) => Seq(thn, els)
           case Label(name) => Nil
           case Goto(target) => Nil
+          case LocalVarWhereDecl(idn, where) => Seq(where)
         }
       case e: Exp =>
         // Note: If you have to update this pattern match to make it exhaustive, it

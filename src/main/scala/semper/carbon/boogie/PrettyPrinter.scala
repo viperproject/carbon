@@ -12,14 +12,18 @@ import semper.sil.utility.NameGenerator
  */
 object PrettyPrinter {
   def pretty(n: Node): String = {
-    (new PrettyPrinter {}).pretty(n)
+    (new PrettyPrinter(n)).pretty
   }
 }
 
 /**
  * The class that implements most of the pretty-printing functionality.
  */
-trait PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrinter {
+class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPrettyPrinter {
+
+  lazy val pretty: String = {
+    pretty(n)
+  }
 
   /** NameGenerator instance. */
   private val names = NameGenerator()
@@ -27,7 +31,12 @@ trait PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrint
   /**
    * The current mapping from identifier to names.
    */
-  private val idnMap = collection.mutable.HashMap[Identifier, String]()
+  private var idnMap = collection.mutable.HashMap[Identifier, String]()
+
+  /**
+   * The current store for where clauses of identifiers.
+   */
+  private var whereMap = collection.mutable.HashMap[Identifier, Exp]()
 
   import language.implicitConversions
 
@@ -125,6 +134,7 @@ trait PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrint
           )
       case Seqn(ss) =>
         showStmts(ss)
+      case LocalVarWhereDecl(v, w) => empty
     }
   }
 
@@ -146,8 +156,11 @@ trait PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrint
   }
 
   def showStmts(stmts: Seq[Stmt]) = {
-    // filter out empty Seqn statements
-    val ss = stmts filter (x => !x.isInstanceOf[Seqn] || x.children.size != 0)
+    // filter out statements that do not need to be printed such as
+    // empty Seqn or LocalVarWhereDecl
+    val ss = stmts filter (x =>
+      !((x.isInstanceOf[Seqn] && x.children.size == 0) ||
+        x.isInstanceOf[LocalVarWhereDecl]))
     ssep(ss map show, line)
   }
 
@@ -184,9 +197,16 @@ trait PrettyPrinter extends org.kiama.output.PrettyPrinter with ParenPrettyPrint
       case Axiom(exp) =>
         "axiom" <+> show(exp) <> semi
       case Procedure(name, ins, outs, body) =>
+        // collect all where clauses
+        whereMap = collection.mutable.HashMap[Identifier, Exp]()
+        body visit {
+          case LocalVarWhereDecl(idn, where) =>
+            whereMap.put(idn, where)
+          case _ =>
+        }
         val body2 = show(body)
         val undecl = body.undeclLocalVars filter (v1 => (ins ++ outs).forall(v2 => v2.name != v1.name))
-        val vars = undecl map (v => LocalVarDecl(v.name, v.typ, None))
+        val vars = undecl map (v => LocalVarDecl(v.name, v.typ, whereMap.get(v.name)))
         val vars2 = vars map (v => "var" <+> show(v) <> ";")
         val vars3 = ssep(vars2, line) <> (if (vars2.size == 0) empty else line)
         "procedure" <+>

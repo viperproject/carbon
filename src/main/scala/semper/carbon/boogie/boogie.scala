@@ -60,7 +60,8 @@ sealed trait Node {
 
 /**
  * A local variable declaration.  Note that this is not a statement, as local variables do not
- * have to be declared.
+ * have to be declared (but if a where clause is needed, then
+ * [[semper.carbon.boogie.LocalVarWhereDecl]] can be used.
  */
 case class LocalVarDecl(name: Identifier, typ: Type, where: Option[Exp] = None) extends Node
 
@@ -241,6 +242,12 @@ case class If(cond: Exp, thn: Stmt, els: Stmt) extends Stmt
 case class Seqn(stmts: Seq[Stmt]) extends Stmt
 /** A non-deterministic if statement. */
 case class NondetIf(thn: Stmt, els: Stmt) extends Stmt
+/**
+ * Something like a 'declaration' of a local variable that allows to specify a where
+ * clause.  However, local variables do not need to be declared if no where clause
+ * is needed, and 'declarations' might be omitted if the variable is not used.
+ */
+case class LocalVarWhereDecl(name: Identifier, where: Exp) extends Stmt
 /** A single-line comment (s should not contain new-lines) */
 case class Comment(s: String) extends Stmt
 /**
