@@ -38,6 +38,18 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
    */
   private var whereMap = collection.mutable.HashMap[Identifier, Exp]()
 
+  /**
+   * The collection of all global variables.
+   */
+  lazy val globalDecls = {
+    val res = collection.mutable.ListBuffer[GlobalVarDecl]()
+    n visit {
+      case g: GlobalVarDecl => res += g
+      case _ =>
+    }
+    res
+  }
+
   import language.implicitConversions
 
   /**
@@ -204,6 +216,10 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
             whereMap.put(idn, where)
           case _ =>
         }
+        // we add a modifies clause that contains all global variables. since we do not actually
+        // call any of the Boogie procedures, this works well and avoids the need to have
+        // modules declare which variables they want to modify.
+        val modifies = globalDecls map (_.name) map (ident2doc(_))
         val body2 = show(body)
         val undecl = body.undeclLocalVars filter (v1 => (ins ++ outs).forall(v2 => v2.name != v1.name))
         val vars = undecl map (v => LocalVarDecl(v.name, v.typ, whereMap.get(v.name)))
@@ -213,7 +229,9 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
           name <>
           parens(commasep(ins)) <+>
           "returns" <+>
-          parens(commasep(outs)) <+>
+          parens(commasep(outs)) <>
+          line <> space <> space <>
+          "modifies" <+> ssep(modifies, comma <> space) <> semi <> line <>
           showBlock(vars3 <> body2)
       case CommentedDecl(s, d) =>
         "// ------------------------------------------" <> line <>
