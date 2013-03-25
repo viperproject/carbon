@@ -36,7 +36,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   private val nullName = Identifier("null")
   private val nullLit = Const(nullName)
   private val freshObjectVar = LocalVar(Identifier("freshObj"), refType)
-  private val allocName = Identifier("$alloc")(fieldNamespace)
+  private val allocName = Identifier("$allocated")(fieldNamespace)
   override def refType = NamedType("Ref")
 
   override def preamble = {
