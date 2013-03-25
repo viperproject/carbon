@@ -18,6 +18,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
   import verifier.expModule._
   import verifier.stateModule._
   import verifier.exhaleModule._
+  import verifier.inhaleModule._
 
   // registering in the constructor ensures that this will be the first component
   register(this)
@@ -35,7 +36,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
       case sil.Unfold(e) =>
         ???
       case sil.Inhale(e) =>
-        ???
+        inhale(e)
       case exh@sil.Exhale(e) =>
         exhale((e, errors.ExhaleFailed(exh)))
       case sil.MethodCall(m, rcv, args, targets) =>
