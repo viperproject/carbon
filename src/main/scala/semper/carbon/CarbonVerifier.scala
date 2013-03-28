@@ -6,7 +6,7 @@ import semper._
 import sil.ast.Program
 import sil.utility.Paths
 import sil.verifier.{Success, Dependency}
-import verifier.Verifier
+import verifier.{BoogieInterface, Verifier}
 import java.io.{File, FileWriter}
 
 /**
@@ -17,7 +17,7 @@ import java.io.{File, FileWriter}
  *
  * @author Stefan Heule
  */
-case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) extends Verifier with sil.verifier.Verifier {
+case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) extends Verifier with sil.verifier.Verifier with BoogieInterface {
 
   var env = null
 
@@ -115,13 +115,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
 
   def verify(program: Program) = {
     val translated = mainModule.translate(program)
-    writeFile("C:\\tmp\\carbon.bpl", translated.toString)
-    import scala.sys.process._
-    println(program)
-    println("-------------------")
-    println(translated)
-    println(Seq(boogiePath, "/nologo", "/errorTrace:0", "C:\\tmp\\carbon.bpl").!!)
-    Success
+    invokeBoogie(translated, Nil)
   }
 
   def writeFile(filename: String, text: String) {
