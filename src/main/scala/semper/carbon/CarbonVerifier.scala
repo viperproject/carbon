@@ -5,8 +5,9 @@ import modules.impls._
 import semper._
 import sil.ast.Program
 import sil.utility.Paths
-import sil.verifier.Dependency
+import sil.verifier.{Success, Dependency}
 import verifier.Verifier
+import java.io.{File, FileWriter}
 
 /**
  * The main class to perform verification of SIL programs.  Deals with command-line arguments, configuration
@@ -112,5 +113,21 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
     })
   }
 
-  def verify(program: Program) = ???
+  def verify(program: Program) = {
+    val translated = mainModule.translate(program)
+    writeFile("C:\\tmp\\carbon.bpl", translated.toString)
+    import scala.sys.process._
+    println(program)
+    println("-------------------")
+    println(translated)
+    println(Seq(boogiePath, "/nologo", "/errorTrace:0", "C:\\tmp\\carbon.bpl").!!)
+    Success
+  }
+
+  def writeFile(filename: String, text: String) {
+    val writer = new FileWriter(new File(filename))
+    writer.write(text)
+    writer.flush()
+    writer.close()
+  }
 }
