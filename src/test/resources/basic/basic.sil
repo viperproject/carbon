@@ -16,14 +16,14 @@ program prog {
     f1 := new()
     f2 := new()
     if (g != null) {
-      exhale(g != f1)
+      exhale g != f1
     }
-    exhale(this.value <= 42)
-    exhale(f1 != f2)
+    exhale this.value <= 42
+    exhale f1 != f2
     //:: ExpectedError(assertion.false)
-    exhale(this != null)
-    inhale(a == -11)
-    exhale(a < 0)
+    exhale this != null
+    inhale a == -11
+    exhale a < 0
     d := 2
     if (b) {
       d := 1
@@ -39,10 +39,10 @@ program prog {
     var l2: Ref
     l1 := new()
     l2 := new()
-    exhale(a != l1)
-    exhale(l1 != l2)
+    exhale a != l1
+    exhale l1 != l2
     //:: ExpectedError(assertion.false)
-    exhale(a != b)
+    exhale a != b
   }
   
   // test aliasing information of parameters 1
@@ -50,9 +50,9 @@ program prog {
   {
     if (a == null) {
         //:: ExpectedError(assertion.false)
-        exhale(a != b)
+        exhale a != b
         if (b != null) {
-            exhale(a != b)
+            exhale a != b
         }
     }
   }
@@ -62,7 +62,7 @@ program prog {
   {
     if (a == null) {
         if (b != null) {
-            exhale(a != b)
+            exhale a != b
         }
     }
   }
