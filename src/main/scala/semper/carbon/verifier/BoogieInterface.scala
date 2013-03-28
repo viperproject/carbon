@@ -12,10 +12,13 @@ import semper.carbon.boogie._
  */
 trait BoogieInterface {
 
-  def defaultOptions = Seq("/nologo", "/errorTrace:0")
+  def defaultOptions = Seq("/nologo", "/errorTrace:0", s"/z3exe:$z3Path")
 
   /** The (resolved) path where Boogie is supposed to be located. */
   def boogiePath: String
+
+  /** The (resolved) path where Z3 is supposed to be located. */
+  def z3Path: String
 
   def invokeBoogie(program: Program, options: Seq[String]): VerificationResult = {
     // find all errors and assign everyone a unique id
