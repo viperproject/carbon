@@ -1,0 +1,32 @@
+program prog {
+  
+  var test: Bool
+  
+  var value: Int
+  
+  method foo(this: Ref, a: Int, b: Bool, g: Ref) returns (c: Bool, d: Int)
+    requires b
+    ensures (d == 1) || (d == 2)
+  {
+    var e: Int
+    var f1: Ref
+    var f2: Ref
+    this.value := 1
+    f1 := new()
+    f2 := new()
+    if (g != null) {
+      exhale(g != f1)
+    }
+    exhale(this.value <= 42)
+    exhale(f1 != f2)
+    exhale(this != null)
+    inhale(a == -11)
+    exhale(a < 0)
+    d := 2
+    if (b) {
+      d := 1
+    } else {
+      d := 3
+    }
+  }
+}
