@@ -8,11 +8,15 @@ import semper.sil.verifier.Verifier
  *
  * @author Stefan Heule
  */
-object Carbon extends SilFrontend {
+object Carbon extends CarbonFrontend {
 
   def main2(args: Array[String]) {
     execute(args)
   }
 
+
+}
+
+class CarbonFrontend extends SilFrontend {
   def createVerifier(fullCmd: String) = CarbonVerifier(Seq("Arguments: " -> fullCmd))
 }
