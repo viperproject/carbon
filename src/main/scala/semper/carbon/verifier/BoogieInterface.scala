@@ -1,6 +1,6 @@
 package semper.carbon.verifier
 
-import semper.sil.verifier.{VerificationError, Success, VerificationResult}
+import semper.sil.verifier.{Failure, VerificationError, Success, VerificationResult}
 import sys.process._
 import java.io._
 import semper.carbon.boogie._
@@ -25,10 +25,44 @@ trait BoogieInterface {
         errormap += (a.id -> error)
       case _ =>
     }
+
+    // invoke Boogie
     val output = run(program.toString, defaultOptions ++ options)
-    Success
+
+    // parse the output
+    parse(output) match {
+      case Nil =>
+        Success
+      case errorIds =>
+        val errors = errorIds map (errormap.get(_).get)
+        Failure(errors)
+    }
   }
 
+  /**
+   * Parse the output of Boogie.
+   */
+  private def parse(output: String): Seq[Int] = {
+    val SummaryPattern = "Boogie program verifier finished with ([0-9]+) verified, ([0-9]+) errors?".r
+    val ErrorPattern = "  .+ \\[([0-9]+)\\]".r
+    val errors = collection.mutable.ListBuffer[Int]()
+    for (l <- output.split("\r\n")) {
+      l match {
+        case ErrorPattern(id) =>
+          errors += id.toInt
+        case SummaryPattern(v, e) =>
+          assert(e.toInt == errors.size, s"Found ${errors.size} errors, but there should be $e.")
+        case "" => // ignore empty lines
+        case _ =>
+          sys.error(s"Found an unparsable output from Boogie: $l")
+      }
+    }
+    errors.toSeq
+  }
+
+  /**
+   * Invoke Boogie.
+   */
   private def run(input: String, options: Seq[String]): String = {
     def convertStreamToString(is: java.io.InputStream) = {
       val s = new java.util.Scanner(is).useDelimiter("\\A")
@@ -45,7 +79,7 @@ trait BoogieInterface {
       in.close()
     }
     // write program to a temporary file
-    val tmp = File.createTempFile("carbon",".bpl")
+    val tmp = File.createTempFile("carbon", ".bpl")
     val stream = new BufferedOutputStream(new FileOutputStream(tmp))
     stream.write(input.getBytes)
     stream.close()
