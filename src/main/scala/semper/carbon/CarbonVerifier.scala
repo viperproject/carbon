@@ -50,10 +50,10 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
   var _z3Path: String = "${Z3_EXE}"
 
   /** The (resolved) path where Boogie is supposed to be located. */
-  def boogiePath = Paths.resolveEnvVars(_boogiePath)
+  def boogiePath = new File(Paths.resolveEnvVars(_boogiePath)).getAbsolutePath
 
   /** The (resolved) path where Z3 is supposed to be located. */
-  def z3Path = Paths.resolveEnvVars(_z3Path)
+  def z3Path = new File(Paths.resolveEnvVars(_z3Path)).getAbsolutePath
 
   def name: String = "carbon"
   def version: String = "1.0"
