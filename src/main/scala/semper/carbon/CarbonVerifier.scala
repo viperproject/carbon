@@ -120,11 +120,4 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
 
   private var _translated: semper.carbon.boogie.Program = null
   def translated = _translated
-
-  def writeFile(filename: String, text: String) {
-    val writer = new FileWriter(new File(filename))
-    writer.write(text)
-    writer.flush()
-    writer.close()
-  }
 }
