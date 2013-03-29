@@ -20,12 +20,14 @@ import semper.sil.verifier.errors
  */
 class DefaultMainModule(val verifier: Verifier) extends MainModule {
 
-  import verifier.typeModule._
-  import verifier.stmtModule._
-  import verifier.stateModule._
-  import verifier.exhaleModule._
-  import verifier.heapModule._
-  import verifier.inhaleModule._
+  import verifier._
+  import typeModule._
+  import stmtModule._
+  import stateModule._
+  import exhaleModule._
+  import heapModule._
+  import inhaleModule._
+  import funcPredModule._
 
   def name = "Main module"
 
@@ -49,11 +51,11 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
     p match {
       case sil.Program(name, domains, fields, functions, predicates, methods) =>
         // translate all members
-        val members = (domains flatMap translateDomain) ++
+        val members = (domains flatMap translateDomainDecl) ++
           (CommentedDecl("Translation of all fields", fields flatMap translateFieldDecl)) ++
-          (functions flatMap translateFunction) ++
-          (predicates flatMap translatePredicate) ++
-          (methods flatMap translateMethod)
+          (functions flatMap translateFunctionDecl) ++
+          (predicates flatMap translatePredicateDecl) ++
+          (methods flatMap translateMethodDecl)
 
         // get the preambles
         val preambles = verifier.allModules flatMap {
@@ -78,7 +80,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
     }
   }
 
-  def translateMethod(m: sil.Method): Seq[Decl] = {
+  def translateMethodDecl(m: sil.Method): Seq[Decl] = {
     _env = Environment(verifier, m)
     val res = m match {
       case sil.Method(name, formalArgs, formalReturns, pres, posts, locals, b) =>
@@ -96,11 +98,8 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
     res
   }
 
-  def translateFieldDecl(f: sil.Field): Seq[Decl] = {
-    translateField(f)
-  }
-
-  def translateFunction(f: sil.Function): Seq[Decl] = ???
-  def translateDomain(d: sil.Domain): Seq[Decl] = ???
-  def translatePredicate(p: sil.Predicate): Seq[Decl] = ???
+  def translateFieldDecl(f: sil.Field): Seq[Decl] = translateField(f)
+  def translateFunctionDecl(f: sil.Function): Seq[Decl] = translateFunction(f)
+  def translateDomainDecl(d: sil.Domain): Seq[Decl] = ???
+  def translatePredicateDecl(p: sil.Predicate): Seq[Decl] = translatePredicate(p)
 }

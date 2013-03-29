@@ -1,7 +1,7 @@
 package semper.carbon.modules
 
 import semper.sil.{ast => sil}
-import semper.carbon.boogie.Exp
+import semper.carbon.boogie.{Decl, Exp}
 
 /**
  * A module for translating functions and predicates.
@@ -9,4 +9,6 @@ import semper.carbon.boogie.Exp
  * @author Stefan Heule
  */
 trait FuncPredModule extends Module {
+  def translateFunction(f: sil.Function): Seq[Decl]
+  def translatePredicate(p: sil.Predicate): Seq[Decl]
 }

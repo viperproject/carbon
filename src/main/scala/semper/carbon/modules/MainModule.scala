@@ -28,9 +28,9 @@ trait MainModule extends Module {
   /** The namespace for SIL local variables. */
   def silVarNamespace: Namespace
 
-  def translateFunction(f: sil.Function): Seq[Decl]
-  def translateDomain(d: sil.Domain): Seq[Decl]
+  def translateFunctionDecl(f: sil.Function): Seq[Decl]
+  def translateDomainDecl(d: sil.Domain): Seq[Decl]
   def translateFieldDecl(f: sil.Field): Seq[Decl]
-  def translatePredicate(p: sil.Predicate): Seq[Decl]
-  def translateMethod(m: sil.Method): Seq[Decl]
+  def translatePredicateDecl(p: sil.Predicate): Seq[Decl]
+  def translateMethodDecl(m: sil.Method): Seq[Decl]
 }
