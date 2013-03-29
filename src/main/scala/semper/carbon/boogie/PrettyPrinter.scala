@@ -4,6 +4,7 @@ import org.kiama.output._
 import UnicodeString.string2unicodestring
 import semper.sil.verifier.VerificationError
 import semper.sil.utility.NameGenerator
+import util.matching.Regex
 
 /**
  * A pretty printer for the Boogie AST.
@@ -25,8 +26,8 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
     pretty(n)
   }
 
-  /** NameGenerator instance. */
-  private val names = NameGenerator()
+  /** BoogieNameGenerator instance. */
+  private val names = new BoogieNameGenerator()
 
   /**
    * The current mapping from identifier to names.

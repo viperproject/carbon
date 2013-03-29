@@ -1,7 +1,7 @@
 package semper.carbon.verifier
 
 import semper.sil.{ast => sil}
-import semper.carbon.boogie.{Identifier, LocalVar}
+import semper.carbon.boogie.{BoogieNameGenerator, Identifier, LocalVar}
 import semper.sil.utility.NameGenerator
 
 /**
@@ -14,7 +14,7 @@ import semper.sil.utility.NameGenerator
  */
 case class Environment(verifier: Verifier, member: sil.Member) {
 
-  private val names = NameGenerator()
+  private val names = new BoogieNameGenerator()
 
   /** The current mapping of variables. */
   private val currentMapping = collection.mutable.HashMap[sil.LocalVar, LocalVar]()
