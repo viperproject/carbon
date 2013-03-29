@@ -240,6 +240,8 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
           "//" <+> value(s) <> line <>
           "// ------------------------------------------" <> line <>
           showDecls(d, line)
+      case DeclComment(s) =>
+        value(s"// $s")
     }
   }
 
