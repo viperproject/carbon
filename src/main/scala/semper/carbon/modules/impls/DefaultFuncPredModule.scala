@@ -4,6 +4,7 @@ import semper.carbon.modules._
 import semper.sil.{ast => sil}
 import semper.carbon.boogie._
 import semper.carbon.verifier.Verifier
+import semper.carbon.boogie.Implicits._
 
 /**
  * The default implementation of a [[semper.carbon.modules.FuncPredModule]].
@@ -21,7 +22,11 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule {
   override def translateFunction(f: sil.Function): Seq[Decl] = {
     val func = Func(Identifier(f.name), Nil, translateType(f.typ))
     val limitedFunc = Func(Identifier(f.name + "#limited"), Nil, translateType(f.typ))
-    Seq()
+    CommentedDecl(s"Translation of function ${f.name}",
+      func ::
+        limitedFunc ::
+        Nil
+    )
   }
 
   override def translatePredicate(p: sil.Predicate): Seq[Decl] = {
