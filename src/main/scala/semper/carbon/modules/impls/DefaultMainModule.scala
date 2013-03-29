@@ -51,8 +51,10 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
     p match {
       case sil.Program(name, domains, fields, functions, predicates, methods) =>
         // translate all members
+        val translateFields =
+          if (fields.size > 0) CommentedDecl("Translation of all fields", fields flatMap translateFieldDecl) :: Nil else Nil
         val members = (domains flatMap translateDomainDecl) ++
-          (CommentedDecl("Translation of all fields", fields flatMap translateFieldDecl)) ++
+          translateFields ++
           (functions flatMap translateFunctionDecl) ++
           (predicates flatMap translatePredicateDecl) ++
           (methods flatMap translateMethodDecl)
