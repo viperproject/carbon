@@ -114,9 +114,12 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
   }
 
   def verify(program: Program) = {
-    val translated = mainModule.translate(program)
-    invokeBoogie(translated, Nil)
+    _translated = mainModule.translate(program)
+    invokeBoogie(_translated, Nil)
   }
+
+  private var _translated: semper.carbon.boogie.Program = null
+  def translated = _translated
 
   def writeFile(filename: String, text: String) {
     val writer = new FileWriter(new File(filename))
