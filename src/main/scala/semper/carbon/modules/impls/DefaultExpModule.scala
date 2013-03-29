@@ -46,7 +46,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
         ???
       case sil.ReadPerm() =>
         ???
-      case sil.WildCardPerm() =>
+      case sil.WildcardPerm() =>
         ???
       case sil.FullPerm() =>
         ???
