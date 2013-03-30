@@ -89,7 +89,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
         UnExp(Not, translateExp(exp))
       case sil.FuncApp(func, args) =>
         ???
-      case sil.DomainFuncApp(func, args) =>
+      case sil.DomainFuncApp(func, args, _) =>
         ???
     }
   }
