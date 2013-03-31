@@ -96,19 +96,8 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
         name <> (if (typVars.size == 0) empty
         else space <> ssep(typVars map show, space))
       case MapType(doms, range, typVars) =>
-        val tvs = typVars match {
-          case Nil => empty
-          case _ => ("〈" or "<") <> commasep(typVars) <> ("〉" or ">")
-        }
-        tvs <> "[" <> commasep(doms) <> "]" <> showType(range)
+        showTypeVars(typVars) <> "[" <> commasep(doms) <> "]" <> showType(range)
     }
-  }
-
-  def freeTypVars(t: Type): Seq[TypeVar] = t match {
-    case Int | Bool | Real | _: NamedType => Nil
-    case tv@TypeVar(name) => Seq(tv)
-    case MapType(doms, range, typVars) =>
-      (doms flatMap freeTypVars) ++ freeTypVars(range)
   }
 
   def showStmt(s: Stmt): Doc = {
@@ -202,8 +191,10 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
       case TypeAlias(name, definition) =>
         "type" <+> show(name) <+> "=" <+> show(definition) <> semi
       case Func(name, args, typ) =>
+        val typVars = ((args map (_.typ)) ++ Seq(typ)) flatMap (_.freeTypeVars)
         "function" <+>
           name <>
+          showTypeVars(typVars, endWithSpace = false) <>
           parens(commasep(args)) <>
           colon <+>
           show(typ) <> semi
@@ -266,22 +257,33 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
   }
 
   // Note: pretty-printing expressions is mostly taken care of by kiama
+  var showTypeVars = true
   override def toParenDoc(e: PrettyExpression): Doc = {
     e match {
       case IntLit(i) => value(i)
       case BoolLit(b) => value(b)
       case RealLit(d) => value(d)
       case Forall(vars, triggers, exp) =>
-        parens(("∀" or "forall") <+>
+        val typVars = if (showTypeVars) vars flatMap (_.typ.freeTypeVars) else Nil
+        showTypeVars = false
+        val res = parens(("∀" or "forall") <+>
+          showTypeVars(typVars) <>
           commasep(vars) <+>
           ("•" or "::") <+>
           commasep(triggers) <+>
           show(exp))
+        showTypeVars = true
+        res
       case Exists(vars, exp) =>
-        parens(("∃" or "exists") <+>
+        val typVars = if (showTypeVars) vars flatMap (_.typ.freeTypeVars) else Nil
+        showTypeVars = false
+        val res = parens(("∃" or "exists") <+>
+          showTypeVars(typVars) <>
           commasep(vars) <+>
           ("•" or "::") <+>
           show(exp))
+        showTypeVars = true
+        res
       case LocalVar(name, typ) => name
       case GlobalVar(name, typ) => name
       case Const(name) => name
@@ -293,4 +295,13 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
     }
   }
 
+  /**
+   * Show free type variables (e.g. for a function, a map type or a quantification).
+   */
+  def showTypeVars(typVars: Seq[TypeVar], endWithSpace: Boolean = true): Doc = {
+    (if (typVars.size > 0)
+      ("〈" or "<") <> commasep(typVars.distinct) <> ("〉" or ">") <>
+        (if (endWithSpace) space else empty)
+    else empty)
+  }
 }
