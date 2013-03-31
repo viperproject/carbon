@@ -5,9 +5,9 @@ import modules.impls._
 import semper._
 import sil.ast.Program
 import sil.utility.Paths
-import sil.verifier.{Success, Dependency}
+import sil.verifier.Dependency
 import verifier.{BoogieInterface, Verifier}
-import java.io.{File, FileWriter}
+import java.io.File
 
 /**
  * The main class to perform verification of SIL programs.  Deals with command-line arguments, configuration
@@ -37,6 +37,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
   val permModule = new DefaultPermModule(this)
   val mainModule = new DefaultMainModule(this)
   val stateModule = new DefaultStateModule(this)
+  val domainModule = new DefaultDomainModule(this)
 
   // initialize all modules
   allModules foreach (m => {

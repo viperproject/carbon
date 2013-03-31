@@ -28,6 +28,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
   import heapModule._
   import inhaleModule._
   import funcPredModule._
+  import domainModule._
 
   def name = "Main module"
 
@@ -102,6 +103,6 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
 
   def translateFieldDecl(f: sil.Field): Seq[Decl] = translateField(f)
   def translateFunctionDecl(f: sil.Function): Seq[Decl] = translateFunction(f)
-  def translateDomainDecl(d: sil.Domain): Seq[Decl] = ???
+  def translateDomainDecl(d: sil.Domain): Seq[Decl] = translateDomain(d)
   def translatePredicateDecl(p: sil.Predicate): Seq[Decl] = translatePredicate(p)
 }

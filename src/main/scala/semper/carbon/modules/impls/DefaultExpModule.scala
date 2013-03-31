@@ -16,6 +16,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
   import typeModule._
   import heapModule._
   import mainModule._
+  import domainModule._
 
   def name = "Expression module"
   override def translateExp(e: sil.Exp): Exp = {
@@ -89,8 +90,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
         UnExp(Not, translateExp(exp))
       case sil.FuncApp(func, args) =>
         ???
-      case sil.DomainFuncApp(func, args, _) =>
-        ???
+      case fa@sil.DomainFuncApp(func, args, _) =>
+        translateDomainFuncApp(fa)
     }
   }
 }

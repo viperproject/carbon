@@ -24,6 +24,7 @@ trait Verifier {
   val inhaleModule: InhaleModule
   val funcPredModule: FuncPredModule
   val permModule: PermModule
+  val domainModule: DomainModule
 
   /**
    * A list of all modules.
