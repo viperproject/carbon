@@ -3,8 +3,6 @@ package semper.carbon.boogie
 import org.kiama.output._
 import UnicodeString.string2unicodestring
 import semper.sil.verifier.VerificationError
-import semper.sil.utility.NameGenerator
-import util.matching.Regex
 
 /**
  * A pretty printer for the Boogie AST.
@@ -242,13 +240,22 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
           line <> space <> space <>
           "modifies" <+> ssep(modifies, comma <> space) <> semi <> line <>
           showBlock(vars3 <> body2)
-      case CommentedDecl(s, d, big) =>
-        val sep = if (big) "=" else "-"
-        ("// " + (sep * 50)) <> line <>
-          "//" <+> value(s) <> line <>
+      case CommentedDecl(s, d, size, nlines) =>
+        var linesep = empty
+        for (i <- 1 to nlines) {
+          linesep = line <> linesep
+        }
+        if (size > 1) {
+          val sep = if (size == 3) "=" else "-"
           ("// " + (sep * 50)) <> line <>
-          (if (big) line else empty) <>
-          showDecls(d, line)
+            "//" <+> value(s) <> line <>
+            ("// " + (sep * 50)) <> line <>
+            (if (size == 3) line else empty) <>
+            showDecls(d, linesep)
+        } else {
+          "//" <+> value(s) <> line <>
+            showDecls(d, linesep)
+        }
       case DeclComment(s) =>
         value(s"// $s")
     }
@@ -261,7 +268,7 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
     val t = collectFreeTypeVars(exp)
     val body = t match {
       case Nil => show(exp)
-      case _ => parens("forall" <+> showTypeVars(t) <> "::" <> show(exp))
+      case _ => parens("forall" <+> showTypeVars(t) <> "::" <+> show(exp))
     }
     body
   }

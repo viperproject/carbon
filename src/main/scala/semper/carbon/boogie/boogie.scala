@@ -278,5 +278,12 @@ case class Func(name: Identifier, args: Seq[LocalVarDecl], typ: Type) extends De
 case class Axiom(exp: Exp) extends Decl
 case class GlobalVarDecl(name: Identifier, typ: Type) extends Decl
 case class Procedure(name: Identifier, ins: Seq[LocalVarDecl], outs: Seq[LocalVarDecl], body: Stmt) extends Decl
-case class CommentedDecl(s: String, d: Seq[Decl], big: Boolean = false) extends Decl
+/**
+ * nLines determines the number of lines between declarations (1 being only a single new-line, i.e. no space).
+ *
+ * size = 1 means a normal comment
+ * size = 2 means a normal comment surrounded by "// ------------" (above and below)
+ * size = 3 means a normal comment surrounded by "// ============" (above and below)
+ */
+case class CommentedDecl(s: String, d: Seq[Decl], size: Int = 3, nLines: Int = 1) extends Decl
 case class DeclComment(s: String) extends Decl

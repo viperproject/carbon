@@ -94,7 +94,7 @@ object Nodes {
           case Axiom(exp) => Seq(exp)
           case GlobalVarDecl(name, typ) => Nil
           case Procedure(name, ins, outs, body) => ins ++ outs ++ Seq(body)
-          case CommentedDecl(s, ds, _) => ds
+          case CommentedDecl(s, ds, _, _) => ds
           case DeclComment(s) => Nil
         }
       case s: Stmt =>
