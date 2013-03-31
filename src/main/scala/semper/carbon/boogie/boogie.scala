@@ -266,6 +266,12 @@ case class Comment(s: String) extends Stmt
  * belong together, as described by a comment.
  */
 case class CommentBlock(s: String, stmt: Stmt) extends Stmt
+object MaybeCommentBlock {
+  def apply(s: String, stmt: Stmt) = {
+    if (stmt.children.isEmpty) Statements.EmptyStmt
+    else CommentBlock(s, stmt)
+  }
+}
 
 // --- Declarations
 
@@ -286,4 +292,10 @@ case class Procedure(name: Identifier, ins: Seq[LocalVarDecl], outs: Seq[LocalVa
  * size = 3 means a normal comment surrounded by "// ============" (above and below)
  */
 case class CommentedDecl(s: String, d: Seq[Decl], size: Int = 3, nLines: Int = 1) extends Decl
+object MaybeCommentedDecl {
+  def apply(s: String, d: Seq[Decl], size: Int = 3, nLines: Int = 1) = {
+    if (d.isEmpty) Nil
+    else CommentedDecl(s, d, size, nLines) :: Nil
+  }
+}
 case class DeclComment(s: String) extends Decl
