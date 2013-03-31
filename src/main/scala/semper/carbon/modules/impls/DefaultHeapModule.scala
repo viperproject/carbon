@@ -27,7 +27,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   }
 
   private val fieldTypeName = "Field"
-  private val fieldType = NamedType(fieldTypeName, TypeVar("T"))
+  override def fieldType = NamedType(fieldTypeName, TypeVar("T"))
   private val heapTyp = NamedType("HeapType")
   private val heapName = Identifier("Heap")
   private var heap: Var = GlobalVar(heapName, heapTyp)

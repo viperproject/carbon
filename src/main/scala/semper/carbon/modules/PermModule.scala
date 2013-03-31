@@ -1,6 +1,6 @@
 package semper.carbon.modules
 
-import semper.sil.ast._
+import semper.carbon.boogie.Type
 
 /**
  * The permission module determines the encoding of permissions and allows to add or remove
@@ -9,4 +9,9 @@ import semper.sil.ast._
  * @author Stefan Heule
  */
 trait PermModule extends Module {
+
+  /**
+   * The type used to represent permissions.
+   */
+  def permType: Type
 }

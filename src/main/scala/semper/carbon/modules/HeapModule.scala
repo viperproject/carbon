@@ -17,6 +17,11 @@ trait HeapModule extends Module {
   def refType: Type
 
   /**
+   * The type used for fields.
+   */
+  def fieldType: Type
+
+  /**
    * Definitions for a field.
    */
   def translateField(f: sil.Field): Seq[Decl]
