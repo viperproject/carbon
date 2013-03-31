@@ -101,14 +101,22 @@ case class Namespace(name: String, id: Int)
 
 // --- Types
 
-sealed trait Type extends Node
+sealed trait Type extends Node {
+  def freeTypeVars: Seq[TypeVar] = Nil
+}
 sealed trait BuiltInType extends Type
 case object Int extends BuiltInType
 case object Bool extends BuiltInType
 case object Real extends BuiltInType
-case class TypeVar(name: String) extends Type
-case class NamedType(name: String, typVars: Seq[Type] = Nil) extends Type
-case class MapType(domains: Seq[Type], range: Type, typVars: Seq[TypeVar] = Nil) extends BuiltInType
+case class TypeVar(name: String) extends Type {
+  override def freeTypeVars: Seq[TypeVar] = Seq(this)
+}
+case class NamedType(name: String, typVars: Seq[Type] = Nil) extends Type {
+  override def freeTypeVars: Seq[TypeVar] = typVars flatMap (_.freeTypeVars)
+}
+case class MapType(domains: Seq[Type], range: Type, typVars: Seq[TypeVar] = Nil) extends BuiltInType {
+  override def freeTypeVars: Seq[TypeVar] = typVars
+}
 
 // --- Expressions
 
