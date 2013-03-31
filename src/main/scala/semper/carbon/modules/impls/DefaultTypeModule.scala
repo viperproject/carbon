@@ -12,7 +12,9 @@ import semper.carbon.verifier.Verifier
  */
 class DefaultTypeModule(val verifier: Verifier) extends TypeModule {
 
-  import verifier.heapModule._
+  import verifier._
+  import heapModule._
+  import domainModule._
 
   def name = "Type module"
   override def translateType(t: sil.Type): Type = {
@@ -27,10 +29,10 @@ class DefaultTypeModule(val verifier: Verifier) extends TypeModule {
         ???
       case sil.Pred =>
         ???
-      case sil.TypeVar(v) =>
-        sys.error("Did not expect a type variable here.")
-      case sil.DomainType(domain, typVarsMap) =>
-        ???
+      case sil.TypeVar(name) =>
+        TypeVar(name)
+      case t@sil.DomainType(domain, typVarsMap) =>
+        translateDomainTyp(t)
     }
   }
 }

@@ -24,7 +24,8 @@ class DefaultDomainModule(val verifier: Verifier) extends DomainModule {
   override def translateDomain(domain: sil.Domain): Seq[Decl] = {
     val fs = domain.functions flatMap translateDomainFunction
     val as = domain.axioms flatMap translateDomainAxiom
-    CommentedDecl(s"Translation of domain ${domain.name}", fs ++ as, big = true)
+    val ts = TypeDecl(NamedType(domain.name, domain.typVars map (tv => TypeVar(tv.name)))) :: Nil
+    CommentedDecl(s"Translation of domain ${domain.name}", ts ++ fs ++ as, big = true)
   }
 
   private def translateDomainFunction(f: sil.DomainFunc): Seq[Decl] = {
@@ -40,4 +41,11 @@ class DefaultDomainModule(val verifier: Verifier) extends DomainModule {
   override def translateDomainFuncApp(fa: sil.DomainFuncApp): Exp = {
     FuncApp(Identifier(fa.func.name), fa.args map translateExp)
   }
+
+  override def translateDomainTyp(typ: sil.DomainType): Type = {
+    val domain = typ.domain
+    val typArgs = domain.typVars map (tv => typ.typVarsMap.getOrElse(tv, tv))
+    NamedType(domain.name, typArgs map translateType)
+  }
+
 }
