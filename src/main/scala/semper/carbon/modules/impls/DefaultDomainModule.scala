@@ -32,11 +32,11 @@ class DefaultDomainModule(val verifier: Verifier) extends DomainModule {
   private def translateDomainFunction(f: sil.DomainFunc): Seq[Decl] = {
     val args = f.formalArgs map (x => LocalVarDecl(Identifier(x.name), translateType(x.typ)))
     val func = Func(Identifier(f.name), args, translateType(f.typ))
-    CommentedDecl(s"Translation of domain function ${f.name}", func, size = 1)
+    MaybeCommentedDecl(s"Translation of domain function ${f.name}", func, size = 1)
   }
 
   private def translateDomainAxiom(axiom: sil.DomainAxiom): Seq[Decl] = {
-    CommentedDecl(s"Translation of domain axiom ${axiom.name}", Axiom(translateExp(axiom.exp)), size = 1)
+    MaybeCommentedDecl(s"Translation of domain axiom ${axiom.name}", Axiom(translateExp(axiom.exp)), size = 1)
   }
 
   override def translateDomainFuncApp(fa: sil.DomainFuncApp): Exp = {

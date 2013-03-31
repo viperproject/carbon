@@ -53,7 +53,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
       case sil.Program(name, domains, fields, functions, predicates, methods) =>
         // translate all members
         val translateFields =
-          if (fields.size > 0) CommentedDecl("Translation of all fields", fields flatMap translateFieldDecl) :: Nil else Nil
+          MaybeCommentedDecl("Translation of all fields", fields flatMap translateFieldDecl)
         val members = (domains flatMap translateDomainDecl) ++
           translateFields ++
           (functions flatMap translateFunctionDecl) ++
@@ -89,11 +89,11 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
       case sil.Method(name, formalArgs, formalReturns, pres, posts, locals, b) =>
         val ins: Seq[LocalVarDecl] = formalArgs map translateLocalVarDecl
         val outs: Seq[LocalVarDecl] = formalReturns map translateLocalVarDecl
-        val init = CommentBlock("Initializing the state", initState)
-        val inhalePre = CommentBlock("Inhaling precondition", inhale(pres))
+        val init = MaybeCommentBlock("Initializing the state", initState)
+        val inhalePre = MaybeCommentBlock("Inhaling precondition", inhale(pres))
         val body: Stmt = translateStmt(b)
         val postsWithErrors = posts map (p => (p, errors.PostconditionViolated(p, m)))
-        val exhalePost = CommentBlock("Exhaling postcondition", exhale(postsWithErrors))
+        val exhalePost = MaybeCommentBlock("Exhaling postcondition", exhale(postsWithErrors))
         val proc = Procedure(Identifier(name), ins, outs, Seq(init, inhalePre, body, exhalePost))
         CommentedDecl(s"Translation of method $name", proc)
     }
