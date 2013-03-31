@@ -53,7 +53,6 @@ trait BoogieInterface {
   private def parse(output: String): Seq[Int] = {
     val SummaryPattern = "Boogie program verifier finished with ([0-9]+) verified, ([0-9]+) errors?".r
     val ErrorPattern = "  .+ \\[([0-9]+)\\]".r
-    val TypeParamWarning = ".*Warning: type parameter [^ ]* is ambiguous, instantiating to int".r
     val errors = collection.mutable.ListBuffer[Int]()
     var otherErrId = 0
     for (l <- output.split("\r\n")) {
@@ -63,7 +62,6 @@ trait BoogieInterface {
         case SummaryPattern(v, e) =>
           assert(e.toInt == errors.size, s"Found ${errors.size} errors, but there should be $e.")
         case "" => // ignore empty lines
-        case TypeParamWarning() => // ignore for now
         case _ =>
           otherErrId -= 1
           errors += otherErrId
