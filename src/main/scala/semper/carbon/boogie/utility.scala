@@ -129,7 +129,7 @@ object Nodes {
           case Forall(v, triggers, exp) => v ++ triggers ++ Seq(exp)
           case BinExp(left, binop, right) => Seq(left, right)
           case UnExp(unop, exp) => Seq(exp)
-          case FuncApp(func, args) => args
+          case FuncApp(func, args, typ) => args
         }
     }
   }

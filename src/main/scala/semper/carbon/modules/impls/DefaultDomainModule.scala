@@ -39,7 +39,7 @@ class DefaultDomainModule(val verifier: Verifier) extends DomainModule {
   }
 
   override def translateDomainFuncApp(fa: sil.DomainFuncApp): Exp = {
-    FuncApp(Identifier(fa.func.name), fa.args map translateExp)
+    FuncApp(Identifier(fa.func.name), fa.args map translateExp, translateType(fa.typ))
   }
 
   override def translateDomainTyp(typ: sil.DomainType): Type = {
