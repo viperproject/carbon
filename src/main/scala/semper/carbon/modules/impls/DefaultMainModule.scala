@@ -53,11 +53,11 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
       case sil.Program(name, domains, fields, functions, predicates, methods) =>
         // translate all members
         val translateFields =
-          MaybeCommentedDecl("Translation of all fields", fields flatMap translateFieldDecl)
+          MaybeCommentedDecl("Translation of all fields", fields flatMap translateField)
         val members = (domains flatMap translateDomainDecl) ++
           translateFields ++
-          (functions flatMap translateFunctionDecl) ++
-          (predicates flatMap translatePredicateDecl) ++
+          (functions flatMap translateFunction) ++
+          (predicates flatMap translatePredicate) ++
           (methods flatMap translateMethodDecl)
 
         // get the preambles
@@ -101,13 +101,10 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
     res
   }
 
-  def translateFieldDecl(f: sil.Field): Seq[Decl] = translateField(f)
-  def translateFunctionDecl(f: sil.Function): Seq[Decl] = translateFunction(f)
   def translateDomainDecl(d: sil.Domain): Seq[Decl] = {
     _env = Environment(verifier, d)
     val res = translateDomain(d)
     _env = null
     res
   }
-  def translatePredicateDecl(p: sil.Predicate): Seq[Decl] = translatePredicate(p)
 }
