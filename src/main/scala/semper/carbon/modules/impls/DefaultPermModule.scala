@@ -42,6 +42,7 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
       ConstDecl(permFracCompName, permCompType, unique = true) ::
       ConstDecl(permEpsCompName, permCompType, unique = true) ::
       TypeAlias(maskType, MapType(Seq(refType, fieldType), permType, fieldType.freeTypeVars)) ::
+      GlobalVarDecl(maskName, maskType) ::
       Nil
   }
 
