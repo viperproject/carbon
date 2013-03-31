@@ -15,6 +15,7 @@ class DefaultTypeModule(val verifier: Verifier) extends TypeModule {
   import verifier._
   import heapModule._
   import domainModule._
+  import permModule._
 
   def name = "Type module"
   override def translateType(t: sil.Type): Type = {
@@ -26,9 +27,9 @@ class DefaultTypeModule(val verifier: Verifier) extends TypeModule {
       case sil.Ref =>
         refType
       case sil.Perm =>
-        ???
+        permType
       case sil.Pred =>
-        ???
+        sys.error("this is an internal type, not expected here")
       case sil.TypeVar(name) =>
         TypeVar(name)
       case t@sil.DomainType(domain, typVarsMap) =>
