@@ -1,9 +1,13 @@
 package semper.carbon.verifier
 
-import semper.sil.verifier.{Failure, VerificationError, Success, VerificationResult}
+import semper.sil.verifier._
 import sys.process._
 import java.io._
 import semper.carbon.boogie._
+import semper.sil.verifier.Failure
+import semper.carbon.boogie.Assert
+import semper.carbon.boogie.Program
+import semper.sil.ast.{NoPosition, Position}
 
 /**
  * Defines a clean interface to invoke Boogie and get a list of errors back.
@@ -20,9 +24,10 @@ trait BoogieInterface {
   /** The (resolved) path where Z3 is supposed to be located. */
   def z3Path: String
 
+  var errormap: Map[Int, VerificationError] = Map()
   def invokeBoogie(program: Program, options: Seq[String]): VerificationResult = {
     // find all errors and assign everyone a unique id
-    var errormap: Map[Int, VerificationError] = Map()
+    errormap = Map()
     program.visit {
       case a@Assert(exp, error) =>
         errormap += (a.id -> error)
@@ -50,6 +55,7 @@ trait BoogieInterface {
     val ErrorPattern = "  .+ \\[([0-9]+)\\]".r
     val TypeParamWarning = ".*Warning: type parameter [^ ]* is ambiguous, instantiating to int".r
     val errors = collection.mutable.ListBuffer[Int]()
+    var otherErrId = 0
     for (l <- output.split("\r\n")) {
       l match {
         case ErrorPattern(id) =>
@@ -59,7 +65,18 @@ trait BoogieInterface {
         case "" => // ignore empty lines
         case TypeParamWarning() => // ignore for now
         case _ =>
-          sys.error(s"Found an unparsable output from Boogie: $l")
+          otherErrId -= 1
+          errors += otherErrId
+          val internalError = new AbstractVerificationError {
+            protected def text: String = s"Found an unparsable output from Boogie: $l"
+            def id: String = "boogie.unknown.output"
+            def reason: ErrorReason = null
+            def offendingNode = null
+            override def pos = NoPosition
+            override def readableMessage(full: Boolean = true) =
+              s"Internal error: $text"
+          }
+          errormap += (otherErrId -> internalError)
       }
     }
     errors.toSeq
