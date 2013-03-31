@@ -269,5 +269,5 @@ case class Func(name: Identifier, args: Seq[LocalVarDecl], typ: Type) extends De
 case class Axiom(exp: Exp) extends Decl
 case class GlobalVarDecl(name: Identifier, typ: Type) extends Decl
 case class Procedure(name: Identifier, ins: Seq[LocalVarDecl], outs: Seq[LocalVarDecl], body: Stmt) extends Decl
-case class CommentedDecl(s: String, d: Seq[Decl]) extends Decl
+case class CommentedDecl(s: String, d: Seq[Decl], big: Boolean = false) extends Decl
 case class DeclComment(s: String) extends Decl

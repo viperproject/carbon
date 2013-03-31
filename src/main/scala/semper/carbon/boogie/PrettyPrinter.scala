@@ -236,10 +236,12 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
           line <> space <> space <>
           "modifies" <+> ssep(modifies, comma <> space) <> semi <> line <>
           showBlock(vars3 <> body2)
-      case CommentedDecl(s, d) =>
-        "// ------------------------------------------" <> line <>
+      case CommentedDecl(s, d, big) =>
+        val sep = if (big) "=" else "-"
+        ("// " + (sep * 50)) <> line <>
           "//" <+> value(s) <> line <>
-          "// ------------------------------------------" <> line <>
+          ("// " + (sep * 50)) <> line <>
+          (if (big) line else empty) <>
           showDecls(d, line)
       case DeclComment(s) =>
         value(s"// $s")
