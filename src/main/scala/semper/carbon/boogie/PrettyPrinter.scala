@@ -306,8 +306,13 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
       case Const(name) => name
       case MapSelect(map, idxs) =>
         show(map) <> "[" <> commasep(idxs) <> "]"
-      case FuncApp(name, args, _) =>
-        name <> parens(commasep(args))
+      case FuncApp(name, args, typ) =>
+        // if the return type of the function is generic, include a type annotation
+        val fa = name <> parens(commasep(args))
+        typ.freeTypeVars match {
+          case Nil => fa
+          case _ => parens(fa <> ":" <+> show(typ))
+        }
       case _: PrettyUnaryExpression | _: PrettyBinaryExpression => super.toParenDoc(e)
     }
   }
