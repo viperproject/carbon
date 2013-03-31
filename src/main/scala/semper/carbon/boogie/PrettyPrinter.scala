@@ -266,10 +266,11 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
       case Forall(vars, triggers, exp) =>
         val typVars = if (showTypeVars) vars flatMap (_.typ.freeTypeVars) else Nil
         showTypeVars = false
-        val res = parens(("∀" or "forall") <+>
+        val res = parens("forall" <+> //("∀" or "forall") <+>
           showTypeVars(typVars) <>
           commasep(vars) <+>
-          ("•" or "::") <+>
+          //("•" or "::") <+>
+          "::" <+>
           commasep(triggers) <+>
           show(exp))
         showTypeVars = true
@@ -277,10 +278,11 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
       case Exists(vars, exp) =>
         val typVars = if (showTypeVars) vars flatMap (_.typ.freeTypeVars) else Nil
         showTypeVars = false
-        val res = parens(("∃" or "exists") <+>
+        val res = parens("exists" <+> //("∃" or "exists") <+>
           showTypeVars(typVars) <>
           commasep(vars) <+>
-          ("•" or "::") <+>
+          //("•" or "::") <+>
+          "::" <+>
           show(exp))
         showTypeVars = true
         res
