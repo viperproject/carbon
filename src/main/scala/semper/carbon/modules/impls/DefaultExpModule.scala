@@ -42,9 +42,11 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
       case sil.CondExp(cond, thn, els) =>
         CondExp(translateExp(cond), translateExp(thn), translateExp(els))
       case sil.Exists(v, exp) =>
+        env.define(v.localVar)
         Exists(Seq(translateLocalVarDecl(v)), translateExp(exp))
       case sil.Forall(v, exp) =>
         // TODO: triggers
+        env.define(v.localVar)
         Forall(Seq(translateLocalVarDecl(v)), Nil, translateExp(exp))
       case sil.ReadPerm() =>
         ???

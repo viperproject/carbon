@@ -103,6 +103,11 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
 
   def translateFieldDecl(f: sil.Field): Seq[Decl] = translateField(f)
   def translateFunctionDecl(f: sil.Function): Seq[Decl] = translateFunction(f)
-  def translateDomainDecl(d: sil.Domain): Seq[Decl] = translateDomain(d)
+  def translateDomainDecl(d: sil.Domain): Seq[Decl] = {
+    _env = Environment(verifier, d)
+    val res = translateDomain(d)
+    _env = null
+    res
+  }
   def translatePredicateDecl(p: sil.Predicate): Seq[Decl] = translatePredicate(p)
 }
