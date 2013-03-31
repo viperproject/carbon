@@ -109,11 +109,11 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
     }
     s match {
       case Assume(e) =>
-        "assume" <+> show(e) <> semi
+        "assume" <+> quantifyOverFreeTypeVars(e) <> semi
       case a@Assert(e, error) =>
         "assert" <+>
           "{:msg" <+> "\"  " <> showError(error, a.id) <> "\"}" <> line <>
-          space <> space <> show(e) <>
+          space <> space <> quantifyOverFreeTypeVars(e) <>
           semi
       case Havoc(vars) =>
         "havoc" <+> commasep(vars) <> semi
@@ -177,6 +177,21 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
     ssep(ds map show, sep)
   }
 
+  /**
+   * Return all free type variables from an expression.
+   */
+  def collectFreeTypeVars(exp: Exp): Seq[TypeVar] = {
+    val res = collection.mutable.ListBuffer[TypeVar]()
+    exp visit {
+      case LocalVarDecl(_, t, _) =>
+        res ++= t.freeTypeVars
+      case FuncApp(_, _, t) =>
+        res ++= t.freeTypeVars
+      case _ =>
+    }
+    res.toSeq
+  }
+
   def showDecl(decl: Decl) = {
     decl match {
       case ConstDecl(name, typ, unique) =>
@@ -201,7 +216,7 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
       case GlobalVarDecl(name, typ) =>
         "var" <+> name <> colon <+> show(typ) <> semi
       case Axiom(exp) =>
-        "axiom" <+> show(exp) <> semi
+        "axiom" <+> quantifyOverFreeTypeVars(exp) <> semi
       case Procedure(name, ins, outs, body) =>
         // collect all where clauses
         whereMap = collection.mutable.HashMap[Identifier, Exp]()
@@ -240,6 +255,17 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
   }
 
   /**
+   * Quantifies over the free type variables in 'exp' if necessary.
+   */
+  def quantifyOverFreeTypeVars(exp: Exp): Doc = {
+    val t = collectFreeTypeVars(exp)
+    val body = t match {
+      case Nil => show(exp)
+      case _ => parens("forall" <+> showTypeVars(t) <> "::" <> show(exp))
+    }
+    body
+  }
+  /**
    * Show a list of nodes, separated by a comma and a space.
    */
   def commasep(ns: Seq[Node]) = ssep(ns map show, comma <> space)
@@ -257,41 +283,30 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
   }
 
   // Note: pretty-printing expressions is mostly taken care of by kiama
-  var showTypeVars = true
   override def toParenDoc(e: PrettyExpression): Doc = {
     e match {
       case IntLit(i) => value(i)
       case BoolLit(b) => value(b)
       case RealLit(d) => value(d)
       case Forall(vars, triggers, exp) =>
-        val typVars = if (showTypeVars) vars flatMap (_.typ.freeTypeVars) else Nil
-        showTypeVars = false
-        val res = parens("forall" <+> //("∀" or "forall") <+>
-          showTypeVars(typVars) <>
+        parens("forall" <+> //("∀" or "forall") <+>
           commasep(vars) <+>
           //("•" or "::") <+>
           "::" <+>
           commasep(triggers) <+>
           show(exp))
-        showTypeVars = true
-        res
       case Exists(vars, exp) =>
-        val typVars = if (showTypeVars) vars flatMap (_.typ.freeTypeVars) else Nil
-        showTypeVars = false
-        val res = parens("exists" <+> //("∃" or "exists") <+>
-          showTypeVars(typVars) <>
+        parens("exists" <+> //("∃" or "exists") <+>
           commasep(vars) <+>
           //("•" or "::") <+>
           "::" <+>
           show(exp))
-        showTypeVars = true
-        res
       case LocalVar(name, typ) => name
       case GlobalVar(name, typ) => name
       case Const(name) => name
       case MapSelect(map, idxs) =>
         show(map) <> "[" <> commasep(idxs) <> "]"
-      case FuncApp(name, args) =>
+      case FuncApp(name, args, _) =>
         name <> parens(commasep(args))
       case _: PrettyUnaryExpression | _: PrettyBinaryExpression => super.toParenDoc(e)
     }
