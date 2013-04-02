@@ -17,6 +17,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
   import heapModule._
   import mainModule._
   import domainModule._
+  import seqModule._
 
   def name = "Expression module"
   override def translateExp(e: sil.Exp): Exp = {
@@ -95,6 +96,26 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
         ???
       case fa@sil.DomainFuncApp(func, args, _) =>
         translateDomainFuncApp(fa)
+      case seqExp@sil.EmptySeq(elemTyp) =>
+        translateSeqExp(seqExp)
+      case seqExp@sil.ExplicitSeq(elems) =>
+        translateSeqExp(seqExp)
+      case seqExp@sil.RangeSeq(low, high) =>
+        translateSeqExp(seqExp)
+      case seqExp@sil.SeqAppend(left, right) =>
+        translateSeqExp(seqExp)
+      case seqExp@sil.SeqElement(seq, idx) =>
+        translateSeqExp(seqExp)
+      case seqExp@sil.SeqTake(seq, n) =>
+        translateSeqExp(seqExp)
+      case seqExp@sil.SeqDrop(seq, n) =>
+        translateSeqExp(seqExp)
+      case seqExp@sil.SeqContains(elem, seq) =>
+        translateSeqExp(seqExp)
+      case seqExp@sil.SeqUpdate(seq, idx, elem) =>
+        translateSeqExp(seqExp)
+      case seqExp@sil.SeqLength(seq) =>
+        translateSeqExp(seqExp)
     }
   }
 }

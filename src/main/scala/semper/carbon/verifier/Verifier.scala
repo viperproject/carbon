@@ -25,6 +25,7 @@ trait Verifier {
   val funcPredModule: FuncPredModule
   val permModule: PermModule
   val domainModule: DomainModule
+  val seqModule: SeqModule
 
   /**
    * A list of all modules.
