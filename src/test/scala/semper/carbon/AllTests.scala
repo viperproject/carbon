@@ -3,6 +3,8 @@ package semper.carbon
 import semper.sil.testing.DefaultSilSuite
 import semper.sil.verifier.Verifier
 import semper.sil.frontend.Frontend
+import java.io.File
+import io.Source
 
 /** All tests for carbon.
   *
@@ -12,10 +14,11 @@ class AllTests extends DefaultSilSuite {
 
   override def testDirectories: Seq[String] = Vector("basic")
 
-  override def frontend(verifier: Verifier, input: String): Frontend = {
+  override def frontend(verifier: Verifier, files: Seq[File]): Frontend = {
+    require(files.length == 1, "tests should consist of exactly one file")
     val fe = new CarbonFrontend()
     fe.init(verifier)
-    fe.reset(input)
+    fe.reset(Source.fromFile(files.head).getLines().mkString("\n"))
     fe
   }
 
