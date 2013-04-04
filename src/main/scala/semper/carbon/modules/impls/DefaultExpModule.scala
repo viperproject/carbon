@@ -49,8 +49,6 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
         // TODO: triggers
         env.define(v.localVar)
         Forall(Seq(translateLocalVarDecl(v)), Nil, translateExp(exp))
-      case sil.ReadPerm() =>
-        ???
       case sil.WildcardPerm() =>
         ???
       case sil.FullPerm() =>
