@@ -50,7 +50,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
 
   override def translate(p: sil.Program): Program = {
     p match {
-      case sil.Program(name, domains, fields, functions, predicates, methods) =>
+      case sil.Program(domains, fields, functions, predicates, methods) =>
         // translate all members
         val translateFields =
           MaybeCommentedDecl("Translation of all fields", fields flatMap translateField)

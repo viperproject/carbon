@@ -1,14 +1,12 @@
-program prog {
-  
-  var test: Bool
-  
-  var value: Int
-  
-  // some random tests
-  method t1(this: Ref, a: Int, b: Bool, g: Ref) returns (c: Bool, d: Int)
+
+var test: Bool
+var value: Int
+
+// some random tests
+method t1(this: Ref, a: Int, b: Bool, g: Ref) returns (c: Bool, d: Int)
     requires b
     ensures (d == 1) || (d == 2)
-  {
+{
     var e: Int
     var f1: Ref
     var f2: Ref
@@ -16,7 +14,7 @@ program prog {
     f1 := new()
     f2 := new()
     if (g != null) {
-      exhale g != f1
+        exhale g != f1
     }
     exhale this.value <= 42
     exhale f1 != f2
@@ -26,15 +24,15 @@ program prog {
     exhale a < 0
     d := 2
     if (b) {
-      d := 1
+        d := 1
     } else {
-      d := 3
+        d := 3
     }
-  }
-  
-  // test aliasing information of newly created objects
-  method t2(a: Ref, b: Ref) returns ()
-  {
+}
+
+// test aliasing information of newly created objects
+method t2(a: Ref, b: Ref) returns ()
+{
     var l1: Ref
     var l2: Ref
     l1 := new()
@@ -43,11 +41,11 @@ program prog {
     exhale l1 != l2
     //:: ExpectedError(assertion.false)
     exhale a != b
-  }
-  
-  // test aliasing information of parameters 1
-  method t3(a: Ref, b: Ref) returns ()
-  {
+}
+
+// test aliasing information of parameters 1
+method t3(a: Ref, b: Ref) returns ()
+{
     if (a == null) {
         //:: ExpectedError(assertion.false)
         exhale a != b
@@ -55,15 +53,14 @@ program prog {
             exhale a != b
         }
     }
-  }
-  
-  // test aliasing information of parameters 2
-  method t4(a: Ref, b: Ref) returns ()
-  {
+}
+
+// test aliasing information of parameters 2
+method t4(a: Ref, b: Ref) returns ()
+{
     if (a == null) {
         if (b != null) {
             exhale a != b
         }
     }
-  }
 }
