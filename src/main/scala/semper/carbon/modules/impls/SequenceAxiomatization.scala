@@ -123,5 +123,15 @@ object SequenceAxiomatization {
                 |// drop commutes with build.
                 |axiom (forall<T> s: Seq T, v: T, n: int ::
                 |  { Seq#Drop(Seq#Build(s, v), n) }
-                |    0 <= n && n <= Seq#Length(s) ==> Seq#Drop(Seq#Build(s, v), n) == Seq#Build(Seq#Drop(s, n), v) );""".stripMargin
+                |    0 <= n && n <= Seq#Length(s) ==> Seq#Drop(Seq#Build(s, v), n) == Seq#Build(Seq#Drop(s, n), v) );
+                |
+                |function Seq#Range(min: int, max: int) returns (Seq int);
+                |
+                |axiom (forall min: int, max: int :: { Seq#Length(Seq#Range(min, max)) } (min < max ==> Seq#Length(Seq#Range(min, max)) == max-min) && (max <= min ==> Seq#Length(Seq#Range(min, max)) == 0));
+                |axiom (forall min: int, max: int, j: int :: { Seq#Index(Seq#Range(min, max), j) } 0<=j && j<max-min ==> Seq#Index(Seq#Range(min, max), j) == min + j);
+                |
+                |axiom (forall<T> x, y: T ::
+                |  { Seq#Contains(Seq#Singleton(x),y) }
+                |    Seq#Contains(Seq#Singleton(x),y) <==> x==y);
+                |""".stripMargin
 }

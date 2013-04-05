@@ -43,7 +43,7 @@ class DefaultSeqModule(val verifier: Verifier) extends SeqModule {
         FuncApp(Identifier("Seq#Empty"), Nil, typ)
       case sil.ExplicitSeq(elems) =>
         def buildSeq(es: Seq[sil.Exp]): Exp = {
-          elems match {
+          es match {
             case Nil => sys.error("did not expect empty sequence")
             case a :: Nil =>
               FuncApp(Identifier("Seq#Singleton"), t(a), typ)
@@ -64,7 +64,7 @@ class DefaultSeqModule(val verifier: Verifier) extends SeqModule {
       case sil.SeqDrop(seq, n) =>
         FuncApp(Identifier("Seq#Drop"), List(t(seq), t(n)), typ)
       case sil.SeqContains(elem, seq) =>
-        FuncApp(Identifier("Seq#Index"), List(t(seq), t(elem)), typ)
+        FuncApp(Identifier("Seq#Contains"), List(t(seq), t(elem)), typ)
       case sil.SeqUpdate(seq, idx, elem) =>
         FuncApp(Identifier("Seq#Update"), List(t(seq), t(idx), t(elem)), typ)
       case sil.SeqLength(seq) =>
