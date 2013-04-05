@@ -299,3 +299,4 @@ object MaybeCommentedDecl {
   }
 }
 case class DeclComment(s: String) extends Decl
+case class LiteralDecl(boogieString: String) extends Decl

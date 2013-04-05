@@ -258,6 +258,8 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
         }
       case DeclComment(s) =>
         value(s"// $s")
+      case LiteralDecl(s) =>
+        value(s)
     }
   }
 

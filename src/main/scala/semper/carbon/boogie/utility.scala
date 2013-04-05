@@ -96,6 +96,7 @@ object Nodes {
           case Procedure(name, ins, outs, body) => ins ++ outs ++ Seq(body)
           case CommentedDecl(s, ds, _, _) => ds
           case DeclComment(s) => Nil
+          case LiteralDecl(s) => Nil
         }
       case s: Stmt =>
         s match {
