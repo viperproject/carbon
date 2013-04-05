@@ -16,5 +16,7 @@ method t2() {
     var a: Seq[Int] := Seq(0,1,-11,22)
     assert a[2] == -11
 
-    //assert a[..1] == Seq(0,1,-11)
+    assert a[..1] == Seq(0)
+    assert a[1..] == Seq(1,-11,22)
+    assert a[1..2] == Seq(1)
 }
