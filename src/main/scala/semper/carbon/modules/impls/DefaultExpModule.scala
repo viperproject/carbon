@@ -64,9 +64,17 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
       case sil.AccessPredicate(loc, perm) =>
         ???
       case sil.EqCmp(left, right) =>
-        BinExp(translateExp(left), EqCmp, translateExp(right))
+        if (e.typ.isInstanceOf[sil.SeqType]) {
+          translateSeqExp(e)
+        } else {
+          BinExp(translateExp(left), EqCmp, translateExp(right))
+        }
       case sil.NeCmp(left, right) =>
-        BinExp(translateExp(left), NeCmp, translateExp(right))
+        if (e.typ.isInstanceOf[sil.SeqType]) {
+          translateSeqExp(e)
+        } else {
+          BinExp(translateExp(left), NeCmp, translateExp(right))
+        }
       case sil.DomainBinExp(left, op, right) =>
         val bop = op match {
           case sil.OrOp => Or
