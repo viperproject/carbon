@@ -1,6 +1,4 @@
 
-
-
 method t1(x: Int, xs: Seq[Int]) {
     var n: Seq[Int] := Seq()
     assert |n| == 0
@@ -19,4 +17,7 @@ method t2() {
     assert a[..1] == Seq(0)
     assert a[1..] == Seq(1,-11,22)
     assert a[1..2] == Seq(1)
+
+    assert a[1 := 22] == (a[1 := -1][1 := 22])
+    assert a[1 := 22] == Seq(0,22,-11,22)
 }
