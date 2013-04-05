@@ -4,6 +4,7 @@ import semper.carbon.modules.SeqModule
 import semper.sil.{ast => sil}
 import semper.carbon.boogie._
 import semper.carbon.verifier.Verifier
+import semper.carbon.boogie.Implicits._
 
 /**
  * The default implementation of [[semper.carbon.modules.SeqModule]].
@@ -12,26 +13,62 @@ import semper.carbon.verifier.Verifier
  */
 class DefaultSeqModule(val verifier: Verifier) extends SeqModule {
 
-  def name = "Sequence module"
+  import verifier._
+  import typeModule._
+  import expModule._
 
+  /**
+   * Have sequences been used so far (to determine if we need to include
+   * the sequence axiomatization in the prelude.
+   */
+  private var used = false
+
+  def name = "Sequence module"
   implicit val namespace = verifier.freshNamespace("seq")
 
-  override def translateSeqExp(e: sil.Exp): Exp = {
-    e match {
-      case sil.EmptySeq(elemTyp) =>
-      case sil.ExplicitSeq(elems) =>
-      case sil.RangeSeq(low, high) =>
-      case sil.SeqAppend(left, right) =>
-      case sil.SeqElement(seq, idx) =>
-      case sil.SeqTake(seq, n) =>
-      case sil.SeqDrop(seq, n) =>
-      case sil.SeqContains(elem, seq) =>
-      case sil.SeqUpdate(seq, idx, elem) =>
-      case sil.SeqLength(seq) =>
-      case _ => sys.error("not a sequence expression")
+  override def preamble = {
+    if (used) {
+      LiteralDecl(SequenceAxiomatization.value)
+    } else {
+      Nil
     }
-    ???
   }
 
-  override def translateSeqType(seqType: sil.SeqType): Type = ???
+  override def translateSeqExp(e: sil.Exp): Exp = {
+    def t(e: sil.Exp) = translateExp(e)
+    used = true
+    val typ = translateType(e.typ)
+    e match {
+      case sil.EmptySeq(elemTyp) =>
+        FuncApp(Identifier("Seq#Empty"), Nil, typ)
+      case sil.ExplicitSeq(elems) =>
+        def buildSeq(es: Seq[sil.Exp]): Exp = {
+          elems match {
+            case Nil => sys.error("did not expect empty sequence")
+            case a :: Nil =>
+              FuncApp(Identifier("Seq#Singleton"), t(a), typ)
+            case a :: as =>
+              val aTranslated = FuncApp(Identifier("Seq#Singleton"), t(a), typ)
+              FuncApp(Identifier("Seq#Append"), List(aTranslated, buildSeq(as)), typ)
+          }
+        }
+        buildSeq(elems)
+      case sil.RangeSeq(low, high) => ???
+      case sil.SeqAppend(left, right) =>
+        FuncApp(Identifier("Seq#Append"), List(t(left), t(right)), typ)
+      case sil.SeqElement(seq, idx) => ???
+      case sil.SeqTake(seq, n) => ???
+      case sil.SeqDrop(seq, n) => ???
+      case sil.SeqContains(elem, seq) => ???
+      case sil.SeqUpdate(seq, idx, elem) => ???
+      case sil.SeqLength(seq) =>
+        FuncApp(Identifier("Seq#Length"), t(seq), typ)
+      case _ => sys.error("not a sequence expression")
+    }
+  }
+
+  override def translateSeqType(seqType: sil.SeqType): Type = {
+    used = true
+    NamedType("Seq", TypeVar("T"))
+  }
 }
