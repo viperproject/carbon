@@ -57,7 +57,7 @@ class DefaultSeqModule(val verifier: Verifier) extends SeqModule {
         FuncApp(Identifier("Seq#Range"), List(t(low), t(high)), typ)
       case sil.SeqAppend(left, right) =>
         FuncApp(Identifier("Seq#Append"), List(t(left), t(right)), typ)
-      case sil.SeqElement(seq, idx) =>
+      case sil.SeqIndex(seq, idx) =>
         FuncApp(Identifier("Seq#Index"), List(t(seq), t(idx)), typ)
       case sil.SeqTake(seq, n) =>
         FuncApp(Identifier("Seq#Take"), List(t(seq), t(n)), typ)

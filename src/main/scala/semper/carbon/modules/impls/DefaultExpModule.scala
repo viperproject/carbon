@@ -110,7 +110,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
         translateSeqExp(seqExp)
       case seqExp@sil.SeqAppend(left, right) =>
         translateSeqExp(seqExp)
-      case seqExp@sil.SeqElement(seq, idx) =>
+      case seqExp@sil.SeqIndex(seq, idx) =>
         translateSeqExp(seqExp)
       case seqExp@sil.SeqTake(seq, n) =>
         translateSeqExp(seqExp)
