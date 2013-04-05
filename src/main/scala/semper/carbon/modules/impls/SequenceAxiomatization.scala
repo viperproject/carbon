@@ -5,11 +5,7 @@ package semper.carbon.modules.impls
  * from Dafny (http://dafny.codeplex.com/).  These axioms have been imported on 2013-04-05.
  */
 object SequenceAxiomatization {
-  val value = """// ---------------------------------------------------------------
-                |// -- Axiomatization of sequences --------------------------------
-                |// ---------------------------------------------------------------
-                |
-                |type Seq T;
+  val value = """type Seq T;
                 |
                 |function Seq#Length<T>(Seq T): int;
                 |axiom (forall<T> s: Seq T :: { Seq#Length(s) } 0 <= Seq#Length(s));
