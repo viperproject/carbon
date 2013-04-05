@@ -19,7 +19,7 @@ method t1(this: Ref, a: Int, b: Bool, g: Ref) returns (c: Bool, d: Int)
     exhale f1 != f2
     //:: ExpectedError(assertion.false)
     exhale this != null
-    inhale a == -11
+    inhale (a == -11)
     exhale a < 0
     d := 2
     if (b) {
