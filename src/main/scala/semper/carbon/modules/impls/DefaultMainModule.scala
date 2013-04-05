@@ -60,7 +60,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
           (predicates flatMap translatePredicate) ++
           (methods flatMap translateMethodDecl)
 
-        // get the preambles
+        // get the preambles (only at the end, even if we add it at the beginning)
         val preambles = verifier.allModules flatMap {
           m =>
             if (m.preamble.size > 0) Seq(CommentedDecl(s"Preamble of ${m.name}.", m.preamble))
