@@ -32,7 +32,7 @@ trait Verifier {
    */
   def allModules: Seq[Module] =
     Seq(mainModule, stateModule, heapModule, stmtModule, expModule, typeModule,
-      exhaleModule, inhaleModule, funcPredModule, permModule)
+      exhaleModule, inhaleModule, funcPredModule, permModule, domainModule, seqModule)
 
   /**
    * Debug information (e.g., the full command used to invoke this verification).
