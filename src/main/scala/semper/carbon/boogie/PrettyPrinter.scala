@@ -44,7 +44,6 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
     val res = collection.mutable.ListBuffer[GlobalVarDecl]()
     n visit {
       case g: GlobalVarDecl => res += g
-      case _ =>
     }
     res
   }
@@ -185,7 +184,6 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
         res ++= t.freeTypeVars
       case FuncApp(_, _, t) =>
         res ++= t.freeTypeVars
-      case _ =>
     }
     res.toSeq
   }
@@ -221,7 +219,6 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
         body visit {
           case LocalVarWhereDecl(idn, where) =>
             whereMap.put(idn, where)
-          case _ =>
         }
         // we add a modifies clause that contains all global variables. since we do not actually
         // call any of the Boogie procedures, this works well and avoids the need to have

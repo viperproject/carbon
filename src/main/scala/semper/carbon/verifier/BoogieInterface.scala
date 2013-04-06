@@ -31,7 +31,6 @@ trait BoogieInterface {
     program.visit {
       case a@Assert(exp, error) =>
         errormap += (a.id -> error)
-      case _ =>
     }
 
     // invoke Boogie
