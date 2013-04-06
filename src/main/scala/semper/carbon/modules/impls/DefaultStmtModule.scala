@@ -42,8 +42,11 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
       case a@sil.Assert(e) =>
         // TODO: deal correctly with side-effects
         exhale((e, errors.AssertFailed(a)))
-      case sil.MethodCall(method, args, targets) =>
-        ???
+      case mc@sil.MethodCall(method, args, targets) =>
+        Havoc((targets map translateExp).asInstanceOf[Seq[Var]]) ::
+        CommentBlock("Exhaling precondition", exhale(mc.pres map (e => (e, errors.MethodCallFailed(mc))))) ::
+          CommentBlock("Inhaling postcondition", inhale(mc.posts)) ::
+          Nil
       case sil.While(cond, invs, locals, body) =>
         ???
       case sil.If(cond, thn, els) =>
