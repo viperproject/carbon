@@ -59,7 +59,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
         ???
       case sil.CurrentPerm(loc) =>
         ???
-      case sil.ConcretePerm(a, b) =>
+      case sil.FractionalPerm(left, right) =>
         ???
       case sil.AccessPredicate(loc, perm) =>
         ???
@@ -90,7 +90,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
           case sil.AndOp | sil.ImpliesOp =>
             sys.error("&& and ==> are not handled in expression module")
           case sil.PermGeOp | sil.PermGtOp | sil.PermLeOp | sil.PermLtOp |
-               sil.PermAddOp | sil.PermMulOp | sil.PermSubOp | sil.IntPermMulOp =>
+               sil.PermAddOp | sil.PermMulOp | sil.PermSubOp | sil.IntPermMulOp |
+               sil.FracOp =>
             sys.error("permission operations not handled in expression module")
         }
         BinExp(translateExp(left), bop, translateExp(right))
