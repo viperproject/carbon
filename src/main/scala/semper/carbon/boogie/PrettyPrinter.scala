@@ -116,7 +116,7 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
       case Havoc(vars) =>
         "havoc" <+> commasep(vars) <> semi
       case Goto(dests) =>
-        "goto" <+> ssep(dests map (x => ident2doc(x.name)), comma <> space)
+        "goto" <+> ssep(dests map (x => ident2doc(x.name)), comma <> space) <> semi
       case Assign(lhs, rhs) =>
         show(lhs) <+> ":=" <+> show(rhs) <> semi
       case Label(lbl) =>
