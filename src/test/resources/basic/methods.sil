@@ -1,7 +1,7 @@
 
 method t1() {
     var n: Int
-    //:: ExpectedError(assertion.false)
+    //:: ExpectedError(call.precondition:assertion.false)
     n := t3(-1)
 }
 
