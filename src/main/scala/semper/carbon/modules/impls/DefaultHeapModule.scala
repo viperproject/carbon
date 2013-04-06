@@ -70,6 +70,12 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
         translateFieldAccess(lhs) := translateExp(rhs)
       case sil.NewStmt(target) =>
         Havoc(freshObjectVar) ::
+          // assume the fresh object is non-null and not allocated yet.
+          // this means that whenever we allocate a new object and havoc freshObjectVar, we
+          // assume that we consider a newly allocated cell, which gives the prover
+          // the information that this object is different from anything allocated
+          // earlier.
+          Assume(freshObjectVar !== nullLit && alloc(freshObjectVar).not) ::
           (alloc(freshObjectVar) := TrueLit()) ::
           (translateExp(target) := freshObjectVar) ::
           Nil
@@ -87,14 +93,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   override def translateNull: Exp = nullLit
 
   def initState: Stmt = {
-    // define where clause for the fresh object variable (it is not allocated!).
-    // this means that whenever we allocate a new object and havoc freshObjectVar, we
-    // assume that we consider a newly allocated cell, which gives the prover
-    // the information that this object is different from anything allocated
-    // earlier.
-    LocalVarWhereDecl(freshObjectName,
-      freshObjectVar !== nullLit && alloc(freshObjectVar).not) ::
-      Nil
+    Nil
   }
 
   def stateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(heapName, heapTyp))
