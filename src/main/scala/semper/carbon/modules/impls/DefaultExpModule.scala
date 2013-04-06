@@ -84,7 +84,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
           case sil.GtOp => GtCmp
           case sil.AddOp => Add
           case sil.SubOp => Sub
-          case sil.DivOp => Div
+          case sil.DivOp => IntDiv
           case sil.ModOp => Mod
           case sil.MulOp => Mul
           case sil.AndOp | sil.ImpliesOp =>
