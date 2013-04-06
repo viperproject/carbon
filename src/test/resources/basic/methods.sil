@@ -1,0 +1,21 @@
+
+method t1() {
+    var n: Int
+    //:: ExpectedError(assertion.false)
+    n := t3(-1)
+}
+
+method t2() {
+    var n: Int := -10
+    n := t3(1)
+    assert n > 0
+    //:: ExpectedError(assertion.false)
+    assert false
+}
+
+method t3(n: Int) returns (r: Int)
+    requires n > 0
+    ensures r > 0
+{
+    r := n
+}
