@@ -30,9 +30,12 @@ trait Verifier {
   /**
    * A list of all modules.
    */
-  def allModules: Seq[Module] =
+  lazy val allModules: Seq[Module] = {
     Seq(mainModule, stateModule, heapModule, stmtModule, expModule, typeModule,
       exhaleModule, inhaleModule, funcPredModule, permModule, domainModule, seqModule)
+  } ensuring {
+    mods => true
+  }
 
   /**
    * Debug information (e.g., the full command used to invoke this verification).
