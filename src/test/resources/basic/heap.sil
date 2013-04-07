@@ -1,0 +1,12 @@
+
+var f: Ref
+
+// test aliasing of heap values with other objects
+method t1() {
+    var a: Ref
+    var c: Ref
+
+    c := new()
+    assert c.f != c
+    assert a.f != c
+}
