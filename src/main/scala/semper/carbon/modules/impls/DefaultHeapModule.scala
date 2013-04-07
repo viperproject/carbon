@@ -79,6 +79,11 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
           (alloc(freshObjectVar) := TrueLit()) ::
           (translateExp(target) := freshObjectVar) ::
           Nil
+      case sil.MethodCall(_, _, targets) =>
+        targets filter (_.typ == sil.Ref) map translateExp map {
+          t =>
+            Assume(t === nullLit || alloc(t))
+        }
       case _ => Statements.EmptyStmt
     }
   }
