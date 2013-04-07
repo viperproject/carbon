@@ -63,7 +63,9 @@ sealed trait Node {
  * have to be declared (but if a where clause is needed, then
  * [[semper.carbon.boogie.LocalVarWhereDecl]] can be used.
  */
-case class LocalVarDecl(name: Identifier, typ: Type, where: Option[Exp] = None) extends Node
+case class LocalVarDecl(name: Identifier, typ: Type, where: Option[Exp] = None) extends Node {
+  def l = LocalVar(name, typ)
+}
 
 /**
  * An identifier of a Boogie program.  Creators of identifiers must make sure that

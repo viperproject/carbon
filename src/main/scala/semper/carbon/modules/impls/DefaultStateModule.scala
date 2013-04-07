@@ -33,4 +33,8 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   }
   def stateContributions: Seq[LocalVarDecl] = components flatMap (_.stateContributions)
   def currentStateContributions: Seq[Exp] = components flatMap (_.currentStateContributions)
+
+  def staticGoodState: Exp = {
+    FuncApp(Identifier(isGoodState), stateContributions map (v => LocalVar(v.name, v.typ)), Bool)
+  }
 }

@@ -14,12 +14,16 @@ import semper.carbon.verifier.Verifier
  */
 class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateComponent with StmtComponent {
 
-  import verifier.typeModule._
-  import verifier.expModule._
+  import verifier._
+  import typeModule._
+  import expModule._
+  import stateModule._
 
   def name = "Heap module"
   implicit val heapNamespace = verifier.freshNamespace("heap")
   val fieldNamespace = verifier.freshNamespace("heap.fields")
+  // a fresh namespace for every axiom
+  def axiomNamespace = verifier.freshNamespace("heap.axiom")
 
   override def initialize() {
     verifier.stateModule.register(this)
@@ -27,6 +31,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   }
 
   private val fieldTypeName = "Field"
+  private def fieldTypeOf(t: Type) = NamedType(fieldTypeName, t)
   override def fieldType = NamedType(fieldTypeName, TypeVar("T"))
   private val heapTyp = NamedType("HeapType")
   private val heapName = Identifier("Heap")
@@ -39,12 +44,22 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   override def refType = NamedType("Ref")
 
   override def preamble = {
+    val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
+    val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldTypeOf(refType))
+    val obj_field = lookup(LocalVar(heapName, heapTyp), obj.l, field.l)
     TypeDecl(refType) ::
       GlobalVarDecl(heapName, heapTyp) ::
       ConstDecl(nullName, refType) ::
       TypeDecl(fieldType) ::
       TypeAlias(heapTyp, MapType(Seq(refType, fieldType), TypeVar("T"), Seq(TypeVar("T")))) ::
       ConstDecl(allocName, NamedType(fieldTypeName, Bool), unique = true) ::
+      // all heap-lookups yield allocated objects or null
+      Axiom(Forall(
+        obj ++
+          field ++
+          stateModule.stateContributions,
+        Trigger(Seq(staticGoodState, obj_field)),
+        obj_field === nullLit || alloc(obj_field))) ::
       Nil
   }
 
@@ -58,7 +73,10 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   }
 
   /** Returns a heap-lookup of the allocated field of an object. */
-  private def alloc(o: Exp) = MapSelect(heap, Seq(o, Const(allocName)))
+  private def alloc(o: Exp) = lookup(heap, o, Const(allocName))
+
+  /** Returns a heap-lookup for o.f in a given heap h. */
+  private def lookup(h: Exp, o: Exp, f: Exp) = MapSelect(h, Seq(o, f))
 
   override def translateFieldAccess(f: sil.FieldAccess): Exp = {
     MapSelect(heap, Seq(translateExp(f.rcv), Const(fieldIdentifier(f.field))))
