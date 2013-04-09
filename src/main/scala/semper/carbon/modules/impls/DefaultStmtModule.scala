@@ -41,10 +41,16 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
       case exh@sil.Exhale(e) =>
         exhale((e, errors.ExhaleFailed(exh)))
       case a@sil.Assert(e) =>
-        val (backup, snapshot) = freshTempState
-        val exhaleStmt = exhale((e, errors.AssertFailed(a)))
-        val restore = restoreState(snapshot)
-        backup :: exhaleStmt :: restore :: Nil
+        if (e.isPure) {
+          // if e is pure, then assert and exhale are the same
+          exhale((e, errors.AssertFailed(a)))
+        } else {
+          // we create a temporary state to ignore the side-effects
+          val (backup, snapshot) = freshTempState
+          val exhaleStmt = exhale((e, errors.AssertFailed(a)))
+          val restore = restoreState(snapshot)
+          backup :: exhaleStmt :: restore :: Nil
+        }
       case mc@sil.MethodCall(method, args, targets) =>
         Havoc((targets map translateExp).asInstanceOf[Seq[Var]]) ::
           MaybeCommentBlock("Exhaling precondition", exhale(mc.pres map (e => (e, errors.PreconditionInCallFalse(mc))))) ::
