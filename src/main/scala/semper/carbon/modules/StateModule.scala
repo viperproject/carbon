@@ -2,19 +2,16 @@ package semper.carbon.modules
 
 import components.{StateComponent, ComponentRegistry}
 import semper.sil.{ast => sil}
-import semper.carbon.boogie.{Exp, Stmt}
+import semper.carbon.boogie.{LocalVarDecl, Exp, Stmt}
 
 /**
  * A module for dealing with the state of a program during execution.  Allows other modules
  * to register [[semper.carbon.modules.components.StateComponent]]s that contribute to the
  * state.
  *
- * This module is itself a [[semper.carbon.modules.components.StateComponent]] that just
- * aggregates all the registered components.
- *
  * @author Stefan Heule
  */
-trait StateModule extends Module with StateComponent with ComponentRegistry[StateComponent] {
+trait StateModule extends Module with ComponentRegistry[StateComponent] {
 
   /**
    * Returns an assumption that the current state is 'good', or well-formed.
@@ -26,4 +23,20 @@ trait StateModule extends Module with StateComponent with ComponentRegistry[Stat
    * `stateContributions`.
    */
   def staticGoodState: Exp
+
+  /**
+   * The statements necessary to initialize the part of the state belonging to this module.
+   */
+  def initState: Stmt
+
+  /**
+   * The name and type of the contribution of this components to the state.
+   */
+  def stateContributions: Seq[LocalVarDecl]
+
+  /**
+   * The current values for this components state contributions.  The number of elements
+   * in the list and the types must correspond to the ones given in `stateContributions`.
+   */
+  def currentStateContributions: Seq[Exp]
 }

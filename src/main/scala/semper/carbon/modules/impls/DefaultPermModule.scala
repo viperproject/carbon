@@ -34,7 +34,7 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
   private val maskTypeName = "MaskType"
   private val maskType = NamedType(maskTypeName)
   private val maskName = Identifier("Mask")
-  private val mask = GlobalVar(maskName, maskType)
+  private var mask: Var = GlobalVar(maskName, maskType)
 
   override def preamble = {
     TypeDecl(permCompType) ::
@@ -51,6 +51,24 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
   def stateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(maskName, maskType))
   def currentStateContributions: Seq[Exp] = Seq(mask)
   def initState: Stmt = {
+    Statements.EmptyStmt
+  }
+
+  override type StateSnapshot = (Int, Var)
+  private var curTmpStateId = -1
+
+  override def freshTempState: (Stmt, StateSnapshot) = {
+    curTmpStateId += 1
+    val oldMask = mask
+    val tmpHeapName = if (curTmpStateId == 0) "tmpMask" else s"tmpMask$curTmpStateId"
+    mask = LocalVar(Identifier(tmpHeapName), maskType)
+    val s = Assign(mask, oldMask)
+    (s, (curTmpStateId, oldMask))
+  }
+
+  override def throwAwayTempState(s: StateSnapshot): Stmt = {
+    mask = s._2
+    curTmpStateId = s._1 - 1
     Statements.EmptyStmt
   }
 }

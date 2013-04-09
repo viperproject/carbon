@@ -35,7 +35,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   override def fieldType = NamedType(fieldTypeName, TypeVar("T"))
   private val heapTyp = NamedType("HeapType")
   private val heapName = Identifier("Heap")
-  private val heap: Var = GlobalVar(heapName, heapTyp)
+  private var heap: Var = GlobalVar(heapName, heapTyp)
   private val nullName = Identifier("null")
   private val nullLit = Const(nullName)
   private val freshObjectName = Identifier("freshObj")
@@ -116,9 +116,27 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   override def translateNull: Exp = nullLit
 
   def initState: Stmt = {
-    Nil
+    Havoc(heap)
   }
 
   def stateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(heapName, heapTyp))
   def currentStateContributions: Seq[Exp] = Seq(heap)
+
+  override type StateSnapshot = (Int, Var)
+  private var curTmpStateId = -1
+
+  override def freshTempState: (Stmt, StateSnapshot) = {
+    curTmpStateId += 1
+    val oldHeap = heap
+    val tmpHeapName = if (curTmpStateId == 0) "tmpHeap" else s"tmpHeap$curTmpStateId"
+    heap = LocalVar(Identifier(tmpHeapName), heapTyp)
+    val s = Assign(heap, oldHeap)
+    (s, (curTmpStateId, oldHeap))
+  }
+
+  override def throwAwayTempState(s: StateSnapshot): Stmt = {
+    heap = s._2
+    curTmpStateId = s._1 - 1
+    Statements.EmptyStmt
+  }
 }

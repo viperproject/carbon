@@ -26,4 +26,17 @@ trait StateComponent extends Component {
    * in the list and the types must correspond to the ones given in `stateContributions`.
    */
   def currentStateContributions: Seq[Exp]
+
+  type StateSnapshot
+
+  /**
+   * Set up a fresh temporary state (no need to initialize it yet) and return enough
+   * information such that the previous state can be restored later.
+   */
+  def freshTempState: (Stmt, StateSnapshot)
+
+  /**
+   * Throw away the current (temporary) state and go back to the previous state.
+   */
+  def throwAwayTempState(previousState: StateSnapshot): Stmt
 }
