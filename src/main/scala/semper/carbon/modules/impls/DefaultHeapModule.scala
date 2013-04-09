@@ -116,7 +116,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   override def translateNull: Exp = nullLit
 
   def initState: Stmt = {
-    Havoc(heap)
+    Nil
   }
 
   def stateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(heapName, heapTyp))
