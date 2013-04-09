@@ -15,10 +15,11 @@ import semper.carbon.modules.components.StmtComponent
  */
 class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComponent {
 
-  import verifier.expModule._
-  import verifier.stateModule._
-  import verifier.exhaleModule._
-  import verifier.inhaleModule._
+  import verifier._
+  import expModule._
+  import stateModule._
+  import exhaleModule._
+  import inhaleModule._
 
   // registering in the constructor ensures that this will be the first component
   register(this)
@@ -40,8 +41,10 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
       case exh@sil.Exhale(e) =>
         exhale((e, errors.ExhaleFailed(exh)))
       case a@sil.Assert(e) =>
-        // TODO: deal correctly with side-effects
-        exhale((e, errors.AssertFailed(a)))
+        val (backup, snapshot) = freshTempState
+        val exhaleStmt = exhale((e, errors.AssertFailed(a)))
+        val restore = restoreState(snapshot)
+        backup :: exhaleStmt :: restore :: Nil
       case mc@sil.MethodCall(method, args, targets) =>
         Havoc((targets map translateExp).asInstanceOf[Seq[Var]]) ::
           MaybeCommentBlock("Exhaling precondition", exhale(mc.pres map (e => (e, errors.PreconditionInCallFalse(mc))))) ::

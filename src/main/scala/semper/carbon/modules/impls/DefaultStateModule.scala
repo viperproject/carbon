@@ -39,13 +39,9 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     FuncApp(Identifier(isGoodState), stateContributions map (v => LocalVar(v.name, v.typ)), Bool)
   }
 
-  type StateSnapshot = java.util.IdentityHashMap[StateComponent, Any]
+  override type StateSnapshot = java.util.IdentityHashMap[StateComponent, Any]
 
-  /**
-   * Backup the current state and return enough information such that it can
-   * be restored again at a later point.
-   */
-  def freshTempState: (Stmt, StateSnapshot) = {
+  override def freshTempState: (Stmt, StateSnapshot) = {
     val snapshot = new java.util.IdentityHashMap[StateComponent, Any]()
     val s = (for (c <- components) yield {
       val (stmt, snap) = c.freshTempState
@@ -55,10 +51,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     (s, snapshot)
   }
 
-  /**
-   * Restore the state to a given snapshot.
-   */
-  def restoreState(snapshot: StateSnapshot): Stmt = {
+  override def restoreState(snapshot: StateSnapshot): Stmt = {
     for (c <- components) yield {
       c.throwAwayTempState(snapshot.get(c).asInstanceOf[c.StateSnapshot])
     }
