@@ -15,6 +15,13 @@ method t1b() {
 method t1c(r: Ref)
     requires r != null
 {
-    //:: ExpectedError(call.precondition:insufficient.permissions)
+    //:: ExpectedError(call.precondition:insufficient.permission)
     t1(r)
+}
+
+method t2(r: Ref, p: Perm) returns ()
+    requires acc(r.f, p)
+{
+    //:: ExpectedError(call.precondition:non.positive.permission)
+    t2(r, none)
 }
