@@ -126,6 +126,8 @@ sealed trait Exp extends Node with PrettyExpression {
   def ===(other: Exp) = BinExp(this, EqCmp, other)
   def !==(other: Exp) = BinExp(this, NeCmp, other)
   def :=(rhs: Exp) = Assign(this, rhs)
+  def +=(rhs: Exp) = Assign(this, this + rhs)
+  def -=(rhs: Exp) = Assign(this, this - rhs)
   def +(other: Exp) = BinExp(this, Add, other)
   def -(other: Exp) = BinExp(this, Sub, other)
   def *(other: Exp) = BinExp(this, Mul, other)

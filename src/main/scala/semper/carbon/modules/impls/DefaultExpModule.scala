@@ -62,7 +62,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
       case sil.FractionalPerm(left, right) =>
         ???
       case sil.AccessPredicate(loc, perm) =>
-        ???
+        sys.error("not handled by expression module")
       case sil.EqCmp(left, right) =>
         if (left.typ.isInstanceOf[sil.SeqType]) {
           translateSeqExp(e)

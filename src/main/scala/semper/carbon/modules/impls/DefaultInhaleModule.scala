@@ -52,6 +52,5 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule {
     } else {
       Nil
     }
-
   }
 }

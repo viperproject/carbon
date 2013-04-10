@@ -64,13 +64,14 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   }
 
   override def translateField(f: sil.Field) = {
-    ConstDecl(fieldIdentifier(f), NamedType(fieldTypeName, translateType(f.typ)), unique = true)
+    ConstDecl(locationIdentifier(f), NamedType(fieldTypeName, translateType(f.typ)), unique = true)
   }
 
-  /** Return the identifier corresponding to a SIL field. */
-  private def fieldIdentifier(f: sil.Field): Identifier = {
+  /** Return the identifier corresponding to a SIL location. */
+  private def locationIdentifier(f: sil.Location): Identifier = {
     Identifier(f.name)(fieldNamespace)
   }
+
 
   /** Returns a heap-lookup of the allocated field of an object. */
   private def alloc(o: Exp) = lookup(heap, o, Const(allocName))
@@ -79,7 +80,11 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   private def lookup(h: Exp, o: Exp, f: Exp) = MapSelect(h, Seq(o, f))
 
   override def translateFieldAccess(f: sil.FieldAccess): Exp = {
-    MapSelect(heap, Seq(translateExp(f.rcv), Const(fieldIdentifier(f.field))))
+    MapSelect(heap, Seq(translateExp(f.rcv), locationMaskIndex(f)))
+  }
+
+  override def locationMaskIndex(l: sil.LocationAccess): Const = {
+    Const(locationIdentifier(l.loc))
   }
 
   override def handleStmt(stmt: sil.Stmt): Stmt = {
