@@ -147,6 +147,7 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
         (permVar := translatePerm(perm)) ::
           Assert(permissionPositive(permVar), error.dueTo(reasons.NegativeFraction(perm))) ::
           Assert(checkNonNullReceiver(loc), error.dueTo(reasons.ReceiverNull(loc))) ::
+          Assert((fracComp(curPerm) >= fracComp(permVar)) && (epsComp(curPerm) >= epsComp(permVar)), error.dueTo(reasons.InsufficientPermissions(loc))) ::
           (curPerm := permAdd(curPerm, permVar)) ::
           Nil
       case _ => Nil
