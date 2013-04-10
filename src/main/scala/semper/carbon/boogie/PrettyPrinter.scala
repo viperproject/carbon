@@ -112,7 +112,7 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
           "{:msg" <+> "\"  " <> showError(error, a.id) <> "\"}" <> line <>
           space <> space <> quantifyOverFreeTypeVars(e) <>
           semi
-      case Havoc(vars) =>
+      case HavocImpl(vars) =>
         "havoc" <+> commasep(vars) <> semi
       case Goto(dests) =>
         "goto" <+> ssep(dests map (x => ident2doc(x.name)), comma <> space) <> semi

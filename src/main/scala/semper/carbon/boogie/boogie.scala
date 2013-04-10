@@ -252,7 +252,13 @@ object AssertIds {
   }
 }
 case class Assign(lhs: Exp, rhs: Exp) extends Stmt
-case class Havoc(vars: Seq[Var]) extends Stmt
+case class HavocImpl(vars: Seq[Var]) extends Stmt
+object Havoc {
+  def apply(vars: Seq[Var]) = {
+    if (vars.isEmpty) Statements.EmptyStmt
+    else HavocImpl(vars)
+  }
+}
 case class If(cond: Exp, thn: Stmt, els: Stmt) extends Stmt
 case class Seqn(stmts: Seq[Stmt]) extends Stmt
 /** A non-deterministic if statement. */

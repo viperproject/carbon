@@ -103,7 +103,7 @@ object Nodes {
           case Assign(lhs, rhs) => Seq(lhs, rhs)
           case Assert(e, error) => Seq(e)
           case Assume(e) => Seq(e)
-          case Havoc(es) => es
+          case HavocImpl(es) => es
           case Comment(s) => Nil
           case CommentBlock(s, stmt) => Seq(stmt)
           case Seqn(ss) => ss
