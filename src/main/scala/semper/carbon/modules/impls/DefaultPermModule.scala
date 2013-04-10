@@ -46,6 +46,7 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
   }
 
   implicit val namespace = verifier.freshNamespace("perm")
+  private val axiomNamespace = verifier.freshNamespace("perm.axiom")
   private val permTypeName = "Perm"
   private val permCompTypeName = "PermComponent"
   private val permCompType = NamedType(permCompTypeName)
@@ -57,6 +58,8 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
   private val maskType = NamedType(maskTypeName)
   private val maskName = Identifier("Mask")
   private var mask: Var = GlobalVar(maskName, maskType)
+  private val zeroMaskName = Identifier("ZeroMask")
+  private val zeroMask = Const(zeroMaskName)
   private val noPermName = Identifier("NoPerm")
   private val noPerm = Const(noPermName)
   private val fullPermName = Identifier("FullPerm")
@@ -68,6 +71,9 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
   private def epsComp(perm: Exp) = MapSelect(perm, permEpsComp)
 
   override def preamble = {
+    val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
+    val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
+    val permInZeroMask = MapSelect(zeroMask, Seq(obj.l, field.l))
     // permission type (wieth permission components)
     TypeDecl(permCompType) ::
       TypeAlias(permType, MapType(permCompType, Real, Nil)) ::
@@ -76,6 +82,12 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
       // mask and mask type
       TypeAlias(maskType, MapType(Seq(refType, fieldType), permType, fieldType.freeTypeVars)) ::
       GlobalVarDecl(maskName, maskType) ::
+      // zero mask
+      ConstDecl(zeroMaskName, maskType) ::
+      Axiom(Forall(
+        Seq(obj, field),
+        Trigger(permInZeroMask),
+        (fracComp(permInZeroMask) === RealLit(0)) && (epsComp(permInZeroMask) === RealLit(0)))) ::
       // permission amount constants
       ConstDecl(noPermName, permType) ::
       Axiom((fracComp(noPerm) === RealLit(0)) && (epsComp(noPerm) === RealLit(0))) ::
@@ -107,7 +119,7 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
   def stateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(maskName, maskType))
   def currentStateContributions: Seq[Exp] = Seq(mask)
   def initState: Stmt = {
-    Statements.EmptyStmt
+    (mask := zeroMask)
   }
 
   private def permAdd(a: Exp, b: Exp): Exp = FuncApp(permAddName, Seq(a, b), permType)
