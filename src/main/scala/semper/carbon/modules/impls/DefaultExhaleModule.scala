@@ -42,13 +42,17 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
       case sil.CondExp(c, e1, e2) =>
         If(translateExp(c), exhaleConnective(e1, error), exhaleConnective(e2, error))
       case _ =>
-        components map (_.exhaleExp(e, error))
+        val stmt = components map (_.exhaleExp(e, error))
+        if (stmt.children.isEmpty) sys.error(s"missing translation for exhaling of $e")
+        stmt
     }
   }
 
   override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
-    // TODO: only do this for expressions that are known to be handled by the expression module
-    // and return the empty statement otherwise
-    Assert(translateExp(e), error.dueTo(AssertionFalse(e)))
+    if (e.isPure) {
+      Assert(translateExp(e), error.dueTo(AssertionFalse(e)))
+    } else {
+      Nil
+    }
   }
 }

@@ -40,13 +40,18 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule {
       case sil.CondExp(c, e1, e2) =>
         If(translateExp(c), inhaleConnective(e1), inhaleConnective(e2))
       case _ =>
-        components map (_.inhaleExp(e))
+        val stmt = components map (_.inhaleExp(e))
+        if (stmt.children.isEmpty) sys.error(s"missing translation for inhaling of $e")
+        stmt
     }
   }
 
-  override def inhaleExp(exp: sil.Exp): Stmt = {
-    // TODO: only do this for expressions that are known to be handled by the expression module
-    // and return the empty statement otherwise
-    Assume(translateExp(exp))
+  override def inhaleExp(e: sil.Exp): Stmt = {
+    if (e.isPure) {
+      Assume(translateExp(e))
+    } else {
+      Nil
+    }
+
   }
 }
