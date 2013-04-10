@@ -157,7 +157,7 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
         val curPerm = MapSelect(mask, Seq(translateExp(loc.rcv), locationMaskIndex(loc)))
         val permVar = LocalVar(Identifier("perm"), permType)
         (permVar := translatePerm(perm)) ::
-          Assert(permissionPositive(permVar), error.dueTo(reasons.NonPositiveFraction(perm))) ::
+          Assert(permissionPositive(permVar), error.dueTo(reasons.NonPositivePermission(perm))) ::
           Assert(checkNonNullReceiver(loc), error.dueTo(reasons.ReceiverNull(loc))) ::
           Assert((fracComp(curPerm) >= fracComp(permVar)) && (epsComp(curPerm) >= epsComp(permVar)), error.dueTo(reasons.InsufficientPermission(loc))) ::
           (curPerm := permAdd(curPerm, permVar)) ::
