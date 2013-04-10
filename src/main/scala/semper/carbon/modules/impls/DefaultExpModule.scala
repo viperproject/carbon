@@ -18,6 +18,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
   import mainModule._
   import domainModule._
   import seqModule._
+  import permModule._
 
   def name = "Expression module"
   override def translateExp(e: sil.Exp): Exp = {
@@ -50,17 +51,17 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
         val ts = triggers map (t => Trigger(t.exps map translateExp))
         Forall(Seq(translateLocalVarDecl(v)), ts, translateExp(exp))
       case sil.WildcardPerm() =>
-        ???
+        translatePerm(e)
       case sil.FullPerm() =>
-        ???
+        translatePerm(e)
       case sil.NoPerm() =>
-        ???
+        translatePerm(e)
       case sil.EpsilonPerm() =>
-        ???
+        translatePerm(e)
       case sil.CurrentPerm(loc) =>
-        ???
+        translatePerm(e)
       case sil.FractionalPerm(left, right) =>
-        ???
+        translatePerm(e)
       case sil.AccessPredicate(loc, perm) =>
         sys.error("not handled by expression module")
       case sil.EqCmp(left, right) =>
