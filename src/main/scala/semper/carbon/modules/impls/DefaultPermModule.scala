@@ -157,9 +157,9 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
         val curPerm = MapSelect(mask, Seq(translateExp(loc.rcv), locationMaskIndex(loc)))
         val permVar = LocalVar(Identifier("perm"), permType)
         (permVar := translatePerm(perm)) ::
-          Assert(permissionPositive(permVar), error.dueTo(reasons.NegativeFraction(perm))) ::
+          Assert(permissionPositive(permVar), error.dueTo(reasons.NonPositiveFraction(perm))) ::
           Assert(checkNonNullReceiver(loc), error.dueTo(reasons.ReceiverNull(loc))) ::
-          Assert((fracComp(curPerm) >= fracComp(permVar)) && (epsComp(curPerm) >= epsComp(permVar)), error.dueTo(reasons.InsufficientPermissions(loc))) ::
+          Assert((fracComp(curPerm) >= fracComp(permVar)) && (epsComp(curPerm) >= epsComp(permVar)), error.dueTo(reasons.InsufficientPermission(loc))) ::
           (curPerm := permAdd(curPerm, permVar)) ::
           Nil
       case _ => Nil
@@ -187,7 +187,9 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
         noPerm
       case sil.FullPerm() =>
         fullPerm
-      case _ => sys.error("not a permission expression")
+      case _: sil.LocalVar =>
+        translateExp(e)
+      case _ => sys.error(s"not a permission expression: $e")
     }
   }
 }
