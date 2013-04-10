@@ -1,0 +1,20 @@
+
+var f: Int
+
+method t1(r: Ref) returns ()
+    requires acc(r.f, write)
+{
+    t1(r)
+}
+
+method t1b() {
+    //:: ExpectedError(call.precondition:receiver.null)
+    t1(null)
+}
+
+method t1c(r: Ref)
+    requires r != null
+{
+    //:: ExpectedError(call.precondition:insufficient.permissions)
+    t1(r)
+}
