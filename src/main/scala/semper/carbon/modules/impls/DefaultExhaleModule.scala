@@ -7,7 +7,6 @@ import semper.carbon.verifier.Verifier
 import Implicits._
 import semper.sil.verifier.PartialVerificationError
 import semper.sil.verifier.reasons._
-import semper.carbon.modules.components.StmtComponent
 
 /**
  * The default implementation of a [[semper.carbon.modules.ExhaleModule]].
@@ -18,6 +17,7 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
 
   import verifier._
   import expModule._
+  import permModule._
 
   def name = "Exhale module"
 
@@ -26,27 +26,31 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
   }
 
   override def exhale(exps: Seq[(sil.Exp, PartialVerificationError)]): Stmt = {
-    exps map (e => exhaleConnective(e._1, e._2))
+    for (phase <- 1 to numberOfPhases) yield {
+      (exps map (e => exhaleConnective(e._1, e._2, phase - 1))): Stmt
+    }
   }
 
   /**
    * Exhales SIL expression connectives (such as logical and/or) and forwards the
    * translation of other expressions to the exhale components.
    */
-  def exhaleConnective(e: sil.Exp, error: PartialVerificationError): Stmt = {
+  def exhaleConnective(e: sil.Exp, error: PartialVerificationError, phase: Int): Stmt = {
     e match {
       case sil.And(e1, e2) =>
-        exhaleConnective(e1, error) ::
-          exhaleConnective(e2, error) ::
+        exhaleConnective(e1, error, phase) ::
+          exhaleConnective(e2, error, phase) ::
           Nil
       case sil.Implies(e1, e2) =>
-        If(translateExp(e1), exhaleConnective(e2, error), Statements.EmptyStmt)
+        If(translateExp(e1), exhaleConnective(e2, error, phase), Statements.EmptyStmt)
       case sil.CondExp(c, e1, e2) =>
-        If(translateExp(c), exhaleConnective(e1, error), exhaleConnective(e2, error))
-      case _ =>
+        If(translateExp(c), exhaleConnective(e1, error, phase), exhaleConnective(e2, error, phase))
+      case _ if phaseOf(e) == phase =>
         val stmt = components map (_.exhaleExp(e, error))
         if (stmt.children.isEmpty) sys.error(s"missing translation for exhaling of $e")
         stmt
+      case _ =>
+        Nil // nothing to do in this phase
     }
   }
 

@@ -188,6 +188,9 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
           (if (perm.isInstanceOf[WildcardPerm]) {
             (Assert(fracComp(curPerm) > RealLit(0), error.dueTo(reasons.InsufficientPermission(loc))) ::
               Assume(wildcard < fracComp(curPerm)) :: Nil): Stmt
+          } else if (isAbstractRead(perm)) {
+            (Assert(fracComp(curPerm) > RealLit(0), error.dueTo(reasons.InsufficientPermission(loc))) ::
+              Assume(fracComp(permVal) < fracComp(curPerm)) :: Nil): Stmt
           } else {
             Assert(permLe(permVal, curPerm), error.dueTo(reasons.InsufficientPermission(loc)))
           }) ::
@@ -254,6 +257,13 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
   }
 
   private val currentAbstractReads = collection.mutable.ListBuffer[String]()
+
+  private def isAbstractRead(exp: sil.Exp) = {
+    exp match {
+      case sil.LocalVar(name) => currentAbstractReads.contains(name)
+      case _ => false
+    }
+  }
 
   override def enterFreshBlock(fb: sil.FreshReadPerm): Stmt = {
     val vars = fb.vars map translateLocalVar
