@@ -25,3 +25,23 @@ method t2(r: Ref, p: Perm) returns ()
     //:: ExpectedError(call.precondition:non.positive.permission)
     t2(r, none)
 }
+
+method t3(r: Ref) returns ()
+    requires acc(r.f, wildcard)
+{
+    t2(r, wildcard)
+    t2(r, wildcard)
+    //:: ExpectedError(call.precondition:insufficient.permission)
+    t2(r, write)
+}
+
+method t4(r: Ref) returns ()
+    requires acc(r.f, write)
+{
+    assert acc(r.f, write)
+    assert acc(r.f, write)
+    assert acc(r.f, write)
+    exhale acc(r.f, write)
+    //:: ExpectedError(assert.failed:insufficient.permission)
+    assert acc(r.f, write)
+}
