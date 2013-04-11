@@ -7,6 +7,7 @@ import semper.carbon.verifier.Verifier
 import Implicits._
 import semper.sil.verifier.PartialVerificationError
 import semper.sil.verifier.reasons._
+import semper.carbon.modules.components.StmtComponent
 
 /**
  * The default implementation of a [[semper.carbon.modules.ExhaleModule]].
@@ -15,7 +16,8 @@ import semper.sil.verifier.reasons._
  */
 class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
 
-  import verifier.expModule._
+  import verifier._
+  import expModule._
 
   def name = "Exhale module"
 

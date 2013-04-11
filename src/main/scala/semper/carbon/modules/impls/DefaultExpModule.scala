@@ -30,7 +30,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
       case sil.NullLit() =>
         translateNull
       case l@sil.LocalVar(name) =>
-        LocalVar(Identifier(name)(verifier.mainModule.silVarNamespace), translateType(l.typ))
+        translateLocalVar(l)
       case sil.Result() =>
         ???
       case f@sil.FieldAccess(rcv, field) =>
@@ -138,5 +138,9 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
       case seqExp@sil.SeqLength(seq) =>
         translateSeqExp(seqExp)
     }
+  }
+
+  override def translateLocalVar(l: sil.LocalVar): LocalVar = {
+    LocalVar(Identifier(l.name)(verifier.mainModule.silVarNamespace), translateType(l.typ))
   }
 }

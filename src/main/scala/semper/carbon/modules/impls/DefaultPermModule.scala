@@ -1,7 +1,7 @@
 package semper.carbon.modules.impls
 
 import semper.carbon.modules._
-import semper.carbon.modules.components.{InhaleComponent, ExhaleComponent, StateComponent}
+import semper.carbon.modules.components.{StmtComponent, InhaleComponent, ExhaleComponent, StateComponent}
 import semper.sil.{ast => sil}
 import semper.carbon.boogie._
 import semper.carbon.verifier.Verifier
@@ -32,7 +32,7 @@ import semper.sil.ast.WildcardPerm
  *
  * @author Stefan Heule
  */
-class DefaultPermModule(val verifier: Verifier) extends PermModule with StateComponent with InhaleComponent with ExhaleComponent {
+class DefaultPermModule(val verifier: Verifier) extends PermModule with StateComponent with InhaleComponent with ExhaleComponent with StmtComponent {
 
   import verifier._
   import heapModule._
@@ -44,6 +44,7 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
     stateModule.register(this)
     exhaleModule.register(this)
     inhaleModule.register(this)
+    stmtModule.register(this)
   }
 
   implicit val namespace = verifier.freshNamespace("perm")
@@ -252,29 +253,40 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
     }
   }
 
+  private val currentAbstractReads = collection.mutable.ListBuffer[LocalVar]()
+
+  override def enterFreshBlock(fb: sil.FreshReadPerm): Stmt = {
+    val vars = fb.vars map translateLocalVar
+    currentAbstractReads ++= vars
+    Havoc(vars)
+  }
+
+  override def leaveFreshBlock(fb: sil.FreshReadPerm): Stmt = {
+    val vars = fb.vars map translateLocalVar
+    currentAbstractReads --= vars
+    Nil
+  }
+
+  override def handleStmt(s: sil.Stmt): Stmt = Statements.EmptyStmt
+
   private def permEq(a: Exp, b: Exp): Exp = {
     (fracComp(a) === fracComp(b)) &&
       (epsComp(a) === epsComp(b))
   }
-
   private def permNe(a: Exp, b: Exp): Exp = {
     (fracComp(a) !== fracComp(b)) ||
       (epsComp(a) !== epsComp(b))
   }
-
   private def permLt(a: Exp, b: Exp): Exp = {
     (fracComp(a) < fracComp(b)) ||
       ((fracComp(a) === fracComp(b)) && (epsComp(a) < epsComp(b)))
   }
-
   private def permLe(a: Exp, b: Exp): Exp = {
     permLt(a, b) || permEq(a, b)
   }
-
   private def permGt(a: Exp, b: Exp): Exp = {
     permLt(b, a)
   }
-
   private def permGe(a: Exp, b: Exp): Exp = {
     permLe(b, a)
   }

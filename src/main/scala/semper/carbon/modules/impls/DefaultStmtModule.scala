@@ -66,8 +66,6 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
         Label(Lbl(Identifier(name)(lblNamespace)))
       case sil.Goto(target) =>
         Goto(Lbl(Identifier(target)(lblNamespace)))
-      case sil.FreshReadPerm(vars, body) =>
-        ???
       case _ =>
         Statements.EmptyStmt
     }
@@ -81,8 +79,12 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
         return Seqn(ss map translateStmt)
       case sil.If(cond, thn, els) =>
         comment = s"Translating statement: if ($cond)"
-      case sil.FreshReadPerm(vars, body) =>
+      case fb@sil.FreshReadPerm(vars, body) =>
         comment = s"Translating statement: fresh(${vars.mkString(", ")})"
+        MaybeCommentBlock(s"Start of fresh(${vars.mkString(", ")})", enterFreshBlock(fb)) ::
+          translateStmt(body) ::
+          MaybeCommentBlock(s"End of fresh(${vars.mkString(", ")})", leaveFreshBlock(fb)) ::
+          Nil
       case _ =>
     }
     val all = Seqn(components map (_.handleStmt(stmt)))
