@@ -178,8 +178,8 @@ case class UnExp(unop: UnOp, exp: Exp) extends Exp with PrettyUnaryExpression {
 
 sealed abstract class BinOp(val name: String, val priority: Int, val fixity: Fixity)
 sealed abstract class SumOp(override val name: String) extends BinOp(name, 12, Infix(LeftAssoc))
-sealed abstract class RelOp(override val name: String) extends BinOp(name, 11, Infix(LeftAssoc))
-sealed abstract class ProdOp(override val name: String) extends BinOp(name, 13, Infix(LeftAssoc))
+sealed abstract class RelOp(override val name: String) extends BinOp(name, 13, Infix(LeftAssoc))
+sealed abstract class ProdOp(override val name: String) extends BinOp(name, 11, Infix(LeftAssoc))
 
 case object Add extends SumOp("+")
 case object Sub extends SumOp("-")
