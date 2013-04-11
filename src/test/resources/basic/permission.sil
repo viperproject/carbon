@@ -42,6 +42,20 @@ method t4(r: Ref) returns ()
     assert acc(r.f, write)
     assert acc(r.f, write)
     exhale acc(r.f, write)
+    assert (perm(r.f) == none)
     //:: ExpectedError(assert.failed:insufficient.permission)
     assert acc(r.f, write)
+}
+
+method t5(r: Ref) returns ()
+    requires acc(r.f, write)
+{
+    exhale acc(r.f, 1/3)
+    assert (perm(r.f) == (2/3))
+    assert acc(r.f, wildcard)
+    exhale acc(r.f, epsilon)
+    assert acc(r.f, wildcard)
+    exhale acc(r.f, perm(r.f))
+    //:: ExpectedError(assert.failed:insufficient.permission)
+    assert acc(r.f, wildcard)
 }
