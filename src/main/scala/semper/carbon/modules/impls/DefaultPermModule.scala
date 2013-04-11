@@ -253,16 +253,17 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
     }
   }
 
-  private val currentAbstractReads = collection.mutable.ListBuffer[LocalVar]()
+  private val currentAbstractReads = collection.mutable.ListBuffer[String]()
 
   override def enterFreshBlock(fb: sil.FreshReadPerm): Stmt = {
     val vars = fb.vars map translateLocalVar
-    currentAbstractReads ++= vars
-    Havoc(vars)
+    currentAbstractReads ++= (fb.vars map (_.name))
+    Havoc(fb.vars map translateLocalVar) ++
+      (vars map (v => Assume((fracComp(v) > RealLit(0)) && (epsComp(v) === RealLit(0)))))
   }
 
   override def leaveFreshBlock(fb: sil.FreshReadPerm): Stmt = {
-    val vars = fb.vars map translateLocalVar
+    val vars = fb.vars map (_.name)
     currentAbstractReads --= vars
     Nil
   }
@@ -289,5 +290,26 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
   }
   private def permGe(a: Exp, b: Exp): Exp = {
     permLe(b, a)
+  }
+
+  override val numberOfPhases = 3
+  override def phaseOf(e: sil.Exp): Int = {
+    e match {
+      case sil.AccessPredicate(loc, sil.LocalVar(name)) if currentAbstractReads.contains(name) => 1
+      case sil.AccessPredicate(loc, perm) if !containsAbstractRead(perm) => 0
+      case sil.AccessPredicate(loc, perm) => 2
+      case _ => 0
+    }
+  }
+
+  /**
+   * Returns true if the given permission contains an abstract read permission.
+   */
+  private def containsAbstractRead(perm: sil.Exp): Boolean = {
+    perm visit {
+      case l@sil.LocalVar(name) if (currentAbstractReads.contains(l)) =>
+        return true
+    }
+    false
   }
 }

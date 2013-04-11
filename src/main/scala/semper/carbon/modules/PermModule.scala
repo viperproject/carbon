@@ -25,4 +25,14 @@ trait PermModule extends Module {
    * Translate a permission comparison
    */
   def translatePermComparison(e: sil.Exp): Exp
+
+  /**
+   * The number of phases during exhale.
+   */
+  def numberOfPhases: Int
+
+  /**
+   * The ID of the phase that this expression should be exhaled in.
+   */
+  def phaseOf(e: sil.Exp): Int
 }
