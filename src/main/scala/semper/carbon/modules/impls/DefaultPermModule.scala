@@ -226,16 +226,22 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
       case sil.FullPerm() =>
         fullPerm
       case sil.WildcardPerm() =>
-        sys.error("cannot translate wildcard at an arbitrary position")
+        sys.error("cannot translate wildcard at an arbitrary position (should only occur directly in an accessibility predicate)")
       case sil.EpsilonPerm() =>
-        ???
+        epsPerm(RealLit(1))
       case sil.CurrentPerm(loc) =>
-        ???
+        MapSelect(mask, Seq(translateExp(loc.rcv), locationMaskIndex(loc)))
       case sil.FractionalPerm(left, right) =>
-        ???
+        fracPerm(BinExp(translateExp(left), Div, translateExp(right)))
       case _: sil.LocalVar =>
         translateExp(e)
       case _ => sys.error(s"not a permission expression: $e")
     }
+  }
+
+  def translatePermComparison(e: sil.DomainBinExp): Exp = {
+    /*val op: BinOp
+    ((BinExp(fracComp(translateExp(e.left)), op, translateExp(e.right)))
+      && ())*/ ???
   }
 }

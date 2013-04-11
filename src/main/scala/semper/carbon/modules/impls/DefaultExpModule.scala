@@ -79,8 +79,9 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
       case sil.DomainBinExp(_, sil.PermGeOp, _) |
            sil.DomainBinExp(_, sil.PermGtOp, _) |
            sil.DomainBinExp(_, sil.PermLeOp, _) |
-           sil.DomainBinExp(_, sil.PermLtOp, _) |
-           sil.DomainBinExp(_, sil.PermAddOp, _) |
+           sil.DomainBinExp(_, sil.PermLtOp, _) =>
+        translatePermComparison(e.asInstanceOf[sil.DomainBinExp])
+      case sil.DomainBinExp(_, sil.PermAddOp, _) |
            sil.DomainBinExp(_, sil.PermMulOp, _) |
            sil.DomainBinExp(_, sil.PermSubOp, _) |
            sil.DomainBinExp(_, sil.IntPermMulOp, _) |
@@ -100,6 +101,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
           case sil.MulOp => Mul
           case sil.AndOp | sil.ImpliesOp =>
             sys.error("&& and ==> are not handled in expression module")
+          case _ =>
+            sys.error("should be handeled further above")
         }
         BinExp(translateExp(left), bop, translateExp(right))
       case sil.Neg(exp) =>
