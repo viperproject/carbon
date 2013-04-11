@@ -1,0 +1,19 @@
+
+var f: Int
+
+method t1(r: Ref) returns ()
+    requires acc(r.f, write)
+{
+    var read: Perm
+    fresh(read) {
+        t1b(r, read)
+    }
+    assert (perm(r.f) == write)
+}
+
+method t1b(r: Ref, p: Perm)
+    requires acc(r.f, p)
+    ensures acc(r.f, p)
+{
+    r.f := 1
+}
