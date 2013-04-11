@@ -76,6 +76,16 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
         } else {
           BinExp(translateExp(left), NeCmp, translateExp(right))
         }
+      case sil.DomainBinExp(_, sil.PermGeOp, _) |
+           sil.DomainBinExp(_, sil.PermGtOp, _) |
+           sil.DomainBinExp(_, sil.PermLeOp, _) |
+           sil.DomainBinExp(_, sil.PermLtOp, _) |
+           sil.DomainBinExp(_, sil.PermAddOp, _) |
+           sil.DomainBinExp(_, sil.PermMulOp, _) |
+           sil.DomainBinExp(_, sil.PermSubOp, _) |
+           sil.DomainBinExp(_, sil.IntPermMulOp, _) |
+           sil.DomainBinExp(_, sil.FracOp, _) =>
+        translatePerm(e)
       case sil.DomainBinExp(left, op, right) =>
         val bop = op match {
           case sil.OrOp => Or
@@ -90,10 +100,6 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
           case sil.MulOp => Mul
           case sil.AndOp | sil.ImpliesOp =>
             sys.error("&& and ==> are not handled in expression module")
-          case sil.PermGeOp | sil.PermGtOp | sil.PermLeOp | sil.PermLtOp |
-               sil.PermAddOp | sil.PermMulOp | sil.PermSubOp | sil.IntPermMulOp |
-               sil.FracOp =>
-            sys.error("permission operations not handled in expression module")
         }
         BinExp(translateExp(left), bop, translateExp(right))
       case sil.Neg(exp) =>
