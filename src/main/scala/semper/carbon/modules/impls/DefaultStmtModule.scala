@@ -58,6 +58,11 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
           Nil
       case sil.While(cond, invs, locals, body) =>
         ???
+      case fb@sil.FreshReadPerm(vars, body) =>
+        MaybeCommentBlock(s"Start of fresh(${vars.mkString(", ")})", components map (_.enterFreshBlock(fb))) ::
+          translateStmt(body) ::
+          MaybeCommentBlock(s"End of fresh(${vars.mkString(", ")})", components map (_.leaveFreshBlock(fb))) ::
+          Nil
       case sil.If(cond, thn, els) =>
         If(translateExp(cond),
           translateStmt(thn),
@@ -81,10 +86,6 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
         comment = s"Translating statement: if ($cond)"
       case fb@sil.FreshReadPerm(vars, body) =>
         comment = s"Translating statement: fresh(${vars.mkString(", ")})"
-        MaybeCommentBlock(s"Start of fresh(${vars.mkString(", ")})", enterFreshBlock(fb)) ::
-          translateStmt(body) ::
-          MaybeCommentBlock(s"End of fresh(${vars.mkString(", ")})", leaveFreshBlock(fb)) ::
-          Nil
       case _ =>
     }
     val all = Seqn(components map (_.handleStmt(stmt)))
