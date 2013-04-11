@@ -1,5 +1,7 @@
 package semper.carbon.boogie
 
+import semper.sil.ast.FreshReadPerm
+
 /**
  * Utility methods for statements.
  *
@@ -22,6 +24,7 @@ object Statements {
       case If(_, thn, els) => Seq(s) ++ children(thn) ++ children(els)
       case NondetIf(thn, els) => Seq(s) ++ children(thn) ++ children(els)
       case Seqn(ss) => ss flatMap children
+      case CommentBlock(_, stmt) => Seq(stmt)
       case _ => List(s)
     }
   }
