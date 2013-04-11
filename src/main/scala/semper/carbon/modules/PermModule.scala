@@ -24,5 +24,5 @@ trait PermModule extends Module {
   /**
    * Translate a permission comparison
    */
-  def translatePermComparison(e: sil.DomainBinExp): Exp
+  def translatePermComparison(e: sil.Exp): Exp
 }

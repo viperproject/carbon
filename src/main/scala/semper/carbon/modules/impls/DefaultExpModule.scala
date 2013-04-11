@@ -67,12 +67,16 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
       case sil.EqCmp(left, right) =>
         if (left.typ.isInstanceOf[sil.SeqType]) {
           translateSeqExp(e)
+        } else if (left.typ == sil.Perm) {
+          translatePermComparison(e)
         } else {
           BinExp(translateExp(left), EqCmp, translateExp(right))
         }
       case sil.NeCmp(left, right) =>
         if (left.typ.isInstanceOf[sil.SeqType]) {
           translateSeqExp(e)
+        } else if (left.typ == sil.Perm) {
+          translatePermComparison(e)
         } else {
           BinExp(translateExp(left), NeCmp, translateExp(right))
         }
@@ -80,7 +84,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
            sil.DomainBinExp(_, sil.PermGtOp, _) |
            sil.DomainBinExp(_, sil.PermLeOp, _) |
            sil.DomainBinExp(_, sil.PermLtOp, _) =>
-        translatePermComparison(e.asInstanceOf[sil.DomainBinExp])
+        translatePermComparison(e)
       case sil.DomainBinExp(_, sil.PermAddOp, _) |
            sil.DomainBinExp(_, sil.PermMulOp, _) |
            sil.DomainBinExp(_, sil.PermSubOp, _) |

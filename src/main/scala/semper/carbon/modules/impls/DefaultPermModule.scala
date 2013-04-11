@@ -188,7 +188,7 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
             (Assert(fracComp(curPerm) > RealLit(0), error.dueTo(reasons.InsufficientPermission(loc))) ::
               Assume(wildcard < fracComp(curPerm)) :: Nil): Stmt
           } else {
-            Assert((fracComp(curPerm) >= fracComp(permVar)) && (epsComp(curPerm) >= epsComp(permVar)), error.dueTo(reasons.InsufficientPermission(loc)))
+            Assert(permLt(permVal, curPerm), error.dueTo(reasons.InsufficientPermission(loc)))
           }) ::
           (curPerm := permSub(curPerm, permVar)) ::
           Nil
@@ -239,9 +239,43 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
     }
   }
 
-  def translatePermComparison(e: sil.DomainBinExp): Exp = {
-    /*val op: BinOp
-    ((BinExp(fracComp(translateExp(e.left)), op, translateExp(e.right)))
-      && ())*/ ???
+  def translatePermComparison(e: sil.Exp): Exp = {
+    val t = translateExp(_)
+    e match {
+      case sil.EqCmp(a, b) => permEq(t(a), t(b))
+      case sil.NeCmp(a, b) => permNe(t(a), t(b))
+      case sil.DomainBinExp(a, sil.PermGeOp, b) => permGe(t(a), t(b))
+      case sil.DomainBinExp(a, sil.PermGtOp, b) => permGt(t(a), t(b))
+      case sil.DomainBinExp(a, sil.PermLeOp, b) => permLe(t(a), t(b))
+      case sil.DomainBinExp(a, sil.PermLtOp, b) => permLt(t(a), t(b))
+      case _ => sys.error("not a permission comparison")
+    }
+  }
+
+  private def permEq(a: Exp, b: Exp): Exp = {
+    (fracComp(a) === fracComp(b)) &&
+      (epsComp(a) === epsComp(b))
+  }
+
+  private def permNe(a: Exp, b: Exp): Exp = {
+    (fracComp(a) !== fracComp(b)) ||
+      (epsComp(a) !== epsComp(b))
+  }
+
+  private def permLt(a: Exp, b: Exp): Exp = {
+    (fracComp(a) < fracComp(b)) ||
+      ((fracComp(a) === fracComp(b)) && (epsComp(a) < epsComp(b)))
+  }
+
+  private def permLe(a: Exp, b: Exp): Exp = {
+    permLt(a, b) || permEq(a, b)
+  }
+
+  private def permGt(a: Exp, b: Exp): Exp = {
+    permLt(b, a)
+  }
+
+  private def permGe(a: Exp, b: Exp): Exp = {
+    permLe(b, a)
   }
 }
