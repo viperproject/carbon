@@ -188,7 +188,7 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
             (Assert(fracComp(curPerm) > RealLit(0), error.dueTo(reasons.InsufficientPermission(loc))) ::
               Assume(wildcard < fracComp(curPerm)) :: Nil): Stmt
           } else {
-            Assert(permLt(permVal, curPerm), error.dueTo(reasons.InsufficientPermission(loc)))
+            Assert(permLe(permVal, curPerm), error.dueTo(reasons.InsufficientPermission(loc)))
           }) ::
           (curPerm := permSub(curPerm, permVar)) ::
           Nil
