@@ -25,6 +25,7 @@ import semper.carbon.boogie.Assign
 import semper.carbon.boogie.TypeAlias
 import semper.carbon.boogie.FuncApp
 import semper.carbon.boogie.GlobalVar
+import semper.sil.ast.WildcardPerm
 
 /**
  * The default implementation of a [[semper.carbon.modules.PermModule]].
@@ -66,6 +67,7 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
   private val fullPerm = Const(fullPermName)
   private val permAddName = Identifier("PermAdd")
   private val permSubName = Identifier("PermSub")
+  private val permConstructName = Identifier("Perm")
 
   private def fracComp(perm: Exp) = MapSelect(perm, permFracComp)
   private def epsComp(perm: Exp) = MapSelect(perm, permEpsComp)
@@ -111,7 +113,19 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
         Trigger(MapSelect(permSub(a.l, b.l), comp.l)),
         MapSelect(permSub(a.l, b.l), comp.l) === (MapSelect(a.l, comp.l) - MapSelect(b.l, comp.l))))
     } ::
-      Nil
+      // permission constructor
+      Func(permConstructName, Seq(LocalVarDecl(Identifier("a"), Real), LocalVarDecl(Identifier("b"), Real)), permType) :: {
+      val a = LocalVarDecl(Identifier("a"), Real)
+      val b = LocalVarDecl(Identifier("b"), Real)
+      val f = FuncApp(permConstructName, Seq(a.l, b.l), permType)
+      Axiom(Forall(Seq(a, b),
+        Trigger(fracComp(f)),
+        fracComp(f) === a.l)) ::
+        Axiom(Forall(Seq(a, b),
+          Trigger(epsComp(f)),
+          epsComp(f) === b.l)) ::
+        Nil
+    }
   }
 
   def permType = NamedType(permTypeName)
@@ -124,6 +138,9 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
 
   private def permAdd(a: Exp, b: Exp): Exp = FuncApp(permAddName, Seq(a, b), permType)
   private def permSub(a: Exp, b: Exp): Exp = FuncApp(permSubName, Seq(a, b), permType)
+
+  private def fracPerm(frac: Exp) = FuncApp(permConstructName, Seq(frac, RealLit(0)), permType)
+  private def epsPerm(eps: Exp) = FuncApp(permConstructName, Seq(RealLit(0), eps), permType)
 
   override type StateSnapshot = (Int, Var)
   private var curTmpStateId = -1
@@ -156,11 +173,24 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
       case sil.AccessPredicate(loc, perm) =>
         val curPerm = MapSelect(mask, Seq(translateExp(loc.rcv), locationMaskIndex(loc)))
         val permVar = LocalVar(Identifier("perm"), permType)
-        (permVar := translatePerm(perm)) ::
+        val (permVal, wildcard, stmts): (Exp, Exp, Stmt) =
+          if (perm.isInstanceOf[WildcardPerm]) {
+            val w = LocalVar(Identifier("wildcard"), Real)
+            (fracPerm(w), w, LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil)
+          } else {
+            (translatePerm(perm), null, Nil)
+          }
+        stmts ::
+          (permVar := permVal) ::
           Assert(permissionPositive(permVar), error.dueTo(reasons.NonPositivePermission(perm))) ::
           Assert(checkNonNullReceiver(loc), error.dueTo(reasons.ReceiverNull(loc))) ::
-          Assert((fracComp(curPerm) >= fracComp(permVar)) && (epsComp(curPerm) >= epsComp(permVar)), error.dueTo(reasons.InsufficientPermission(loc))) ::
-          (curPerm := permAdd(curPerm, permVar)) ::
+          (if (perm.isInstanceOf[WildcardPerm]) {
+            (Assert(fracComp(curPerm) > RealLit(0), error.dueTo(reasons.InsufficientPermission(loc))) ::
+              Assume(wildcard < fracComp(curPerm)) :: Nil): Stmt
+          } else {
+            Assert((fracComp(curPerm) >= fracComp(permVar)) && (epsComp(curPerm) >= epsComp(permVar)), error.dueTo(reasons.InsufficientPermission(loc)))
+          }) ::
+          (curPerm := permSub(curPerm, permVar)) ::
           Nil
       case _ => Nil
     }
@@ -171,7 +201,15 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
       case sil.AccessPredicate(loc, perm) =>
         val curPerm = MapSelect(mask, Seq(translateExp(loc.rcv), locationMaskIndex(loc)))
         val permVar = LocalVar(Identifier("perm"), permType)
-        (permVar := translatePerm(perm)) ::
+        val (permVal, stmts): (Exp, Stmt) =
+          if (perm.isInstanceOf[WildcardPerm]) {
+            val w = LocalVar(Identifier("wildcard"), Real)
+            (fracPerm(w), LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil)
+          } else {
+            (translatePerm(perm), Nil)
+          }
+        stmts ::
+          (permVar := permVal) ::
           Assume(permissionPositive(permVar)) ::
           Assume(checkNonNullReceiver(loc)) ::
           (curPerm := permAdd(curPerm, permVar)) ::
@@ -187,6 +225,14 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
         noPerm
       case sil.FullPerm() =>
         fullPerm
+      case sil.WildcardPerm() =>
+        sys.error("cannot translate wildcard at an arbitrary position")
+      case sil.EpsilonPerm() =>
+        ???
+      case sil.CurrentPerm(loc) =>
+        ???
+      case sil.FractionalPerm(left, right) =>
+        ???
       case _: sil.LocalVar =>
         translateExp(e)
       case _ => sys.error(s"not a permission expression: $e")
