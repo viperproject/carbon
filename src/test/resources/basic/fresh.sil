@@ -17,3 +17,25 @@ method t1b(r: Ref, p: Perm)
 {
     r.f := 1
 }
+
+method t2(r: Ref) returns ()
+    requires acc(r.f, write)
+{
+    var read: Perm
+    fresh(read) {
+        exhale acc(r.f, read) && acc(r.f, write - read)
+    }
+    //:: ExpectedError(assertion.false)
+    assert false
+}
+
+method t2b(r: Ref) returns ()
+    requires acc(r.f, write)
+{
+    var read: Perm
+    fresh(read) {
+        exhale acc(r.f, write - read) && acc(r.f, read)
+    }
+    //:: ExpectedError(assertion.false)
+    assert false
+}
