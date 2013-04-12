@@ -279,7 +279,6 @@ class DefaultPermModule(val verifier: Verifier)
       case sil.PermSub(a, b) =>
         permSub(translatePerm(a), translatePerm(b))
       case sil.PermMul(a, b) =>
-        // TODO: well-formedness test that a and b do not contain epsilons
         fracPerm(BinExp(fracComp(translatePerm(a)), Mul, fracComp(translatePerm(b))))
       case sil.IntPermMul(a, b) =>
         val i = translateExp(a)
@@ -383,6 +382,9 @@ class DefaultPermModule(val verifier: Verifier)
     e match {
       case fa@sil.FieldAccess(rcv, field) =>
         Assert(permissionPositive(currentPermission(fa)), error.dueTo(reasons.InsufficientPermission(fa)))
+      case pm@sil.PermMul(a, b) =>
+        Assert(epsComp(translatePerm(a)) === RealLit(0), error.dueTo(reasons.InvalidPermMultiplication(pm)))
+        Assert(epsComp(translatePerm(b)) === RealLit(0), error.dueTo(reasons.InvalidPermMultiplication(pm)))
       case _ => Nil
     }
   }
