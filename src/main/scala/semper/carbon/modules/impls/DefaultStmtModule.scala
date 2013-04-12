@@ -97,4 +97,24 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
       Nil
     CommentBlock(comment + s" -- ${stmt.pos}", translation)
   }
+
+  /**
+   * Check definedness of SIL expression connectives (such as logical and/implication) and forwards the
+   * checking of other expressions to the definedness components.
+   */
+  def checkDefinednessOfConnective(e: sil.Exp): Stmt = {
+    e match {
+      case sil.And(e1, e2) =>
+        checkDefinednessOfConnective(e1) ::
+          checkDefinednessOfConnective(e2) ::
+          Nil
+      case sil.Implies(e1, e2) =>
+        If(translateExp(e1), checkDefinednessOfConnective(e2), Statements.EmptyStmt)
+      case sil.CondExp(c, e1, e2) =>
+        If(translateExp(c), checkDefinednessOfConnective(e1), checkDefinednessOfConnective(e2))
+      case _ =>
+        val stmt = definednessComponents map (_.checkDefinedness(e))
+        stmt
+    }
+  }
 }
