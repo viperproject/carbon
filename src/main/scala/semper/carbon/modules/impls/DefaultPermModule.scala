@@ -325,14 +325,23 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
     }
   }
 
+  override def phaseDescription(phase: Int): String = {
+    phase match {
+      case 0 => "pure assertions and fixed permissions"
+      case 1 => "abstract read permissions on their own"
+      case 2 => "all remaining permissions (containing read permissions, but not on their own)"
+    }
+  }
+
   /**
    * Returns true if the given permission contains an abstract read permission.
    */
   private def containsAbstractRead(perm: sil.Exp): Boolean = {
+    var res = false
     perm visit {
-      case l@sil.LocalVar(name) if (currentAbstractReads.contains(l)) =>
-        return true
+      case l@sil.LocalVar(name) if (currentAbstractReads.contains(name)) =>
+        res = true
     }
-    false
+    res
   }
 }
