@@ -31,48 +31,60 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
   override def handleStmt(stmt: sil.Stmt): Stmt = {
     stmt match {
       case sil.LocalVarAssign(lhs, rhs) =>
-        Assign(translateExp(lhs), translateExp(rhs))
+        checkDefinedness(lhs) ++
+          checkDefinedness(rhs) ++
+          Assign(translateExp(lhs), translateExp(rhs))
+      case sil.FieldAssign(lhs, rhs) =>
+        checkDefinedness(lhs) ++
+          checkDefinedness(rhs)
       case sil.Fold(e) =>
         ???
       case sil.Unfold(e) =>
         ???
       case sil.Inhale(e) =>
-        inhale(e)
+        checkDefinedness(e) ++
+          inhale(e)
       case exh@sil.Exhale(e) =>
-        exhale((e, errors.ExhaleFailed(exh)))
+        checkDefinedness(e) ++
+          exhale((e, errors.ExhaleFailed(exh)))
       case a@sil.Assert(e) =>
         if (e.isPure) {
           // if e is pure, then assert and exhale are the same
-          exhale((e, errors.AssertFailed(a)))
+          checkDefinedness(e) ++
+            exhale((e, errors.AssertFailed(a)))
         } else {
           // we create a temporary state to ignore the side-effects
           val (backup, snapshot) = freshTempState
           val exhaleStmt = exhale((e, errors.AssertFailed(a)))
           val restore = restoreState(snapshot)
-          backup :: exhaleStmt :: restore :: Nil
+          checkDefinedness(e) :: backup :: exhaleStmt :: restore :: Nil
         }
       case mc@sil.MethodCall(method, args, targets) =>
-        Havoc((targets map translateExp).asInstanceOf[Seq[Var]]) ::
-          MaybeCommentBlock("Exhaling precondition", exhale(mc.pres map (e => (e, errors.PreconditionInCallFalse(mc))))) ::
-          MaybeCommentBlock("Inhaling postcondition", inhale(mc.posts)) ::
-          Nil
+        (targets map checkDefinedness) ++
+          (args map checkDefinedness) ++
+          Havoc((targets map translateExp).asInstanceOf[Seq[Var]]) ++
+          MaybeCommentBlock("Exhaling precondition", exhale(mc.pres map (e => (e, errors.PreconditionInCallFalse(mc))))) ++
+          MaybeCommentBlock("Inhaling postcondition", inhale(mc.posts))
       case sil.While(cond, invs, locals, body) =>
         ???
       case fb@sil.FreshReadPerm(vars, body) =>
-        MaybeCommentBlock(s"Start of fresh(${vars.mkString(", ")})", components map (_.enterFreshBlock(fb))) ::
-          translateStmt(body) ::
-          MaybeCommentBlock(s"End of fresh(${vars.mkString(", ")})", components map (_.leaveFreshBlock(fb))) ::
-          Nil
+        (vars map checkDefinedness) ++
+          MaybeCommentBlock(s"Start of fresh(${vars.mkString(", ")})", components map (_.enterFreshBlock(fb))) ++
+          translateStmt(body) ++
+          MaybeCommentBlock(s"End of fresh(${vars.mkString(", ")})", components map (_.leaveFreshBlock(fb)))
       case sil.If(cond, thn, els) =>
-        If(translateExp(cond),
-          translateStmt(thn),
-          translateStmt(els))
+        checkDefinedness(cond) ++
+          If(translateExp(cond),
+            translateStmt(thn),
+            translateStmt(els))
       case sil.Label(name) =>
         Label(Lbl(Identifier(name)(lblNamespace)))
       case sil.Goto(target) =>
         Goto(Lbl(Identifier(target)(lblNamespace)))
-      case _ =>
-        Statements.EmptyStmt
+      case sil.NewStmt(lhs) =>
+        checkDefinedness(lhs)
+      case _: sil.Seqn =>
+        Nil
     }
   }
 
@@ -102,16 +114,16 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
    * Check definedness of SIL expression connectives (such as logical and/implication) and forwards the
    * checking of other expressions to the definedness components.
    */
-  def checkDefinednessOfConnective(e: sil.Exp): Stmt = {
+  def checkDefinedness(e: sil.Exp): Stmt = {
     e match {
       case sil.And(e1, e2) =>
-        checkDefinednessOfConnective(e1) ::
-          checkDefinednessOfConnective(e2) ::
+        checkDefinedness(e1) ::
+          checkDefinedness(e2) ::
           Nil
       case sil.Implies(e1, e2) =>
-        If(translateExp(e1), checkDefinednessOfConnective(e2), Statements.EmptyStmt)
+        If(translateExp(e1), checkDefinedness(e2), Statements.EmptyStmt)
       case sil.CondExp(c, e1, e2) =>
-        If(translateExp(c), checkDefinednessOfConnective(e1), checkDefinednessOfConnective(e2))
+        If(translateExp(c), checkDefinedness(e1), checkDefinedness(e2))
       case _ =>
         val stmt = definednessComponents map (_.checkDefinedness(e))
         stmt
