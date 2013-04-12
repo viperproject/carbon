@@ -1,7 +1,7 @@
 package semper.carbon.modules.impls
 
 import semper.carbon.modules._
-import semper.carbon.modules.components.{StmtComponent, InhaleComponent, ExhaleComponent, StateComponent}
+import semper.carbon.modules.components._
 import semper.sil.{ast => sil}
 import semper.carbon.boogie._
 import semper.carbon.verifier.Verifier
@@ -26,13 +26,43 @@ import semper.carbon.boogie.TypeAlias
 import semper.carbon.boogie.FuncApp
 import semper.carbon.boogie.GlobalVar
 import semper.sil.ast.WildcardPerm
+import semper.carbon.boogie.NamedType
+import semper.carbon.boogie.MapSelect
+import semper.carbon.boogie.LocalVarWhereDecl
+import semper.carbon.boogie.Trigger
+import semper.carbon.boogie.TypeDecl
+import semper.sil.verifier.PartialVerificationError
+import semper.carbon.boogie.LocalVarDecl
+import semper.carbon.boogie.Assume
+import semper.carbon.boogie.RealLit
+import semper.carbon.boogie.GlobalVar
+import semper.carbon.boogie.GlobalVarDecl
+import semper.carbon.boogie.Axiom
+import semper.carbon.boogie.BinExp
+import semper.carbon.boogie.MapType
+import semper.carbon.boogie.Assert
+import semper.carbon.boogie.ConstDecl
+import semper.carbon.boogie.Const
+import semper.carbon.boogie.LocalVar
+import semper.sil.ast.WildcardPerm
+import semper.carbon.boogie.Forall
+import semper.carbon.boogie.Assign
+import semper.carbon.boogie.Func
+import semper.carbon.boogie.TypeAlias
+import semper.carbon.boogie.FuncApp
 
 /**
  * The default implementation of a [[semper.carbon.modules.PermModule]].
  *
  * @author Stefan Heule
  */
-class DefaultPermModule(val verifier: Verifier) extends PermModule with StateComponent with InhaleComponent with ExhaleComponent with StmtComponent {
+class DefaultPermModule(val verifier: Verifier)
+  extends PermModule
+  with StateComponent
+  with InhaleComponent
+  with ExhaleComponent
+  with StmtComponent
+  with DefinednessComponent {
 
   import verifier._
   import heapModule._
@@ -204,7 +234,7 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
   override def inhaleExp(e: sil.Exp): Stmt = {
     e match {
       case sil.AccessPredicate(loc, perm) =>
-        val curPerm = MapSelect(mask, Seq(translateExp(loc.rcv), locationMaskIndex(loc)))
+        val curPerm = currentPermission(loc)
         val permVar = LocalVar(Identifier("perm"), permType)
         val (permVal, stmts): (Exp, Stmt) =
           if (perm.isInstanceOf[WildcardPerm]) {
@@ -221,6 +251,10 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
           Nil
       case _ => Nil
     }
+  }
+
+  def currentPermission(loc: sil.LocationAccess): MapSelect = {
+    MapSelect(mask, Seq(translateExp(loc.rcv), locationMaskIndex(loc)))
   }
 
   def translatePerm(e: sil.Exp): Exp = {
@@ -343,5 +377,13 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
         res = true
     }
     res
+  }
+
+  override def checkDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
+    e match {
+      case fa@sil.FieldAccess(rcv, field) =>
+        Assert(permissionPositive(currentPermission(fa)), error.dueTo(reasons.InsufficientPermission(fa)))
+      case _ => Nil
+    }
   }
 }

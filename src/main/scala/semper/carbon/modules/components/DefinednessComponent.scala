@@ -14,5 +14,5 @@ trait DefinednessComponent extends Component {
   /**
    * Proof obligations for a given expression.
    */
-  def checkDefinedness(e: sil.Exp): Stmt
+  def checkDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt
 }
