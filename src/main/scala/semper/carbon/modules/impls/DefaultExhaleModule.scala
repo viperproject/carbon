@@ -27,7 +27,12 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
 
   override def exhale(exps: Seq[(sil.Exp, PartialVerificationError)]): Stmt = {
     for (phase <- 1 to numberOfPhases) yield {
-      (exps map (e => exhaleConnective(e._1, e._2, phase - 1))): Stmt
+      val stmts = exps map (e => exhaleConnective(e._1, e._2, phase - 1))
+      if (stmts.children.isEmpty) {
+        Statements.EmptyStmt
+      } else {
+        (Comment(s"Phase $phase: ${phaseDescription(phase-1)}") ++ stmts): Stmt
+      }
     }
   }
 
