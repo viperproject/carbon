@@ -30,9 +30,15 @@ class DefaultDomainModule(val verifier: Verifier) extends DomainModule {
   }
 
   private def translateDomainFunction(f: sil.DomainFunc): Seq[Decl] = {
-    val args = f.formalArgs map (x => LocalVarDecl(Identifier(x.name), translateType(x.typ)))
-    val func = Func(Identifier(f.name), args, translateType(f.typ))
-    MaybeCommentedDecl(s"Translation of domain function ${f.name}", func, size = 1)
+    val t = translateType(f.typ)
+    if (f.unique) {
+      val func = ConstDecl(Identifier(f.name), t, unique = true)
+      MaybeCommentedDecl(s"Translation of domain unique function ${f.name}", func, size = 1)
+    } else {
+      val args = f.formalArgs map (x => LocalVarDecl(Identifier(x.name), translateType(x.typ)))
+      val func = Func(Identifier(f.name), args, t)
+      MaybeCommentedDecl(s"Translation of domain function ${f.name}", func, size = 1)
+    }
   }
 
   private def translateDomainAxiom(axiom: sil.DomainAxiom): Seq[Decl] = {
@@ -40,7 +46,11 @@ class DefaultDomainModule(val verifier: Verifier) extends DomainModule {
   }
 
   override def translateDomainFuncApp(fa: sil.DomainFuncApp): Exp = {
-    FuncApp(Identifier(fa.func.name), fa.args map translateExp, translateType(fa.typ))
+    if (fa.func.unique) {
+      Const(Identifier(fa.func.name))
+    } else {
+      FuncApp(Identifier(fa.func.name), fa.args map translateExp, translateType(fa.typ))
+    }
   }
 
   override def translateDomainTyp(typ: sil.DomainType): Type = {
