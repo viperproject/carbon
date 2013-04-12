@@ -140,8 +140,9 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
   private def permAdd(a: Exp, b: Exp): Exp = FuncApp(permAddName, Seq(a, b), permType)
   private def permSub(a: Exp, b: Exp): Exp = FuncApp(permSubName, Seq(a, b), permType)
 
-  private def fracPerm(frac: Exp) = FuncApp(permConstructName, Seq(frac, RealLit(0)), permType)
-  private def epsPerm(eps: Exp) = FuncApp(permConstructName, Seq(RealLit(0), eps), permType)
+  private def fracPerm(frac: Exp) = mixedPerm(frac, RealLit(0))
+  private def epsPerm(eps: Exp) = mixedPerm(RealLit(0), eps)
+  private def mixedPerm(frac: Exp, eps: Exp) = FuncApp(permConstructName, Seq(frac, eps), permType)
 
   override type StateSnapshot = (Int, Var)
   private var curTmpStateId = -1
@@ -239,6 +240,18 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
         fracPerm(BinExp(translateExp(left), Div, translateExp(right)))
       case _: sil.LocalVar =>
         translateExp(e)
+      case sil.PermAdd(a, b) =>
+        permAdd(translatePerm(a), translatePerm(b))
+      case sil.PermSub(a, b) =>
+        permSub(translatePerm(a), translatePerm(b))
+      case sil.PermMul(a, b) =>
+        // TODO: well-formedness test that a and b do not contain epsilons
+        fracPerm(BinExp(fracComp(translatePerm(a)), Mul, fracComp(translatePerm(b))))
+      case sil.IntPermMul(a, b) =>
+        val i = translateExp(a)
+        val p = translatePerm(b)
+        val mul = (x: Exp) => BinExp(i, Mul, x)
+        mixedPerm(mul(fracComp(p)), mul(epsComp(p)))
       case _ => sys.error(s"not a permission expression: $e")
     }
   }
@@ -269,7 +282,7 @@ class DefaultPermModule(val verifier: Verifier) extends PermModule with StateCom
     val vars = fb.vars map translateLocalVar
     currentAbstractReads ++= (fb.vars map (_.name))
     Havoc(fb.vars map translateLocalVar) ++
-      (vars map (v => Assume((fracComp(v) > RealLit(0)) && (epsComp(v) === RealLit(0)))))
+      (vars map (v => Assume((fracComp(v) > RealLit(0)) && (fracComp(v) < RealLit(0.001)) && (epsComp(v) === RealLit(0)))))
   }
 
   override def leaveFreshBlock(fb: sil.FreshReadPerm): Stmt = {
