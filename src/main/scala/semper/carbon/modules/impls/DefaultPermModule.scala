@@ -366,10 +366,19 @@ class DefaultPermModule(val verifier: Verifier)
     res
   }
 
+  private var inCurrentPerm = false
   override def checkDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
-      case fa@sil.FieldAccess(rcv, field) =>
-        Assert(permissionPositive(currentPermission(fa)), error.dueTo(reasons.InsufficientPermission(fa)))
+      case sil.CurrentPerm(loc) =>
+        inCurrentPerm = true
+        Nil
+      case fa@sil.LocationAccess(rcv, field) =>
+        if (inCurrentPerm) {
+          inCurrentPerm = false
+          Nil
+        } else {
+          Assert(permissionPositive(currentPermission(fa)), error.dueTo(reasons.InsufficientPermission(fa)))
+        }
       case pm@sil.PermMul(a, b) =>
         Assert(epsComp(translatePerm(a)) === RealLit(0), error.dueTo(reasons.InvalidPermMultiplication(pm)))
         Assert(epsComp(translatePerm(b)) === RealLit(0), error.dueTo(reasons.InvalidPermMultiplication(pm)))
