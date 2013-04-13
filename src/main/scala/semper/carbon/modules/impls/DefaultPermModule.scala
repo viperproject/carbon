@@ -56,6 +56,7 @@ class DefaultPermModule(val verifier: Verifier)
     exhaleModule.register(this)
     inhaleModule.register(this)
     stmtModule.register(this)
+    stmtModule.registerDefinednessComponent(this)
   }
 
   implicit val namespace = verifier.freshNamespace("perm")
