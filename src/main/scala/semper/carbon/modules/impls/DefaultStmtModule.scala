@@ -124,11 +124,21 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
       case sil.CondExp(c, e1, e2) =>
         If(translateExp(c), checkDefinedness(e1, error), checkDefinedness(e2, error))
       case _ =>
-        val stmt = definednessComponents map (_.checkDefinedness(e, error))
-        val stmt2 = for (sub <- e.subnodes if sub.isInstanceOf[sil.Exp]) yield {
-          checkDefinedness(sub.asInstanceOf[sil.Exp], error)
+        def translate: Seqn = {
+          val stmt = definednessComponents map (_.checkDefinedness(e, error))
+          val stmt2 = for (sub <- e.subnodes if sub.isInstanceOf[sil.Exp]) yield {
+            checkDefinedness(sub.asInstanceOf[sil.Exp], error)
+          }
+          stmt ++ stmt2
         }
-        stmt ++ stmt2
+        if (e.isInstanceOf[sil.Old]) {
+          val snapshot = makeOldState
+          val res = translate
+          restoreState(snapshot)
+          res
+        } else {
+          translate
+        }
     }
   }
 }
