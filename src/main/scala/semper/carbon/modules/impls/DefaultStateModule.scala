@@ -55,4 +55,13 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
       c.restoreState(snapshot.get(c).asInstanceOf[c.StateSnapshot])
     }
   }
+
+  override def makeOldState: StateSnapshot = {
+    val snapshot = new java.util.IdentityHashMap[StateComponent, Any]()
+    for (c <- components) {
+      val snap = c.makeOldState
+      snapshot.put(c, snap)
+    }
+    snapshot
+  }
 }

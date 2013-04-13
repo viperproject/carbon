@@ -40,7 +40,10 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
       case sil.Unfolding(acc, exp) =>
         ???
       case sil.Old(exp) =>
-        ???
+        val snapshot = stateModule.makeOldState
+        val res = translateExp(exp)
+        stateModule.restoreState(snapshot)
+        res
       case sil.CondExp(cond, thn, els) =>
         CondExp(translateExp(cond), translateExp(thn), translateExp(els))
       case sil.Exists(v, exp) =>
