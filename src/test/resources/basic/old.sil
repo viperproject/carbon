@@ -1,0 +1,31 @@
+
+var f: Int
+
+method t1(this: Ref) returns ()
+    requires acc(this.f, write)
+    ensures acc(this.f, write) && (this.f == old(this.f))
+{
+}
+
+method t2(this: Ref) returns ()
+    requires acc(this.f, write)
+    ensures acc(this.f, write) && this.f == (old(this.f) + 1)
+{
+    this.f := this.f+1
+}
+
+method t2b(this: Ref) returns ()
+    requires acc(this.f, write)
+    //:: ExpectedError(assertion.false)
+    ensures acc(this.f, write) && this.f == (old(this.f) + 2)
+{
+    this.f := this.f+1
+}
+
+method t3(this: Ref) returns ()
+{
+    var r: Ref
+    r := new()
+    //:: ExpectedError(insufficient.permission)
+    exhale (old(r.f) > 0)
+}
