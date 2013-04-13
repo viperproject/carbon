@@ -7,6 +7,9 @@ method t1() {
     var c: Ref
 
     c := new()
+
+    inhale acc(a.f, write)
+
     assert c.f != c
     assert a.f != c
 }
