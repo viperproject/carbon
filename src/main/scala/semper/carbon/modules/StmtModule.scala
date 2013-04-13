@@ -14,7 +14,7 @@ trait StmtModule extends Module with ComponentRegistry[StmtComponent] {
   // logic here
   private var _definednessComponents: Seq[DefinednessComponent] = Nil
   def definednessComponents: Seq[DefinednessComponent] = _definednessComponents
-  def register(component: DefinednessComponent) {
+  def registerDefinednessComponent(component: DefinednessComponent) {
     _definednessComponents = _definednessComponents :+ component
   }
 
