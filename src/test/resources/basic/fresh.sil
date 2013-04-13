@@ -15,7 +15,7 @@ method t1b(r: Ref, p: Perm)
     requires acc(r.f, p)
     ensures acc(r.f, p)
 {
-    r.f := 1
+    var a: Int := r.f
 }
 
 method t2(r: Ref) returns ()
