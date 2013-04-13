@@ -26,8 +26,8 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   def axiomNamespace = verifier.freshNamespace("heap.axiom")
 
   override def initialize() {
-    verifier.stateModule.register(this)
-    verifier.stmtModule.register(this)
+    stateModule.register(this)
+    stmtModule.register(this)
   }
 
   private val fieldTypeName = "Field"
