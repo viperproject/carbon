@@ -56,4 +56,9 @@ trait Verifier {
    * Create a new namespace with a unique ID.
    */
   def freshNamespace(name: String): Namespace
+
+  /**
+   * The program currently being verified.
+   */
+  def program: sil.Program
 }

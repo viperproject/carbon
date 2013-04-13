@@ -116,10 +116,14 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
   }
 
   def verify(program: Program) = {
+    _program = program
     _translated = mainModule.translate(program)
     invokeBoogie(_translated, Nil)
   }
 
   private var _translated: semper.carbon.boogie.Program = null
   def translated = _translated
+
+  private var _program: Program = null
+  def program = _program
 }

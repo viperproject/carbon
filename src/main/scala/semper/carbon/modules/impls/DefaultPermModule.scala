@@ -308,6 +308,10 @@ class DefaultPermModule(val verifier: Verifier)
 
   override def handleStmt(s: sil.Stmt): Stmt = {
     s match {
+      case n@sil.NewStmt(lhs) =>
+        for (field <- verifier.program.fields) yield {
+          Assign(currentPermission(sil.FieldAccess(lhs, field)()), fullPerm)
+        }
       case assign@sil.FieldAssign(fa, rhs) =>
         Assert(permEq(currentPermission(fa), fullPerm), errors.AssignmentFailed(assign).dueTo(reasons.InsufficientPermission(fa)))
       case _ => Nil
@@ -366,15 +370,18 @@ class DefaultPermModule(val verifier: Verifier)
     res
   }
 
-  private var inCurrentPerm = false
+  private var allowLocationAccessWithoutPerm = false
   override def checkDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
       case sil.CurrentPerm(loc) =>
-        inCurrentPerm = true
+        allowLocationAccessWithoutPerm = true
+        Nil
+      case sil.AccessPredicate(loc, perm) =>
+        allowLocationAccessWithoutPerm = true
         Nil
       case fa@sil.LocationAccess(rcv, field) =>
-        if (inCurrentPerm) {
-          inCurrentPerm = false
+        if (allowLocationAccessWithoutPerm) {
+          allowLocationAccessWithoutPerm = false
           Nil
         } else {
           Assert(permissionPositive(currentPermission(fa)), error.dueTo(reasons.InsufficientPermission(fa)))
