@@ -305,7 +305,13 @@ class DefaultPermModule(val verifier: Verifier)
     Nil
   }
 
-  override def handleStmt(s: sil.Stmt): Stmt = Statements.EmptyStmt
+  override def handleStmt(s: sil.Stmt): Stmt = {
+    s match {
+      case assign@sil.FieldAssign(fa, rhs) =>
+        Assert(currentPermission(fa) === fullPerm, errors.AssignmentFailed(assign).dueTo(reasons.InsufficientPermission(fa)))
+      case _ => Nil
+    }
+  }
 
   private def permEq(a: Exp, b: Exp): Exp = {
     (fracComp(a) === fracComp(b)) &&
