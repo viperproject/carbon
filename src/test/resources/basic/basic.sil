@@ -3,7 +3,7 @@ var test: Bool
 
 // some random tests
 method t1(this: Ref, a: Int, b: Bool, g: Ref) returns (c: Bool, d: Int)
-    requires b
+    requires b && acc(this.value, write)
     ensures (d == 1) || (d == 2)
 {
     var e: Int

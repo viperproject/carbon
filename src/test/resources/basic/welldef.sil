@@ -8,7 +8,7 @@ domain Test {
 method t1(this: Ref)
 {
     //:: ExpectedError(insufficient.permission)
-    this.f := 1
+    var i: Int := this.f
 }
 
 method t2(this: Ref)
@@ -21,4 +21,10 @@ method t3(this: Ref, p2: Perm)
 {
     //:: ExpectedError(invalid.perm.multiplication)
     var p: Perm := epsilon * p2
+}
+
+method t4(this: Ref)
+{
+    //:: ExpectedError(insufficient.permission)
+    this.f := 1
 }
