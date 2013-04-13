@@ -149,7 +149,6 @@ class DefaultPermModule(val verifier: Verifier)
     (mask := zeroMask) ++
       Assume(Old(mask) === mask)
   }
-
   private def permAdd(a: Exp, b: Exp): Exp = FuncApp(permAddName, Seq(a, b), permType)
   private def permSub(a: Exp, b: Exp): Exp = FuncApp(permSubName, Seq(a, b), permType)
 
