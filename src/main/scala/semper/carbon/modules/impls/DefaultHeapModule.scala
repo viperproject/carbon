@@ -35,7 +35,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   override def fieldType = NamedType(fieldTypeName, TypeVar("T"))
   private val heapTyp = NamedType("HeapType")
   private val heapName = Identifier("Heap")
-  private var heap: Var = GlobalVar(heapName, heapTyp)
+  private var heap: Exp = GlobalVar(heapName, heapTyp)
   private val nullName = Identifier("null")
   private val nullLit = Const(nullName)
   private val freshObjectName = Identifier("freshObj")
@@ -127,7 +127,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   def stateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(heapName, heapTyp))
   def currentStateContributions: Seq[Exp] = Seq(heap)
 
-  override type StateSnapshot = (Int, Var)
+  override type StateSnapshot = (Int, Exp)
   private var curTmpStateId = -1
 
   override def freshTempState: (Stmt, StateSnapshot) = {
@@ -139,9 +139,15 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
     (s, (curTmpStateId, oldHeap))
   }
 
-  override def throwAwayTempState(s: StateSnapshot): Stmt = {
+  override def restoreState(s: StateSnapshot) {
     heap = s._2
     curTmpStateId = s._1 - 1
-    Statements.EmptyStmt
+  }
+
+  override def makeOldState: StateSnapshot = {
+    curTmpStateId += 1
+    val oldHeap = heap
+    heap = Old(heap)
+    (curTmpStateId, oldHeap)
   }
 }

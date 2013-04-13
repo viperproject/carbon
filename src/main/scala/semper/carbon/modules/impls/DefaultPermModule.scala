@@ -71,7 +71,7 @@ class DefaultPermModule(val verifier: Verifier)
   private val maskTypeName = "MaskType"
   private val maskType = NamedType(maskTypeName)
   private val maskName = Identifier("Mask")
-  private var mask: Var = GlobalVar(maskName, maskType)
+  private var mask: Exp = GlobalVar(maskName, maskType)
   private val zeroMaskName = Identifier("ZeroMask")
   private val zeroMask = Const(zeroMaskName)
   private val noPermName = Identifier("NoPerm")
@@ -156,7 +156,7 @@ class DefaultPermModule(val verifier: Verifier)
   private def epsPerm(eps: Exp) = mixedPerm(RealLit(0), eps)
   private def mixedPerm(frac: Exp, eps: Exp) = FuncApp(permConstructName, Seq(frac, eps), permType)
 
-  override type StateSnapshot = (Int, Var)
+  override type StateSnapshot = (Int, Exp)
   private var curTmpStateId = -1
 
   override def freshTempState: (Stmt, StateSnapshot) = {
@@ -168,10 +168,16 @@ class DefaultPermModule(val verifier: Verifier)
     (s, (curTmpStateId, oldMask))
   }
 
-  override def throwAwayTempState(s: StateSnapshot): Stmt = {
+  override def restoreState(s: StateSnapshot) {
     mask = s._2
     curTmpStateId = s._1 - 1
-    Statements.EmptyStmt
+  }
+
+  override def makeOldState: StateSnapshot = {
+    curTmpStateId += 1
+    val oldMask = mask
+    mask = Old(mask)
+    (curTmpStateId, oldMask)
   }
 
   /**

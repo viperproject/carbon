@@ -36,7 +36,13 @@ trait StateComponent extends Component {
   def freshTempState: (Stmt, StateSnapshot)
 
   /**
-   * Throw away the current (temporary) state and go back to the previous state.
+   * Throw away the current state and go back to a snapshot.
    */
-  def throwAwayTempState(previousState: StateSnapshot): Stmt
+  def restoreState(previousState: StateSnapshot)
+
+  /**
+   * Change the state from 'x' to 'old(x)' and return a snapshot of 'x' such
+   * that it can be restored later.
+   */
+  def makeOldState: StateSnapshot
 }

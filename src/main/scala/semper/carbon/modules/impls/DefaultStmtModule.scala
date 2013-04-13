@@ -56,8 +56,8 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
           // we create a temporary state to ignore the side-effects
           val (backup, snapshot) = freshTempState
           val exhaleStmt = exhale((e, errors.AssertFailed(a)))
-          val restore = restoreState(snapshot)
-          checkDefinedness(e, errors.AssertFailed(a)) :: backup :: exhaleStmt :: restore :: Nil
+          restoreState(snapshot)
+          checkDefinedness(e, errors.AssertFailed(a)) :: backup :: exhaleStmt :: Nil
         }
       case mc@sil.MethodCall(method, args, targets) =>
         (targets map (e => checkDefinedness(e, errors.CallFailed(mc)))) ++
@@ -101,7 +101,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
     }
     val all = Seqn(components map (_.handleStmt(stmt)))
     if (all.children.size == 0) {
-      assert(false, "Translation of " + stmt + " is not defined")
+      assert(assertion = false, "Translation of " + stmt + " is not defined")
     }
     val translation = all ::
       assumeGoodState ::

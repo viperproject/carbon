@@ -1,7 +1,6 @@
 package semper.carbon.modules.impls
 
 import semper.carbon.modules._
-import semper.sil.{ast => sil}
 import semper.carbon.verifier.Verifier
 import semper.carbon.boogie._
 import semper.carbon.boogie.Implicits._
@@ -51,9 +50,9 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     (s, snapshot)
   }
 
-  override def restoreState(snapshot: StateSnapshot): Stmt = {
-    for (c <- components) yield {
-      c.throwAwayTempState(snapshot.get(c).asInstanceOf[c.StateSnapshot])
+  override def restoreState(snapshot: StateSnapshot) {
+    for (c <- components) {
+      c.restoreState(snapshot.get(c).asInstanceOf[c.StateSnapshot])
     }
   }
 }

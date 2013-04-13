@@ -51,5 +51,5 @@ trait StateModule extends Module with ComponentRegistry[StateComponent] {
   /**
    * Restore the state to a given snapshot.
    */
-  def restoreState(snapshot: StateSnapshot): Stmt
+  def restoreState(snapshot: StateSnapshot)
 }
