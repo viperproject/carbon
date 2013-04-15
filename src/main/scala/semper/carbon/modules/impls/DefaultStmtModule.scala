@@ -66,26 +66,28 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
           MaybeCommentBlock("Exhaling precondition", exhale(mc.pres map (e => (e, errors.PreconditionInCallFalse(mc))))) ++
           MaybeCommentBlock("Inhaling postcondition", inhale(mc.posts))
       case w@sil.While(cond, invs, locals, body) =>
+        val guard = translateExp(cond)
         MaybeCommentBlock("Exhale loop invariant before loop",
           exhale(w.invs map (e => (e, errors.LoopInvariantNotEstablished(e))))
         ) ++
+          MaybeCommentBlock("Havoc loop targets",
+            Havoc((w.writtenVars map translateExp).asInstanceOf[Seq[Var]])
+          ) ++
           MaybeCommentBlock("Check the loop body", NondetIf(
             Comment("Inhale invariant") ++
               inhale(w.invs) ++
               Comment("Check and assume guard") ++
               checkDefinedness(cond, errors.WhileFailed(cond)) ++
-              Assume(translateExp(cond)) ++
+              Assume(guard) ++
               Comment("Havoc locals") ++
               Havoc((locals map (x => translateExp(x.localVar))).asInstanceOf[Seq[Var]]) ++
               translateStmt(body) ++
               Comment("Exhale invariant") ++
               exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e))))
           )) ++
-          MaybeCommentBlock("Havoc loop targets",
-            Havoc((w.writtenVars map translateExp).asInstanceOf[Seq[Var]])
-          ) ++
-          MaybeCommentBlock("Inhale loop invariant after loop",
-            inhale(w.invs)
+          MaybeCommentBlock("Inhale loop invariant after loop, and assume guard",
+            Assume(guard.not) ++
+              inhale(w.invs)
           )
       case fb@sil.FreshReadPerm(vars, body) =>
         MaybeCommentBlock(s"Start of fresh(${vars.mkString(", ")})", components map (_.enterFreshBlock(fb))) ++
