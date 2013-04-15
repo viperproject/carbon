@@ -71,3 +71,31 @@ method t6(r: Ref) returns ()
     {
     }
 }
+
+method t7(r: Ref) returns ()
+{
+    var i: Int := 1
+    var j: Int := 2
+
+    while (true)
+    {
+        assert i == 1
+        //:: ExpectedError(assertion.false)
+        assert j == 2
+        j := j+1
+    }
+}
+
+method t8(r: Ref) returns ()
+{
+    var j: Int := 2
+
+    while (j < 10)
+    {
+        j := j+1
+    }
+
+    assert j >= 10
+    //:: ExpectedError(assertion.false)
+    assert false
+}
