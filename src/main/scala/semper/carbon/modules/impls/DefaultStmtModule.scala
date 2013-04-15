@@ -65,14 +65,34 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
           Havoc((targets map translateExp).asInstanceOf[Seq[Var]]) ++
           MaybeCommentBlock("Exhaling precondition", exhale(mc.pres map (e => (e, errors.PreconditionInCallFalse(mc))))) ++
           MaybeCommentBlock("Inhaling postcondition", inhale(mc.posts))
-      case sil.While(cond, invs, locals, body) =>
-        ???
+      case w@sil.While(cond, invs, locals, body) =>
+        MaybeCommentBlock("Exhale loop invariant before loop",
+          exhale(w.invs map (e => (e, errors.LoopInvariantNotEstablished(e))))
+        ) ++
+          MaybeCommentBlock("Check the loop body", NondetIf(
+            Comment("Check and assume guard") ++
+              checkDefinedness(cond, errors.WhileFailed(cond)) ++
+              Assume(translateExp(cond)) ++
+              Comment("Inhale invariant") ++
+              inhale(w.invs) ++
+              Comment("Havoc locals") ++
+              Havoc((locals map (x => translateExp(x.localVar))).asInstanceOf[Seq[Var]]) ++
+              translateStmt(body) ++
+              Comment("Exhale invariant") ++
+              exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e))))
+          )) ++
+          MaybeCommentBlock("Havoc loop targets",
+            Havoc((w.writtenVars map translateExp).asInstanceOf[Seq[Var]])
+          ) ++
+          MaybeCommentBlock("Inhale loop invariant after loop",
+            inhale(w.invs)
+          )
       case fb@sil.FreshReadPerm(vars, body) =>
-          MaybeCommentBlock(s"Start of fresh(${vars.mkString(", ")})", components map (_.enterFreshBlock(fb))) ++
+        MaybeCommentBlock(s"Start of fresh(${vars.mkString(", ")})", components map (_.enterFreshBlock(fb))) ++
           translateStmt(body) ++
           MaybeCommentBlock(s"End of fresh(${vars.mkString(", ")})", components map (_.leaveFreshBlock(fb)))
       case i@sil.If(cond, thn, els) =>
-        checkDefinedness(cond, errors.IfFailed(i)) ++
+        checkDefinedness(cond, errors.IfFailed(cond)) ++
           If(translateExp(cond),
             translateStmt(thn),
             translateStmt(els))
@@ -95,6 +115,8 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
         return Seqn(ss map translateStmt)
       case sil.If(cond, thn, els) =>
         comment = s"Translating statement: if ($cond)"
+      case sil.While(cond, invs, local, body) =>
+        comment = s"Translating statement: while ($cond)"
       case fb@sil.FreshReadPerm(vars, body) =>
         comment = s"Translating statement: fresh(${vars.mkString(", ")})"
       case _ =>
