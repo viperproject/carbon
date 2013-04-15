@@ -70,11 +70,11 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
           exhale(w.invs map (e => (e, errors.LoopInvariantNotEstablished(e))))
         ) ++
           MaybeCommentBlock("Check the loop body", NondetIf(
-            Comment("Check and assume guard") ++
+            Comment("Inhale invariant") ++
+              inhale(w.invs) ++
+              Comment("Check and assume guard") ++
               checkDefinedness(cond, errors.WhileFailed(cond)) ++
               Assume(translateExp(cond)) ++
-              Comment("Inhale invariant") ++
-              inhale(w.invs) ++
               Comment("Havoc locals") ++
               Havoc((locals map (x => translateExp(x.localVar))).asInstanceOf[Seq[Var]]) ++
               translateStmt(body) ++
