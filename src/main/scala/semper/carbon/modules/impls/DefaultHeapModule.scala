@@ -1,18 +1,19 @@
 package semper.carbon.modules.impls
 
 import semper.carbon.modules._
-import components.{StmtComponent, StateComponent}
+import semper.carbon.modules.components.{DefinednessComponent, StmtComponent, StateComponent}
 import semper.sil.{ast => sil}
 import semper.carbon.boogie._
 import semper.carbon.boogie.Implicits._
 import semper.carbon.verifier.Verifier
+import semper.sil.verifier.{reasons, PartialVerificationError}
 
 /**
  * The default implementation of a [[semper.carbon.modules.HeapModule]].
  *
  * @author Stefan Heule
  */
-class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateComponent with StmtComponent {
+class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateComponent with StmtComponent with DefinednessComponent {
 
   import verifier._
   import typeModule._
@@ -28,6 +29,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   override def initialize() {
     stateModule.register(this)
     stmtModule.register(this)
+    stmtModule.registerDefinednessComponent(this)
   }
 
   private val fieldTypeName = "Field"
@@ -149,5 +151,13 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
     val oldHeap = heap
     heap = Old(heap)
     (curTmpStateId, oldHeap)
+  }
+
+  override def checkDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
+    e match {
+      case sil.CurrentPerm(loc) =>
+        Assert(translateExp(loc.rcv) !== nullLit, error.dueTo(reasons.ReceiverNull(loc)))
+      case _ => Nil
+    }
   }
 }
