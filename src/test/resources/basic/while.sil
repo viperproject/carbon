@@ -63,3 +63,11 @@ method t5(n: Int, r: Ref) returns ()
         i := i+1
     }
 }
+
+method t6(r: Ref) returns ()
+{
+    //:: ExpectedError(while.failed:receiver.null)
+    while (perm(r.f) == none)
+    {
+    }
+}
