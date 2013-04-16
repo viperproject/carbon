@@ -4,6 +4,8 @@ import semper.carbon.modules.ExpModule
 import semper.sil.{ast => sil}
 import semper.carbon.boogie._
 import semper.carbon.verifier.Verifier
+import semper.sil.verifier.PartialVerificationError
+import semper.carbon.boogie.Implicits._
 
 /**
  * The default implementation of [[semper.carbon.modules.ExpModule]].
@@ -19,6 +21,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
   import domainModule._
   import seqModule._
   import permModule._
+  import stateModule._
 
   def name = "Expression module"
   override def translateExp(e: sil.Exp): Exp = {
@@ -145,5 +148,34 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
 
   override def translateLocalVar(l: sil.LocalVar): LocalVar = {
     LocalVar(Identifier(l.name)(verifier.mainModule.silVarNamespace), translateType(l.typ))
+  }
+
+  override def checkDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
+    e match {
+      case sil.And(e1, e2) =>
+        checkDefinedness(e1, error) ::
+          checkDefinedness(e2, error) ::
+          Nil
+      case sil.Implies(e1, e2) =>
+        If(translateExp(e1), checkDefinedness(e2, error), Statements.EmptyStmt)
+      case sil.CondExp(c, e1, e2) =>
+        If(translateExp(c), checkDefinedness(e1, error), checkDefinedness(e2, error))
+      case _ =>
+        def translate: Seqn = {
+          val stmt = components map (_.checkDefinedness(e, error))
+          val stmt2 = for (sub <- e.subnodes if sub.isInstanceOf[sil.Exp]) yield {
+            checkDefinedness(sub.asInstanceOf[sil.Exp], error)
+          }
+          stmt ++ stmt2
+        }
+        if (e.isInstanceOf[sil.Old]) {
+          val snapshot = makeOldState
+          val res = translate
+          restoreState(snapshot)
+          res
+        } else {
+          translate
+        }
+    }
   }
 }

@@ -10,13 +10,5 @@ import semper.carbon.boogie.Stmt
  * @author Stefan Heule
  */
 trait StmtModule extends Module with ComponentRegistry[StmtComponent] {
-  // because every trait can only extend ComponentRegistry, we have to duplicate some
-  // logic here
-  private var _definednessComponents: Seq[DefinednessComponent] = Nil
-  def definednessComponents: Seq[DefinednessComponent] = _definednessComponents
-  def registerDefinednessComponent(component: DefinednessComponent) {
-    _definednessComponents = _definednessComponents :+ component
-  }
-
   def translateStmt(stmt: sil.Stmt): Stmt
 }

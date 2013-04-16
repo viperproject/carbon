@@ -29,7 +29,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   override def initialize() {
     stateModule.register(this)
     stmtModule.register(this)
-    stmtModule.registerDefinednessComponent(this)
+    expModule.register(this)
   }
 
   private val fieldTypeName = "Field"

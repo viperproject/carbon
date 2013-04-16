@@ -132,37 +132,4 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
       Nil
     CommentBlock(comment + s" -- ${stmt.pos}", translation)
   }
-
-  /**
-   * Check definedness of SIL expression connectives (such as logical and/implication) and forwards the
-   * checking of other expressions to the definedness components.
-   */
-  def checkDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
-    e match {
-      case sil.And(e1, e2) =>
-        checkDefinedness(e1, error) ::
-          checkDefinedness(e2, error) ::
-          Nil
-      case sil.Implies(e1, e2) =>
-        If(translateExp(e1), checkDefinedness(e2, error), Statements.EmptyStmt)
-      case sil.CondExp(c, e1, e2) =>
-        If(translateExp(c), checkDefinedness(e1, error), checkDefinedness(e2, error))
-      case _ =>
-        def translate: Seqn = {
-          val stmt = definednessComponents map (_.checkDefinedness(e, error))
-          val stmt2 = for (sub <- e.subnodes if sub.isInstanceOf[sil.Exp]) yield {
-            checkDefinedness(sub.asInstanceOf[sil.Exp], error)
-          }
-          stmt ++ stmt2
-        }
-        if (e.isInstanceOf[sil.Old]) {
-          val snapshot = makeOldState
-          val res = translate
-          restoreState(snapshot)
-          res
-        } else {
-          translate
-        }
-    }
-  }
 }
