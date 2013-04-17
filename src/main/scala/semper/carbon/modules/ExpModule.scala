@@ -18,4 +18,11 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
    * Check definedness of SIL expressions as they occur in the program.
    */
   def checkDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt
+
+  /**
+   * Check definedness of SIL assertions such as pre-/postconditions or invariants.
+   * The implementation works by inhaling 'e' and checking the necessary properties
+   * along the way.
+   */
+  def checkDefinednessOfSpec(e: sil.Exp, error: PartialVerificationError): Stmt
 }

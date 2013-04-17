@@ -178,4 +178,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
         }
     }
   }
+
+  override def checkDefinednessOfSpec(e: sil.Exp, error: PartialVerificationError): Stmt = {
+    Nil
+  }
 }
