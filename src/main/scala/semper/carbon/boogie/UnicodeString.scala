@@ -11,7 +11,8 @@ import language.implicitConversions
  */
 class UnicodeString(val s: String) {
   def or(safe: String) = {
-    if (System.getProperty("file.encoding") == "UTF-8") s else safe
+    //if (System.getProperty("file.encoding") == "UTF-8") s else safe
+    safe
   }
 }
 object UnicodeString {
