@@ -23,7 +23,7 @@ trait MainModule extends Module {
   def translateLocalVarDecl(l: sil.LocalVarDecl): LocalVarDecl
 
   /** The current environment. */
-  def env: Environment
+  var env: Environment = null
 
   /** The namespace for SIL local variables. */
   def silVarNamespace: Namespace

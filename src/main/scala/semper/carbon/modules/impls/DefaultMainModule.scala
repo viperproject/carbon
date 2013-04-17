@@ -32,10 +32,6 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
 
   def name = "Main module"
 
-  /** The current environment. */
-  var _env: Environment = null
-  override def env = _env
-
   override val silVarNamespace = verifier.freshNamespace("main.silvar")
   implicit val mainNamespace = verifier.freshNamespace("main")
 
@@ -84,7 +80,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
   }
 
   def translateMethodDecl(m: sil.Method): Seq[Decl] = {
-    _env = Environment(verifier, m)
+    env = Environment(verifier, m)
     val res = m match {
       case sil.Method(name, formalArgs, formalReturns, pres, posts, locals, b) =>
         val ins: Seq[LocalVarDecl] = formalArgs map translateLocalVarDecl
@@ -97,14 +93,14 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
         val proc = Procedure(Identifier(name), ins, outs, Seq(init, inhalePre, body, exhalePost))
         CommentedDecl(s"Translation of method $name", proc)
     }
-    _env = null
+    env = null
     res
   }
 
   def translateDomainDecl(d: sil.Domain): Seq[Decl] = {
-    _env = Environment(verifier, d)
+    env = Environment(verifier, d)
     val res = translateDomain(d)
-    _env = null
+    env = null
     res
   }
 }

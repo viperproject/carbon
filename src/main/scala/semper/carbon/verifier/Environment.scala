@@ -12,7 +12,7 @@ import semper.sil.utility.NameGenerator
  *
  * @author Stefan Heule
  */
-case class Environment(verifier: Verifier, member: sil.Member) {
+case class Environment(verifier: Verifier, member: sil.Node) {
 
   private val names = new BoogieNameGenerator()
 
@@ -21,7 +21,6 @@ case class Environment(verifier: Verifier, member: sil.Member) {
 
   // register types from member
   member match {
-    case l: sil.Location =>
     case sil.Method(name, args, returns, pres, posts, locals, body) =>
       for (v <- args ++ returns ++ locals) {
         define(v.localVar)
@@ -30,7 +29,11 @@ case class Environment(verifier: Verifier, member: sil.Member) {
       for (v <- args) {
         define(v.localVar)
       }
-    case sil.Domain(name, functions, axioms, typVars) =>
+    case f@sil.DomainFunc(name, args, typ, unique) =>
+      for (v <- args) {
+        define(v.localVar)
+      }
+    case _ =>
   }
 
   /**

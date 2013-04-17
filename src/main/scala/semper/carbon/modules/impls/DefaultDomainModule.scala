@@ -3,7 +3,7 @@ package semper.carbon.modules.impls
 import semper.carbon.modules.DomainModule
 import semper.sil.{ast => sil}
 import semper.carbon.boogie._
-import semper.carbon.verifier.Verifier
+import semper.carbon.verifier.{Environment, Verifier}
 import semper.carbon.boogie.Implicits._
 
 /**
@@ -16,6 +16,7 @@ class DefaultDomainModule(val verifier: Verifier) extends DomainModule {
   import verifier._
   import typeModule._
   import expModule._
+  import mainModule._
 
   def name = "Domain module"
 
@@ -30,8 +31,9 @@ class DefaultDomainModule(val verifier: Verifier) extends DomainModule {
   }
 
   private def translateDomainFunction(f: sil.DomainFunc): Seq[Decl] = {
+    env = Environment(verifier, f)
     val t = translateType(f.typ)
-    if (f.unique) {
+    val res = if (f.unique) {
       val func = ConstDecl(Identifier(f.name), t, unique = true)
       MaybeCommentedDecl(s"Translation of domain unique function ${f.name}", func, size = 1)
     } else {
@@ -39,10 +41,15 @@ class DefaultDomainModule(val verifier: Verifier) extends DomainModule {
       val func = Func(Identifier(f.name), args, t)
       MaybeCommentedDecl(s"Translation of domain function ${f.name}", func, size = 1)
     }
+    env = null
+    res
   }
 
   private def translateDomainAxiom(axiom: sil.DomainAxiom): Seq[Decl] = {
-    MaybeCommentedDecl(s"Translation of domain axiom ${axiom.name}", Axiom(translateExp(axiom.exp)), size = 1)
+    env = Environment(verifier, axiom)
+    val res = MaybeCommentedDecl(s"Translation of domain axiom ${axiom.name}", Axiom(translateExp(axiom.exp)), size = 1)
+    env = null
+    res
   }
 
   override def translateDomainFuncApp(fa: sil.DomainFuncApp): Exp = {
