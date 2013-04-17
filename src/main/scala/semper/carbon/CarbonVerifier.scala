@@ -104,7 +104,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
     }, new Dependency {
       def name = "Z3"
       def version = {
-        val v = List(z3Path, "/version").lines.to[List]
+        val v = List(z3Path, "-version").lines.to[List]
         if (v.size == 1 && v(0).startsWith("Z3 version ")) {
           v(0).substring("Z3 version ".size)
         } else {
