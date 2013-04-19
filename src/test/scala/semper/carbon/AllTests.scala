@@ -18,7 +18,7 @@ class AllTests extends DefaultSilSuite {
     require(files.length == 1, "tests should consist of exactly one file")
     val fe = new CarbonFrontend()
     fe.init(verifier)
-    fe.reset(Source.fromFile(files.head).getLines().mkString("\n"))
+    fe.reset(files.head)
     fe
   }
 
