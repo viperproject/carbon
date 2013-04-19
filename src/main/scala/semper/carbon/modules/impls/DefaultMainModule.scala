@@ -68,7 +68,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
         val deps = verifier.dependencyDescs map ("  " + _)
         val header = Seq(
           "",
-          s"Translation of SIL program '$name'.",
+          s"Translation of SIL program.",
           "",
           "Date:         " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()),
           "Tool:         " + verifier.toolDesc) ++
