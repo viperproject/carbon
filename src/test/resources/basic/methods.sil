@@ -1,4 +1,6 @@
 
+var f: Int
+
 method t1() {
     var n: Int
     //:: ExpectedError(call.precondition:assertion.false)
@@ -46,4 +48,17 @@ method t4c() {
 
 method t4b() returns (a: Ref, b: Ref)
 {
+}
+
+method t5(r: Ref)
+    //:: ExpectedError(not.wellformed:insufficient.permission)
+    requires r.f == 2
+{
+}
+
+method t6(r: Ref)
+    //:: ExpectedError(not.wellformed:insufficient.permission)
+    ensures r.f == 2
+{
+    assume false
 }

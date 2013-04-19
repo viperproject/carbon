@@ -99,3 +99,38 @@ method t8(r: Ref) returns ()
     //:: ExpectedError(assertion.false)
     assert false
 }
+
+method t9(r: Ref) returns ()
+    requires acc(r.f, write)
+{
+    var j: Int := 2
+    while (j < (r.f))
+        invariant acc(r.f, write)
+    {
+        j := j+1
+    }
+    assert j >= (r.f)
+}
+
+method t10(r: Ref) returns ()
+    requires acc(r.f, write)
+{
+    var j: Int := 2
+    while (j < (r.f))
+    {
+        j := j+1
+    }
+    assert j >= (r.f)
+}
+
+method t11(r: Ref) returns ()
+{
+    var j: Int := 2
+    while (j < 3)
+        //:: IgnoreOthers
+        //:: ExpectedError(while.failed:insufficient.permission)
+        invariant r.f == 2
+    {
+        j := j+1
+    }
+}
