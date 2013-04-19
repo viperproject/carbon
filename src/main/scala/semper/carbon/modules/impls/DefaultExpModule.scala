@@ -50,13 +50,13 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
         res
       case sil.CondExp(cond, thn, els) =>
         CondExp(translateExp(cond), translateExp(thn), translateExp(els))
-      case sil.Exists(v, exp) =>
-        env.define(v.localVar)
-        Exists(Seq(translateLocalVarDecl(v)), translateExp(exp))
-      case sil.Forall(v, triggers, exp) =>
-        env.define(v.localVar)
+      case sil.Exists(vars, exp) =>
+        vars map (v => env.define(v.localVar))
+        Exists(vars map translateLocalVarDecl, translateExp(exp))
+      case sil.Forall(vars, triggers, exp) =>
+        vars map (v => env.define(v.localVar))
         val ts = triggers map (t => Trigger(t.exps map translateExp))
-        Forall(Seq(translateLocalVarDecl(v)), ts, translateExp(exp))
+        Forall(vars map translateLocalVarDecl, ts, translateExp(exp))
       case sil.WildcardPerm() =>
         translatePerm(e)
       case sil.FullPerm() =>
