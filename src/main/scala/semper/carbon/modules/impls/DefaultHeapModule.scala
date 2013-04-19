@@ -100,7 +100,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
           // assume that we consider a newly allocated cell, which gives the prover
           // the information that this object is different from anything allocated
           // earlier.
-          Assume(freshObjectVar !== nullLit && alloc(freshObjectVar).not) ::
+          Assume((freshObjectVar !== nullLit) && alloc(freshObjectVar).not) ::
           (alloc(freshObjectVar) := TrueLit()) ::
           (translateExp(target) := freshObjectVar) ::
           Nil
