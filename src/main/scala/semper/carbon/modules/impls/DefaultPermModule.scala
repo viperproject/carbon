@@ -347,7 +347,7 @@ class DefaultPermModule(val verifier: Verifier)
           Assign(currentPermission(sil.FieldAccess(lhs, field)()), fullPerm)
         }
       case assign@sil.FieldAssign(fa, rhs) =>
-        Assert(permEq(currentPermission(fa), fullPerm), errors.AssignmentFailed(assign).dueTo(reasons.InsufficientPermission(fa)))
+        Assert(permGe(currentPermission(fa), fullPerm), errors.AssignmentFailed(assign).dueTo(reasons.InsufficientPermission(fa)))
       case _ => Nil
     }
   }
