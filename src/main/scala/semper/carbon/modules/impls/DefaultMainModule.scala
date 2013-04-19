@@ -84,21 +84,27 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
     env = Environment(verifier, m)
     val res = m match {
       case sil.Method(name, formalArgs, formalReturns, pres, posts, locals, b) =>
+        val initOldStateComment = "Initializing of old state"
         val ins: Seq[LocalVarDecl] = formalArgs map translateLocalVarDecl
         val outs: Seq[LocalVarDecl] = formalReturns map translateLocalVarDecl
         val init = MaybeCommentBlock("Initializing the state", initState)
         val initOld = initOldState
-        val checkPrePost = MaybeCommentBlock("Check definedness of pre/postcondition", NondetIf(
-          (pres map (e => checkDefinednessOfSpec(e, errors.ContractNotWellformed(e)))) ++
-            initOld ++
-            (posts map (e => checkDefinednessOfSpec(e, errors.ContractNotWellformed(e))))
-            ++ Assume(FalseLit())
-        ))
+        val checkPre = pres map (e => checkDefinednessOfSpec(e, errors.ContractNotWellformed(e)))
+        val checkPost = posts map (e => checkDefinednessOfSpec(e, errors.ContractNotWellformed(e)))
+        val checkPrePost: Stmt = if (checkPre.children.size + checkPost.children.size > 0)
+          MaybeCommentBlock("Check definedness of pre/postcondition", NondetIf(
+            Comment("Checked inhaling of precondition") ++ checkPre ++
+              Comment(initOldStateComment) ++ initOld ++
+              Comment("Checked inhaling of postcondition") ++ checkPost ++
+              Comment("Stop execution") ++ Assume(FalseLit())
+          ))
+        else Nil
         val inhalePre = MaybeCommentBlock("Inhaling precondition", inhale(pres))
         val body: Stmt = translateStmt(b)
         val postsWithErrors = posts map (p => (p, errors.PostconditionViolated(p, m)))
         val exhalePost = MaybeCommentBlock("Exhaling postcondition", exhale(postsWithErrors))
-        val proc = Procedure(Identifier(name), ins, outs, Seq(init, checkPrePost, inhalePre, initOld, body, exhalePost))
+        val proc = Procedure(Identifier(name), ins, outs,
+          Seq(init, checkPrePost, inhalePre, MaybeCommentBlock(initOldStateComment, initOld), body, exhalePost))
         CommentedDecl(s"Translation of method $name", proc)
     }
     env = null
