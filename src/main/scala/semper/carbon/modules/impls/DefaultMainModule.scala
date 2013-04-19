@@ -98,7 +98,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
         val body: Stmt = translateStmt(b)
         val postsWithErrors = posts map (p => (p, errors.PostconditionViolated(p, m)))
         val exhalePost = MaybeCommentBlock("Exhaling postcondition", exhale(postsWithErrors))
-        val proc = Procedure(Identifier(name), ins, outs, Seq(init, checkPrePost, initOld, inhalePre, body, exhalePost))
+        val proc = Procedure(Identifier(name), ins, outs, Seq(init, checkPrePost, inhalePre, initOld, body, exhalePost))
         CommentedDecl(s"Translation of method $name", proc)
     }
     env = null
