@@ -29,3 +29,15 @@ method t3(this: Ref) returns ()
     //:: ExpectedError(insufficient.permission)
     exhale (old(r.f) > 0)
 }
+
+method t4(r: Ref) returns ()
+    requires acc(r.f, write)
+    requires (r.f) > 0
+{
+    exhale acc(r.f, write)
+
+    // we hold no permission to r.f any longer, but old(r.f) is still ok
+    exhale (old(r.f) > 0)
+    //:: ExpectedError(exhale.failed:insufficient.permission)
+    exhale (r.f) > 0
+}
