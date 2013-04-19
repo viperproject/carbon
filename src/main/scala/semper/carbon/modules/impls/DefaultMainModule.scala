@@ -29,6 +29,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
   import inhaleModule._
   import funcPredModule._
   import domainModule._
+  import expModule._
 
   def name = "Main module"
 
@@ -86,11 +87,18 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
         val ins: Seq[LocalVarDecl] = formalArgs map translateLocalVarDecl
         val outs: Seq[LocalVarDecl] = formalReturns map translateLocalVarDecl
         val init = MaybeCommentBlock("Initializing the state", initState)
+        val initOld = initOldState
+        val checkPrePost = MaybeCommentBlock("Check definedness of pre/postcondition", NondetIf(
+          (pres map (e => checkDefinednessOfSpec(e, errors.ContractNotWellformed(e)))) ++
+            initOld ++
+            (posts map (e => checkDefinednessOfSpec(e, errors.ContractNotWellformed(e))))
+            ++ Assume(FalseLit())
+        ))
         val inhalePre = MaybeCommentBlock("Inhaling precondition", inhale(pres))
         val body: Stmt = translateStmt(b)
         val postsWithErrors = posts map (p => (p, errors.PostconditionViolated(p, m)))
         val exhalePost = MaybeCommentBlock("Exhaling postcondition", exhale(postsWithErrors))
-        val proc = Procedure(Identifier(name), ins, outs, Seq(init, inhalePre, body, exhalePost))
+        val proc = Procedure(Identifier(name), ins, outs, Seq(init, checkPrePost, initOld, inhalePre, body, exhalePost))
         CommentedDecl(s"Translation of method $name", proc)
     }
     env = null

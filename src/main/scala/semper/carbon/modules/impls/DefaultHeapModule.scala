@@ -125,6 +125,9 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   def initState: Stmt = {
     Nil
   }
+  def initOldState: Stmt = {
+    Assume(Old(heap) === heap)
+  }
 
   def stateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(heapName, heapTyp))
   def currentStateContributions: Seq[Exp] = Seq(heap)

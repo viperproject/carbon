@@ -31,6 +31,9 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
         assumeGoodState
     )
   }
+  def initOldState: Stmt = {
+    (components map (_.initOldState))
+  }
   def stateContributions: Seq[LocalVarDecl] = components flatMap (_.stateContributions)
   def currentStateContributions: Seq[Exp] = components flatMap (_.currentStateContributions)
 

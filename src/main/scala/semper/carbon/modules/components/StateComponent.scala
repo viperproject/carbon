@@ -17,6 +17,11 @@ trait StateComponent extends Component {
   def initState: Stmt
 
   /**
+   * The statements necessary to initialize old(state).
+   */
+  def initOldState: Stmt
+
+  /**
    * The name and type of the contribution of this components to the state.
    */
   def stateContributions: Seq[LocalVarDecl]

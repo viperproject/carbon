@@ -146,8 +146,10 @@ class DefaultPermModule(val verifier: Verifier)
   def stateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(maskName, maskType))
   def currentStateContributions: Seq[Exp] = Seq(mask)
   def initState: Stmt = {
-    (mask := zeroMask) ++
-      Assume(Old(mask) === mask)
+    (mask := zeroMask)
+  }
+  def initOldState: Stmt = {
+    Assume(Old(mask) === mask)
   }
   private def permAdd(a: Exp, b: Exp): Exp = FuncApp(permAddName, Seq(a, b), permType)
   private def permSub(a: Exp, b: Exp): Exp = FuncApp(permSubName, Seq(a, b), permType)
