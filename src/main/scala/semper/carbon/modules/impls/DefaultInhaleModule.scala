@@ -13,7 +13,9 @@ import semper.carbon.boogie.Implicits._
  */
 class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule {
 
-  import verifier.expModule._
+  import verifier._
+  import expModule._
+  import stateModule._
 
   def name = "Inhale module"
 
@@ -22,7 +24,8 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule {
   }
 
   override def inhale(exps: Seq[sil.Exp]): Stmt = {
-    exps map (inhaleConnective(_))
+    (exps map (inhaleConnective(_))) ++
+      assumeGoodState
   }
 
   /**
