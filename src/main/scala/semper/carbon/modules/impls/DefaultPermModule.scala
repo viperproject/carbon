@@ -48,6 +48,7 @@ class DefaultPermModule(val verifier: Verifier)
   import verifier._
   import heapModule._
   import expModule._
+  import stateModule._
 
   def name = "Permission module"
 
@@ -81,6 +82,7 @@ class DefaultPermModule(val verifier: Verifier)
   private val permAddName = Identifier("PermAdd")
   private val permSubName = Identifier("PermSub")
   private val permConstructName = Identifier("Perm")
+  private val goodMaskName = Identifier("GoodMask")
 
   private def fracComp(perm: Exp) = MapSelect(perm, permFracComp)
   private def epsComp(perm: Exp) = MapSelect(perm, permEpsComp)
@@ -138,6 +140,23 @@ class DefaultPermModule(val verifier: Verifier)
           Trigger(epsComp(f)),
           epsComp(f) === b.l)) ::
         Nil
+    } ++
+      // good mask
+      Func(goodMaskName, LocalVarDecl(maskName, maskType), Bool) ++
+      Axiom(Forall(stateModule.stateContributions,
+        Trigger(Seq(staticGoodState)),
+        staticGoodState ==> staticGoodMask)) ++ {
+      val perm = currentPermission(obj.l, field.l)
+      Axiom(Forall(stateContributions ++ obj ++ field,
+        Trigger(Seq(staticGoodMask, perm)),
+        staticGoodMask ==>
+          // permissions are non-negative
+          ((fracComp(perm) >= RealLit(0)) &&
+            ((fracComp(perm) === RealLit(0)) ==> (epsComp(perm) >= RealLit(0)))) &&
+          // permissions for fields are smaller than 1
+          (fracComp(perm) <= RealLit(1)) &&
+          ((epsComp(perm) > RealLit(0)) ==> (fracComp(perm) < RealLit(1)))
+      ))
     }
   }
 
@@ -151,6 +170,9 @@ class DefaultPermModule(val verifier: Verifier)
   def initOldState: Stmt = {
     Assume(Old(mask) === mask)
   }
+
+  def staticGoodMask = FuncApp(goodMaskName, LocalVar(maskName, maskType), Bool)
+
   private def permAdd(a: Exp, b: Exp): Exp = FuncApp(permAddName, Seq(a, b), permType)
   private def permSub(a: Exp, b: Exp): Exp = FuncApp(permSubName, Seq(a, b), permType)
 
@@ -244,7 +266,11 @@ class DefaultPermModule(val verifier: Verifier)
   }
 
   def currentPermission(loc: sil.LocationAccess): MapSelect = {
-    MapSelect(mask, Seq(translateExp(loc.rcv), locationMaskIndex(loc)))
+    currentPermission(translateExp(loc.rcv), locationMaskIndex(loc))
+  }
+
+  def currentPermission(rcv: Exp, location: Exp): MapSelect = {
+    MapSelect(mask, Seq(rcv, location))
   }
 
   def translatePerm(e: sil.Exp): Exp = {
