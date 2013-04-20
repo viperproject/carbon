@@ -273,6 +273,12 @@ class DefaultPermModule(val verifier: Verifier)
     MapSelect(mask, Seq(rcv, location))
   }
 
+  override def currentMask = Seq(mask)
+  override def staticMask = Seq(LocalVarDecl(maskName, maskType))
+  override def staticPermissionPositive(rcv: Exp, loc: Exp) = {
+    permissionPositive(MapSelect(staticMask(0).l, Seq(rcv, loc)))
+  }
+
   def translatePerm(e: sil.Exp): Exp = {
     require(e isSubtype sil.Perm)
     e match {

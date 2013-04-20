@@ -19,6 +19,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   import typeModule._
   import expModule._
   import stateModule._
+  import permModule._
 
   def name = "Heap module"
   implicit val heapNamespace = verifier.freshNamespace("heap")
@@ -37,32 +38,53 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   override def fieldType = NamedType(fieldTypeName, TypeVar("T"))
   private val heapTyp = NamedType("HeapType")
   private val heapName = Identifier("Heap")
+  private val exhaleHeapName = Identifier("ExhaleHeap")
+  private val exhaleHeap = LocalVar(exhaleHeapName, heapTyp)
   private var heap: Exp = GlobalVar(heapName, heapTyp)
   private val nullName = Identifier("null")
   private val nullLit = Const(nullName)
   private val freshObjectName = Identifier("freshObj")
   private val freshObjectVar = LocalVar(freshObjectName, refType)
   private val allocName = Identifier("$allocated")(fieldNamespace)
+  private val identicalOnKnownLocsName = Identifier("identicalOnKnownLocs")
   override def refType = NamedType("Ref")
 
   override def preamble = {
     val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
-    val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldTypeOf(refType))
+    val refField = LocalVarDecl(Identifier("f")(axiomNamespace), fieldTypeOf(refType))
+    val obj_refField = lookup(LocalVar(heapName, heapTyp), obj.l, refField.l)
+    val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
     val obj_field = lookup(LocalVar(heapName, heapTyp), obj.l, field.l)
-    TypeDecl(refType) ::
-      GlobalVarDecl(heapName, heapTyp) ::
-      ConstDecl(nullName, refType) ::
-      TypeDecl(fieldType) ::
-      TypeAlias(heapTyp, MapType(Seq(refType, fieldType), TypeVar("T"), Seq(TypeVar("T")))) ::
-      ConstDecl(allocName, NamedType(fieldTypeName, Bool), unique = true) ::
+    TypeDecl(refType) ++
+      GlobalVarDecl(heapName, heapTyp) ++
+      ConstDecl(nullName, refType) ++
+      TypeDecl(fieldType) ++
+      TypeAlias(heapTyp, MapType(Seq(refType, fieldType), TypeVar("T"), Seq(TypeVar("T")))) ++
+      ConstDecl(allocName, NamedType(fieldTypeName, Bool), unique = true) ++
       // all heap-lookups yield allocated objects or null
       Axiom(Forall(
         obj ++
-          field ++
+          refField ++
           stateModule.stateContributions,
-        Trigger(Seq(staticGoodState, obj_field)),
-        obj_field === nullLit || alloc(obj_field))) ::
-      Nil
+        Trigger(Seq(staticGoodState, obj_refField)),
+        obj_refField === nullLit || alloc(obj_refField))) ++
+      Func(identicalOnKnownLocsName,
+        Seq(LocalVarDecl(heapName, heapTyp), LocalVarDecl(exhaleHeapName, heapTyp)) ++ staticMask,
+        Bool) ++ {
+      val h = LocalVarDecl(heapName, heapTyp)
+      val eh = LocalVarDecl(exhaleHeapName, heapTyp)
+      val vars = Seq(h, eh) ++ staticMask
+      val identicalFuncApp = FuncApp(identicalOnKnownLocsName, vars map (_.l), Bool)
+      Axiom(Forall(
+        vars ++ Seq(obj, field),
+        Trigger(Seq(identicalFuncApp, lookup(h.l, obj.l, field.l))) ++
+          Trigger(Seq(identicalFuncApp, lookup(eh.l, obj.l, field.l))),
+        identicalFuncApp ==>
+          staticPermissionPositive(obj.l, field.l) ==>
+          (lookup(h.l, obj.l, field.l) === lookup(eh.l, obj.l, field.l))
+      )
+      )
+    }
   }
 
   override def translateField(f: sil.Field) = {
@@ -162,5 +184,14 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
         Assert(translateExp(loc.rcv) !== nullLit, error.dueTo(reasons.ReceiverNull(loc)))
       case _ => Nil
     }
+  }
+
+  override def beginExhale: Stmt = {
+    Havoc(exhaleHeap)
+  }
+
+  override def endExhale: Stmt = {
+    Assume(FuncApp(identicalOnKnownLocsName, Seq(heap, exhaleHeap) ++ currentMask, Bool)) ++
+      (heap := exhaleHeap)
   }
 }

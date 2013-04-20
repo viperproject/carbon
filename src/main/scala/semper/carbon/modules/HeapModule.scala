@@ -1,7 +1,7 @@
 package semper.carbon.modules
 
 import semper.sil.{ast => sil}
-import semper.carbon.boogie.{Const, Decl, Type, Exp}
+import semper.carbon.boogie._
 
 /**
  * A module for translating heap expressions (access, updating) and determining
@@ -44,4 +44,14 @@ trait HeapModule extends Module {
   def checkNonNullReceiver(loc: sil.LocationAccess): Exp = {
     verifier.expModule.translateExp(loc.rcv) !== translateNull
   }
+
+  /**
+   * Begin of exhale.
+   */
+  def beginExhale: Stmt
+
+  /**
+   * End of exhale
+   */
+  def endExhale: Stmt
 }

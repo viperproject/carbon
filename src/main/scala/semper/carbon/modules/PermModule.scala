@@ -40,4 +40,19 @@ trait PermModule extends Module {
    * A short description of a given phase.
    */
   def phaseDescription(phase: Int): String
+
+  /**
+   * The current mask.
+   */
+  def currentMask: Seq[Exp]
+
+  /**
+   * A static reference to the mask.
+   */
+  def staticMask: Seq[LocalVarDecl]
+
+  /**
+   * Is the permission for a given expression positive (using the static mask).
+   */
+  def staticPermissionPositive(rcv: Exp, loc: Exp): Exp
 }
