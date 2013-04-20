@@ -54,7 +54,6 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
     val refField = LocalVarDecl(Identifier("f")(axiomNamespace), fieldTypeOf(refType))
     val obj_refField = lookup(LocalVar(heapName, heapTyp), obj.l, refField.l)
     val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
-    val obj_field = lookup(LocalVar(heapName, heapTyp), obj.l, field.l)
     TypeDecl(refType) ++
       GlobalVarDecl(heapName, heapTyp) ++
       ConstDecl(nullName, refType) ++
