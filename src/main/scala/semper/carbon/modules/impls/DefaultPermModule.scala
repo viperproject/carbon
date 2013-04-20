@@ -151,8 +151,8 @@ class DefaultPermModule(val verifier: Verifier)
         Trigger(Seq(staticGoodMask, perm)),
         staticGoodMask ==>
           // permissions are non-negative
-          ((fracComp(perm) >= RealLit(0)) &&
-            ((fracComp(perm) === RealLit(0)) ==> (epsComp(perm) >= RealLit(0)))) &&
+          (fracComp(perm) >= RealLit(0)) &&
+          ((fracComp(perm) === RealLit(0)) ==> (epsComp(perm) >= RealLit(0))) &&
           // permissions for fields are smaller than 1
           (fracComp(perm) <= RealLit(1)) &&
           ((epsComp(perm) > RealLit(0)) ==> (fracComp(perm) < RealLit(1)))
