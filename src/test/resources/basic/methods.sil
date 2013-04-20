@@ -104,3 +104,12 @@ method t10(r: Ref, o: Ref)
     //:: ExpectedError(assertion.false)
     assert (o.f) == 2
 }
+
+method t11() returns (r: Ref)
+{
+    var x: Ref
+    var y: Ref
+    x := t11()
+    y := new()
+    assert x != y
+}
