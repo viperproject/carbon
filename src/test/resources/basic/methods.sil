@@ -62,3 +62,45 @@ method t6(r: Ref)
 {
     assume false
 }
+
+method t7(r: Ref)
+    requires acc(r.f, write)
+{
+    r.f := 2
+    exhale acc(r.f, wildcard)
+    assert (r.f) == 2
+}
+
+method t8(r: Ref)
+    requires acc(r.f, write)
+    ensures acc(r.f, write)
+{
+    r.f := 2
+    exhale acc(r.f, write)
+    inhale acc(r.f, write)
+    //:: ExpectedError(assertion.false)
+    assert (r.f) == 2
+}
+
+method t9(r: Ref)
+    requires acc(r.f, write)
+    ensures acc(r.f, write)
+{
+    r.f := 2
+    t8(r)
+    //:: ExpectedError(assertion.false)
+    assert (r.f) == 2
+}
+
+method t10(r: Ref, o: Ref)
+    requires acc(r.f, write) && acc(o.f, write)
+    ensures acc(r.f, write) && acc(o.f, write)
+{
+    r.f := 2
+    o.f := 2
+    assert o != r
+    t9(o)
+    assert (r.f) == 2
+    //:: ExpectedError(assertion.false)
+    assert (o.f) == 2
+}
