@@ -299,7 +299,7 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
           commasep(vars) <+>
           //("•" or "::") <+>
           "::" <+>
-          commasep(triggers) <+>
+          ssep(triggers map show, space) <+>
           show(exp))
       case Exists(vars, exp) =>
         parens("exists" <+> //("∃" or "exists") <+>
