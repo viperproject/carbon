@@ -83,6 +83,7 @@ class DefaultPermModule(val verifier: Verifier)
   private val permSubName = Identifier("PermSub")
   private val permConstructName = Identifier("Perm")
   private val goodMaskName = Identifier("GoodMask")
+  private val canReadName = Identifier("CanRead")
 
   private def fracComp(perm: Exp) = MapSelect(perm, permFracComp)
   private def epsComp(perm: Exp) = MapSelect(perm, permEpsComp)
@@ -157,6 +158,20 @@ class DefaultPermModule(val verifier: Verifier)
           (fracComp(perm) <= RealLit(1)) &&
           ((epsComp(perm) > RealLit(0)) ==> (fracComp(perm) < RealLit(1)))
       ))
+    } ++ {
+      val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
+      val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
+      val args = staticMask ++ Seq(obj, field)
+      val funcApp = FuncApp(canReadName, args map (_.l), Bool)
+      val permission = currentPermission(staticMask(0).l, obj.l, field.l)
+      val permissionPositive = fracComp(permission) > RealLit(0) ||
+        ((fracComp(permission) === RealLit(0)) && epsComp(permission) > RealLit(0))
+      Func(canReadName, args, Bool) ++
+        Axiom(Forall(
+          staticMask ++ Seq(obj, field),
+          Trigger(funcApp),
+          funcApp <==> permissionPositive
+        ))
     }
   }
 
@@ -205,8 +220,14 @@ class DefaultPermModule(val verifier: Verifier)
   }
 
   /**
-   * An expression stating that the permission is positive.
+   * Can a location on a given receiver be read?
    */
+  private def canRead(mask: Exp, obj: Exp, loc: Exp): Exp =
+    FuncApp(canReadName, Seq(mask, obj, loc), Bool)
+  private def canRead(obj: Exp, loc: Exp): Exp = canRead(mask, obj, loc)
+  private def canRead(la: sil.LocationAccess): Exp =
+    canRead(translateExp(la.rcv), locationMaskIndex(la))
+
   private def permissionPositive(permission: Exp) = {
     fracComp(permission) > RealLit(0) ||
       ((fracComp(permission) === RealLit(0)) && epsComp(permission) > RealLit(0))
@@ -268,15 +289,17 @@ class DefaultPermModule(val verifier: Verifier)
   def currentPermission(loc: sil.LocationAccess): MapSelect = {
     currentPermission(translateExp(loc.rcv), locationMaskIndex(loc))
   }
-
   def currentPermission(rcv: Exp, location: Exp): MapSelect = {
+    currentPermission(mask, rcv, location)
+  }
+  def currentPermission(mask: Exp, rcv: Exp, location: Exp): MapSelect = {
     MapSelect(mask, Seq(rcv, location))
   }
 
   override def currentMask = Seq(mask)
   override def staticMask = Seq(LocalVarDecl(maskName, maskType))
   override def staticPermissionPositive(rcv: Exp, loc: Exp) = {
-    permissionPositive(MapSelect(staticMask(0).l, Seq(rcv, loc)))
+    canRead(staticMask(0).l, rcv, loc)
   }
 
   def translatePerm(e: sil.Exp): Exp = {
@@ -424,7 +447,7 @@ class DefaultPermModule(val verifier: Verifier)
           allowLocationAccessWithoutPerm = false
           Nil
         } else {
-          Assert(permissionPositive(currentPermission(fa)), error.dueTo(reasons.InsufficientPermission(fa)))
+          Assert(canRead(fa), error.dueTo(reasons.InsufficientPermission(fa)))
         }
       case pm@sil.PermMul(a, b) =>
         Assert(epsComp(translatePerm(a)) === RealLit(0), error.dueTo(reasons.InvalidPermMultiplication(pm)))
