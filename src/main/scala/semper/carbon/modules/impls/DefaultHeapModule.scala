@@ -46,7 +46,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateCom
   private val freshObjectName = Identifier("freshObj")
   private val freshObjectVar = LocalVar(freshObjectName, refType)
   private val allocName = Identifier("$allocated")(fieldNamespace)
-  private val identicalOnKnownLocsName = Identifier("identicalOnKnownLocs")
+  private val identicalOnKnownLocsName = Identifier("IdenticalOnKnownLocations")
   override def refType = NamedType("Ref")
 
   override def preamble = {
