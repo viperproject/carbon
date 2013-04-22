@@ -23,6 +23,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
   import permModule._
   import stateModule._
   import inhaleModule._
+  import funcPredModule._
 
   def name = "Expression module"
   override def translateExp(e: sil.Exp): Exp = {
@@ -120,8 +121,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
         UnExp(Neg, translateExp(exp))
       case sil.Not(exp) =>
         UnExp(Not, translateExp(exp))
-      case sil.FuncApp(func, args) =>
-        ???
+      case fa@sil.FuncApp(func, args) =>
+        translateFuncApp(fa)
       case fa@sil.DomainFuncApp(func, args, _) =>
         translateDomainFuncApp(fa)
       case seqExp@sil.EmptySeq(elemTyp) =>

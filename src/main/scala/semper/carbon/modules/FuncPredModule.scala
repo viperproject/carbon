@@ -10,5 +10,6 @@ import semper.carbon.boogie.{Decl, Exp}
  */
 trait FuncPredModule extends Module {
   def translateFunction(f: sil.Function): Seq[Decl]
+  def translateFuncApp(fa: sil.FuncApp): Exp
   def translatePredicate(p: sil.Predicate): Seq[Decl]
 }
