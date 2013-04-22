@@ -320,7 +320,11 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
           case Nil => fa
           case _ => parens(fa <> ":" <+> show(typ))
         }
-      case _: PrettyUnaryExpression | _: PrettyBinaryExpression => super.toParenDoc(e)
+      case CondExp(cond, e1, e2) =>
+        parens("if" <+> show(cond) <+> "then" <+> show(e1) <+> "else" <+> show(e2))
+      case _: PrettyUnaryExpression | _: PrettyBinaryExpression =>
+        super.toParenDoc(e)
+      case _ => sys.error(s"unknown expression: ${e.getClass}")
     }
   }
 
