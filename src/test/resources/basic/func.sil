@@ -15,8 +15,9 @@ function f5(i: Int, b: Bool): Int { b ? f5(2*i, false) : i }
 function f6(): Int { f7() }
 function f7(): Int { f6() }
 
+function f8(): Int { f3(f1()) }
+
 method t1(b: Bool, d: Int, r: Ref) returns ()
 {
-    assert f4() == 3;
     assert f1() == 1;
 }
