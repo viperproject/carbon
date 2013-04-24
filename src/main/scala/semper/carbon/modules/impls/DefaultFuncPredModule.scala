@@ -47,10 +47,9 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule {
     val func = Func(Identifier(f.name), args, typ)
     val limitedFunc = Func(Identifier(f.name + "#limited"), args, typ)
     val res = CommentedDecl(s"Translation of function ${f.name}",
-      func ++
-        limitedFunc ++
-        definitionalAxiom(f)
-    )
+      CommentedDecl("Uninterpreted function definitions", func ++ limitedFunc, size = 1) ++
+        CommentedDecl("Definitional axiom", definitionalAxiom(f), size = 1)
+    , nLines = 2)
     env = null
     res
   }
