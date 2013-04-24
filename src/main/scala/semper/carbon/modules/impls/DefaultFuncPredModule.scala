@@ -25,6 +25,7 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule {
 
   lazy val heights = Functions.heights(verifier.program)
   private val assumeFunctionsAboveName = Identifier("AssumeFunctionsAbove")
+  private val assumeFunctionsAbove: Const = Const(assumeFunctionsAboveName)
 
   override def preamble = {
     val m = heights.values.max
@@ -33,13 +34,15 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule {
         val fs = heights.toSeq filter (p => p._2 == i) map (_._1.name)
         DeclComment(s"- height $i: ${fs.mkString(", ")}")
       }) ++
-    Func(assumeFunctionsAboveName, LocalVarDecl(Identifier("h"), Int), Bool)
+    ConstDecl(assumeFunctionsAboveName, Int)
   }
 
   override def translateFunction(f: sil.Function): Seq[Decl] = {
     env = Environment(verifier, f)
-    val func = Func(Identifier(f.name), Nil, translateType(f.typ))
-    val limitedFunc = Func(Identifier(f.name + "#limited"), Nil, translateType(f.typ))
+    val args = heapModule.stateContributions ++ (f.formalArgs map translateLocalVarDecl)
+    val typ = translateType(f.typ)
+    val func = Func(Identifier(f.name), args, typ)
+    val limitedFunc = Func(Identifier(f.name + "#limited"), args, typ)
     val res = CommentedDecl(s"Translation of function ${f.name}",
       func ++
         limitedFunc ++
@@ -50,19 +53,23 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule {
   }
 
   override def translateFuncApp(fa: sil.FuncApp) = {
-    translateFuncApp(fa.func, fa.args map translateExp, fa.typ)
+    translateFuncApp(fa.func, heapModule.currentStateContributions ++ (fa.args map translateExp), fa.typ)
   }
   def translateFuncApp(f: sil.Function, args: Seq[Exp], typ: sil.Type) = {
     FuncApp(Identifier(f.name), args, translateType(typ))
   }
 
-  private def assumeFunctionsAbove(i: Int) =
-    FuncApp(assumeFunctionsAboveName, IntLit(i), Bool)
+  private def assumeFunctionsAbove(i: Int): Exp =
+    assumeFunctionsAbove > IntLit(i)
+
+  def assumeAllFunctionDefinitions: Stmt =
+    Assume(assumeFunctionsAbove(((heights map (_._2)).max) + 1))
 
   private def definitionalAxiom(f: sil.Function): Seq[Decl] = {
     val height = heights(f)
+    val heap = heapModule.stateContributions
     val args = f.formalArgs map translateLocalVarDecl
-    val fapp = translateFuncApp(f, args map (_.l), f.typ)
+    val fapp = translateFuncApp(f, (heap ++ args) map (_.l), f.typ)
     Axiom(Forall(
       stateContributions ++ args,
       Trigger(Seq(staticGoodState, fapp)),
