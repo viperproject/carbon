@@ -134,7 +134,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StmtComp
     }
   }
 
-  override def whereClause(typ: sil.Type, variable: LocalVar): Option[Exp] = {
+  override def assumptionAboutParameter(typ: sil.Type, variable: LocalVar): Option[Exp] = {
     typ match {
       case sil.Ref => Some(variable === nullLit || alloc(variable))
       case _ => None

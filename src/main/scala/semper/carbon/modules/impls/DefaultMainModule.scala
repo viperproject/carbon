@@ -39,10 +39,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
   override def translateLocalVarDecl(l: sil.LocalVarDecl): LocalVarDecl = {
     val typ: Type = translateType(l.typ)
     val name: Identifier = env.get(l.localVar).name
-    // ask all modules to contribute to the where clause if they want to
-    val wheres = verifier.allModules map (_.whereClause(l.typ, LocalVar(name, typ)))
-    val where = wheres.filter(_.isDefined).map(_.get)
-    LocalVarDecl(name, typ, where.allOption)
+    LocalVarDecl(name, typ)
   }
 
   override def translate(p: sil.Program): Program = {
@@ -89,14 +86,15 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
         val outs: Seq[LocalVarDecl] = formalReturns map translateLocalVarDecl
         val init = MaybeCommentBlock("Initializing the state", stateModule.initState ++ assumeAllFunctionDefinitions)
         val initOld = stateModule.initOldState
+        val paramAssumptions = m.formalArgs map allAssumptionsAboutParam
         val checkPre = pres map (e => checkDefinednessOfSpec(e, errors.ContractNotWellformed(e)))
         val checkPost = posts map (e => checkDefinednessOfSpec(e, errors.ContractNotWellformed(e)))
         val checkPrePost: Stmt = if (checkPre.children.size + checkPost.children.size > 0)
           MaybeCommentBlock("Check definedness of pre/postcondition", NondetIf(
-            Comment("Checked inhaling of precondition") ++ checkPre ++
-              Comment(initOldStateComment) ++ initOld ++
-              Comment("Checked inhaling of postcondition") ++ checkPost ++
-              Comment("Stop execution") ++ Assume(FalseLit())
+            MaybeComment("Checked inhaling of precondition", checkPre) ++
+              MaybeComment(initOldStateComment, initOld) ++
+              MaybeComment("Checked inhaling of postcondition", checkPost) ++
+              MaybeComment("Stop execution", Assume(FalseLit()))
           ))
         else Nil
         val inhalePre = MaybeCommentBlock("Inhaling precondition", inhale(pres))
@@ -104,11 +102,24 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
         val postsWithErrors = posts map (p => (p, errors.PostconditionViolated(p, m)))
         val exhalePost = MaybeCommentBlock("Exhaling postcondition", exhale(postsWithErrors))
         val proc = Procedure(Identifier(name), ins, outs,
-          Seq(init, checkPrePost, inhalePre, MaybeCommentBlock(initOldStateComment, initOld), body, exhalePost))
+          Seq(init, checkPrePost, inhalePre,
+            MaybeCommentBlock(initOldStateComment, initOld),
+            MaybeCommentBlock("Assumptions about method arguments", paramAssumptions),
+            body, exhalePost))
         CommentedDecl(s"Translation of method $name", proc)
     }
     env = null
     res
+  }
+
+  private def allAssumptionsAboutParam(arg: sil.LocalVarDecl): Stmt = {
+    val v = translateLocalVarDecl(arg)
+    val tmp = verifier.allModules map (_.assumptionAboutParameter(arg.typ, v.l))
+    val paramAssumptions = tmp.filter(_.isDefined).map(_.get)
+    paramAssumptions.allOption match {
+      case None => Nil
+      case Some(e) => Assume(e)
+    }
   }
 
   def translateDomainDecl(d: sil.Domain): Seq[Decl] = {

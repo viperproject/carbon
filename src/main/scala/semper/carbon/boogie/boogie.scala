@@ -273,6 +273,12 @@ case class NondetIf(thn: Stmt, els: Stmt = Statements.EmptyStmt) extends Stmt
 case class LocalVarWhereDecl(name: Identifier, where: Exp) extends Stmt
 /** A single-line comment (s should not contain new-lines) */
 case class Comment(s: String) extends Stmt
+object MaybeComment {
+  def apply(s: String, stmt: Stmt) = {
+    if (stmt.children.isEmpty) Statements.EmptyStmt
+    else Seqn(Comment(s) :: stmt :: Nil)
+  }
+}
 /**
  * A comment block can be used to group together a sequence of statements that
  * belong together, as described by a comment.

@@ -35,7 +35,7 @@ trait Module {
   def preamble: Seq[Decl] = Nil
 
   /**
-   * The where clause of local variables and parameters of a given type.
+   * The assumption that can be made about a parameter of a given type.
    */
-  def whereClause(typ: sil.Type, variable: LocalVar): Option[Exp] = None
+  def assumptionAboutParameter(typ: sil.Type, variable: LocalVar): Option[Exp] = None
 }
