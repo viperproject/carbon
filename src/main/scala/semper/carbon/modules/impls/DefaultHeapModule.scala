@@ -13,7 +13,7 @@ import semper.sil.verifier.{reasons, PartialVerificationError}
  *
  * @author Stefan Heule
  */
-class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StateComponent with StmtComponent with DefinednessComponent {
+class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StmtComponent with DefinednessComponent {
 
   import verifier._
   import typeModule._

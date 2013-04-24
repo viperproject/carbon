@@ -171,9 +171,9 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
           stmt ++ stmt2
         }
         if (e.isInstanceOf[sil.Old]) {
-          val snapshot = makeOldState
+          val snapshot = stateModule.makeOldState
           val res = translate
-          restoreState(snapshot)
+          stateModule.restoreState(snapshot)
           res
         } else {
           translate

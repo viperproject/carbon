@@ -2,6 +2,7 @@ package semper.carbon.modules
 
 import semper.sil.{ast => sil}
 import semper.carbon.boogie._
+import semper.carbon.modules.components.StateComponent
 
 /**
  * A module for translating heap expressions (access, updating) and determining
@@ -9,7 +10,7 @@ import semper.carbon.boogie._
  *
  * @author Stefan Heule
  */
-trait HeapModule extends Module {
+trait HeapModule extends Module with StateComponent {
 
   /**
    * The type used for references.

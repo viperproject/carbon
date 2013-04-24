@@ -87,8 +87,8 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
         val initOldStateComment = "Initializing of old state"
         val ins: Seq[LocalVarDecl] = formalArgs map translateLocalVarDecl
         val outs: Seq[LocalVarDecl] = formalReturns map translateLocalVarDecl
-        val init = MaybeCommentBlock("Initializing the state", initState)
-        val initOld = initOldState
+        val init = MaybeCommentBlock("Initializing the state", stateModule.initState ++ assumeAllFunctionDefinitions)
+        val initOld = stateModule.initOldState
         val checkPre = pres map (e => checkDefinednessOfSpec(e, errors.ContractNotWellformed(e)))
         val checkPost = posts map (e => checkDefinednessOfSpec(e, errors.ContractNotWellformed(e)))
         val checkPrePost: Stmt = if (checkPre.children.size + checkPost.children.size > 0)
