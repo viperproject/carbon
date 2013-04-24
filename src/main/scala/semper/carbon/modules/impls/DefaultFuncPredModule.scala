@@ -28,13 +28,16 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule {
   private val assumeFunctionsAbove: Const = Const(assumeFunctionsAboveName)
 
   override def preamble = {
-    val m = heights.values.max
-    DeclComment("Function heights (higher height means its body is available earlier):") ++
-      (for (i <- m to 0 by -1) yield {
-        val fs = heights.toSeq filter (p => p._2 == i) map (_._1.name)
-        DeclComment(s"- height $i: ${fs.mkString(", ")}")
-      }) ++
-    ConstDecl(assumeFunctionsAboveName, Int)
+    if (verifier.program.functions.isEmpty) Nil
+    else {
+      val m = heights.values.max
+      DeclComment("Function heights (higher height means its body is available earlier):") ++
+        (for (i <- m to 0 by -1) yield {
+          val fs = heights.toSeq filter (p => p._2 == i) map (_._1.name)
+          DeclComment(s"- height $i: ${fs.mkString(", ")}")
+        }) ++
+        ConstDecl(assumeFunctionsAboveName, Int)
+    }
   }
 
   override def translateFunction(f: sil.Function): Seq[Decl] = {
@@ -62,8 +65,10 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule {
   private def assumeFunctionsAbove(i: Int): Exp =
     assumeFunctionsAbove > IntLit(i)
 
-  def assumeAllFunctionDefinitions: Stmt =
-    Assume(assumeFunctionsAbove(((heights map (_._2)).max) + 1))
+  def assumeAllFunctionDefinitions: Stmt = {
+    if (verifier.program.functions.isEmpty) Nil
+    else Assume(assumeFunctionsAbove(((heights map (_._2)).max) + 1))
+  }
 
   private def definitionalAxiom(f: sil.Function): Seq[Decl] = {
     val height = heights(f)
