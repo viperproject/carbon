@@ -26,6 +26,7 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule {
   lazy val heights = Functions.heights(verifier.program)
   private val assumeFunctionsAboveName = Identifier("AssumeFunctionsAbove")
   private val assumeFunctionsAbove: Const = Const(assumeFunctionsAboveName)
+  private val limitedPostfix = "'"
 
   override def preamble = {
     if (verifier.program.functions.isEmpty) Nil
@@ -42,16 +43,21 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule {
 
   override def translateFunction(f: sil.Function): Seq[Decl] = {
     env = Environment(verifier, f)
-    val args = heapModule.stateContributions ++ (f.formalArgs map translateLocalVarDecl)
-    val typ = translateType(f.typ)
-    val func = Func(Identifier(f.name), args, typ)
-    val limitedFunc = Func(Identifier(f.name + "#limited"), args, typ)
+    val funcionDefs: Seq[Func] = functionDefinitions(f)
     val res = CommentedDecl(s"Translation of function ${f.name}",
-      CommentedDecl("Uninterpreted function definitions", func ++ limitedFunc, size = 1) ++
+      CommentedDecl("Uninterpreted function definitions", funcionDefs, size = 1) ++
         CommentedDecl("Definitional axiom", definitionalAxiom(f), size = 1)
     , nLines = 2)
     env = null
     res
+  }
+
+  private def functionDefinitions(f: sil.Function): Seq[Func] = {
+    val typ = translateType(f.typ)
+    val args = heapModule.stateContributions ++ (f.formalArgs map translateLocalVarDecl)
+    val func = Func(Identifier(f.name), args, typ)
+    val limitedFunc = Func(Identifier(f.name + limitedPostfix), args, typ)
+    func ++ limitedFunc
   }
 
   override def translateFuncApp(fa: sil.FuncApp) = {
@@ -74,11 +80,17 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule {
     val heap = heapModule.stateContributions
     val args = f.formalArgs map translateLocalVarDecl
     val fapp = translateFuncApp(f, (heap ++ args) map (_.l), f.typ)
+    def transformLimited: PartialFunction[Exp, Option[Exp]] = {
+      case FuncApp(recf, recargs, t) if recf.namespace == fpNamespace =>
+        // change all function applications to use the limited form, and still go through all arguments
+        Some(FuncApp(Identifier(recf.name + limitedPostfix), recargs map (_.transform(transformLimited)), t))
+    }
+    val body = translateExp(f.exp) transform transformLimited
     Axiom(Forall(
       stateContributions ++ args,
       Trigger(Seq(staticGoodState, fapp)),
       (staticGoodState && assumeFunctionsAbove(height)) ==>
-        (fapp === translateExp(f.exp))
+        (fapp === body)
     ))
   }
 

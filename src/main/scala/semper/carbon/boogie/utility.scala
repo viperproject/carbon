@@ -1,6 +1,5 @@
 package semper.carbon.boogie
 
-import semper.sil.ast.FreshReadPerm
 
 /**
  * Utility methods for statements.
@@ -134,6 +133,37 @@ object Nodes {
           case BinExp(left, binop, right) => Seq(left, right)
           case UnExp(unop, exp) => Seq(exp)
           case FuncApp(func, args, typ) => args
+        }
+    }
+  }
+
+  /**
+   * Transforms an expression using the function `f`;  if `f` returns `Some(e)`, then the previous expression
+   * is replaced by e, and otherwise the previous expression is reused.
+   * The function `f` must produce expressions that are valid in the given context.  For instance, it cannot
+   * replace an integer literal by a boolean literal.
+   */
+  def transform(exp: Exp, f: PartialFunction[Exp, Option[Exp]]): Exp = {
+    val func = (e: Exp) => transform(e, f)
+    val t = if (f.isDefinedAt(exp)) f(exp) else None
+    t match {
+      case Some(ee) => ee
+      case None =>
+        exp match {
+          case IntLit(i) => exp
+          case BoolLit(b) => exp
+          case RealLit(b) => exp
+          case LocalVar(n, tt) => exp
+          case GlobalVar(n, tt) => exp
+          case Const(i) => exp
+          case MapSelect(map, idxs) => MapSelect(func(map), idxs map func)
+          case Old(e) => Old(func(e))
+          case CondExp(cond, thn, els) => CondExp(func(cond), func(thn), func(els))
+          case Exists(v, e) => Exists(v, func(e))
+          case Forall(v, triggers, e) => Forall(v, triggers, func(e))
+          case BinExp(left, binop, right) => BinExp(func(left), binop, func(right))
+          case UnExp(unop, e) => UnExp(unop, func(e))
+          case FuncApp(ff, args, typ) => FuncApp(ff, args map func, typ)
         }
     }
   }

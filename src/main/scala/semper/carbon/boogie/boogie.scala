@@ -148,6 +148,7 @@ sealed trait Exp extends Node with PrettyExpression {
     Exists(vars, this)
   def not = UnExp(Not, this)
   def thn(thn: Exp) = PartialCondExp(this, thn)
+  def transform(f: PartialFunction[Exp, Option[Exp]]) = Nodes.transform(this, f)
 }
 
 case class PartialCondExp(cond: Exp, thn: Exp) {
