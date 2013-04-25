@@ -6,13 +6,15 @@ import semper.carbon.boogie._
 import semper.carbon.verifier.{Environment, Verifier}
 import semper.carbon.boogie.Implicits._
 import semper.sil.ast.utility._
+import semper.carbon.modules.components.DefinednessComponent
+import semper.sil.verifier.{errors, PartialVerificationError}
 
 /**
  * The default implementation of a [[semper.carbon.modules.FuncPredModule]].
  *
  * @author Stefan Heule
  */
-class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule {
+class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule with DefinednessComponent {
   def name = "Function and predicate module"
 
   import verifier._
@@ -20,6 +22,7 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule {
   import mainModule._
   import stateModule._
   import expModule._
+  import exhaleModule._
 
   implicit val fpNamespace = verifier.freshNamespace("funcpred")
 
@@ -39,6 +42,10 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule {
         }) ++
         ConstDecl(assumeFunctionsAboveName, Int)
     }
+  }
+
+  override def initialize() {
+    expModule.register(this)
   }
 
   override def translateFunction(f: sil.Function): Seq[Decl] = {
@@ -96,5 +103,16 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule {
 
   override def translatePredicate(p: sil.Predicate): Seq[Decl] = {
     Seq()
+  }
+
+  override def checkDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
+    e match {
+      case fa@sil.FuncApp(f, args) if !fa.pres.isEmpty =>
+        NondetIf(
+          MaybeComment("Exhale precondition of function application", exhale(fa.pres map (e => (e, errors.PreconditionInAppFalse(fa))))) ++
+          MaybeComment("Stop execution", Assume(FalseLit()))
+        )
+      case _ => Nil
+    }
   }
 }
