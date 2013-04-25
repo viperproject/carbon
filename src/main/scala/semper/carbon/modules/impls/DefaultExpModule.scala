@@ -21,7 +21,6 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
   import domainModule._
   import seqModule._
   import permModule._
-  import stateModule._
   import inhaleModule._
   import funcPredModule._
 
@@ -153,20 +152,25 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
   }
 
   override def checkDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
+    MaybeCommentBlock(s"Check definedness of $e",
+      checkDefinednessImpl(e, error))
+  }
+
+  private def checkDefinednessImpl(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
       case sil.And(e1, e2) =>
-        checkDefinedness(e1, error) ::
-          checkDefinedness(e2, error) ::
+        checkDefinednessImpl(e1, error) ::
+          checkDefinednessImpl(e2, error) ::
           Nil
       case sil.Implies(e1, e2) =>
-        If(translateExp(e1), checkDefinedness(e2, error), Statements.EmptyStmt)
+        If(translateExp(e1), checkDefinednessImpl(e2, error), Statements.EmptyStmt)
       case sil.CondExp(c, e1, e2) =>
-        If(translateExp(c), checkDefinedness(e1, error), checkDefinedness(e2, error))
+        If(translateExp(c), checkDefinednessImpl(e1, error), checkDefinednessImpl(e2, error))
       case _ =>
         def translate: Seqn = {
           val stmt = components map (_.checkDefinedness(e, error))
           val stmt2 = for (sub <- e.subnodes if sub.isInstanceOf[sil.Exp]) yield {
-            checkDefinedness(sub.asInstanceOf[sil.Exp], error)
+            checkDefinednessImpl(sub.asInstanceOf[sil.Exp], error)
           }
           stmt ++ stmt2
         }
