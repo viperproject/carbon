@@ -23,6 +23,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
   import permModule._
   import inhaleModule._
   import funcPredModule._
+  import exhaleModule._
 
   def name = "Expression module"
   override def translateExp(e: sil.Exp): Exp = {
@@ -200,6 +201,26 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
       case _ =>
         checkDefinedness(e, error) ++
           inhale(e)
+    }
+  }
+
+  override def checkDefinednessOfSpecAndExhale(e: sil.Exp, definednessError: PartialVerificationError, exhaleError: PartialVerificationError): Stmt = {
+    e match {
+      case sil.And(e1, e2) =>
+        checkDefinednessOfSpecAndExhale(e1, definednessError, exhaleError) ::
+          checkDefinednessOfSpecAndExhale(e2, definednessError, exhaleError) ::
+          Nil
+      case sil.Implies(e1, e2) =>
+        checkDefinedness(e1, definednessError) ++
+          If(translateExp(e1), checkDefinednessOfSpecAndExhale(e2, definednessError, exhaleError), Statements.EmptyStmt)
+      case sil.CondExp(c, e1, e2) =>
+        checkDefinedness(c, definednessError) ++
+          If(translateExp(c),
+            checkDefinednessOfSpecAndExhale(e1, definednessError, exhaleError),
+            checkDefinednessOfSpecAndExhale(e2, definednessError, exhaleError))
+      case _ =>
+        checkDefinedness(e, definednessError) ++
+          exhale(Seq((e, exhaleError)))
     }
   }
 }
