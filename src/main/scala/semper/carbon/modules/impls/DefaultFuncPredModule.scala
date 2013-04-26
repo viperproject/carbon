@@ -30,6 +30,7 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule with 
   private val assumeFunctionsAboveName = Identifier("AssumeFunctionsAbove")
   private val assumeFunctionsAbove: Const = Const(assumeFunctionsAboveName)
   private val limitedPostfix = "'"
+  private val resultName = Identifier("Result")
 
   override def preamble = {
     if (verifier.program.functions.isEmpty) Nil
@@ -100,6 +101,12 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule with 
         (fapp === body)
     ))
   }
+
+  private def checkFunctionDefinedness(f: sil.Function) = {
+
+  }
+
+  override def translateResult(r: sil.Result): Exp = LocalVar(resultName, translateType(r.typ))
 
   override def translatePredicate(p: sil.Predicate): Seq[Decl] = {
     Seq()

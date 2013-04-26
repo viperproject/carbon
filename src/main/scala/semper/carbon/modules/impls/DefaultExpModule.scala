@@ -35,8 +35,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
         translateNull
       case l@sil.LocalVar(name) =>
         translateLocalVar(l)
-      case sil.Result() =>
-        ???
+      case r@sil.Result() =>
+        translateResult(r)
       case f@sil.FieldAccess(rcv, field) =>
         translateFieldAccess(f)
       case sil.PredicateAccess(rcv, predicate) =>

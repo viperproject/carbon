@@ -13,4 +13,5 @@ trait FuncPredModule extends Module {
   def translateFuncApp(fa: sil.FuncApp): Exp
   def translatePredicate(p: sil.Predicate): Seq[Decl]
   def assumeAllFunctionDefinitions: Stmt
+  def translateResult(r: sil.Result): Exp
 }
