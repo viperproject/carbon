@@ -112,9 +112,7 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule with 
     val checkPre = MaybeCommentBlock("Inhaling precondition (with checking)",
       f.pres map (e => checkDefinednessOfSpec(e, errors.ContractNotWellformed(e))))
     val checkExp = MaybeCommentBlock("Check definedness of function body",
-      checkDefinedness(f.exp, errors.FunctionNotWellformed(f)))
-    println(f.exp)
-    println(checkExp)
+      expModule.checkDefinedness(f.exp, errors.FunctionNotWellformed(f)))
     val exp = MaybeCommentBlock("Translate function body",
       translateResult(res) := translateExp(f.exp))
     val checkPost = MaybeCommentBlock("Inhaling precondition (with checking)",
