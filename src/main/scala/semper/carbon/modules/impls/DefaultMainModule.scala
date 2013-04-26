@@ -112,7 +112,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
     res
   }
 
-  private def allAssumptionsAboutParam(arg: sil.LocalVarDecl): Stmt = {
+  override def allAssumptionsAboutParam(arg: sil.LocalVarDecl): Stmt = {
     val v = translateLocalVarDecl(arg)
     val tmp = verifier.allModules map (_.assumptionAboutParameter(arg.typ, v.l))
     val paramAssumptions = tmp.filter(_.isDefined).map(_.get)

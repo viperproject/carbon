@@ -54,7 +54,8 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule with 
     val funcionDefs: Seq[Func] = functionDefinitions(f)
     val res = CommentedDecl(s"Translation of function ${f.name}",
       CommentedDecl("Uninterpreted function definitions", funcionDefs, size = 1) ++
-        CommentedDecl("Definitional axiom", definitionalAxiom(f), size = 1)
+        CommentedDecl("Definitional axiom", definitionalAxiom(f), size = 1) ++
+        CommentedDecl("Check contract well-formedness and postcondition", checkFunctionDefinedness(f), size = 1)
     , nLines = 2)
     env = null
     res
@@ -103,10 +104,27 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule with 
   }
 
   private def checkFunctionDefinedness(f: sil.Function) = {
-
+    val args = f.formalArgs map translateLocalVarDecl
+    val res = sil.Result()(f.typ)
+    val init = MaybeCommentBlock("Initializing the state",
+      stateModule.initState ++ (f.formalArgs map allAssumptionsAboutParam) ++ assumeAllFunctionDefinitions)
+    val initOld = MaybeCommentBlock("Initializing the old state", stateModule.initOldState)
+    val checkPre = MaybeCommentBlock("Inhaling precondition (with checking)",
+      f.pres map (e => checkDefinednessOfSpec(e, errors.ContractNotWellformed(e))))
+    val checkExp = MaybeCommentBlock("Check definedness of function body",
+      checkDefinedness(f.exp, errors.FunctionNotWellformed(f)))
+    println(f.exp)
+    println(checkExp)
+    val exp = MaybeCommentBlock("Translate function body",
+      translateResult(res) := translateExp(f.exp))
+    val checkPost = MaybeCommentBlock("Inhaling precondition (with checking)",
+      f.posts map (e => checkDefinednessOfSpecAndExhale(e, errors.ContractNotWellformed(e), errors.PostconditionViolated(e, f))))
+    val body = Seq(init, initOld, checkPre, checkExp, exp, checkPost)
+    Procedure(Identifier(f.name + "#definedness"), args, translateResultDecl(res), body)
   }
 
-  override def translateResult(r: sil.Result): Exp = LocalVar(resultName, translateType(r.typ))
+  private def translateResultDecl(r: sil.Result) = LocalVarDecl(resultName, translateType(r.typ))
+  override def translateResult(r: sil.Result) = translateResultDecl(r).l
 
   override def translatePredicate(p: sil.Predicate): Seq[Decl] = {
     Seq()

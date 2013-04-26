@@ -28,4 +28,5 @@ trait MainModule extends Module {
   /** The namespace for SIL local variables. */
   def silVarNamespace: Namespace
 
+  def allAssumptionsAboutParam(arg: sil.LocalVarDecl): Stmt
 }
