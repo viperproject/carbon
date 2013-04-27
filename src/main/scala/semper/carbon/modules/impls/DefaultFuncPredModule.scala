@@ -52,10 +52,11 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule with 
   override def translateFunction(f: sil.Function): Seq[Decl] = {
     env = Environment(verifier, f)
     val funcionDefs: Seq[Func] = functionDefinitions(f)
-    val res = CommentedDecl(s"Translation of function ${f.name}",
-      CommentedDecl("Uninterpreted function definitions", funcionDefs, size = 1) ++
-        CommentedDecl("Definitional axiom", definitionalAxiom(f), size = 1) ++
-        CommentedDecl("Check contract well-formedness and postcondition", checkFunctionDefinedness(f), size = 1)
+    val res = MaybeCommentedDecl(s"Translation of function ${f.name}",
+      MaybeCommentedDecl("Uninterpreted function definitions", funcionDefs, size = 1) ++
+        MaybeCommentedDecl("Definitional axiom", definitionalAxiom(f), size = 1) ++
+        MaybeCommentedDecl("Postcondition axioms", postconditionAxiom(f), size = 1) ++
+        MaybeCommentedDecl("Check contract well-formedness and postcondition", checkFunctionDefinedness(f), size = 1)
     , nLines = 2)
     env = null
     res
@@ -101,6 +102,23 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule with 
       (staticGoodState && assumeFunctionsAbove(height)) ==>
         (fapp === body)
     ))
+  }
+
+  private def postconditionAxiom(f: sil.Function): Seq[Decl] = {
+    val height = heights(f)
+    val heap = heapModule.stateContributions
+    val args = f.formalArgs map translateLocalVarDecl
+    val fapp = translateFuncApp(f, (heap ++ args) map (_.l), f.typ)
+    val res = translateResult(sil.Result()(f.typ))
+    for (post <- f.posts) yield {
+      val bPost = translateExp(post) transform {
+        case e if e == res => Some(fapp)
+      }
+      Axiom(Forall(
+        stateContributions ++ args,
+        Trigger(Seq(staticGoodState, fapp)),
+        (staticGoodState && assumeFunctionsAbove(height)) ==> bPost))
+    }
   }
 
   private def checkFunctionDefinedness(f: sil.Function) = {
