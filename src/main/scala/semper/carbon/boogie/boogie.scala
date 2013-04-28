@@ -210,6 +210,12 @@ sealed trait QuantifiedExp extends Exp {
   def exp: Exp
 }
 case class Forall(vars: Seq[LocalVarDecl], triggers: Seq[Trigger], exp: Exp) extends QuantifiedExp
+object MaybeForall {
+  def apply(vars: Seq[LocalVarDecl], triggers: Seq[Trigger], exp: Exp) = {
+    if (vars.isEmpty) exp
+    else Forall(vars, triggers, exp)
+  }
+}
 case class Exists(vars: Seq[LocalVarDecl], exp: Exp) extends QuantifiedExp
 case class Trigger(exps: Seq[Exp]) extends Node
 
