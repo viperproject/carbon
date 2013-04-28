@@ -4,7 +4,7 @@ import semper.carbon.modules.ExpModule
 import semper.sil.{ast => sil}
 import semper.carbon.boogie._
 import semper.carbon.verifier.Verifier
-import semper.sil.verifier.PartialVerificationError
+import semper.sil.verifier.{reasons, PartialVerificationError}
 import semper.carbon.boogie.Implicits._
 import semper.carbon.modules.components.DefinednessComponent
 
@@ -25,6 +25,10 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   import inhaleModule._
   import funcPredModule._
   import exhaleModule._
+
+  override def initialize() {
+    register(this)
+  }
 
   def name = "Expression module"
   override def translateExp(e: sil.Exp): Exp = {
@@ -154,7 +158,13 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   }
 
   override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
-    Nil
+    e match {
+      case sil.Div(a, b) =>
+        Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
+      case sil.Mod(a, b) =>
+        Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
+      case _ => Nil
+    }
   }
 
   override def checkDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
