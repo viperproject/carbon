@@ -22,3 +22,10 @@ method t3() {
     //:: ExpectedError(assignment.failed:division.by.zero)
     i := 1 % 0
 }
+
+method t4() {
+    var i: Perm
+    i := 1 / 2
+    //:: ExpectedError(assignment.failed:division.by.zero)
+    i := 1 / 0
+}
