@@ -163,6 +163,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
       case sil.Mod(a, b) =>
         Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
+      case sil.FractionalPerm(a, b) =>
+        Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
       case _ => Nil
     }
   }
