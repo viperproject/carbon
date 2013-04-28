@@ -66,7 +66,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StmtComp
           refField ++
           stateModule.stateContributions,
         Trigger(Seq(staticGoodState, obj_refField)),
-        obj_refField === nullLit || alloc(obj_refField))) ++
+        validReference(obj_refField))) ++
       Func(identicalOnKnownLocsName,
         Seq(LocalVarDecl(heapName, heapTyp), LocalVarDecl(exhaleHeapName, heapTyp)) ++ staticMask,
         Bool) ++ {
@@ -94,7 +94,6 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StmtComp
   private def locationIdentifier(f: sil.Location): Identifier = {
     Identifier(f.name)(fieldNamespace)
   }
-
 
   /** Returns a heap-lookup of the allocated field of an object. */
   private def alloc(o: Exp) = lookup(heap, o, Const(allocName))
@@ -128,7 +127,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StmtComp
       case sil.MethodCall(_, _, targets) =>
         targets filter (_.typ == sil.Ref) map translateExp map {
           t =>
-            Assume(t === nullLit || alloc(t))
+            Assume(validReference(t))
         }
       case _ => Statements.EmptyStmt
     }
@@ -136,9 +135,13 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StmtComp
 
   override def assumptionAboutParameter(typ: sil.Type, variable: LocalVar): Option[Exp] = {
     typ match {
-      case sil.Ref => Some(variable === nullLit || alloc(variable))
+      case sil.Ref => Some(validReference(variable))
       case _ => None
     }
+  }
+
+  private def validReference(exp: Exp): Exp = {
+    exp === nullLit || alloc(exp)
   }
 
   override def translateNull: Exp = nullLit
