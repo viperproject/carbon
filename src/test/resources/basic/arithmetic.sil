@@ -8,3 +8,17 @@ method t1() returns ()
     assert (+1 == 1)
     assert (0 == (1 \ 2))
 }
+
+method t2() {
+    var i: Int
+    i := 1 \ 2
+    //:: ExpectedError(assignment.failed:division.by.zero)
+    i := 1 \ 0
+}
+
+method t3() {
+    var i: Int
+    i := 1 % 2
+    //:: ExpectedError(assignment.failed:division.by.zero)
+    i := 1 % 0
+}
