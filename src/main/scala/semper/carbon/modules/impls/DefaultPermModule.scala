@@ -434,7 +434,7 @@ class DefaultPermModule(val verifier: Verifier)
   }
 
   private var allowLocationAccessWithoutPerm = false
-  override def checkDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
+  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
       case sil.CurrentPerm(loc) =>
         allowLocationAccessWithoutPerm = true

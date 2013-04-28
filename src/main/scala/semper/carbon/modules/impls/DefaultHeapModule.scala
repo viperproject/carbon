@@ -180,7 +180,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StmtComp
     (curTmpStateId, oldHeap)
   }
 
-  override def checkDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
+  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
       case sil.CurrentPerm(loc) =>
         Assert(translateExp(loc.rcv) !== nullLit, error.dueTo(reasons.ReceiverNull(loc)))

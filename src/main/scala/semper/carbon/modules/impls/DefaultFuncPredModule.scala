@@ -146,7 +146,7 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule with 
     Seq()
   }
 
-  override def checkDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
+  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
       case fa@sil.FuncApp(f, args) if !fa.pres.isEmpty =>
         NondetIf(

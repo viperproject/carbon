@@ -6,13 +6,14 @@ import semper.carbon.boogie._
 import semper.carbon.verifier.Verifier
 import semper.sil.verifier.PartialVerificationError
 import semper.carbon.boogie.Implicits._
+import semper.carbon.modules.components.DefinednessComponent
 
 /**
  * The default implementation of [[semper.carbon.modules.ExpModule]].
  *
  * @author Stefan Heule
  */
-class DefaultExpModule(val verifier: Verifier) extends ExpModule {
+class DefaultExpModule(val verifier: Verifier) extends ExpModule with DefinednessComponent {
 
   import verifier._
   import typeModule._
@@ -152,6 +153,10 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
     LocalVar(Identifier(l.name)(verifier.mainModule.silVarNamespace), translateType(l.typ))
   }
 
+  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
+    Nil
+  }
+
   override def checkDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
     MaybeCommentBlock(s"Check definedness of $e",
       checkDefinednessImpl(e, error))
@@ -169,7 +174,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule {
         If(translateExp(c), checkDefinednessImpl(e1, error), checkDefinednessImpl(e2, error))
       case _ =>
         def translate: Seqn = {
-          val stmt = components map (_.checkDefinedness(e, error))
+          val stmt = components map (_.partialCheckDefinedness(e, error))
           val stmt2 = for (sub <- e.subnodes if sub.isInstanceOf[sil.Exp]) yield {
             checkDefinednessImpl(sub.asInstanceOf[sil.Exp], error)
           }
