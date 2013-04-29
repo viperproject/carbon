@@ -41,6 +41,7 @@ method t3(n: Int) returns ()
 
 method t4(n: Int, r: Ref) returns ()
     requires n > 0
+    requires r != null
 {
     var i: Int := 2
 

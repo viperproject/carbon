@@ -7,6 +7,7 @@ function f1(r: Ref): Int
 
 function f3(r: Ref): Int
     //:: ExpectedError(not.wellformed:insufficient.permission)
+    //:: ExpectedError(not.wellformed:receiver.null)
     requires ((r.f) == 2)
 { 2 }
 
