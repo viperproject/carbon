@@ -29,7 +29,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StmtComp
 
   override def initialize() {
     stateModule.register(this)
-    stmtModule.register(this)
+    stmtModule.register(this, before = Seq(verifier.permModule))
     expModule.register(this)
   }
 

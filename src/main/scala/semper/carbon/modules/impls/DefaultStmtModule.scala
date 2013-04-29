@@ -21,8 +21,10 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
   import exhaleModule._
   import inhaleModule._
 
-  // registering in the constructor ensures that this will be the first component
-  register(this)
+  override def initialize() {
+    // this is the main transalation, so it should come at the beginning
+    register(this, before = verifier.allModules)
+  }
 
   val lblNamespace = verifier.freshNamespace("stmt.lbl")
 

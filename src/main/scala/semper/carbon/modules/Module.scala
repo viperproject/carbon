@@ -38,4 +38,6 @@ trait Module {
    * The assumption that can be made about a parameter of a given type.
    */
   def assumptionAboutParameter(typ: sil.Type, variable: LocalVar): Option[Exp] = None
+
+  override def toString = name
 }
