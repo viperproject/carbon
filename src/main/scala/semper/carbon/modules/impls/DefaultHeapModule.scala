@@ -180,10 +180,19 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StmtComp
     (curTmpStateId, oldHeap)
   }
 
+  private var allowHeapDeref = false
   override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
-      case sil.CurrentPerm(loc) =>
-        Assert(translateExp(loc.rcv) !== nullLit, error.dueTo(reasons.ReceiverNull(loc)))
+      case sil.AccessPredicate(loc, perm) =>
+        allowHeapDeref = true
+        Nil
+      case fa@sil.LocationAccess(rcv, field) =>
+        if (allowHeapDeref) {
+          allowHeapDeref = false
+          Nil
+        } else {
+          Assert(translateExp(rcv) !== nullLit, error.dueTo(reasons.ReceiverNull(fa)))
+        }
       case _ => Nil
     }
   }
