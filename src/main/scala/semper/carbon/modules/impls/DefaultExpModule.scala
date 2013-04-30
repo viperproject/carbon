@@ -116,8 +116,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           case sil.DivOp => IntDiv
           case sil.ModOp => Mod
           case sil.MulOp => Mul
-          case sil.AndOp | sil.ImpliesOp =>
-            sys.error("&& and ==> are not handled in expression module")
+          case sil.AndOp => And
+          case sil.ImpliesOp => Implies
           case _ =>
             sys.error("should be handeled further above")
         }
