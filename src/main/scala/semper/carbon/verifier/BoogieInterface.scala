@@ -54,7 +54,7 @@ trait BoogieInterface {
     val ErrorPattern = "  .+ \\[([0-9]+)\\]".r
     val errors = collection.mutable.ListBuffer[Int]()
     var otherErrId = 0
-    for (l <- output.split("\r\n")) {
+    for (l <- output.linesIterator) {
       l match {
         case ErrorPattern(id) =>
           errors += id.toInt
