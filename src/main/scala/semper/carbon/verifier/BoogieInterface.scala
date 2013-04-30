@@ -50,7 +50,7 @@ trait BoogieInterface {
    * Parse the output of Boogie.
    */
   private def parse(output: String): Seq[Int] = {
-    val SummaryPattern = "Boogie program verifier finished with ([0-9]+) verified, ([0-9]+) errors?".r
+    val SummaryPattern = "Boogie program verifier finished with ([0-9]+) verified, ([0-9]+) error.*".r
     val ErrorPattern = "  .+ \\[([0-9]+)\\]".r
     val errors = collection.mutable.ListBuffer[Int]()
     var otherErrId = 0
