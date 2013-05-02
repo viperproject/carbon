@@ -41,3 +41,13 @@ method t4(r: Ref) returns ()
     //:: ExpectedError(exhale.failed:insufficient.permission)
     exhale (r.f) > 0
 }
+
+method t5(this: Ref)
+    requires acc(this.f, write)
+{
+    this.f := 10
+    t2(this)
+    assert (this.f) == 11
+    //:: ExpectedError(assertion.false)
+    assert false
+}
