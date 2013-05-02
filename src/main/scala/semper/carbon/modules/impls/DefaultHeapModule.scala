@@ -156,11 +156,8 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StmtComp
   def stateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(heapName, heapTyp))
   def currentState: Seq[Exp] = Seq(heap)
 
-  private var curTmpStateId = -1
-  override def freshTempState: Seq[Exp] = {
-    curTmpStateId += 1
-    val tmpHeapName = if (curTmpStateId == 0) "tmpHeap" else s"tmpHeap$curTmpStateId"
-    Seq(LocalVar(Identifier(tmpHeapName), heapTyp))
+  override def freshTempState(name: String): Seq[Exp] = {
+    Seq(LocalVar(Identifier(s"${name}Heap"), heapTyp))
   }
 
   override def restoreState(s: Seq[Exp]) {

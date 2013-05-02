@@ -56,14 +56,14 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
             exhale((e, errors.AssertFailed(a)))
         } else {
           // we create a temporary state to ignore the side-effects
-          val (backup, snapshot) = freshTempState
+          val (backup, snapshot) = freshTempState("Assert")
           val exhaleStmt = exhale((e, errors.AssertFailed(a)))
           restoreState(snapshot)
           checkDefinedness(e, errors.AssertFailed(a)) :: backup :: exhaleStmt :: Nil
         }
       case mc@sil.MethodCall(method, args, targets) =>
         // save pre-call state
-        val (preCallStateStmt, state) = stateModule.freshTempState
+        val (preCallStateStmt, state) = stateModule.freshTempState("PreCall")
         val preCallState = stateModule.state
         val oldState = stateModule.oldState
         stateModule.restoreState(state)

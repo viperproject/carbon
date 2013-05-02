@@ -195,11 +195,8 @@ class DefaultPermModule(val verifier: Verifier)
   private def epsPerm(eps: Exp) = mixedPerm(RealLit(0), eps)
   private def mixedPerm(frac: Exp, eps: Exp) = FuncApp(permConstructName, Seq(frac, eps), permType)
 
-  private var curTmpStateId = -1
-  override def freshTempState: Seq[Exp] = {
-    curTmpStateId += 1
-    val tmpMaskName = if (curTmpStateId == 0) "tmpMask" else s"tmpMask$curTmpStateId"
-    Seq(LocalVar(Identifier(tmpMaskName), maskType))
+  override def freshTempState(name: String): Seq[Exp] = {
+    Seq(LocalVar(Identifier(s"${name}Mask"), maskType))
   }
 
   override def restoreState(s: Seq[Exp]) {

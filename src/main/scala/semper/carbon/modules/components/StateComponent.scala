@@ -30,7 +30,7 @@ trait StateComponent extends Component {
   /**
    * Set up a fresh temporary state and returns that new state.
    */
-  def freshTempState: Seq[Exp]
+  def freshTempState(name: String): Seq[Exp]
 
   /**
    * Throw away the current state and go back to a snapshot.

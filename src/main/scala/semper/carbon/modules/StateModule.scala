@@ -51,7 +51,7 @@ trait StateModule extends Module with ComponentRegistry[StateComponent] {
    * Backup the current state and return enough information such that it can
    * be restored again at a later point.
    */
-  def freshTempState: (Stmt, StateSnapshot)
+  def freshTempState(name: String): (Stmt, StateSnapshot)
 
   /**
    * Restore the state to a given snapshot.

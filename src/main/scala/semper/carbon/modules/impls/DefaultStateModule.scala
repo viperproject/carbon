@@ -55,10 +55,10 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   private var curOldState: StateSnapshot = null
   private var curState: StateSnapshot = null
 
-  override def freshTempState: (Stmt, StateSnapshot) = {
+  override def freshTempState(name: String): (Stmt, StateSnapshot) = {
     val previousState = new java.util.IdentityHashMap[StateComponent, Seq[Exp]]()
     val s = (for (c <- components) yield {
-      val tmpExps = c.freshTempState
+      val tmpExps = c.freshTempState(name)
       val curExps = curState.get(c)
       val stmt: Stmt = (tmpExps zip curExps) map (x => (x._1 := x._2))
       previousState.put(c, curExps)
