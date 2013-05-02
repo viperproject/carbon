@@ -17,19 +17,23 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
 
   implicit val stateNamespace = verifier.freshNamespace("state")
 
-  override def assumeGoodState = Assume(FuncApp(Identifier(isGoodState), currentStateContributions, Bool))
+  override def assumeGoodState = {
+    Assume(FuncApp(Identifier(isGoodState), currentStateContributions, Bool))
+  }
 
   override def preamble = {
     Func(Identifier(isGoodState), stateContributions, Bool)
   }
 
   def initState: Stmt = {
+    curState = new java.util.IdentityHashMap[StateComponent, Seq[Exp]]()
+    for (c <- components) {
+      curState.put(c, c.currentState)
+    }
     // initialize the state of all components and assume that afterwards the
     // whole state is good
-    Seqn(
-      (components map (_.initState)) :+
-        assumeGoodState
-    )
+    (components map (_.initState)) :+
+      assumeGoodState
   }
   def initOldState: Stmt = {
     curOldState = new java.util.IdentityHashMap[StateComponent, Seq[Exp]]()
@@ -49,24 +53,20 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   override type StateSnapshot = java.util.IdentityHashMap[StateComponent, Seq[Exp]]
 
   private var curOldState: StateSnapshot = null
-  private var curState: StateSnapshot = {
-    val res = new java.util.IdentityHashMap[StateComponent, Seq[Exp]]()
-    for (c <- components) {
-      res.put(c, c.currentState)
-    }
-    res
-  }
+  private var curState: StateSnapshot = null
 
   override def freshTempState: (Stmt, StateSnapshot) = {
-    val snapshot = new java.util.IdentityHashMap[StateComponent, Seq[Exp]]()
+    val previousState = new java.util.IdentityHashMap[StateComponent, Seq[Exp]]()
     val s = (for (c <- components) yield {
-      val snap = c.freshTempState
+      val tmpExps = c.freshTempState
       val curExps = curState.get(c)
-      val stmt: Stmt = (curExps zip snap) map (x => (x._1 := x._2))
-      snapshot.put(c, curExps)
+      val stmt: Stmt = (tmpExps zip curExps) map (x => (x._1 := x._2))
+      previousState.put(c, curExps)
+      curState.put(c, tmpExps)
+      c.restoreState(tmpExps)
       stmt
     })
-    (s, snapshot)
+    (s, previousState)
   }
 
   override def restoreState(snapshot: StateSnapshot) {
