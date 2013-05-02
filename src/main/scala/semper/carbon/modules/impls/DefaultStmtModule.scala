@@ -5,7 +5,7 @@ import semper.sil.{ast => sil}
 import semper.carbon.boogie._
 import semper.carbon.verifier.Verifier
 import Implicits._
-import semper.sil.verifier.{PartialVerificationError, errors}
+import semper.sil.verifier.errors
 import semper.carbon.modules.components.StmtComponent
 
 /**
@@ -62,11 +62,21 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
           checkDefinedness(e, errors.AssertFailed(a)) :: backup :: exhaleStmt :: Nil
         }
       case mc@sil.MethodCall(method, args, targets) =>
+        // save pre-call state
+        val (preCallStateStmt, state) = stateModule.freshTempState
+        val preCallState = stateModule.state
+        val oldState = stateModule.oldState
+        stateModule.restoreState(state)
+        preCallStateStmt ++
         (targets map (e => checkDefinedness(e, errors.CallFailed(mc)))) ++
           (args map (e => checkDefinedness(e, errors.CallFailed(mc)))) ++
           Havoc((targets map translateExp).asInstanceOf[Seq[Var]]) ++
-          MaybeCommentBlock("Exhaling precondition", exhale(mc.pres map (e => (e, errors.PreconditionInCallFalse(mc))))) ++
-          MaybeCommentBlock("Inhaling postcondition", inhale(mc.posts))
+        MaybeCommentBlock("Exhaling precondition", exhale(mc.pres map (e => (e, errors.PreconditionInCallFalse(mc))))) ++ {
+          stateModule.restoreOldState(preCallState)
+          val res = MaybeCommentBlock("Inhaling postcondition", inhale(mc.posts))
+          stateModule.restoreOldState(oldState)
+          res
+        }
       case w@sil.While(cond, invs, locals, body) =>
         val guard = translateExp(cond)
         MaybeCommentBlock("Exhale loop invariant before loop",
