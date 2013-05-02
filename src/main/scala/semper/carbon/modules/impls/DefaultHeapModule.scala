@@ -165,7 +165,6 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StmtComp
 
   override def restoreState(s: Seq[Exp]) {
     heap = s(0)
-    curTmpStateId -= 1
   }
 
   private var allowHeapDeref = false

@@ -204,7 +204,6 @@ class DefaultPermModule(val verifier: Verifier)
 
   override def restoreState(s: Seq[Exp]) {
     mask = s(0)
-    curTmpStateId -= 1
   }
 
   /**
