@@ -71,7 +71,7 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule with 
   }
 
   override def translateFuncApp(fa: sil.FuncApp) = {
-    translateFuncApp(fa.func, heapModule.currentStateContributions ++ (fa.args map translateExp), fa.typ)
+    translateFuncApp(fa.func, heapModule.currentState ++ (fa.args map translateExp), fa.typ)
   }
   def translateFuncApp(f: sil.Function, args: Seq[Exp], typ: sil.Type) = {
     FuncApp(Identifier(f.name), args, translateType(typ))

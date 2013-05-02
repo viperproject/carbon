@@ -32,39 +32,71 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     )
   }
   def initOldState: Stmt = {
-    (components map (_.initOldState))
+    curOldState = new java.util.IdentityHashMap[StateComponent, Seq[Exp]]()
+    for (c <- components) yield {
+      val exps = curState.get(c)
+      curOldState.put(c, exps map (e => Old(e)))
+      exps map (e => Assume(e === Old(e))): Stmt
+    }
   }
   def stateContributions: Seq[LocalVarDecl] = components flatMap (_.stateContributions)
-  def currentStateContributions: Seq[Exp] = components flatMap (_.currentStateContributions)
+  def currentStateContributions: Seq[Exp] = components flatMap (_.currentState)
 
   def staticGoodState: Exp = {
     FuncApp(Identifier(isGoodState), stateContributions map (v => LocalVar(v.name, v.typ)), Bool)
   }
 
-  override type StateSnapshot = java.util.IdentityHashMap[StateComponent, Any]
+  override type StateSnapshot = java.util.IdentityHashMap[StateComponent, Seq[Exp]]
+
+  private var curOldState: StateSnapshot = null
+  private var curState: StateSnapshot = {
+    val res = new java.util.IdentityHashMap[StateComponent, Seq[Exp]]()
+    for (c <- components) {
+      res.put(c, c.currentState)
+    }
+    res
+  }
 
   override def freshTempState: (Stmt, StateSnapshot) = {
-    val snapshot = new java.util.IdentityHashMap[StateComponent, Any]()
+    val snapshot = new java.util.IdentityHashMap[StateComponent, Seq[Exp]]()
     val s = (for (c <- components) yield {
-      val (stmt, snap) = c.freshTempState
-      snapshot.put(c, snap)
+      val snap = c.freshTempState
+      val curExps = curState.get(c)
+      val stmt: Stmt = (curExps zip snap) map (x => (x._1 := x._2))
+      snapshot.put(c, curExps)
       stmt
     })
     (s, snapshot)
   }
 
   override def restoreState(snapshot: StateSnapshot) {
+    curState = snapshot
     for (c <- components) {
-      c.restoreState(snapshot.get(c).asInstanceOf[c.StateSnapshot])
+      c.restoreState(snapshot.get(c))
     }
   }
 
-  override def makeOldState: StateSnapshot = {
-    val snapshot = new java.util.IdentityHashMap[StateComponent, Any]()
+  override def useOldState() {
     for (c <- components) {
-      val snap = c.makeOldState
-      snapshot.put(c, snap)
+      c.restoreState(curOldState.get(c))
     }
-    snapshot
+  }
+
+  override def useRegularState() {
+    for (c <- components) {
+      c.restoreState(curState.get(c))
+    }
+  }
+
+  override def oldState: StateSnapshot = {
+    curOldState
+  }
+
+  override def restoreOldState(snapshot: StateSnapshot) {
+    curOldState = snapshot
+  }
+
+  override def state: StateSnapshot = {
+    curState
   }
 }

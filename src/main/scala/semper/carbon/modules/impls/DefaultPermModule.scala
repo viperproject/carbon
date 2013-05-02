@@ -178,7 +178,7 @@ class DefaultPermModule(val verifier: Verifier)
   def permType = NamedType(permTypeName)
 
   def stateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(maskName, maskType))
-  def currentStateContributions: Seq[Exp] = Seq(mask)
+  def currentState: Seq[Exp] = Seq(mask)
   def initState: Stmt = {
     (mask := zeroMask)
   }
@@ -195,28 +195,16 @@ class DefaultPermModule(val verifier: Verifier)
   private def epsPerm(eps: Exp) = mixedPerm(RealLit(0), eps)
   private def mixedPerm(frac: Exp, eps: Exp) = FuncApp(permConstructName, Seq(frac, eps), permType)
 
-  override type StateSnapshot = (Int, Exp)
   private var curTmpStateId = -1
-
-  override def freshTempState: (Stmt, StateSnapshot) = {
+  override def freshTempState: Seq[Exp] = {
     curTmpStateId += 1
-    val oldMask = mask
-    val tmpHeapName = if (curTmpStateId == 0) "tmpMask" else s"tmpMask$curTmpStateId"
-    mask = LocalVar(Identifier(tmpHeapName), maskType)
-    val s = Assign(mask, oldMask)
-    (s, (curTmpStateId, oldMask))
+    val tmpMaskName = if (curTmpStateId == 0) "tmpMask" else s"tmpMask$curTmpStateId"
+    Seq(LocalVar(Identifier(tmpMaskName), maskType))
   }
 
-  override def restoreState(s: StateSnapshot) {
-    mask = s._2
-    curTmpStateId = s._1 - 1
-  }
-
-  override def makeOldState: StateSnapshot = {
-    curTmpStateId += 1
-    val oldMask = mask
-    mask = Old(mask)
-    (curTmpStateId, oldMask)
+  override def restoreState(s: Seq[Exp]) {
+    mask = s(0)
+    curTmpStateId -= 1
   }
 
   /**

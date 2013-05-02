@@ -17,11 +17,6 @@ trait StateComponent extends Component {
   def initState: Stmt
 
   /**
-   * The statements necessary to initialize old(state).
-   */
-  def initOldState: Stmt
-
-  /**
    * The name and type of the contribution of this components to the state.
    */
   def stateContributions: Seq[LocalVarDecl]
@@ -30,24 +25,15 @@ trait StateComponent extends Component {
    * The current values for this components state contributions.  The number of elements
    * in the list and the types must correspond to the ones given in `stateContributions`.
    */
-  def currentStateContributions: Seq[Exp]
-
-  type StateSnapshot
+  def currentState: Seq[Exp]
 
   /**
-   * Set up a fresh temporary state (no need to initialize it yet) and return enough
-   * information such that the previous state can be restored later.
+   * Set up a fresh temporary state and returns that new state.
    */
-  def freshTempState: (Stmt, StateSnapshot)
+  def freshTempState: Seq[Exp]
 
   /**
    * Throw away the current state and go back to a snapshot.
    */
-  def restoreState(previousState: StateSnapshot)
-
-  /**
-   * Change the state from 'x' to 'old(x)' and return a snapshot of 'x' such
-   * that it can be restored later.
-   */
-  def makeOldState: StateSnapshot
+  def restoreState(previousState: Seq[Exp])
 }

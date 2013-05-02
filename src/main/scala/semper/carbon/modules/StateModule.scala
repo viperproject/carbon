@@ -59,8 +59,27 @@ trait StateModule extends Module with ComponentRegistry[StateComponent] {
   def restoreState(snapshot: StateSnapshot)
 
   /**
-   * Change the state from 'x' to 'old(x)' and return a snapshot of 'x' such
-   * that it can be restored later.
+   * Get the current old state.
    */
-  def makeOldState: StateSnapshot
+  def oldState: StateSnapshot
+
+  /**
+   * Restore the old state to a given snapshot.
+   */
+  def restoreOldState(snapshot: StateSnapshot)
+
+  /**
+   * Get the current old state.
+   */
+  def state: StateSnapshot
+
+  /**
+   * Change the state for all state components to the old state.
+   */
+  def useOldState()
+
+  /**
+   * Change the state for all state components to the regular (non-old) state.
+   */
+  def useRegularState()
 }

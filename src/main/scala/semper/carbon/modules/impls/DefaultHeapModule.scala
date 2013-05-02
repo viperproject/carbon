@@ -1,7 +1,7 @@
 package semper.carbon.modules.impls
 
 import semper.carbon.modules._
-import semper.carbon.modules.components.{DefinednessComponent, StmtComponent, StateComponent}
+import semper.carbon.modules.components.{DefinednessComponent, StmtComponent}
 import semper.sil.{ast => sil}
 import semper.carbon.boogie._
 import semper.carbon.boogie.Implicits._
@@ -154,30 +154,18 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StmtComp
   }
 
   def stateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(heapName, heapTyp))
-  def currentStateContributions: Seq[Exp] = Seq(heap)
+  def currentState: Seq[Exp] = Seq(heap)
 
-  override type StateSnapshot = (Int, Exp)
   private var curTmpStateId = -1
-
-  override def freshTempState: (Stmt, StateSnapshot) = {
+  override def freshTempState: Seq[Exp] = {
     curTmpStateId += 1
-    val oldHeap = heap
     val tmpHeapName = if (curTmpStateId == 0) "tmpHeap" else s"tmpHeap$curTmpStateId"
-    heap = LocalVar(Identifier(tmpHeapName), heapTyp)
-    val s = Assign(heap, oldHeap)
-    (s, (curTmpStateId, oldHeap))
+    Seq(LocalVar(Identifier(tmpHeapName), heapTyp))
   }
 
-  override def restoreState(s: StateSnapshot) {
-    heap = s._2
-    curTmpStateId = s._1 - 1
-  }
-
-  override def makeOldState: StateSnapshot = {
-    curTmpStateId += 1
-    val oldHeap = heap
-    heap = Old(heap)
-    (curTmpStateId, oldHeap)
+  override def restoreState(s: Seq[Exp]) {
+    heap = s(0)
+    curTmpStateId -= 1
   }
 
   private var allowHeapDeref = false
