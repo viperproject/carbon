@@ -12,7 +12,7 @@ import io.Source
   */
 class AllTests extends DefaultSilSuite {
 
-  override def testDirectories: Seq[String] = Vector("basic", "sequences")
+  override def testDirectories: Seq[String] = Vector("all")
 
   override def frontend(verifier: Verifier, files: Seq[File]): Frontend = {
     require(files.length == 1, "tests should consist of exactly one file")
