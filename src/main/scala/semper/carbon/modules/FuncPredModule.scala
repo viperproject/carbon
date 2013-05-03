@@ -14,4 +14,7 @@ trait FuncPredModule extends Module {
   def translatePredicate(p: sil.Predicate): Seq[Decl]
   def assumeAllFunctionDefinitions: Stmt
   def translateResult(r: sil.Result): Exp
+  def translateFold(fold: sil.Fold): Stmt
+  def translateUnfold(unfold: sil.Unfold): Stmt
+  def translateUnfolding(unfold: sil.Unfolding): Exp
 }

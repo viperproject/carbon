@@ -23,6 +23,7 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule with 
   import stateModule._
   import expModule._
   import exhaleModule._
+  import inhaleModule._
 
   implicit val fpNamespace = verifier.freshNamespace("funcpred")
 
@@ -57,7 +58,7 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule with 
         MaybeCommentedDecl("Definitional axiom", definitionalAxiom(f), size = 1) ++
         MaybeCommentedDecl("Postcondition axioms", postconditionAxiom(f), size = 1) ++
         MaybeCommentedDecl("Check contract well-formedness and postcondition", checkFunctionDefinedness(f), size = 1)
-    , nLines = 2)
+      , nLines = 2)
     env = null
     res
   }
@@ -142,18 +143,42 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule with 
   private def translateResultDecl(r: sil.Result) = LocalVarDecl(resultName, translateType(r.typ))
   override def translateResult(r: sil.Result) = translateResultDecl(r).l
 
-  override def translatePredicate(p: sil.Predicate): Seq[Decl] = {
-    Seq()
-  }
-
   override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
       case fa@sil.FuncApp(f, args) if !fa.pres.isEmpty =>
         NondetIf(
           MaybeComment("Exhale precondition of function application", exhale(fa.pres map (e => (e, errors.PreconditionInAppFalse(fa))))) ++
-          MaybeComment("Stop execution", Assume(FalseLit()))
+            MaybeComment("Stop execution", Assume(FalseLit()))
         )
       case _ => Nil
     }
   }
+
+  // --------------------------------------------
+
+  override def translatePredicate(p: sil.Predicate): Seq[Decl] = {
+    Seq()
+  }
+
+  override def translateFold(fold: sil.Fold): Stmt = {
+    fold match {
+      case sil.Fold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(rcv, pred), perm)) =>
+        checkDefinedness(acc, errors.FoldFailed(fold)) ++
+          checkDefinedness(perm, errors.FoldFailed(fold)) ++
+          exhale(Seq((pa.predicateBody, errors.FoldFailed(fold)))) ++
+          inhale(acc)
+    }
+  }
+
+  override def translateUnfold(unfold: sil.Unfold): Stmt = {
+    unfold match {
+      case sil.Unfold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(rcv, pred), perm)) =>
+        checkDefinedness(acc, errors.UnfoldFailed(unfold)) ++
+          checkDefinedness(perm, errors.UnfoldFailed(unfold)) ++
+          exhale(Seq((acc, errors.UnfoldFailed(unfold)))) ++
+          inhale(pa.predicateBody)
+    }
+  }
+
+  override def translateUnfolding(unfold: sil.Unfolding): Exp = ???
 }
