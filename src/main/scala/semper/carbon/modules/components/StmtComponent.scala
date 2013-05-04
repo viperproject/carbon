@@ -14,8 +14,11 @@ trait StmtComponent extends Component {
    * Potentially contributes to the translation of a statement.  If no contribution
    * is desired, then [[semper.carbon.boogie.Statements.EmptyStmt]] can be used as a
    * return value.
+   *
+   * The pair (a,b) is used as follows: a is used at the beginning of the translation so
+   * far, and b at the end.
    */
-  def handleStmt(s: sil.Stmt): Stmt
+  def handleStmt(s: sil.Stmt): (Stmt, Stmt)
 
   /**
    * This method is called at the beginning of translating a fresh read permission block,

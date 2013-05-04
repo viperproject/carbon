@@ -6,20 +6,21 @@ import semper.carbon.boogie._
 import semper.carbon.verifier.Verifier
 import Implicits._
 import semper.sil.verifier.errors
-import semper.carbon.modules.components.StmtComponent
+import semper.carbon.modules.components.SimpleStmtComponent
 
 /**
  * The default implementation of a [[semper.carbon.modules.StmtModule]].
  *
  * @author Stefan Heule
  */
-class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComponent {
+class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleStmtComponent {
 
   import verifier._
   import expModule._
   import stateModule._
   import exhaleModule._
   import inhaleModule._
+  import funcPredModule._
 
   override def initialize() {
     // this is the main transalation, so it should come at the beginning
@@ -30,7 +31,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
 
   def name = "Statement module"
 
-  override def handleStmt(stmt: sil.Stmt): Stmt = {
+  override def simpleHandleStmt(stmt: sil.Stmt): Stmt = {
     stmt match {
       case assign@sil.LocalVarAssign(lhs, rhs) =>
         checkDefinedness(lhs, errors.AssignmentFailed(assign)) ++
@@ -39,10 +40,10 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
       case assign@sil.FieldAssign(lhs, rhs) =>
         checkDefinedness(lhs, errors.AssignmentFailed(assign)) ++
           checkDefinedness(rhs, errors.AssignmentFailed(assign))
-      case sil.Fold(e) =>
-        ???
-      case sil.Unfold(e) =>
-        ???
+      case fold@sil.Fold(e) =>
+        translateFold(fold)
+      case unfold@sil.Unfold(e) =>
+        translateUnfold(unfold)
       case inh@sil.Inhale(e) =>
         checkDefinedness(e, errors.InhaleFailed(inh)) ++
           inhale(e)
@@ -68,10 +69,10 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
         val oldState = stateModule.oldState
         stateModule.restoreState(state)
         preCallStateStmt ++
-        (targets map (e => checkDefinedness(e, errors.CallFailed(mc)))) ++
+          (targets map (e => checkDefinedness(e, errors.CallFailed(mc)))) ++
           (args map (e => checkDefinedness(e, errors.CallFailed(mc)))) ++
           Havoc((targets map translateExp).asInstanceOf[Seq[Var]]) ++
-        MaybeCommentBlock("Exhaling precondition", exhale(mc.pres map (e => (e, errors.PreconditionInCallFalse(mc))))) ++ {
+          MaybeCommentBlock("Exhaling precondition", exhale(mc.pres map (e => (e, errors.PreconditionInCallFalse(mc))))) ++ {
           stateModule.restoreOldState(preCallState)
           val res = MaybeCommentBlock("Inhaling postcondition", inhale(mc.posts))
           stateModule.restoreOldState(oldState)
@@ -140,11 +141,15 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with StmtComp
         comment = s"Translating statement: fresh(${vars.mkString(", ")})"
       case _ =>
     }
-    val all = Seqn(components map (_.handleStmt(stmt)))
-    if (all.children.size == 0) {
+    var stmts = Seqn(Nil)
+    for (c <- components) {
+      val (before, after) = c.handleStmt(stmt)
+      stmts = before ++ stmts ++ after
+    }
+    if (stmts.children.size == 0) {
       assert(assertion = false, "Translation of " + stmt + " is not defined")
     }
-    val translation = all ::
+    val translation = stmts ::
       assumeGoodState ::
       Nil
     CommentBlock(comment + s" -- ${stmt.pos}", translation)

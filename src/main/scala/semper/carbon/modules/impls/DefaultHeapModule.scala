@@ -1,7 +1,7 @@
 package semper.carbon.modules.impls
 
 import semper.carbon.modules._
-import semper.carbon.modules.components.{DefinednessComponent, StmtComponent}
+import semper.carbon.modules.components.{SimpleStmtComponent, DefinednessComponent}
 import semper.sil.{ast => sil}
 import semper.carbon.boogie._
 import semper.carbon.boogie.Implicits._
@@ -13,7 +13,7 @@ import semper.sil.verifier.{reasons, PartialVerificationError}
  *
  * @author Stefan Heule
  */
-class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StmtComponent with DefinednessComponent {
+class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleStmtComponent with DefinednessComponent {
 
   import verifier._
   import typeModule._
@@ -109,7 +109,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with StmtComp
     Const(locationIdentifier(l.loc))
   }
 
-  override def handleStmt(stmt: sil.Stmt): Stmt = {
+  override def simpleHandleStmt(stmt: sil.Stmt): Stmt = {
     stmt match {
       case sil.FieldAssign(lhs, rhs) =>
         translateFieldAccess(lhs) := translateExp(rhs)

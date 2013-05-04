@@ -42,7 +42,7 @@ class DefaultPermModule(val verifier: Verifier)
   with StateComponent
   with InhaleComponent
   with ExhaleComponent
-  with StmtComponent
+  with SimpleStmtComponent
   with DefinednessComponent {
 
   import verifier._
@@ -353,7 +353,7 @@ class DefaultPermModule(val verifier: Verifier)
     Nil
   }
 
-  override def handleStmt(s: sil.Stmt): Stmt = {
+  override def simpleHandleStmt(s: sil.Stmt): Stmt = {
     s match {
       case n@sil.NewStmt(lhs) =>
         for (field <- verifier.program.fields) yield {
