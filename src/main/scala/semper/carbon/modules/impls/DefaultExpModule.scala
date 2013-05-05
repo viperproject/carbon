@@ -46,7 +46,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       case f@sil.FieldAccess(rcv, field) =>
         translateFieldAccess(f)
       case sil.PredicateAccess(rcv, predicate) =>
-        ???
+        sys.error("should not occur on its own")
       case sil.Unfolding(acc, exp) =>
         translateExp(exp)
       case sil.Old(exp) =>

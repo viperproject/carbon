@@ -208,6 +208,4 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule with 
     exhale(Seq((acc, error))) ++
       inhale(acc.loc.predicateBody)
   }
-
-  override def translateUnfolding(unfold: sil.Unfolding): Exp = ???
 }

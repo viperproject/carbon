@@ -16,5 +16,4 @@ trait FuncPredModule extends Module {
   def translateResult(r: sil.Result): Exp
   def translateFold(fold: sil.Fold): Stmt
   def translateUnfold(unfold: sil.Unfold): Stmt
-  def translateUnfolding(unfold: sil.Unfolding): Exp
 }
