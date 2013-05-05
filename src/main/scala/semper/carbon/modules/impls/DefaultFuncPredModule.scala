@@ -144,7 +144,7 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule with 
   private def translateResultDecl(r: sil.Result) = LocalVarDecl(resultName, translateType(r.typ))
   override def translateResult(r: sil.Result) = translateResultDecl(r).l
 
-  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
+  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
       case fa@sil.FuncApp(f, args) if !fa.pres.isEmpty =>
         NondetIf(

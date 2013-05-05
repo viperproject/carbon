@@ -157,7 +157,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
     LocalVar(Identifier(l.name)(verifier.mainModule.silVarNamespace), translateType(l.typ))
   }
 
-  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
+  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
       case sil.Div(a, b) =>
         Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
@@ -190,7 +190,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           val stmt2 = for (sub <- e.subnodes if sub.isInstanceOf[sil.Exp]) yield {
             checkDefinednessImpl(sub.asInstanceOf[sil.Exp], error)
           }
-          stmt ++ stmt2
+          (stmt map (_._1)) ++ stmt2 ++ (stmt map (_._2))
         }
         if (e.isInstanceOf[sil.Old]) {
           stateModule.useOldState()

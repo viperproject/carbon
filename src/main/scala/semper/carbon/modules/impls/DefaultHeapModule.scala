@@ -174,7 +174,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
   }
 
   private var allowHeapDeref = false
-  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
+  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
       case sil.AccessPredicate(loc, perm) =>
         allowHeapDeref = true
