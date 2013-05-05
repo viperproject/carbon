@@ -171,24 +171,24 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
 
   override def checkDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
     MaybeCommentBlock(s"Check definedness of $e",
-      checkDefinednessImpl(e, error))
+      checkDefinednessImpl(e, error, topLevel = true))
   }
 
-  private def checkDefinednessImpl(e: sil.Exp, error: PartialVerificationError): Stmt = {
+  private def checkDefinednessImpl(e: sil.Exp, error: PartialVerificationError, topLevel: Boolean): Stmt = {
     e match {
-      case sil.And(e1, e2) =>
-        checkDefinednessImpl(e1, error) ::
-          checkDefinednessImpl(e2, error) ::
+      case sil.And(e1, e2) if topLevel =>
+        checkDefinednessImpl(e1, error, topLevel = true) ::
+          checkDefinednessImpl(e2, error, topLevel = true) ::
           Nil
-      case sil.Implies(e1, e2) =>
-        If(translateExp(e1), checkDefinednessImpl(e2, error), Statements.EmptyStmt)
-      case sil.CondExp(c, e1, e2) =>
-        If(translateExp(c), checkDefinednessImpl(e1, error), checkDefinednessImpl(e2, error))
+      case sil.Implies(e1, e2) if topLevel =>
+        If(translateExp(e1), checkDefinednessImpl(e2, error, topLevel = true), Statements.EmptyStmt)
+      case sil.CondExp(c, e1, e2) if topLevel =>
+        If(translateExp(c), checkDefinednessImpl(e1, error, topLevel = true), checkDefinednessImpl(e2, error, topLevel = true))
       case _ =>
         def translate: Seqn = {
           val stmt = components map (_.partialCheckDefinedness(e, error))
           val stmt2 = for (sub <- e.subnodes if sub.isInstanceOf[sil.Exp]) yield {
-            checkDefinednessImpl(sub.asInstanceOf[sil.Exp], error)
+            checkDefinednessImpl(sub.asInstanceOf[sil.Exp], error, topLevel = false)
           }
           (stmt map (_._1)) ++ stmt2 ++ (stmt map (_._2))
         }
