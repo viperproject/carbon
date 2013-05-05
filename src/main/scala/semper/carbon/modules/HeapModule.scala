@@ -28,6 +28,11 @@ trait HeapModule extends Module with StateComponent {
   def translateField(f: sil.Field): Seq[Decl]
 
   /**
+   * Definitions for the ghost field of a predicate.
+   */
+  def predicateGhostFieldDecl(f: sil.Predicate): Seq[Decl]
+
+  /**
    * Translation of a field read.
    */
   def translateFieldAccess(f: sil.FieldAccess): Exp

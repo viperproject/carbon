@@ -24,6 +24,7 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule with 
   import expModule._
   import exhaleModule._
   import inhaleModule._
+  import heapModule._
 
   implicit val fpNamespace = verifier.freshNamespace("funcpred")
 
@@ -98,7 +99,7 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule with 
     }
     val body = translateExp(f.exp) transform transformLimited
     Axiom(Forall(
-      stateContributions ++ args,
+      stateModule.stateContributions ++ args,
       Trigger(Seq(staticGoodState, fapp)),
       (staticGoodState && assumeFunctionsAbove(height)) ==>
         (fapp === body)
@@ -116,7 +117,7 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule with 
         case e if e == res => Some(fapp)
       }
       Axiom(Forall(
-        stateContributions ++ args,
+        stateModule.stateContributions ++ args,
         Trigger(Seq(staticGoodState, fapp)),
         (staticGoodState && assumeFunctionsAbove(height)) ==> bPost))
     }
@@ -157,7 +158,7 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule with 
   // --------------------------------------------
 
   override def translatePredicate(p: sil.Predicate): Seq[Decl] = {
-    Seq()
+    predicateGhostFieldDecl(p)
   }
 
   override def translateFold(fold: sil.Fold): Stmt = {

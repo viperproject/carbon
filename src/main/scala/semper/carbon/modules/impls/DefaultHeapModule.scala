@@ -90,9 +90,18 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
     ConstDecl(locationIdentifier(f), NamedType(fieldTypeName, translateType(f.typ)), unique = true)
   }
 
+  override def predicateGhostFieldDecl(f: sil.Predicate): Seq[Decl] = {
+    ConstDecl(locationIdentifier(f), NamedType(fieldTypeName, Int), unique = true) ++
+      ConstDecl(predicateMaskIdentifer(f), NamedType(fieldTypeName, Int), unique = true)
+  }
+
   /** Return the identifier corresponding to a SIL location. */
   private def locationIdentifier(f: sil.Location): Identifier = {
     Identifier(f.name)(fieldNamespace)
+  }
+
+  private def predicateMaskIdentifer(f: sil.Location): Identifier = {
+    Identifier(f.name + "#sm")(fieldNamespace)
   }
 
   /** Returns a heap-lookup of the allocated field of an object. */
