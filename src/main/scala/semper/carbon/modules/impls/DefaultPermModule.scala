@@ -301,8 +301,6 @@ class DefaultPermModule(val verifier: Verifier)
         MapSelect(mask, Seq(translateExp(loc.rcv), locationMaskIndex(loc)))
       case sil.FractionalPerm(left, right) =>
         fracPerm(BinExp(translateExp(left), Div, translateExp(right)))
-      case _: sil.LocalVar =>
-        translateExp(e)
       case sil.PermAdd(a, b) =>
         permAdd(translatePerm(a), translatePerm(b))
       case sil.PermSub(a, b) =>
@@ -314,6 +312,8 @@ class DefaultPermModule(val verifier: Verifier)
         val p = translatePerm(b)
         val mul = (x: Exp) => BinExp(i, Mul, x)
         mixedPerm(mul(fracComp(p)), mul(epsComp(p)))
+      case _: sil.LocalVar | _: sil.FuncLikeApp =>
+        translateExp(e)
       case _ => sys.error(s"not a permission expression: $e")
     }
   }
