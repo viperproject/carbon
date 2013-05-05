@@ -155,6 +155,26 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule with 
     }
   }
 
+  private var tmpStateId = -1
+  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError): (() => Stmt, () => Stmt) = {
+    e match {
+      case u@sil.Unfolding(acc@sil.PredicateAccessPredicate(loc, perm), exp) =>
+        tmpStateId += 1
+        val tmpStateName = if (tmpStateId == 0) "Unfolding" else s"Unfolding$tmpStateId"
+        val (stmt, state) = stateModule.freshTempState(tmpStateName)
+        def before() = {
+          stmt ++ unfoldPredicate(acc, error)
+        }
+        def after() = {
+          tmpStateId -= 1
+          stateModule.restoreState(state)
+          Nil
+        }
+        (before, after)
+      case _ => (() => simplePartialCheckDefinedness(e, error), () => Nil)
+    }
+  }
+
   // --------------------------------------------
 
   override def translatePredicate(p: sil.Predicate): Seq[Decl] = {
@@ -166,9 +186,13 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule with 
       case sil.Fold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(rcv, pred), perm)) =>
         checkDefinedness(acc, errors.FoldFailed(fold)) ++
           checkDefinedness(perm, errors.FoldFailed(fold)) ++
-          exhale(Seq((pa.predicateBody, errors.FoldFailed(fold)))) ++
-          inhale(acc)
+          foldPredicate(acc, errors.FoldFailed(fold))
     }
+  }
+
+  private def foldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError): Stmt = {
+    exhale(Seq((acc.loc.predicateBody, error))) ++
+      inhale(acc)
   }
 
   override def translateUnfold(unfold: sil.Unfold): Stmt = {
@@ -176,9 +200,13 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule with 
       case sil.Unfold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(rcv, pred), perm)) =>
         checkDefinedness(acc, errors.UnfoldFailed(unfold)) ++
           checkDefinedness(perm, errors.UnfoldFailed(unfold)) ++
-          exhale(Seq((acc, errors.UnfoldFailed(unfold)))) ++
-          inhale(pa.predicateBody)
+          unfoldPredicate(acc, errors.UnfoldFailed(unfold))
     }
+  }
+
+  private def unfoldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError): Stmt = {
+    exhale(Seq((acc, error))) ++
+      inhale(acc.loc.predicateBody)
   }
 
   override def translateUnfolding(unfold: sil.Unfolding): Exp = ???
