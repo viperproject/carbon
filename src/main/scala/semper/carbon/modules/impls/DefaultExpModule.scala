@@ -48,7 +48,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       case sil.PredicateAccess(rcv, predicate) =>
         ???
       case sil.Unfolding(acc, exp) =>
-        ???
+        translateExp(exp)
       case sil.Old(exp) =>
         stateModule.useOldState()
         val res = translateExp(exp)
