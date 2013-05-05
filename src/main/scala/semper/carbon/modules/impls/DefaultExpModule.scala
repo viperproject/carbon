@@ -186,11 +186,13 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         If(translateExp(c), checkDefinednessImpl(e1, error, topLevel = true), checkDefinednessImpl(e2, error, topLevel = true))
       case _ =>
         def translate: Seqn = {
-          val stmt = components map (_.partialCheckDefinedness(e, error))
+          val checks = components map (_.partialCheckDefinedness(e, error))
+          val stmt = checks map (_._1())
           val stmt2 = for (sub <- e.subnodes if sub.isInstanceOf[sil.Exp]) yield {
             checkDefinednessImpl(sub.asInstanceOf[sil.Exp], error, topLevel = false)
           }
-          (stmt map (_._1)) ++ stmt2 ++ (stmt map (_._2))
+          val stmt3 = checks map (_._2())
+          stmt ++ stmt2 ++ stmt3
         }
         if (e.isInstanceOf[sil.Old]) {
           stateModule.useOldState()

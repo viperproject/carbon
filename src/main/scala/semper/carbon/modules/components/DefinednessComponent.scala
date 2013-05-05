@@ -21,6 +21,6 @@ trait DefinednessComponent extends Component {
    * visiting all subexpressions, then all subexpressions are checked for definedness, and finally
    * the second part of the result is used.
    */
-  def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError): (Stmt, Stmt) =
-    (simplePartialCheckDefinedness(e, error), Statements.EmptyStmt)
+  def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError): (() => Stmt, () => Stmt) =
+    (() => simplePartialCheckDefinedness(e, error), () => Statements.EmptyStmt)
 }
