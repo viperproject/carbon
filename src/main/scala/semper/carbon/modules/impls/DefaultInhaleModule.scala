@@ -24,7 +24,7 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule {
   }
 
   override def inhale(exps: Seq[sil.Exp]): Stmt = {
-    (exps map (inhaleConnective(_))) ++
+    (exps map (e => inhaleConnective(e.whenInhaling))) ++
       assumeGoodState
   }
 
