@@ -32,7 +32,7 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule {
    * Inhales SIL expression connectives (such as logical and/or) and forwards the
    * translation of other expressions to the inhale components.
    */
-  def inhaleConnective(e: sil.Exp): Stmt = {
+  private def inhaleConnective(e: sil.Exp): Stmt = {
     e match {
       case sil.And(e1, e2) =>
         inhaleConnective(e1) ::

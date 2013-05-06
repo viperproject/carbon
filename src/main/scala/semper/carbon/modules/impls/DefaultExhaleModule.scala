@@ -50,7 +50,7 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
    * Exhales SIL expression connectives (such as logical and/implication) and forwards the
    * translation of other expressions to the exhale components.
    */
-  def exhaleConnective(e: sil.Exp, error: PartialVerificationError, phase: Int): Stmt = {
+  private def exhaleConnective(e: sil.Exp, error: PartialVerificationError, phase: Int): Stmt = {
     e match {
       case sil.And(e1, e2) =>
         exhaleConnective(e1, error, phase) ::
