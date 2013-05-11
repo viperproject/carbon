@@ -196,10 +196,10 @@ case object EqCmp extends RelOp("==")
 case object NeCmp extends RelOp("≠" or "!=")
 
 // Note: Boogie uses the same priority for 'and' and 'or'.
-case object Or extends BinOp("∨" or "||", 3, Infix(NonAssoc))
-case object And extends BinOp("∧" or "&&", 3, Infix(NonAssoc))
-case object Implies extends BinOp("⇒" or "==>", 4, Infix(RightAssoc))
-case object Equiv extends BinOp("⇔" or "<==>", 5, Infix(NonAssoc))
+case object Or extends BinOp("∨" or "||", 23, Infix(NonAssoc))
+case object And extends BinOp("∧" or "&&", 23, Infix(NonAssoc))
+case object Implies extends BinOp("⇒" or "==>", 24, Infix(RightAssoc))
+case object Equiv extends BinOp("⇔" or "<==>", 25, Infix(NonAssoc))
 
 sealed abstract class UnOp(val name: String, val priority: Int, val fixity: Fixity)
 case object Not extends UnOp("¬" or "!", 1, Prefix)
