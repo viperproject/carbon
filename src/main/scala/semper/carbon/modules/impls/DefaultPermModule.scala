@@ -443,8 +443,8 @@ class DefaultPermModule(val verifier: Verifier)
           Assert(hasDirectPerm(fa), error.dueTo(reasons.InsufficientPermission(fa)))
         }
       case pm@sil.PermMul(a, b) =>
-        Assert(epsComp(translatePerm(a)) === RealLit(0), error.dueTo(reasons.InvalidPermMultiplication(pm)))
-        Assert(epsComp(translatePerm(b)) === RealLit(0), error.dueTo(reasons.InvalidPermMultiplication(pm)))
+        Assert(epsComp(translatePerm(a)) === RealLit(0), error.dueTo(reasons.InvalidPermMultiplication(pm))) ++
+          Assert(epsComp(translatePerm(b)) === RealLit(0), error.dueTo(reasons.InvalidPermMultiplication(pm)))
       case _ => Nil
     }
   }
