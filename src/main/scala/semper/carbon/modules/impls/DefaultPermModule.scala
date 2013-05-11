@@ -361,6 +361,15 @@ class DefaultPermModule(val verifier: Verifier)
         }
       case assign@sil.FieldAssign(fa, rhs) =>
         Assert(permGe(currentPermission(fa), fullPerm), errors.AssignmentFailed(assign).dueTo(reasons.InsufficientPermission(fa)))
+      case c@sil.MethodCall(method, args, targets) =>
+        for ((formalArg, actualArg) <- method.formalArgs zip args) yield {
+          formalArg.typ match {
+            case sil.Perm =>
+              val e = epsComp(translateExp(actualArg)) === RealLit(0)
+              Assert(e, errors.PreconditionInCallFalse(c).dueTo(reasons.EpsilonAsParam(actualArg)))
+            case _ => Statements.EmptyStmt
+          }
+        }
       case _ => Nil
     }
   }
@@ -437,6 +446,13 @@ class DefaultPermModule(val verifier: Verifier)
         Assert(epsComp(translatePerm(a)) === RealLit(0), error.dueTo(reasons.InvalidPermMultiplication(pm)))
         Assert(epsComp(translatePerm(b)) === RealLit(0), error.dueTo(reasons.InvalidPermMultiplication(pm)))
       case _ => Nil
+    }
+  }
+
+  override def assumptionAboutParameter(typ: sil.Type, variable: LocalVar) = {
+    typ match {
+      case sil.Perm => Some(epsComp(variable) === RealLit(0))
+      case _ => None
     }
   }
 }
