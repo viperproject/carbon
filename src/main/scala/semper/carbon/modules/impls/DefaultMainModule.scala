@@ -23,7 +23,6 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
   import verifier._
   import typeModule._
   import stmtModule._
-  import stateModule._
   import exhaleModule._
   import heapModule._
   import inhaleModule._
