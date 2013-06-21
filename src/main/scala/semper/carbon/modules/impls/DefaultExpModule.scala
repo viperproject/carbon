@@ -152,6 +152,9 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         translateSeqExp(seqExp)
       case seqExp@sil.SeqLength(seq) =>
         translateSeqExp(seqExp)
+
+      case setExp: sil.SetExp => ???
+      case multisetExp: sil.MultisetExp => ???
     }
   }
 

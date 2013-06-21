@@ -31,6 +31,10 @@ class DefaultTypeModule(val verifier: Verifier) extends TypeModule {
         permType
       case t@sil.SeqType(elemType) =>
         translateSeqType(t)
+      case t@sil.SetType(elemType) =>
+        ??? // translateSeqType(t)
+      case t@sil.MultisetType(elemType) =>
+        ??? // translateSeqType(t)
       case sil.Pred =>
         sys.error("this is an internal type, not expected here")
       case sil.TypeVar(name) =>
