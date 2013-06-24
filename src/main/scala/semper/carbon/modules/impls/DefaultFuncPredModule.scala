@@ -130,7 +130,7 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule with 
       stateModule.initState ++ (f.formalArgs map allAssumptionsAboutParam) ++ assumeAllFunctionDefinitions)
     val initOld = MaybeCommentBlock("Initializing the old state", stateModule.initOldState)
     val checkPre = MaybeCommentBlock("Inhaling precondition (with checking)",
-      f.pres map (e => checkDefinednessOfSpec(e, errors.ContractNotWellformed(e))))
+      f.pres map (e => checkDefinednessOfSpec(e, errors.FunctionNotWellformed(f))))
     val checkExp = MaybeCommentBlock("Check definedness of function body",
       expModule.checkDefinedness(f.exp, errors.FunctionNotWellformed(f)))
     val exp = MaybeCommentBlock("Translate function body",
