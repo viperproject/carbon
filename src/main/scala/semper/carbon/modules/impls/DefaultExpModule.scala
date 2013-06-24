@@ -194,7 +194,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           val checks = components map (_.partialCheckDefinedness(e, error))
           val stmt = checks map (_._1())
           val stmt2 = for (sub <- e.subnodes if sub.isInstanceOf[sil.Exp]) yield {
-            checkDefinednessImpl(sub.asInstanceOf[sil.Exp], error, topLevel = false)
+            checkDefinednessImpl(sub.asInstanceOf[sil.Exp], error, topLevel = e.isInstanceOf[sil.Unfolding] && (e.asInstanceOf[sil.Unfolding].exp eq sub))
           }
           val stmt3 = checks map (_._2())
           stmt ++ stmt2 ++ stmt3
