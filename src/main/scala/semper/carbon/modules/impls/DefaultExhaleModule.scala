@@ -32,7 +32,7 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
       if (stmts.children.isEmpty) {
         Statements.EmptyStmt
       } else {
-        (Comment(s"Phase $phase: ${phaseDescription(phase - 1)}") ++ stmts): Stmt
+        Comment(s"Phase $phase: ${phaseDescription(phase - 1)}") ++ stmts: Stmt
       }
     }
     if (exps map (_._1.isPure) forall identity) {
