@@ -23,7 +23,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
   import funcPredModule._
 
   override def initialize() {
-    // this is the main transalation, so it should come at the beginning
+    // this is the main translation, so it should come at the beginning
     register(this, before = verifier.allModules)
   }
 
