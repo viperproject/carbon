@@ -100,15 +100,15 @@ object Nodes {
           case DeclComment(s) => Nil
           case LiteralDecl(s) => Nil
         }
-      case s: Stmt =>
-        s match {
+      case ss: Stmt =>
+        ss match {
           case Assign(lhs, rhs) => Seq(lhs, rhs)
           case Assert(e, error) => Seq(e)
           case Assume(e) => Seq(e)
           case HavocImpl(es) => es
           case Comment(s) => Nil
           case CommentBlock(s, stmt) => Seq(stmt)
-          case Seqn(ss) => ss
+          case Seqn(s) => s
           case If(cond, thn, els) => Seq(cond, thn, els)
           case NondetIf(thn, els) => Seq(thn, els)
           case Label(name) => Nil
