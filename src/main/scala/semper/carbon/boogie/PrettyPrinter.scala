@@ -156,7 +156,7 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
 
   def showStmts(stmts: Seq[Stmt]) = {
     def needsPrinting(x: Stmt): Boolean = {
-      !((x.isInstanceOf[Seqn] && (x.children.filter(needsPrinting)).size == 0) ||
+      !(x.isInstanceOf[Seqn] && x.children.count(needsPrinting) == 0 ||
         x.isInstanceOf[LocalVarWhereDecl])
     }
     // filter out statements that do not need to be printed such as
@@ -202,7 +202,7 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
       case TypeAlias(name, definition) =>
         "type" <+> show(name) <+> "=" <+> show(definition) <> semi
       case Func(name, args, typ) =>
-        val typVars = ((args map (_.typ)) ++ Seq(typ)) flatMap (_.freeTypeVars)
+        val typVars = (args map (_.typ)) ++ Seq(typ) flatMap (_.freeTypeVars)
         "function" <+>
           name <>
           showTypeVars(typVars, endWithSpace = false) <>
@@ -244,9 +244,9 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
         }
         if (size > 1) {
           val sep = if (size == 3) "=" else "-"
-          ("// " + (sep * 50)) <> line <>
+          "// " + sep * 50 <> line <>
             "//" <+> value(s) <> line <>
-            ("// " + (sep * 50)) <> line <>
+            "// " + sep * 50 <> line <>
             (if (size == 3) line else empty) <>
             showDecls(d, linesep)
         } else {
@@ -337,9 +337,9 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
    * Show free type variables (e.g. for a function, a map type or a quantification).
    */
   def showTypeVars(typVars: Seq[TypeVar], endWithSpace: Boolean = true): Doc = {
-    (if (typVars.size > 0)
+    if (typVars.size > 0)
       ("〈" or "<") <> commasep(typVars.distinct) <> ("〉" or ">") <>
         (if (endWithSpace) space else empty)
-    else empty)
+    else empty
   }
 }
