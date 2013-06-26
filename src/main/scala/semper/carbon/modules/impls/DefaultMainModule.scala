@@ -42,9 +42,11 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
   }
 
   override def translate(p: sil.Program): Program = {
-    p.transform({
+    val pWithTriggers = p.transform({
       case f: sil.Forall => f.autoTrigger
-    })() match {
+    })()
+
+    val output = pWithTriggers match {
       case sil.Program(domains, fields, functions, predicates, methods) =>
         // translate all members
         val translateFields =
@@ -76,6 +78,8 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
           Seq("")
         Program(header, preambles ++ members)
     }
+
+    output.optimize.asInstanceOf[Program]
   }
 
   def translateMethodDecl(m: sil.Method): Seq[Decl] = {
