@@ -90,18 +90,20 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
             (invs map (inv => checkDefinednessOfSpec(inv, errors.WhileFailed(inv)))) ++
               Assume(FalseLit())
           )) ++
-          MaybeCommentBlock("Check the loop body", NondetIf(
-            Comment("Inhale invariant") ++
-              inhale(w.invs) ++
+          MaybeCommentBlock("Check the loop body", NondetIf({
+            val (freshStateStmt, prevState) = stateModule.freshTempState("loop")
+            val stmts = MaybeComment("Reset state", freshStateStmt ++ stateModule.initState) ++
+              MaybeComment("Inhale invariant", inhale(w.invs)) ++
               Comment("Check and assume guard") ++
               checkDefinedness(cond, errors.WhileFailed(cond)) ++
               Assume(guard) ++
-              Comment("Havoc locals") ++
-              Havoc((locals map (x => translateExp(x.localVar))).asInstanceOf[Seq[Var]]) ++
-              translateStmt(body) ++
-              Comment("Exhale invariant") ++
-              exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e)))) ++
-              Assume(FalseLit())
+              MaybeComment("Havoc locals", Havoc((locals map (x => translateExp(x.localVar))).asInstanceOf[Seq[Var]])) ++
+              MaybeComment("Translate loop body", translateStmt(body)) ++
+              MaybeComment("Exhale invariant", exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e))))) ++
+              MaybeComment("Terminate execution", Assume(FalseLit()))
+            stateModule.restoreState(prevState)
+            stmts
+          }
           )) ++
           MaybeCommentBlock("Inhale loop invariant after loop, and assume guard",
             Assume(guard.not) ++
