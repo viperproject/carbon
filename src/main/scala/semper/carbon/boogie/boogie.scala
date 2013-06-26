@@ -10,12 +10,12 @@ sealed trait Node {
   /**
    * Returns a list of all direct sub-nodes of this node.
    */
-  def subnodes = Nodes.subnodes(this)
+  lazy val subnodes = Nodes.subnodes(this)
 
   /**
    * Optimize a program or expression
    */
-  def optimize = Optimizer.optimize(this)
+  lazy val optimize: this.type = Optimizer.optimize(this).asInstanceOf[this.type]
 
   /**
    * Applies the function `f` to the node and the results of the subnodes.
@@ -286,8 +286,8 @@ case class LocalVarWhereDecl(name: Identifier, where: Exp) extends Stmt
 case class Comment(s: String) extends Stmt
 object MaybeComment {
   def apply(s: String, stmt: Stmt) = {
-    if (stmt.children.isEmpty) Statements.EmptyStmt
-    else Seqn(Comment(s) :: stmt :: Nil)
+    if (stmt.optimize.children.isEmpty) Statements.EmptyStmt
+    else Seqn(Comment(s) :: stmt.optimize :: Nil)
   }
 }
 /**
@@ -297,8 +297,8 @@ object MaybeComment {
 case class CommentBlock(s: String, stmt: Stmt) extends Stmt
 object MaybeCommentBlock {
   def apply(s: String, stmt: Stmt) = {
-    if (stmt.children.isEmpty) Statements.EmptyStmt
-    else CommentBlock(s, stmt)
+    if (stmt.optimize.children.isEmpty) Statements.EmptyStmt
+    else CommentBlock(s, stmt.optimize)
   }
 }
 
