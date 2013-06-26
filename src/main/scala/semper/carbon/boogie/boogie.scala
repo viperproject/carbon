@@ -13,6 +13,11 @@ sealed trait Node {
   def subnodes = Nodes.subnodes(this)
 
   /**
+   * Optimize a program or expression
+   */
+  def optimize = Optimizer.optimize(this)
+
+  /**
    * Applies the function `f` to the node and the results of the subnodes.
    */
   def reduce[T](f: (Node, Seq[T]) => T) = Visitor.reduce[T](this)(f)
