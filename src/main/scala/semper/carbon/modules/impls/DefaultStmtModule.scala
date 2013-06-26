@@ -98,7 +98,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
               checkDefinedness(cond, errors.WhileFailed(cond)) ++
               Assume(guard) ++
               MaybeComment("Havoc locals", Havoc((locals map (x => translateExp(x.localVar))).asInstanceOf[Seq[Var]])) ++
-              MaybeComment("Translate loop body", translateStmt(body)) ++
+              MaybeCommentBlock("Translate loop body", translateStmt(body)) ++
               MaybeComment("Exhale invariant", exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e))))) ++
               MaybeComment("Terminate execution", Assume(FalseLit()))
             stateModule.restoreState(prevState)
