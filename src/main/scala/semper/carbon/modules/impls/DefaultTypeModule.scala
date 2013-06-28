@@ -17,6 +17,7 @@ class DefaultTypeModule(val verifier: Verifier) extends TypeModule {
   import domainModule._
   import permModule._
   import seqModule._
+  import setModule._
 
   def name = "Type module"
   override def translateType(t: sil.Type): Type = {
@@ -32,9 +33,9 @@ class DefaultTypeModule(val verifier: Verifier) extends TypeModule {
       case t@sil.SeqType(elemType) =>
         translateSeqType(t)
       case t@sil.SetType(elemType) =>
-        ??? // translateSeqType(t)
+        translateSetType(t)
       case t@sil.MultisetType(elemType) =>
-        ??? // translateSeqType(t)
+        translateMultisetType(t)
       case sil.Pred =>
         sys.error("this is an internal type, not expected here")
       case sil.TypeVar(name) =>

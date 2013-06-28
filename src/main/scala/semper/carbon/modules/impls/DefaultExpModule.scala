@@ -21,6 +21,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   import mainModule._
   import domainModule._
   import seqModule._
+  import setModule._
   import permModule._
   import inhaleModule._
   import funcPredModule._
@@ -88,12 +89,18 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           BinExp(translateExp(left), EqCmp, translateExp(right))
         }
       case sil.NeCmp(left, right) =>
-        if (left.typ.isInstanceOf[sil.SeqType]) {
-          translateSeqExp(e)
-        } else if (left.typ == sil.Perm) {
-          translatePermComparison(e)
-        } else {
-          BinExp(translateExp(left), NeCmp, translateExp(right))
+        left.typ match {
+          case _: sil.SeqType =>
+            translateSeqExp(e)
+          case _: sil.SetType =>
+            translateSetExp(e)
+          case _: sil.MultisetType =>
+            translateSetExp(e)
+          case _ => if (left.typ == sil.Perm) {
+            translatePermComparison(e)
+          } else {
+            BinExp(translateExp(left), NeCmp, translateExp(right))
+          }
         }
       case sil.DomainBinExp(_, sil.PermGeOp, _) |
            sil.DomainBinExp(_, sil.PermGtOp, _) |
@@ -132,6 +139,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         translateFuncApp(fa)
       case fa@sil.DomainFuncApp(func, args, _) =>
         translateDomainFuncApp(fa)
+
       case seqExp@sil.EmptySeq(elemTyp) =>
         translateSeqExp(seqExp)
       case seqExp@sil.ExplicitSeq(elems) =>
@@ -153,8 +161,16 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       case seqExp@sil.SeqLength(seq) =>
         translateSeqExp(seqExp)
 
-      case setExp: sil.SetExp => ???
-      case multisetExp: sil.MultisetExp => ???
+      case setExp@sil.EmptySet(elemTyp) => translateSetExp(setExp)
+      case setExp@sil.ExplicitSet(elems) => translateSetExp(setExp)
+      case setExp@sil.EmptyMultiset(elemTyp) => translateSetExp(setExp)
+      case setExp@sil.ExplicitMultiset(elems) => translateSetExp(setExp)
+      case setExp@sil.AnySetUnion(left, right) => translateSetExp(setExp)
+      case setExp@sil.AnySetIntersection(left, right) => translateSetExp(setExp)
+      case setExp@sil.AnySetSubset(left, right) => translateSetExp(setExp)
+      case setExp@sil.AnySetMinus(left, right) => translateSetExp(setExp)
+      case setExp@sil.AnySetContains(left, right) => translateSetExp(setExp)
+      case setExp@sil.AnySetCardinality(_) => translateSetExp(setExp)
     }
   }
 
