@@ -55,4 +55,9 @@ trait PermModule extends Module {
    * Is the permission for a given expression positive (using the static mask).
    */
   def staticPermissionPositive(rcv: Exp, loc: Exp): Exp
+
+  /**
+   * The predicate mask field of a given predicate (as its ghost location).
+   */
+  def predicateMaskField(pred: Exp): Exp
 }

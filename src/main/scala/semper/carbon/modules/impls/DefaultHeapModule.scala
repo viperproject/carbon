@@ -34,7 +34,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
   }
 
   private val fieldTypeName = "Field"
-  private def fieldTypeOf(t: Type) = NamedType(fieldTypeName, t)
+  override def fieldTypeOf(t: Type) = NamedType(fieldTypeName, t)
   override def fieldType = NamedType(fieldTypeName, TypeVar("T"))
   private val heapTyp = NamedType("HeapType")
   private val heapName = Identifier("Heap")
@@ -47,6 +47,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
   private val freshObjectVar = LocalVar(freshObjectName, refType)
   private val allocName = Identifier("$allocated")(fieldNamespace)
   private val identicalOnKnownLocsName = Identifier("IdenticalOnKnownLocations")
+  private val isPredicateFieldName = Identifier("IsPredicateField")
   override def refType = NamedType("Ref")
 
   override def preamble = {
@@ -69,6 +70,9 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
         validReference(obj_refField))) ++
       Func(identicalOnKnownLocsName,
         Seq(LocalVarDecl(heapName, heapTyp), LocalVarDecl(exhaleHeapName, heapTyp)) ++ staticMask,
+        Bool) ++
+      Func(isPredicateFieldName,
+        Seq(LocalVarDecl(Identifier("f"), fieldType)),
         Bool) ++ {
       val h = LocalVarDecl(heapName, heapTyp)
       val eh = LocalVarDecl(exhaleHeapName, heapTyp)
@@ -86,13 +90,23 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
     }
   }
 
+  override def isPredicateField(f: Exp): Exp = {
+    FuncApp(isPredicateFieldName, Seq(f), Bool)
+  }
+
   override def translateField(f: sil.Field) = {
-    ConstDecl(locationIdentifier(f), NamedType(fieldTypeName, translateType(f.typ)), unique = true)
+    val field = locationIdentifier(f)
+    ConstDecl(field, NamedType(fieldTypeName, translateType(f.typ)), unique = true) ++
+      Axiom(UnExp(Not, isPredicateField(Const(field))))
   }
 
   override def predicateGhostFieldDecl(f: sil.Predicate): Seq[Decl] = {
-    ConstDecl(locationIdentifier(f), NamedType(fieldTypeName, Int), unique = true) ++
-      ConstDecl(predicateMaskIdentifer(f), NamedType(fieldTypeName, Int), unique = true)
+    val ghostField = locationIdentifier(f)
+    val pmField = predicateMaskIdentifer(f)
+    ConstDecl(ghostField, NamedType(fieldTypeName, Int), unique = true) ++
+      ConstDecl(pmField, NamedType(fieldTypeName, Int), unique = true) ++
+      Axiom(predicateMaskField(Const(ghostField)) === Const(pmField)) ++
+      Axiom(isPredicateField(Const(ghostField)))
   }
 
   /** Return the identifier corresponding to a SIL location. */
@@ -129,7 +143,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
           // assume that we consider a newly allocated cell, which gives the prover
           // the information that this object is different from anything allocated
           // earlier.
-          Assume((freshObjectVar !== nullLit) && alloc(freshObjectVar).not) ::
+          Assume(freshObjectVar !== nullLit && alloc(freshObjectVar).not) ::
           (alloc(freshObjectVar) := TrueLit()) ::
           (translateExp(target) := freshObjectVar) ::
           Nil

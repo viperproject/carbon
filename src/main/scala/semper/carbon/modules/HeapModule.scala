@@ -23,6 +23,11 @@ trait HeapModule extends Module with StateComponent {
   def fieldType: Type
 
   /**
+   * The type used for fields of type t.
+   */
+  def fieldTypeOf(t: Type): Type
+
+  /**
    * Definitions for a field.
    */
   def translateField(f: sil.Field): Seq[Decl]
@@ -60,4 +65,9 @@ trait HeapModule extends Module with StateComponent {
    * End of exhale
    */
   def endExhale: Stmt
+
+  /**
+   * Is the given field a predicate field?
+   */
+  def isPredicateField(f: Exp): Exp
 }

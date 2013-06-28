@@ -71,10 +71,14 @@ class DefaultPermModule(val verifier: Verifier)
   private val permEpsComp = Const(permEpsCompName)
   private val maskTypeName = "MaskType"
   private val maskType = NamedType(maskTypeName)
+  private val pmaskTypeName = "PMaskType"
+  private val pmaskType = NamedType(pmaskTypeName)
   private val maskName = Identifier("Mask")
   private var mask: Exp = GlobalVar(maskName, maskType)
   private val zeroMaskName = Identifier("ZeroMask")
   private val zeroMask = Const(zeroMaskName)
+  private val zeroPMaskName = Identifier("ZeroPMask")
+  private val zeroPMask = Const(zeroPMaskName)
   private val noPermName = Identifier("NoPerm")
   private val noPerm = Const(noPermName)
   private val fullPermName = Identifier("FullPerm")
@@ -84,6 +88,7 @@ class DefaultPermModule(val verifier: Verifier)
   private val permConstructName = Identifier("Perm")
   private val goodMaskName = Identifier("GoodMask")
   private val hasDirectPermName = Identifier("HasDirectPerm")
+  private val predicateMaskFieldName = Identifier("PredicateMaskField")
 
   private def fracComp(perm: Exp) = MapSelect(perm, permFracComp)
   private def epsComp(perm: Exp) = MapSelect(perm, permEpsComp)
@@ -92,6 +97,7 @@ class DefaultPermModule(val verifier: Verifier)
     val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
     val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
     val permInZeroMask = MapSelect(zeroMask, Seq(obj.l, field.l))
+    val permInZeroPMask = MapSelect(zeroPMask, Seq(obj.l, field.l))
     // permission type (with permission components)
     TypeDecl(permCompType) ::
       TypeAlias(permType, MapType(permCompType, Real, Nil)) ::
@@ -106,6 +112,16 @@ class DefaultPermModule(val verifier: Verifier)
         Seq(obj, field),
         Trigger(permInZeroMask),
         (fracComp(permInZeroMask) === RealLit(0)) && (epsComp(permInZeroMask) === RealLit(0)))) ::
+      // zero pmask
+      ConstDecl(zeroMaskName, maskType) ::
+      Axiom(Forall(
+        Seq(obj, field),
+        Trigger(permInZeroPMask),
+        permInZeroPMask === FalseLit())) ::
+      // predicate mask function
+      Func(predicateMaskFieldName,
+        Seq(LocalVarDecl(Identifier("f"), fieldType)),
+        fieldTypeOf(pmaskType)) ::
       // permission amount constants
       ConstDecl(noPermName, permType) ::
       Axiom((fracComp(noPerm) === RealLit(0)) && (epsComp(noPerm) === RealLit(0))) ::
@@ -184,6 +200,10 @@ class DefaultPermModule(val verifier: Verifier)
   }
   def initOldState: Stmt = {
     Assume(Old(mask) === mask)
+  }
+
+  override def predicateMaskField(pred: Exp): Exp = {
+    FuncApp(predicateMaskFieldName, Seq(pred), pmaskType)
   }
 
   def staticGoodMask = FuncApp(goodMaskName, LocalVar(maskName, maskType), Bool)
