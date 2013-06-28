@@ -101,12 +101,13 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
   }
 
   override def predicateGhostFieldDecl(f: sil.Predicate): Seq[Decl] = {
-    val ghostField = locationIdentifier(f)
+    val predicate = locationIdentifier(f)
     val pmField = predicateMaskIdentifer(f)
-    ConstDecl(ghostField, NamedType(fieldTypeName, Int), unique = true) ++
+    ConstDecl(predicate, NamedType(fieldTypeName, Int), unique = true) ++
       ConstDecl(pmField, NamedType(fieldTypeName, pmaskType), unique = true) ++
-      Axiom(predicateMaskField(Const(ghostField)) === Const(pmField)) ++
-      Axiom(isPredicateField(Const(ghostField)))
+      Axiom(predicateMaskField(Const(predicate)) === Const(pmField)) ++
+      Axiom(isPredicateField(Const(predicate))) ++
+      Func(predicateTriggerIdentifer(f), Seq(LocalVarDecl(Identifier("this"), refType)), Bool)
   }
 
   /** Return the identifier corresponding to a SIL location. */
@@ -116,6 +117,10 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
 
   private def predicateMaskIdentifer(f: sil.Location): Identifier = {
     Identifier(f.name + "#sm")(fieldNamespace)
+  }
+
+  private def predicateTriggerIdentifer(f: sil.Location): Identifier = {
+    Identifier(f.name + "#trigger")(fieldNamespace)
   }
 
   /** Returns a heap-lookup of the allocated field of an object. */
