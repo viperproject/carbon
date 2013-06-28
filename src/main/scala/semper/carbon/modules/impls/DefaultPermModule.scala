@@ -92,7 +92,7 @@ class DefaultPermModule(val verifier: Verifier)
     val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
     val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
     val permInZeroMask = MapSelect(zeroMask, Seq(obj.l, field.l))
-    // permission type (wieth permission components)
+    // permission type (with permission components)
     TypeDecl(permCompType) ::
       TypeAlias(permType, MapType(permCompType, Real, Nil)) ::
       ConstDecl(permFracCompName, permCompType, unique = true) ::

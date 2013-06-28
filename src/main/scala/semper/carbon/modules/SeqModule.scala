@@ -4,7 +4,7 @@ import semper.sil.{ast => sil}
 import semper.carbon.boogie.{Type, Exp}
 
 /**
- * A module for translating SIL expressions.
+ * A module for translating sequences.
  *
  * @author Stefan Heule
  */
