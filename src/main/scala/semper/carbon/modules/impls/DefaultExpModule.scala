@@ -81,12 +81,17 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       case sil.AccessPredicate(loc, perm) =>
         sys.error("not handled by expression module")
       case sil.EqCmp(left, right) =>
-        if (left.typ.isInstanceOf[sil.SeqType]) {
-          translateSeqExp(e)
-        } else if (left.typ == sil.Perm) {
-          translatePermComparison(e)
-        } else {
-          BinExp(translateExp(left), EqCmp, translateExp(right))
+        left.typ match {
+          case _: sil.SeqType =>
+            translateSeqExp(e)
+          case _: sil.SetType =>
+            translateSetExp(e)
+          case _: sil.MultisetType =>
+            translateSetExp(e)
+          case x if x == sil.Perm =>
+            translatePermComparison(e)
+          case _ =>
+            BinExp(translateExp(left), EqCmp, translateExp(right))
         }
       case sil.NeCmp(left, right) =>
         left.typ match {
@@ -96,11 +101,10 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             translateSetExp(e)
           case _: sil.MultisetType =>
             translateSetExp(e)
-          case _ => if (left.typ == sil.Perm) {
+          case x if x == sil.Perm =>
             translatePermComparison(e)
-          } else {
+          case _ =>
             BinExp(translateExp(left), NeCmp, translateExp(right))
-          }
         }
       case sil.DomainBinExp(_, sil.PermGeOp, _) |
            sil.DomainBinExp(_, sil.PermGtOp, _) |

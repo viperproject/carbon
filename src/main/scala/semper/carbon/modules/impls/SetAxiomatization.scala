@@ -202,30 +202,5 @@ object SetAxiomatization {
       |axiom (forall<T> s: Set T :: { MultiSet#Card(MultiSet#FromSet(s)) }
       |  MultiSet#Card(MultiSet#FromSet(s)) == Set#Card(s));
       |
-      |// conversion to a multiset, from a sequence.
-      |function MultiSet#FromSeq<T>(Seq T): MultiSet T;
-      |// conversion produces a good map.
-      |axiom (forall<T> s: Seq T :: { MultiSet#FromSeq(s) } $IsGoodMultiSet(MultiSet#FromSeq(s)) );
-      |// building axiom
-      |axiom (forall<T> s: Seq T, v: T ::
-      |  { MultiSet#FromSeq(Seq#Build(s, v)) }
-      |    MultiSet#FromSeq(Seq#Build(s, v)) == MultiSet#UnionOne(MultiSet#FromSeq(s), v)
-      |  );
-      |axiom (forall<T> :: MultiSet#FromSeq(Seq#Empty(): Seq T) == MultiSet#Empty(): MultiSet T);
-      |
-      |// concatenation axiom
-      |axiom (forall<T> a: Seq T, b: Seq T ::
-      |  { MultiSet#FromSeq(Seq#Append(a, b)) }
-      |    MultiSet#FromSeq(Seq#Append(a, b)) == MultiSet#Union(MultiSet#FromSeq(a), MultiSet#FromSeq(b)) );
-      |
-      |// update axiom
-      |axiom (forall<T> s: Seq T, i: int, v: T, x: T ::
-      |  { MultiSet#FromSeq(Seq#Update(s, i, v))[x] }
-      |    0 <= i && i < Seq#Length(s) ==>
-      |    MultiSet#FromSeq(Seq#Update(s, i, v))[x] ==
-      |      MultiSet#Union(MultiSet#Difference(MultiSet#FromSeq(s), MultiSet#Singleton(Seq#Index(s,i))), MultiSet#Singleton(v))[x] );
-      |  // i.e. MS(Update(s, i, v)) == MS(s) - {{s[i]}} + {{v}}
-      |axiom (forall<T> s: Seq T, x: T :: { MultiSet#FromSeq(s)[x] }
-      |  (exists i : int :: { Seq#Index(s,i) } 0 <= i && i < Seq#Length(s) && x == Seq#Index(s,i)) <==> 0 < MultiSet#FromSeq(s)[x] );
     """.stripMargin
 }
