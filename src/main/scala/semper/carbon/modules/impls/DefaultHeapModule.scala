@@ -104,7 +104,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
     val ghostField = locationIdentifier(f)
     val pmField = predicateMaskIdentifer(f)
     ConstDecl(ghostField, NamedType(fieldTypeName, Int), unique = true) ++
-      ConstDecl(pmField, NamedType(fieldTypeName, Int), unique = true) ++
+      ConstDecl(pmField, NamedType(fieldTypeName, pmaskType), unique = true) ++
       Axiom(predicateMaskField(Const(ghostField)) === Const(pmField)) ++
       Axiom(isPredicateField(Const(ghostField)))
   }

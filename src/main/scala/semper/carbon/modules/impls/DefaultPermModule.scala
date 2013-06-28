@@ -72,7 +72,7 @@ class DefaultPermModule(val verifier: Verifier)
   private val maskTypeName = "MaskType"
   private val maskType = NamedType(maskTypeName)
   private val pmaskTypeName = "PMaskType"
-  private val pmaskType = NamedType(pmaskTypeName)
+  override val pmaskType = NamedType(pmaskTypeName)
   private val maskName = Identifier("Mask")
   private var mask: Exp = GlobalVar(maskName, maskType)
   private val zeroMaskName = Identifier("ZeroMask")
@@ -112,8 +112,10 @@ class DefaultPermModule(val verifier: Verifier)
         Seq(obj, field),
         Trigger(permInZeroMask),
         (fracComp(permInZeroMask) === RealLit(0)) && (epsComp(permInZeroMask) === RealLit(0)))) ::
+      // pmask type
+      TypeAlias(pmaskType, MapType(Seq(refType, fieldType), Bool, fieldType.freeTypeVars)) ::
       // zero pmask
-      ConstDecl(zeroMaskName, maskType) ::
+      ConstDecl(zeroPMaskName, pmaskType) ::
       Axiom(Forall(
         Seq(obj, field),
         Trigger(permInZeroPMask),

@@ -60,4 +60,9 @@ trait PermModule extends Module {
    * The predicate mask field of a given predicate (as its ghost location).
    */
   def predicateMaskField(pred: Exp): Exp
+
+  /**
+   * The type used to for predicate masks.
+   */
+  def pmaskType: Type
 }
