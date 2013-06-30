@@ -179,13 +179,16 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
    */
   def collectFreeTypeVars(exp: Exp): Seq[TypeVar] = {
     val res = collection.mutable.ListBuffer[TypeVar]()
+    val not = collection.mutable.ListBuffer[TypeVar]()
     exp visit {
       case LocalVarDecl(_, t, _) =>
         res ++= t.freeTypeVars
       case FuncApp(_, _, t) =>
         res ++= t.freeTypeVars
+      case Forall(_, _, _, tv) =>
+        not ++= tv
     }
-    res.toSeq
+    (res.toSet -- not.toSet).toSeq
   }
 
   def showDecl(decl: Decl) = {
@@ -294,8 +297,19 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
       case IntLit(i) => value(i)
       case BoolLit(b) => value(b)
       case RealLit(d) => value("%.9f" format d)
-      case Forall(vars, triggers, exp) =>
+      case Forall(vars, triggers, exp, Nil) =>
         parens("forall" <+> //("∀" or "forall") <+>
+          commasep(vars) <+>
+          //("•" or "::") <+>
+          "::" <>
+          nest(
+            line <>
+              ssep(triggers map show, space) <> line <>
+              show(exp)
+          ) <> line)
+      case Forall(vars, triggers, exp, tv) =>
+        parens("forall" <+> //("∀" or "forall") <+>
+          "<" <> (ssep(tv map show, comma <> space)) <> ">" <+>
           commasep(vars) <+>
           //("•" or "::") <+>
           "::" <>

@@ -15,7 +15,7 @@ import semper.sil.verifier.{errors, PartialVerificationError}
  * @author Stefan Heule
  */
 class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule
-  with DefinednessComponent with ExhaleComponent with InhaleComponent {
+with DefinednessComponent with ExhaleComponent with InhaleComponent {
   def name = "Function and predicate module"
 
   import verifier._
@@ -34,6 +34,7 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule
   private val assumeFunctionsAboveName = Identifier("AssumeFunctionsAbove")
   private val assumeFunctionsAbove: Const = Const(assumeFunctionsAboveName)
   private val limitedPostfix = "'"
+  private val triggerFuncPostfix = "#trigger"
   private val resultName = Identifier("Result")
 
   override def preamble = {
@@ -55,23 +56,29 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule
 
   override def translateFunction(f: sil.Function): Seq[Decl] = {
     env = Environment(verifier, f)
-    val funcionDefs: Seq[Func] = functionDefinitions(f)
     val res = MaybeCommentedDecl(s"Translation of function ${f.name}",
-      MaybeCommentedDecl("Uninterpreted function definitions", funcionDefs, size = 1) ++
+      MaybeCommentedDecl("Uninterpreted function definitions", functionDefinitions(f), size = 1) ++
         MaybeCommentedDecl("Definitional axiom", definitionalAxiom(f), size = 1) ++
+        MaybeCommentedDecl("Framing axioms", framingAxiom(f), size = 1) ++
         MaybeCommentedDecl("Postcondition axioms", postconditionAxiom(f), size = 1) ++
+        MaybeCommentedDecl("State-independent trigger function", triggerFunction(f), size = 1) ++
         MaybeCommentedDecl("Check contract well-formedness and postcondition", checkFunctionDefinedness(f), size = 1)
       , nLines = 2)
     env = null
     res
   }
 
-  private def functionDefinitions(f: sil.Function): Seq[Func] = {
+  private def functionDefinitions(f: sil.Function): Seq[Decl] = {
     val typ = translateType(f.typ)
     val args = heapModule.stateContributions ++ (f.formalArgs map translateLocalVarDecl)
-    val func = Func(Identifier(f.name), args, typ)
-    val limitedFunc = Func(Identifier(f.name + limitedPostfix), args, typ)
-    func ++ limitedFunc
+    val name = Identifier(f.name)
+    val func = Func(name, args, typ)
+    val name2 = Identifier(f.name + limitedPostfix)
+    val func2 = Func(name2, args, typ)
+    val funcApp = FuncApp(name, args map (_.l), Bool)
+    val funcApp2 = FuncApp(name2, args map (_.l), Bool)
+    func ++ func2 ++
+      Axiom(Forall(args, Trigger(funcApp), funcApp === funcApp2))
   }
 
   override def translateFuncApp(fa: sil.FuncApp) = {
@@ -123,6 +130,18 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule
         Trigger(Seq(staticGoodState, fapp)),
         (staticGoodState && assumeFunctionsAbove(height)) ==> bPost))
     }
+  }
+
+  private def triggerFunction(f: sil.Function): Seq[Decl] = {
+    Func(Identifier(f.name + triggerFuncPostfix), f.formalArgs map (v => translateLocalVarDecl(v)), Bool)
+  }
+
+  private def triggerFuncApp(f: sil.Function, args: Seq[Exp]): Exp = {
+    FuncApp(Identifier(f.name + triggerFuncPostfix), args, Bool)
+  }
+
+  private def framingAxiom(f: sil.Function): Seq[Decl] = {
+    Nil
   }
 
   private def checkFunctionDefinedness(f: sil.Function) = {
@@ -180,7 +199,8 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule
   // --------------------------------------------
 
   override def translatePredicate(p: sil.Predicate): Seq[Decl] = {
-    predicateGhostFieldDecl(p)
+    MaybeCommentedDecl(s"Translation of predicate ${p.name}",
+      predicateGhostFieldDecl(p))
   }
 
   override def translateFold(fold: sil.Fold): Stmt = {

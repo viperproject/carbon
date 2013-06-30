@@ -68,7 +68,7 @@ object Transformer {
             case Old(exp) => Old(go(exp))
             case CondExp(cond, thn, els) => CondExp(go(cond), go(thn), go(els))
             case Exists(v, exp) => Exists(v map go, go(exp))
-            case Forall(v, triggers, exp) => Forall(v map go, triggers map go, go(exp))
+            case Forall(v, triggers, exp, tv) => Forall(v map go, triggers map go, go(exp), tv)
             case BinExp(left, binop, right) => BinExp(go(left), binop, go(right))
             case UnExp(unop, exp) => UnExp(unop, go(exp))
             case FuncApp(func, args, typ) => FuncApp(func, args map go, go(typ))

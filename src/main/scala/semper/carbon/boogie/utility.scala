@@ -56,7 +56,7 @@ object Statements {
     }
     def addDecls(n: Node, decls: Seq[LocalVarDecl]) = n match {
       case Exists(v, _) => decls ++ v
-      case Forall(v, _, _) => decls ++ v
+      case Forall(v, _, _, _) => decls ++ v
       case _ => decls
     }
     def combineResults(n: Node, decls: Seq[LocalVarDecl], localss: Seq[Seq[LocalVar]]) = {
@@ -129,7 +129,7 @@ object Nodes {
           case Old(exp) => Seq(exp)
           case CondExp(cond, thn, els) => Seq(cond, thn, els)
           case Exists(v, exp) => v ++ Seq(exp)
-          case Forall(v, triggers, exp) => v ++ triggers ++ Seq(exp)
+          case Forall(v, triggers, exp, tv) => v ++ triggers ++ Seq(exp)
           case BinExp(left, binop, right) => Seq(left, right)
           case UnExp(unop, exp) => Seq(exp)
           case FuncApp(func, args, typ) => args
@@ -160,7 +160,7 @@ object Nodes {
           case Old(e) => Old(func(e))
           case CondExp(cond, thn, els) => CondExp(func(cond), func(thn), func(els))
           case Exists(v, e) => Exists(v, func(e))
-          case Forall(v, triggers, e) => Forall(v, triggers, func(e))
+          case Forall(v, triggers, e, tv) => Forall(v, triggers, func(e), tv)
           case BinExp(left, binop, right) => BinExp(func(left), binop, func(right))
           case UnExp(unop, e) => UnExp(unop, func(e))
           case FuncApp(ff, args, typ) => FuncApp(ff, args map func, typ)

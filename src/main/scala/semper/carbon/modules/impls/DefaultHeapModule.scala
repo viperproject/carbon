@@ -52,9 +52,11 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
 
   override def preamble = {
     val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
+    val obj2 = LocalVarDecl(Identifier("o2")(axiomNamespace), refType)
     val refField = LocalVarDecl(Identifier("f")(axiomNamespace), fieldTypeOf(refType))
     val obj_refField = lookup(LocalVar(heapName, heapTyp), obj.l, refField.l)
     val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
+    val intfield = LocalVarDecl(Identifier("pm_f")(axiomNamespace), fieldTypeOf(Int))
     TypeDecl(refType) ++
       GlobalVarDecl(heapName, heapTyp) ++
       ConstDecl(nullName, refType) ++
@@ -78,15 +80,43 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
       val eh = LocalVarDecl(exhaleHeapName, heapTyp)
       val vars = Seq(h, eh) ++ staticMask
       val identicalFuncApp = FuncApp(identicalOnKnownLocsName, vars map (_.l), Bool)
-      Axiom(Forall(
+      // frame all locations with direct permission
+      MaybeCommentedDecl("Frame all locations with direct permissions", Axiom(Forall(
         vars ++ Seq(obj, field),
         Trigger(Seq(identicalFuncApp, lookup(h.l, obj.l, field.l))) ++
           Trigger(Seq(identicalFuncApp, lookup(eh.l, obj.l, field.l))),
         identicalFuncApp ==>
-          staticPermissionPositive(obj.l, field.l) ==>
-          (lookup(h.l, obj.l, field.l) === lookup(eh.l, obj.l, field.l))
-      )
-      )
+          (staticPermissionPositive(obj.l, field.l) ==>
+            (lookup(h.l, obj.l, field.l) === lookup(eh.l, obj.l, field.l)))
+      )), size = 1) ++
+        // frame all predicate masks
+        MaybeCommentedDecl("Frame all predicate mask locations of predicates with direct permission", Axiom(Forall(
+          vars ++ Seq(obj, intfield),
+          Trigger(Seq(identicalFuncApp, isPredicateField(intfield.l), lookup(eh.l, obj.l, predicateMaskField(intfield.l)))),
+          identicalFuncApp ==>
+            ((staticPermissionPositive(obj.l, intfield.l) && isPredicateField(intfield.l)) ==>
+              (lookup(h.l, obj.l, predicateMaskField(intfield.l)) === lookup(eh.l, obj.l, predicateMaskField(intfield.l))))
+        )), size = 1) ++
+        // frame all locations with direct permission
+        MaybeCommentedDecl("Frame all locations with known folded permissions", Axiom(Forall(
+          vars ++ Seq(obj, intfield),
+          Trigger(Seq(identicalFuncApp, lookup(h.l, obj.l, predicateMaskField(intfield.l)), isPredicateField(intfield.l))) ++
+            Trigger(Seq(identicalFuncApp, lookup(eh.l, obj.l, predicateMaskField(intfield.l)), isPredicateField(intfield.l))) ++
+            (verifier.program.predicates map (pred =>
+              Trigger(Seq(identicalFuncApp, predicateTrigger(pred, obj.l), isPredicateField(intfield.l))))
+              ),
+          identicalFuncApp ==>
+            (
+              (staticPermissionPositive(obj.l, intfield.l) && isPredicateField(intfield.l)) ==>
+                Forall(Seq(obj2, field),
+                  Trigger(Seq(lookup(h.l, obj2.l, field.l))) ++
+                    Trigger(Seq(lookup(eh.l, obj2.l, field.l))),
+                  (lookup(lookup(h.l, obj.l, predicateMaskField(intfield.l)), obj2.l, field.l) ==>
+                    (lookup(h.l, obj2.l, field.l) === lookup(eh.l, obj2.l, field.l))),
+                  field.typ.freeTypeVars
+                )
+              )
+        )), size = 1)
     }
   }
 
@@ -125,6 +155,9 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
 
   private def predicateTriggerIdentifer(f: sil.Location): Identifier = {
     Identifier(f.name + "#trigger")(fieldNamespace)
+  }
+  private def predicateTrigger(f: sil.Location, rcv: Exp): Exp = {
+    FuncApp(predicateTriggerIdentifer(f), Seq(rcv), Bool)
   }
 
   /** Returns a heap-lookup of the allocated field of an object. */
