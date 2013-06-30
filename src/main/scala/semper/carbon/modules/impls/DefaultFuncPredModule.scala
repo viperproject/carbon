@@ -6,7 +6,7 @@ import semper.carbon.boogie._
 import semper.carbon.verifier.{Environment, Verifier}
 import semper.carbon.boogie.Implicits._
 import semper.sil.ast.utility._
-import semper.carbon.modules.components.DefinednessComponent
+import semper.carbon.modules.components.{InhaleComponent, ExhaleComponent, DefinednessComponent}
 import semper.sil.verifier.{errors, PartialVerificationError}
 
 /**
@@ -14,7 +14,8 @@ import semper.sil.verifier.{errors, PartialVerificationError}
  *
  * @author Stefan Heule
  */
-class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule with DefinednessComponent {
+class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule
+  with DefinednessComponent with ExhaleComponent with InhaleComponent {
   def name = "Function and predicate module"
 
   import verifier._
@@ -25,6 +26,7 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule with 
   import exhaleModule._
   import inhaleModule._
   import heapModule._
+  import permModule._
 
   implicit val fpNamespace = verifier.freshNamespace("funcpred")
 
@@ -190,22 +192,53 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule with 
     }
   }
 
+  private var duringFold = false
   private def foldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError): Stmt = {
-    exhale(Seq((acc.loc.predicateBody, error))) ++
+    duringFold = true
+    val stmt = exhale(Seq((acc.loc.predicateBody, error))) ++
       inhale(acc)
+    duringFold = false
+    stmt
   }
 
+  private var duringUnfold = false
   override def translateUnfold(unfold: sil.Unfold): Stmt = {
-    unfold match {
+    duringUnfold = true
+    val stmt = unfold match {
       case sil.Unfold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(rcv, pred), perm)) =>
         checkDefinedness(acc, errors.UnfoldFailed(unfold)) ++
           checkDefinedness(perm, errors.UnfoldFailed(unfold)) ++
           unfoldPredicate(acc, errors.UnfoldFailed(unfold))
     }
+    duringUnfold = false
+    stmt
   }
 
   private def unfoldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError): Stmt = {
     exhale(Seq((acc, error))) ++
       inhale(acc.loc.predicateBody)
+  }
+
+  override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
+    e match {
+      case sil.Unfolding(perm, exp) => ???
+      case sil.PredicateAccessPredicate(loc@sil.PredicateAccess(rcv, pred), perm) if duringUnfold =>
+        val oldVersion = LocalVar(Identifier("oldVersion"), Int)
+        val newVersion = LocalVar(Identifier("newVersion"), Int)
+        val curVersion = translateExp(loc)
+        val stmt = (oldVersion := curVersion) ++
+          Havoc(Seq(newVersion)) ++
+          Assume(oldVersion < newVersion) ++
+          (curVersion := newVersion)
+        If(hasDirectPerm(loc), stmt, Nil)
+      case _ => Nil
+    }
+  }
+
+  override def inhaleExp(e: sil.Exp): Stmt = {
+    e match {
+      case sil.Unfolding(perm, exp) => ???
+      case _ => Nil
+    }
   }
 }

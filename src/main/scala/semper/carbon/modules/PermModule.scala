@@ -65,4 +65,8 @@ trait PermModule extends Module {
    * The type used to for predicate masks.
    */
   def pmaskType: Type
+
+  def zeroPMask: Exp
+
+  def hasDirectPerm(la: sil.LocationAccess): Exp
 }

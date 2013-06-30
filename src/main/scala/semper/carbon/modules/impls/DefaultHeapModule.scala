@@ -1,7 +1,7 @@
 package semper.carbon.modules.impls
 
 import semper.carbon.modules._
-import semper.carbon.modules.components.{SimpleStmtComponent, DefinednessComponent}
+import semper.carbon.modules.components.{ExhaleComponent, SimpleStmtComponent, DefinednessComponent}
 import semper.sil.{ast => sil}
 import semper.carbon.boogie._
 import semper.carbon.boogie.Implicits._
@@ -13,7 +13,7 @@ import semper.sil.verifier.{reasons, PartialVerificationError}
  *
  * @author Stefan Heule
  */
-class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleStmtComponent with DefinednessComponent {
+class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleStmtComponent with DefinednessComponent with ExhaleComponent {
 
   import verifier._
   import typeModule._
@@ -119,6 +119,10 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
     Identifier(f.name + "#sm")(fieldNamespace)
   }
 
+  private def predicateMask(loc: sil.PredicateAccess) = {
+    MapSelect(heap, Seq(translateExp(loc.rcv), Const(predicateMaskIdentifer(loc.predicate))))
+  }
+
   private def predicateTriggerIdentifer(f: sil.Location): Identifier = {
     Identifier(f.name + "#trigger")(fieldNamespace)
   }
@@ -129,7 +133,10 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
   /** Returns a heap-lookup for o.f in a given heap h. */
   private def lookup(h: Exp, o: Exp, f: Exp) = MapSelect(h, Seq(o, f))
 
-  override def translateFieldAccess(f: sil.FieldAccess): Exp = {
+  override def translateLocationAccess(f: sil.LocationAccess): Exp = {
+    translateLocationAccess(f, heap)
+  }
+  private def translateLocationAccess(f: sil.LocationAccess, heap: Exp): Exp = {
     MapSelect(heap, Seq(translateExp(f.rcv), locationMaskIndex(f)))
   }
 
@@ -140,7 +147,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
   override def simpleHandleStmt(stmt: sil.Stmt): Stmt = {
     stmt match {
       case sil.FieldAssign(lhs, rhs) =>
-        translateFieldAccess(lhs) := translateExp(rhs)
+        translateLocationAccess(lhs) := translateExp(rhs)
       case sil.NewStmt(target) =>
         Havoc(freshObjectVar) ::
           // assume the fresh object is non-null and not allocated yet.
@@ -157,7 +164,45 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
           t =>
             Assume(validReference(t))
         }
+      case sil.Fold(sil.PredicateAccessPredicate(loc, perm)) =>
+        val newVersion = LocalVar(Identifier("freshVersion"), Int)
+        (predicateMask(loc) := zeroPMask) ++
+          Havoc(newVersion) ++
+          (translateLocationAccess(loc) := newVersion) ++
+          addPermissionToPMask(loc.predicateBody, predicateMask(loc))
       case _ => Statements.EmptyStmt
+    }
+  }
+
+  /**
+   * Adds the permissions from an expression to a permission mask.
+   */
+  private def addPermissionToPMask(e: sil.Exp, pmask: Exp): Stmt = {
+    addPermissionToPMaskHelper(e, pmask)
+  }
+  private def addPermissionToPMaskHelper(e: sil.Exp, pmask: Exp): Stmt = {
+    e match {
+      case sil.FieldAccessPredicate(loc, perm) =>
+        translateLocationAccess(loc, pmask) := TrueLit()
+      case sil.PredicateAccessPredicate(loc, perm) =>
+        val newPMask = LocalVar(Identifier("newPMask"), pmaskType)
+        val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
+        val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
+        val pm1 = MapSelect(pmask, Seq(obj.l, field.l))
+        val pm2 = MapSelect(predicateMask(loc), Seq(obj.l, field.l))
+        val pm3 = MapSelect(newPMask, Seq(obj.l, field.l))
+        Havoc(newPMask) ++
+          Assume(Forall(Seq(obj, field), Seq(Trigger(pm3)), (pm1 || pm2) ==> pm3)) ++
+          (pmask := newPMask)
+      case sil.And(e1, e2) =>
+        addPermissionToPMaskHelper(e1, pmask) ::
+          addPermissionToPMaskHelper(e2, pmask) ::
+          Nil
+      case sil.Implies(e1, e2) =>
+        If(translateExp(e1), addPermissionToPMaskHelper(e2, pmask), Statements.EmptyStmt)
+      case sil.CondExp(c, e1, e2) =>
+        If(translateExp(c), addPermissionToPMaskHelper(e1, pmask), addPermissionToPMaskHelper(e2, pmask))
+      case _ => Nil
     }
   }
 
@@ -216,5 +261,14 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
   override def endExhale: Stmt = {
     Assume(FuncApp(identicalOnKnownLocsName, Seq(heap, exhaleHeap) ++ currentMask, Bool)) ++
       (heap := exhaleHeap)
+  }
+
+  /**
+   * Exhale a single expression.
+   */
+  def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
+    e match {
+      case _ => Nil
+    }
   }
 }

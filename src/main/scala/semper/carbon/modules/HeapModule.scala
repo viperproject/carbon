@@ -40,7 +40,7 @@ trait HeapModule extends Module with StateComponent {
   /**
    * Translation of a field read.
    */
-  def translateFieldAccess(f: sil.FieldAccess): Exp
+  def translateLocationAccess(f: sil.LocationAccess): Exp
 
   def locationMaskIndex(f: sil.LocationAccess): Exp
 

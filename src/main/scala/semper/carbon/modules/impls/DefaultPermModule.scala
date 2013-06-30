@@ -78,7 +78,7 @@ class DefaultPermModule(val verifier: Verifier)
   private val zeroMaskName = Identifier("ZeroMask")
   private val zeroMask = Const(zeroMaskName)
   private val zeroPMaskName = Identifier("ZeroPMask")
-  private val zeroPMask = Const(zeroPMaskName)
+  override val zeroPMask = Const(zeroPMaskName)
   private val noPermName = Identifier("NoPerm")
   private val noPerm = Const(noPermName)
   private val fullPermName = Identifier("FullPerm")
@@ -231,7 +231,7 @@ class DefaultPermModule(val verifier: Verifier)
   private def hasDirectPerm(mask: Exp, obj: Exp, loc: Exp): Exp =
     FuncApp(hasDirectPermName, Seq(mask, obj, loc), Bool)
   private def hasDirectPerm(obj: Exp, loc: Exp): Exp = hasDirectPerm(mask, obj, loc)
-  private def hasDirectPerm(la: sil.LocationAccess): Exp =
+  override def hasDirectPerm(la: sil.LocationAccess): Exp =
     hasDirectPerm(translateExp(la.rcv), locationMaskIndex(la))
 
   private def permissionPositive(permission: Exp) = {

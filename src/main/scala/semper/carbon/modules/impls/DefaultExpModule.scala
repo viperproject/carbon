@@ -45,7 +45,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       case r@sil.Result() =>
         translateResult(r)
       case f@sil.FieldAccess(rcv, field) =>
-        translateFieldAccess(f)
+        translateLocationAccess(f)
       case sil.InhaleExhaleExp(a, b) =>
         sys.error("should not occur here (either, we inhale or exhale this expression, in which case whenInahling/whenExhaling should be used, or the expression is not allowed to occur.")
       case sil.PredicateAccess(rcv, predicate) =>
