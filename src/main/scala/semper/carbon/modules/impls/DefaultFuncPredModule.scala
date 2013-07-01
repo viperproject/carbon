@@ -35,10 +35,17 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private val assumeFunctionsAbove: Const = Const(assumeFunctionsAboveName)
   private val limitedPostfix = "'"
   private val triggerFuncPostfix = "#trigger"
+  private val framePostfix = "#frame"
+  private val frameTypeName = "FrameType"
+  private val frameType = NamedType(frameTypeName)
+  private val emptyFrameName = Identifier("EmptyFrame")
+  private val emptyFrame = Const(emptyFrameName)
+  private val combineFramesName = Identifier("CombineFrames")
+  private val frameFragmentName = Identifier("FrameFragment")
   private val resultName = Identifier("Result")
 
   override def preamble = {
-    if (verifier.program.functions.isEmpty) Nil
+    val fp = if (verifier.program.functions.isEmpty) Nil
     else {
       val m = heights.values.max
       DeclComment("Function heights (higher height means its body is available earlier):") ++
@@ -48,6 +55,13 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         }) ++
         ConstDecl(assumeFunctionsAboveName, Int)
     }
+    fp ++
+      TypeDecl(frameType) ++
+      ConstDecl(emptyFrameName, frameType) ++
+      Func(frameFragmentName, Seq(LocalVarDecl(Identifier("t"), TypeVar("T"))), frameType) ++
+      Func(combineFramesName,
+        Seq(LocalVarDecl(Identifier("a"), frameType), LocalVarDecl(Identifier("b"), frameType)),
+        frameType)
   }
 
   override def initialize() {
@@ -133,7 +147,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   }
 
   private def triggerFunction(f: sil.Function): Seq[Decl] = {
-    Func(Identifier(f.name + triggerFuncPostfix), f.formalArgs map (v => translateLocalVarDecl(v)), Bool)
+    Func(Identifier(f.name + triggerFuncPostfix), f.formalArgs map translateLocalVarDecl, Bool)
   }
 
   private def triggerFuncApp(f: sil.Function, args: Seq[Exp]): Exp = {
@@ -141,7 +155,53 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   }
 
   private def framingAxiom(f: sil.Function): Seq[Decl] = {
-    Nil
+    val typ = translateType(f.typ)
+    val args = f.formalArgs map translateLocalVarDecl
+    val name = Identifier(f.name + framePostfix)
+    val func = Func(name, LocalVarDecl(Identifier("frame"), frameType) ++ args, typ)
+    val funcApp = FuncApp(name, functionFrame(f.pres) ++ (args map (_.l)), Bool)
+    val heap = heapModule.stateContributions
+    val funcApp2 = translateFuncApp(f, (heap ++ args) map (_.l), f.typ)
+    func ++
+      Axiom(Forall(
+        stateModule.stateContributions ++ args,
+        Trigger(Seq(staticGoodState, funcApp)),
+        staticGoodState ==> (funcApp2 === funcApp)))
+  }
+
+  /** Generate an expression that represents the state a function can depend on
+    * (as determined by examining the functions preconditions).
+    */
+  private def functionFrame(pres: Seq[sil.Exp]): Exp = {
+    pres match {
+      case Nil => emptyFrame
+      case pre :: Nil => functionFrameHelper(pre)
+      case p :: ps => combineFrames(functionFrameHelper(p), functionFrame(ps))
+    }
+  }
+  private def combineFrames(a: Exp, b: Exp) = {
+    FuncApp(combineFramesName, Seq(a, b), frameType)
+  }
+  private def functionFrameHelper(pre: sil.Exp): Exp = {
+    def frameFragment(e: Exp) = {
+      FuncApp(frameFragmentName, Seq(e), frameType)
+    }
+    pre match {
+      case la@sil.LocationAccess(rcv, loc) =>
+        frameFragment(translateLocationAccess(la))
+      case sil.Implies(e0, e1) =>
+        frameFragment(CondExp(translateExp(e0), functionFrameHelper(e1), emptyFrame))
+      case sil.And(e0, e1) =>
+        combineFrames(functionFrameHelper(e0), functionFrameHelper(e1))
+      case sil.CondExp(con, thn, els) =>
+        frameFragment(CondExp(translateExp(con), functionFrameHelper(thn), functionFrameHelper(els)))
+      case sil.Unfolding(_, _) =>
+        // the predicate of the unfolding expression needs to have been mentioned
+        // already (framing check), so we can safely ignore it now
+        emptyFrame
+      case e =>
+        emptyFrame
+    }
   }
 
   private def checkFunctionDefinedness(f: sil.Function) = {
