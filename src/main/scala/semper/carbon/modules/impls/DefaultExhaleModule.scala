@@ -26,7 +26,7 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
     register(this)
   }
 
-  override def exhale(exps: Seq[(sil.Exp, PartialVerificationError)]): Stmt = {
+  override def exhale(exps: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true): Stmt = {
     val phases = for (phase <- 1 to numberOfPhases) yield {
       val stmts = exps map (e => exhaleConnective(e._1.whenExhaling, e._2, phase - 1))
       if (stmts.children.isEmpty) {
@@ -35,7 +35,7 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
         Comment(s"Phase $phase: ${phaseDescription(phase - 1)}") ++ stmts: Stmt
       }
     }
-    if (exps map (_._1.isPure) forall identity) {
+    if ((exps map (_._1.isPure) forall identity) || !havocHeap) {
       // if all expressions are pure, then there is no need for heap copies
       phases
     } else {
