@@ -13,7 +13,7 @@ import java.nio.file.Path
   */
 class AllTests extends DefaultSilSuite {
 
-  override def testDirectories: Seq[String] = Vector("all", "local")
+  override def testDirectories: Seq[String] = Vector("all", "local", "generated")
 
   override def frontend(verifier: Verifier, files: Seq[Path]): Frontend = {
     require(files.length == 1, "tests should consist of exactly one file")
