@@ -48,8 +48,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         translateLocationAccess(f)
       case sil.InhaleExhaleExp(a, b) =>
         sys.error("should not occur here (either, we inhale or exhale this expression, in which case whenInahling/whenExhaling should be used, or the expression is not allowed to occur.")
-      case sil.PredicateAccess(rcv, predicate) =>
-        sys.error("should not occur on its own")
+      case p@sil.PredicateAccess(rcv, predicate) =>
+        translateLocationAccess(p)
       case sil.Unfolding(acc, exp) =>
         translateExp(exp)
       case sil.Old(exp) =>

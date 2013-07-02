@@ -43,6 +43,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private val combineFramesName = Identifier("CombineFrames")
   private val frameFragmentName = Identifier("FrameFragment")
   private val resultName = Identifier("Result")
+  private val insidePredicateName = Identifier("InsidePredicate")
 
   override def preamble = {
     val fp = if (verifier.program.functions.isEmpty) Nil
@@ -56,16 +57,75 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         ConstDecl(assumeFunctionsAboveName, Int)
     }
     fp ++
-      TypeDecl(frameType) ++
-      ConstDecl(emptyFrameName, frameType) ++
-      Func(frameFragmentName, Seq(LocalVarDecl(Identifier("t"), TypeVar("T"))), frameType) ++
-      Func(combineFramesName,
-        Seq(LocalVarDecl(Identifier("a"), frameType), LocalVarDecl(Identifier("b"), frameType)),
-        frameType)
+      CommentedDecl("Declarations for function framing",
+        TypeDecl(frameType) ++
+          ConstDecl(emptyFrameName, frameType) ++
+          Func(frameFragmentName, Seq(LocalVarDecl(Identifier("t"), TypeVar("T"))), frameType) ++
+          Func(combineFramesName,
+            Seq(LocalVarDecl(Identifier("a"), frameType), LocalVarDecl(Identifier("b"), frameType)),
+            frameType), size = 1) ++
+      CommentedDecl("Function for recording enclosure of one predicate instance in another",
+        Func(insidePredicateName,
+          Seq(
+            LocalVarDecl(Identifier("x"), refType),
+            LocalVarDecl(Identifier("p"), fieldTypeOf(Int)),
+            LocalVarDecl(Identifier("v"), Int),
+            LocalVarDecl(Identifier("y"), refType),
+            LocalVarDecl(Identifier("q"), fieldTypeOf(Int)),
+            LocalVarDecl(Identifier("w"), Int)
+          ),
+          Bool), size = 1) ++
+      CommentedDecl(s"Transitivity of ${insidePredicateName.name}", {
+        val vars1 = Seq(
+          LocalVarDecl(Identifier("x"), refType),
+          LocalVarDecl(Identifier("p"), fieldTypeOf(Int)),
+          LocalVarDecl(Identifier("v"), Int)
+        )
+        val vars2 = Seq(
+          LocalVarDecl(Identifier("y"), refType),
+          LocalVarDecl(Identifier("q"), fieldTypeOf(Int)),
+          LocalVarDecl(Identifier("w"), Int)
+        )
+        val vars3 = Seq(
+          LocalVarDecl(Identifier("z"), refType),
+          LocalVarDecl(Identifier("r"), fieldTypeOf(Int)),
+          LocalVarDecl(Identifier("u"), Int)
+        )
+        val f1 = FuncApp(insidePredicateName, (vars1 ++ vars2) map (_.l), Bool)
+        val f2 = FuncApp(insidePredicateName, (vars2 ++ vars3) map (_.l), Bool)
+        val f3 = FuncApp(insidePredicateName, (vars1 ++ vars3) map (_.l), Bool)
+        Axiom(
+          Forall(
+            vars1 ++ vars2 ++ vars3,
+            Trigger(Seq(f1, f2)),
+            (f1 && f2) ==> f3
+          )
+        )
+      }, size = 1) ++
+      CommentedDecl(s"Knowledge that two identical instances of the same predicate cannot be inside each other", {
+        val vars = Seq(
+          LocalVarDecl(Identifier("x"), refType),
+          LocalVarDecl(Identifier("p"), fieldTypeOf(Int)),
+          LocalVarDecl(Identifier("v"), Int),
+          LocalVarDecl(Identifier("y"), refType),
+          LocalVarDecl(Identifier("q"), fieldTypeOf(Int)),
+          LocalVarDecl(Identifier("w"), Int)
+        )
+        val f = FuncApp(insidePredicateName, vars map (_.l), Bool)
+        Axiom(
+          Forall(
+            vars,
+            Trigger(f),
+            f ==> (vars(0).l !== vars(3).l)
+          )
+        )
+      }, size = 1)
   }
 
   override def initialize() {
     expModule.register(this)
+    inhaleModule.register(this)
+    exhaleModule.register(this)
   }
 
   override def translateFunction(f: sil.Function): Seq[Decl] = {
@@ -273,23 +333,29 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   }
 
   private var duringFold = false
+  private var foldInfo: sil.PredicateAccessPredicate = null
   private def foldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError): Stmt = {
     duringFold = true
+    foldInfo = acc
     val stmt = exhale(Seq((acc.loc.predicateBody, error)), havocHeap = false) ++
       inhale(acc)
+    foldInfo = null
     duringFold = false
     stmt
   }
 
   private var duringUnfold = false
+  private var unfoldInfo: sil.PredicateAccessPredicate = null
   override def translateUnfold(unfold: sil.Unfold): Stmt = {
     duringUnfold = true
+    unfoldInfo = unfold.acc
     val stmt = unfold match {
       case sil.Unfold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(rcv, pred), perm)) =>
         checkDefinedness(acc, errors.UnfoldFailed(unfold)) ++
           checkDefinedness(perm, errors.UnfoldFailed(unfold)) ++
           unfoldPredicate(acc, errors.UnfoldFailed(unfold))
     }
+    unfoldInfo = null
     duringUnfold = false
     stmt
   }
@@ -301,8 +367,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
-      case sil.Unfolding(perm, exp) => ???
-      case sil.PredicateAccessPredicate(loc@sil.PredicateAccess(rcv, pred), perm) if duringUnfold =>
+      //case sil.Unfolding(perm, exp) => ???
+      case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(rcv, pred), perm) if duringUnfold =>
         val oldVersion = LocalVar(Identifier("oldVersion"), Int)
         val newVersion = LocalVar(Identifier("newVersion"), Int)
         val curVersion = translateExp(loc)
@@ -310,14 +376,32 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           Havoc(Seq(newVersion)) ++
           Assume(oldVersion < newVersion) ++
           (curVersion := newVersion)
-        If(hasDirectPerm(loc), stmt, Nil)
+        MaybeCommentBlock("Update version of predicate",
+          If(hasDirectPerm(loc), stmt, Nil))
+      case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(rcv, pred), perm) if duringFold =>
+        MaybeCommentBlock("Record predicate instance information",
+          insidePredicate(foldInfo, pap))
       case _ => Nil
     }
   }
 
+  private def insidePredicate(a: sil.PredicateAccessPredicate, b: sil.PredicateAccessPredicate) = {
+    Assume(FuncApp(insidePredicateName,
+      Seq(translateExp(a.loc.rcv),
+        locationMaskIndex(a.loc),
+        translateExp(a.loc),
+        translateExp(b.loc.rcv),
+        locationMaskIndex(b.loc),
+        translateExp(b.loc)),
+      Bool))
+  }
+
   override def inhaleExp(e: sil.Exp): Stmt = {
     e match {
-      case sil.Unfolding(perm, exp) => ???
+      //case sil.Unfolding(perm, exp) => ???
+      case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(rcv, pred), perm) if duringUnfold =>
+        MaybeCommentBlock("Record predicate instance information",
+          insidePredicate(unfoldInfo, pap))
       case _ => Nil
     }
   }
