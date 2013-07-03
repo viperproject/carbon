@@ -211,7 +211,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
 
   override def freeAssumptions(e: sil.Exp): Stmt = {
     e match {
-      case sil.Unfolding(sil.PredicateAccessPredicate(loc, perm), exp) =>
+      case sil.Unfolding(sil.PredicateAccessPredicate(loc, perm), exp) if heap.isInstanceOf[Var] =>
         addPermissionToPMask(loc)
       case _ => Nil
     }
