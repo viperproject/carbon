@@ -224,13 +224,36 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           val stmt3 = checks map (_._2())
           stmt ++ stmt2 ++ stmt3
         }
-        if (e.isInstanceOf[sil.Old]) {
+        val res = if (e.isInstanceOf[sil.Old]) {
           stateModule.useOldState()
           val res = translate
           stateModule.useRegularState()
           res
         } else {
           translate
+        }
+        // introduce local variables for the variables in quantifications. we do this by first check
+        // definedness without worrying about missing variable declarations, and then replace all of them
+        // with fresh variables.
+        e match {
+          case QuantifiedExp(vars, exp) =>
+            val r = Transformer.transform(res, {
+              case v@LocalVar(name, _) =>
+                val namespace = verifier.freshNamespace("exp.quantifier")
+                val newVars = vars map (x => (translateLocalVar(x.localVar),
+                    // we use a fresh namespace to make sure we get fresh variables
+                    Identifier(x.name)(namespace)
+                  ))
+                newVars.find(x => (name == x._1.name)) match {
+                  case None => v // no change
+                  case Some((x, xb)) =>
+                    // use the new variable
+                    LocalVar(xb, x.typ)
+                }
+            })()
+            println(s"\n\n$e\n---\n$res\n------\n$r\n\n")
+            r
+          case _ => res
         }
     }
   }
