@@ -63,6 +63,11 @@ case class Environment(verifier: Verifier, member: sil.Node) {
     }
   }
 
+  def undefine(variable: sil.LocalVar) {
+    require(currentMapping.contains(variable))
+    currentMapping.remove(variable)
+  }
+
   /**
    * Takes a string and tries to produce a similar string that is not already used.
    */

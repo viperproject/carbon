@@ -7,6 +7,7 @@ import semper.carbon.verifier.Verifier
 import semper.sil.verifier.{reasons, PartialVerificationError}
 import semper.carbon.boogie.Implicits._
 import semper.carbon.modules.components.DefinednessComponent
+import semper.sil.ast.QuantifiedExp
 
 /**
  * The default implementation of [[semper.carbon.modules.ExpModule]].
@@ -61,11 +62,15 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         CondExp(translateExp(cond), translateExp(thn), translateExp(els))
       case sil.Exists(vars, exp) =>
         vars map (v => env.define(v.localVar))
-        Exists(vars map translateLocalVarDecl, translateExp(exp))
+        val res = Exists(vars map translateLocalVarDecl, translateExp(exp))
+        vars map (v => env.undefine(v.localVar))
+        res
       case sil.Forall(vars, triggers, exp) =>
         vars map (v => env.define(v.localVar))
         val ts = triggers map (t => Trigger(t.exps map translateExp))
-        Forall(vars map translateLocalVarDecl, ts, translateExp(exp))
+        val res = Forall(vars map translateLocalVarDecl, ts, translateExp(exp))
+        vars map (v => env.undefine(v.localVar))
+        res
       case sil.WildcardPerm() =>
         translatePerm(e)
       case sil.FullPerm() =>
