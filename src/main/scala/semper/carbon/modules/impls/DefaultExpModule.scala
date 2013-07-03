@@ -267,4 +267,22 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           exhale(Seq((e, exhaleError)))
     }
   }
+
+  override def allFreeAssumptions(e: sil.Exp): Stmt = {
+    def translate: Seqn = {
+      val stmt = components map (_.freeAssumptions(e))
+      val stmt2 = for (sub <- e.subnodes if sub.isInstanceOf[sil.Exp]) yield {
+        allFreeAssumptions(sub.asInstanceOf[sil.Exp])
+      }
+      stmt ++ stmt2
+    }
+    if (e.isInstanceOf[sil.Old]) {
+      stateModule.useOldState()
+      val res = translate
+      stateModule.useRegularState()
+      res
+    } else {
+      translate
+    }
+  }
 }

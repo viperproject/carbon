@@ -92,23 +92,18 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
         val init = MaybeCommentBlock("Initializing the state", stateModule.initState ++ assumeAllFunctionDefinitions)
         val initOld = stateModule.initOldState
         val paramAssumptions = m.formalArgs map allAssumptionsAboutParam
-        val checkPre = pres map (e => checkDefinednessOfSpec(e, errors.ContractNotWellformed(e)))
-        val checkPost = posts map (e => checkDefinednessOfSpec(e, errors.ContractNotWellformed(e)))
-        val checkPrePost: Stmt = if (checkPre.children.size + checkPost.children.size > 0)
-          MaybeCommentBlock("Check definedness of pre/postcondition", NondetIf(
-            MaybeComment("Checked inhaling of precondition", checkPre) ++
-              MaybeComment(initOldStateComment, initOld) ++
-              MaybeComment("Checked inhaling of postcondition", checkPost) ++
-              MaybeComment("Stop execution", Assume(FalseLit()))
-          ))
-        else Nil
-        val inhalePre = MaybeCommentBlock("Inhaling precondition", inhale(pres))
+        val checkPost: Stmt = if (posts.nonEmpty) NondetIf(
+              MaybeComment("Checked inhaling of postcondition to check definedness",
+                posts map (e => checkDefinednessOfSpec(e, errors.ContractNotWellformed(e)))) ++
+              MaybeComment("Stop execution", Assume(FalseLit())), Nil) else Nil
+        val inhalePre = MaybeCommentBlock("Checked inhaling of precondition",
+          pres map (e => checkDefinednessOfSpec(e, errors.ContractNotWellformed(e))))
         val body: Stmt = translateStmt(b)
         val postsWithErrors = posts map (p => (p, errors.PostconditionViolated(p, m)))
         val exhalePost = MaybeCommentBlock("Exhaling postcondition", exhale(postsWithErrors))
         val proc = Procedure(Identifier(name), ins, outs,
-          Seq(init, checkPrePost, inhalePre,
-            MaybeCommentBlock(initOldStateComment, initOld),
+          Seq(init, inhalePre,
+            MaybeCommentBlock(initOldStateComment, initOld), checkPost,
             MaybeCommentBlock("Assumptions about method arguments", paramAssumptions),
             body, exhalePost))
         CommentedDecl(s"Translation of method $name", proc)

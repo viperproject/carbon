@@ -12,6 +12,11 @@ import semper.sil.verifier.PartialVerificationError
 trait DefinednessComponent extends Component {
 
   /**
+   * Free assumptions about an expression.
+   */
+  def freeAssumptions(e: sil.Exp): Stmt = Statements.EmptyStmt
+
+  /**
    * Proof obligations for a given expression.
    */
   def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = Statements.EmptyStmt

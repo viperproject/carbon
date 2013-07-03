@@ -103,18 +103,19 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         )
       }, size = 1) ++
       CommentedDecl(s"Knowledge that two identical instances of the same predicate cannot be inside each other", {
+        val p = LocalVarDecl(Identifier("p"), fieldTypeOf(Int))
         val vars = Seq(
           LocalVarDecl(Identifier("x"), refType),
-          LocalVarDecl(Identifier("p"), fieldTypeOf(Int)),
+          p,
           LocalVarDecl(Identifier("v"), Int),
           LocalVarDecl(Identifier("y"), refType),
-          LocalVarDecl(Identifier("q"), fieldTypeOf(Int)),
+          p,
           LocalVarDecl(Identifier("w"), Int)
         )
         val f = FuncApp(insidePredicateName, vars map (_.l), Bool)
         Axiom(
           Forall(
-            vars,
+            vars.distinct,
             Trigger(f),
             f ==> (vars(0).l !== vars(3).l)
           )
@@ -347,27 +348,26 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private var duringUnfold = false
   private var unfoldInfo: sil.PredicateAccessPredicate = null
   override def translateUnfold(unfold: sil.Unfold): Stmt = {
-    duringUnfold = true
-    unfoldInfo = unfold.acc
-    val stmt = unfold match {
+    unfold match {
       case sil.Unfold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(rcv, pred), perm)) =>
         checkDefinedness(acc, errors.UnfoldFailed(unfold)) ++
           checkDefinedness(perm, errors.UnfoldFailed(unfold)) ++
           unfoldPredicate(acc, errors.UnfoldFailed(unfold))
     }
+  }
+
+  private def unfoldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError): Stmt = {
+    duringUnfold = true
+    unfoldInfo = acc
+    val stmt = exhale(Seq((acc, error)), havocHeap = false) ++
+      inhale(acc.loc.predicateBody)
     unfoldInfo = null
     duringUnfold = false
     stmt
   }
 
-  private def unfoldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError): Stmt = {
-    exhale(Seq((acc, error)), havocHeap = false) ++
-      inhale(acc.loc.predicateBody)
-  }
-
   override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
-      //case sil.Unfolding(perm, exp) => ???
       case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(rcv, pred), perm) if duringUnfold =>
         val oldVersion = LocalVar(Identifier("oldVersion"), Int)
         val newVersion = LocalVar(Identifier("newVersion"), Int)
@@ -398,10 +398,10 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   override def inhaleExp(e: sil.Exp): Stmt = {
     e match {
-      //case sil.Unfolding(perm, exp) => ???
+      case sil.Unfolding(acc, exp) =>
+        Nil
       case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(rcv, pred), perm) if duringUnfold =>
-        MaybeCommentBlock("Record predicate instance information",
-          insidePredicate(unfoldInfo, pap))
+        insidePredicate(unfoldInfo, pap)
       case _ => Nil
     }
   }

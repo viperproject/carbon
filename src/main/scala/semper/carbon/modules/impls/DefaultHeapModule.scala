@@ -1,7 +1,7 @@
 package semper.carbon.modules.impls
 
 import semper.carbon.modules._
-import semper.carbon.modules.components.{ExhaleComponent, SimpleStmtComponent, DefinednessComponent}
+import semper.carbon.modules.components.{InhaleComponent, ExhaleComponent, SimpleStmtComponent, DefinednessComponent}
 import semper.sil.{ast => sil}
 import semper.carbon.boogie._
 import semper.carbon.boogie.Implicits._
@@ -13,7 +13,7 @@ import semper.sil.verifier.{reasons, PartialVerificationError}
  *
  * @author Stefan Heule
  */
-class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleStmtComponent with DefinednessComponent with ExhaleComponent {
+class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleStmtComponent with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   import verifier._
   import typeModule._
@@ -31,6 +31,8 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
     stateModule.register(this)
     stmtModule.register(this, before = Seq(verifier.permModule))
     expModule.register(this)
+    exhaleModule.register(this)
+    inhaleModule.register(this)
   }
 
   private val fieldTypeName = "Field"
@@ -202,16 +204,24 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
         (predicateMask(loc) := zeroPMask) ++
           Havoc(newVersion) ++
           (translateLocationAccess(loc) := newVersion) ++
-          addPermissionToPMask(loc.predicateBody, predicateMask(loc))
+          addPermissionToPMask(loc)
       case _ => Statements.EmptyStmt
+    }
+  }
+
+  override def freeAssumptions(e: sil.Exp): Stmt = {
+    e match {
+      case sil.Unfolding(sil.PredicateAccessPredicate(loc, perm), exp) =>
+        addPermissionToPMask(loc)
+      case _ => Nil
     }
   }
 
   /**
    * Adds the permissions from an expression to a permission mask.
    */
-  private def addPermissionToPMask(e: sil.Exp, pmask: Exp): Stmt = {
-    addPermissionToPMaskHelper(e, pmask)
+  private def addPermissionToPMask(loc: sil.PredicateAccess): Stmt = {
+    addPermissionToPMaskHelper(loc.predicateBody, predicateMask(loc))
   }
   private def addPermissionToPMaskHelper(e: sil.Exp, pmask: Exp): Stmt = {
     e match {
@@ -296,11 +306,16 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
       (heap := exhaleHeap)
   }
 
-  /**
-   * Exhale a single expression.
-   */
-  def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
+  override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
+      case _ => Nil
+    }
+  }
+
+  override def inhaleExp(e: sil.Exp): Stmt = {
+    e match {
+      case sil.Unfolding(sil.PredicateAccessPredicate(loc, perm), exp) =>
+        addPermissionToPMask(loc)
       case _ => Nil
     }
   }

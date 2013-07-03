@@ -35,12 +35,15 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
         Comment(s"Phase $phase: ${phaseDescription(phase - 1)}") ++ stmts: Stmt
       }
     }
+    val assumptions = MaybeCommentBlock("Free assumptions",
+      exps map (e => allFreeAssumptions(e._1)))
     if ((exps map (_._1.isPure) forall identity) || !havocHeap) {
       // if all expressions are pure, then there is no need for heap copies
-      phases
+      phases ++ assumptions
     } else {
       beginExhale ++
         phases ++
+        assumptions ++
         Comment("Finish exhale") ++
         endExhale
     }

@@ -15,6 +15,11 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
   def translateLocalVar(l: sil.LocalVar): LocalVar
 
   /**
+   * Free assumptions about an expression.
+   */
+  def allFreeAssumptions(e: sil.Exp): Stmt
+
+  /**
    * Check definedness of SIL expressions as they occur in the program.
    */
   def checkDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt
