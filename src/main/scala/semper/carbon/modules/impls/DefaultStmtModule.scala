@@ -7,6 +7,7 @@ import semper.carbon.verifier.Verifier
 import Implicits._
 import semper.sil.verifier.errors
 import semper.carbon.modules.components.SimpleStmtComponent
+import semper.sil.ast.utility.Expressions
 
 /**
  * The default implementation of a [[semper.carbon.modules.StmtModule]].
@@ -20,6 +21,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
   import stateModule._
   import exhaleModule._
   import inhaleModule._
+  import typeModule._
   import funcPredModule._
 
   override def initialize() {
@@ -68,14 +70,37 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
         val preCallState = stateModule.state
         val oldState = stateModule.oldState
         stateModule.restoreState(state)
+        val toUndefine = collection.mutable.ListBuffer[sil.LocalVar]()
+        val actualArgs = (args.zipWithIndex) map (a => {
+          val (actual, i) = a
+          // use the concrete argument if it is just a variable or constant (to avoid code bloat)
+          val useConcrete = actual match {
+            case v: sil.LocalVar if !targets.contains(v) => true
+            case _: sil.Literal => true
+            case _ => false
+          }
+          if (!useConcrete) {
+            val silFormal = method.formalArgs(i)
+            val formal = sil.LocalVar("arg_" + silFormal.name)(silFormal.typ)
+            mainModule.env.define(formal)
+            toUndefine.append(formal)
+            val stmt = translateExp(formal) := translateExp(actual)
+            (formal, stmt)
+          } else {
+            (args(i), Nil: Stmt)
+          }
+        })
+        val posts = method.posts map (e => Expressions.instantiateVariables(e, method.formalArgs ++ method.formalReturns, (actualArgs map (_._1)) ++ targets))
         preCallStateStmt ++
           (targets map (e => checkDefinedness(e, errors.CallFailed(mc)))) ++
           (args map (e => checkDefinedness(e, errors.CallFailed(mc)))) ++
+          (actualArgs map (_._2)) ++
           Havoc((targets map translateExp).asInstanceOf[Seq[Var]]) ++
           MaybeCommentBlock("Exhaling precondition", exhale(mc.pres map (e => (e, errors.PreconditionInCallFalse(mc))))) ++ {
           stateModule.restoreOldState(preCallState)
-          val res = MaybeCommentBlock("Inhaling postcondition", inhale(mc.posts))
+          val res = MaybeCommentBlock("Inhaling postcondition", inhale(posts))
           stateModule.restoreOldState(oldState)
+          toUndefine map mainModule.env.undefine
           res
         }
       case w@sil.While(cond, invs, locals, body) =>
