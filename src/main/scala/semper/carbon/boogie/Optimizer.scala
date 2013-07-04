@@ -123,7 +123,10 @@ object Optimizer {
         RealLit(left % right)
 
       case If(TrueLit(), thn, els) => thn
-      case If(TrueLit(), thn, els) => els
+      case If(FalseLit(), thn, els) => els
+
+      case If(c, thn, els) if thn.children.isEmpty && els.children.isEmpty =>
+        Statements.EmptyStmt
 
       case Assert(TrueLit(), _) => Statements.EmptyStmt
     })
