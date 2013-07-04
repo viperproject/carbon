@@ -70,4 +70,9 @@ trait HeapModule extends Module with StateComponent {
    * Is the given field a predicate field?
    */
   def isPredicateField(f: Exp): Exp
+
+  /**
+   * Generate a trigger for a given predicate.
+   */
+  def predicateTrigger(pred: sil.PredicateAccess): Stmt
 }

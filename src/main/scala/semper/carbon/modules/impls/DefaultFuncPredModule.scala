@@ -345,7 +345,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private def foldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError): Stmt = {
     duringFold = true
     foldInfo = acc
-    val stmt = exhale(Seq((acc.loc.predicateBody, error)), havocHeap = false) ++
+    val stmt = predicateTrigger(acc.loc) ++
+      exhale(Seq((acc.loc.predicateBody, error)), havocHeap = false) ++
       inhale(acc)
     foldInfo = null
     duringFold = false
@@ -366,7 +367,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private def unfoldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError): Stmt = {
     duringUnfold = true
     unfoldInfo = acc
-    val stmt = exhale(Seq((acc, error)), havocHeap = false) ++
+    val stmt = predicateTrigger(acc.loc) ++
+      exhale(Seq((acc, error)), havocHeap = false) ++
       inhale(acc.loc.predicateBody)
     unfoldInfo = null
     duringUnfold = false
