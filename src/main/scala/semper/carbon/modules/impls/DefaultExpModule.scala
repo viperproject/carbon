@@ -17,7 +17,6 @@ import semper.sil.ast.QuantifiedExp
 class DefaultExpModule(val verifier: Verifier) extends ExpModule with DefinednessComponent {
 
   import verifier._
-  import typeModule._
   import heapModule._
   import mainModule._
   import domainModule._
@@ -216,7 +215,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             checkDefinednessImpl(sub.asInstanceOf[sil.Exp], error, topLevel = e.isInstanceOf[sil.Unfolding] && (e.asInstanceOf[sil.Unfolding].exp eq sub))
           }
           val stmt3 = checks map (_._2())
-          stmt ++ stmt2 ++ stmt3
+          stmt ++ stmt2 ++ stmt3 ++
+            MaybeCommentBlock("Free assumptions", allFreeAssumptions(e))
         }
         val res = if (e.isInstanceOf[sil.Old]) {
           stateModule.useOldState()

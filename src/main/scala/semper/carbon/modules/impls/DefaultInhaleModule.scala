@@ -25,6 +25,8 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule {
 
   override def inhale(exps: Seq[sil.Exp]): Stmt = {
     (exps map (e => inhaleConnective(e.whenInhaling))) ++
+      MaybeCommentBlock("Free assumptions",
+        exps map (e => allFreeAssumptions(e))) ++
       assumeGoodState
   }
 
