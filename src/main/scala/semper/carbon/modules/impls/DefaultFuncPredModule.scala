@@ -176,18 +176,25 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val heap = heapModule.stateContributions
     val args = f.formalArgs map translateLocalVarDecl
     val fapp = translateFuncApp(f, (heap ++ args) map (_.l), f.typ)
-    def transformLimited: PartialFunction[Exp, Option[Exp]] = {
-      case FuncApp(recf, recargs, t) if recf.namespace == fpNamespace =>
-        // change all function applications to use the limited form, and still go through all arguments
-        Some(FuncApp(Identifier(recf.name + limitedPostfix), recargs map (_.transform(transformLimited)), t))
-    }
-    val body = translateExp(f.exp) transform transformLimited
+    val body = transformLimited(translateExp(f.exp))
     Axiom(Forall(
       stateModule.stateContributions ++ args,
       Trigger(Seq(staticGoodState, fapp)),
       (staticGoodState && assumeFunctionsAbove(height)) ==>
         (fapp === body)
     ))
+  }
+
+  /**
+   * Transform all function applications to their limited form.
+   */
+  private def transformLimited(exp: Exp): Exp = {
+    def transformer: PartialFunction[Exp, Option[Exp]] = {
+      case FuncApp(recf, recargs, t) if recf.namespace == fpNamespace =>
+        // change all function applications to use the limited form, and still go through all arguments
+        Some(FuncApp(Identifier(recf.name + limitedPostfix), recargs map (_.transform(transformer)), t))
+    }
+    exp transform transformer
   }
 
   private def postconditionAxiom(f: sil.Function): Seq[Decl] = {
@@ -226,7 +233,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     func ++
       Axiom(Forall(
         stateModule.stateContributions ++ args,
-        Trigger(Seq(staticGoodState, funcApp)),
+        Trigger(Seq(staticGoodState, transformLimited(funcApp2))),
         staticGoodState ==> (funcApp2 === funcApp)))
   }
 
@@ -248,7 +255,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       FuncApp(frameFragmentName, Seq(e), frameType)
     }
     pre match {
-      case la@sil.LocationAccess(rcv, loc) =>
+      case sil.AccessPredicate(la, perm) =>
         frameFragment(translateLocationAccess(la))
       case sil.Implies(e0, e1) =>
         frameFragment(CondExp(translateExp(e0), functionFrameHelper(e1), emptyFrame))
