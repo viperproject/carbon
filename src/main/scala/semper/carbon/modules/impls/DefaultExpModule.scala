@@ -194,7 +194,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
 
   override def checkDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
     MaybeCommentBlock(s"Check definedness of $e",
-      checkDefinednessImpl(e, error, topLevel = true))
+      MaybeStmt(checkDefinednessImpl(e, error, topLevel = true),
+        stateModule.assumeGoodState))
   }
 
   private def checkDefinednessImpl(e: sil.Exp, error: PartialVerificationError, topLevel: Boolean): Stmt = {

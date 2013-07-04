@@ -302,6 +302,16 @@ object MaybeCommentBlock {
   }
 }
 
+/**
+ * Only add a statement if something else is non-empty.
+ */
+object MaybeStmt {
+  def apply(isEmpty: Stmt, maybe: Stmt): Stmt = {
+    if (isEmpty.optimize.children.isEmpty) Statements.EmptyStmt
+    else Seqn(Seq(isEmpty, maybe))
+  }
+}
+
 // --- Declarations
 
 case class Program(header: Seq[String], decls: Seq[Decl]) extends Node
