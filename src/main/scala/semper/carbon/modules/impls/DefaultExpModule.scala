@@ -61,16 +61,10 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       case sil.CondExp(cond, thn, els) =>
         CondExp(translateExp(cond), translateExp(thn), translateExp(els))
       case sil.Exists(vars, exp) =>
-        vars map (v => env.define(v.localVar))
-        val res = Exists(vars map translateLocalVarDecl, translateExp(exp))
-        vars map (v => env.undefine(v.localVar))
-        res
+        Exists(vars map translateLocalVarDecl, translateExp(exp))
       case sil.Forall(vars, triggers, exp) =>
-        vars map (v => env.define(v.localVar))
         val ts = triggers map (t => Trigger(t.exps map translateExp))
-        val res = Forall(vars map translateLocalVarDecl, ts, translateExp(exp))
-        vars map (v => env.undefine(v.localVar))
-        res
+        Forall(vars map translateLocalVarDecl, ts, translateExp(exp))
       case sil.WildcardPerm() =>
         translatePerm(e)
       case sil.FullPerm() =>
@@ -184,7 +178,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   }
 
   override def translateLocalVar(l: sil.LocalVar): LocalVar = {
-    LocalVar(Identifier(l.name)(verifier.mainModule.silVarNamespace), translateType(l.typ))
+    env.get(l)
   }
 
   override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
@@ -232,32 +226,34 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         } else {
           translate
         }
-        // introduce local variables for the variables in quantifications. we do this by first check
-        // definedness without worrying about missing variable declarations, and then replace all of them
-        // with fresh variables.
-        e match {
-          case QuantifiedExp(vars, exp) =>
-            val r = Transformer.transform(res, {
-              case v@LocalVar(name, _) =>
-                val namespace = verifier.freshNamespace("exp.quantifier")
-                val newVars = vars map (x => (translateLocalVar(x.localVar),
-                    // we use a fresh namespace to make sure we get fresh variables
-                    Identifier(x.name)(namespace)
-                  ))
-                newVars.find(x => (name == x._1.name)) match {
-                  case None => v // no change
-                  case Some((x, xb)) =>
-                    // use the new variable
-                    LocalVar(xb, x.typ)
-                }
-            })()
-            println(s"\n\n$e\n---\n$res\n------\n$r\n\n")
-            r
-          case _ => res
-        }
+        handleQuantifiedLocals(e, res)
     }
   }
 
+
+  def handleQuantifiedLocals(e: sil.Exp, res: Stmt): Stmt = {
+    // introduce local variables for the variables in quantifications. we do this by first check
+    // definedness without worrying about missing variable declarations, and then replace all of them
+    // with fresh variables.
+    e match {
+      case QuantifiedExp(vars, exp) =>
+        Transformer.transform(res, {
+          case v@LocalVar(name, _) =>
+            val namespace = verifier.freshNamespace("exp.quantifier")
+            val newVars = vars map (x => (translateLocalVar(x.localVar),
+              // we use a fresh namespace to make sure we get fresh variables
+              Identifier(x.name)(namespace)
+              ))
+            newVars.find(x => (name == x._1.name)) match {
+              case None => v // no change
+              case Some((x, xb)) =>
+                // use the new variable
+                LocalVar(xb, x.typ)
+            }
+        })()
+      case _ => res
+    }
+  }
   override def checkDefinednessOfSpec(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
       case sil.And(e1, e2) =>

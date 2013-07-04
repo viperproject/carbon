@@ -29,4 +29,7 @@ trait MainModule extends Module {
   def silVarNamespace: Namespace
 
   def allAssumptionsAboutParam(arg: sil.LocalVarDecl): Stmt
+
+  def defineLocalVars(n: sil.Node)
+  def undefineLocalVars(n: sil.Node)
 }

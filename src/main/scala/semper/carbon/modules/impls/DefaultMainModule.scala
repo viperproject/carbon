@@ -25,7 +25,6 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
   import stmtModule._
   import exhaleModule._
   import heapModule._
-  import inhaleModule._
   import funcPredModule._
   import domainModule._
   import expModule._
@@ -92,15 +91,20 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
         val init = MaybeCommentBlock("Initializing the state", stateModule.initState ++ assumeAllFunctionDefinitions)
         val initOld = stateModule.initOldState
         val paramAssumptions = m.formalArgs map allAssumptionsAboutParam
-        val checkPost: Stmt = if (posts.nonEmpty) NondetIf(
-              MaybeComment("Checked inhaling of postcondition to check definedness",
-                posts map (e => checkDefinednessOfSpec(e, errors.ContractNotWellformed(e)))) ++
-              MaybeComment("Stop execution", Assume(FalseLit())), Nil) else Nil
+        pres map defineLocalVars
         val inhalePre = MaybeCommentBlock("Checked inhaling of precondition",
           pres map (e => checkDefinednessOfSpec(e, errors.ContractNotWellformed(e))))
-        val body: Stmt = translateStmt(b)
+        pres map undefineLocalVars
+        posts map defineLocalVars
+        val checkPost: Stmt = if (posts.nonEmpty) NondetIf(
+          MaybeComment("Checked inhaling of postcondition to check definedness",
+            posts map (e => checkDefinednessOfSpec(e, errors.ContractNotWellformed(e)))) ++
+            MaybeComment("Stop execution", Assume(FalseLit())), Nil)
+        else Nil
         val postsWithErrors = posts map (p => (p, errors.PostconditionViolated(p, m)))
         val exhalePost = MaybeCommentBlock("Exhaling postcondition", exhale(postsWithErrors))
+        posts map undefineLocalVars
+        val body: Stmt = translateStmt(b)
         val proc = Procedure(Identifier(name), ins, outs,
           Seq(init, inhalePre,
             MaybeCommentBlock(initOldStateComment, initOld), checkPost,
@@ -127,5 +131,19 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
     val res = translateDomain(d)
     env = null
     res
+  }
+
+  override def defineLocalVars(n: sil.Node) {
+    n.visit({
+      case sil.QuantifiedExp(vars, _) =>
+        vars map (v => env.define(v.localVar))
+    })
+  }
+
+  override def undefineLocalVars(n: sil.Node) {
+    n.visit({
+      case sil.QuantifiedExp(vars, _) =>
+        vars map (v => env.undefine(v.localVar))
+    })
   }
 }

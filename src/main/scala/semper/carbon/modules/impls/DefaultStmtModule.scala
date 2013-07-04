@@ -143,6 +143,18 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
         comment = s"Translating statement: fresh(${vars.mkString(", ")})"
       case _ =>
     }
+
+    def isComposite(stmt: sil.Stmt): Boolean = {
+      stmt match {
+        case _: sil.If => true
+        case _: sil.While => true
+        case _: sil.Seqn => true
+        case _ => false
+      }
+    }
+
+    if (!isComposite(stmt)) mainModule.defineLocalVars(stmt)
+
     var stmts = Seqn(Nil)
     for (c <- components) {
       val (before, after) = c.handleStmt(stmt)
@@ -154,6 +166,9 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
     val translation = stmts ::
       assumeGoodState ::
       Nil
+
+    if (!isComposite(stmt)) mainModule.undefineLocalVars(stmt)
+
     CommentBlock(comment + s" -- ${stmt.pos}", translation)
   }
 }
