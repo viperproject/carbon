@@ -121,7 +121,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
               MaybeComment("Inhale invariant", inhale(w.invs)) ++
               Comment("Check and assume guard") ++
               checkDefinedness(cond, errors.WhileFailed(cond)) ++
-              Assume(guard) ++
+              Assume(guard) ++ stateModule.assumeGoodState ++
               MaybeComment("Havoc locals", Havoc((locals map (x => translateExp(x.localVar))).asInstanceOf[Seq[Var]])) ++
               MaybeCommentBlock("Translate loop body", translateStmt(body)) ++
               MaybeComment("Exhale invariant", exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e))))) ++
@@ -131,7 +131,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           }
           )) ++
           MaybeCommentBlock("Inhale loop invariant after loop, and assume guard",
-            Assume(guard.not) ++
+            Assume(guard.not) ++ stateModule.assumeGoodState ++
               inhale(w.invs)
           )
       case fb@sil.FreshReadPerm(vars, body) =>
