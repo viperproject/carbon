@@ -76,16 +76,23 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     }
   }
 
+  var usingOldState = false
   override def useOldState() {
+    usingOldState = true
     for (c <- components) {
       c.restoreState(curOldState.get(c))
     }
   }
 
   override def useRegularState() {
+    usingOldState = false
     for (c <- components) {
       c.restoreState(curState.get(c))
     }
+  }
+
+  override def isUsingOldState: Boolean = {
+    usingOldState
   }
 
   override def oldState: StateSnapshot = {

@@ -82,4 +82,9 @@ trait StateModule extends Module with ComponentRegistry[StateComponent] {
    * Change the state for all state components to the regular (non-old) state.
    */
   def useRegularState()
+
+  /**
+   * Are we currently using the 'old' state?
+   */
+  def isUsingOldState: Boolean
 }

@@ -47,7 +47,9 @@ class DefaultDomainModule(val verifier: Verifier) extends DomainModule {
 
   private def translateDomainAxiom(axiom: sil.DomainAxiom): Seq[Decl] = {
     env = Environment(verifier, axiom)
+    mainModule.defineLocalVars(axiom)
     val res = MaybeCommentedDecl(s"Translation of domain axiom ${axiom.name}", Axiom(translateExp(axiom.exp)), size = 1)
+    mainModule.undefineLocalVars(axiom)
     env = null
     res
   }

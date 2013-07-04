@@ -251,21 +251,20 @@ class DefaultPermModule(val verifier: Verifier)
           } else {
             (translatePerm(perm), null, Nil)
           }
-        stmts ::
-          (permVar := permVal) ::
-          Assert(permissionPositive(permVar), error.dueTo(reasons.NonPositivePermission(perm))) ::
-          Assert(checkNonNullReceiver(loc), error.dueTo(reasons.ReceiverNull(loc))) ::
+        stmts ++
+          (permVar := permVal) ++
+          Assert(permissionPositive(permVar), error.dueTo(reasons.NonPositivePermission(perm))) ++
+          Assert(checkNonNullReceiver(loc), error.dueTo(reasons.ReceiverNull(loc))) ++
           (if (perm.isInstanceOf[WildcardPerm]) {
-            (Assert(fracComp(curPerm) > RealLit(0), error.dueTo(reasons.InsufficientPermission(loc))) ::
-              Assume(wildcard < fracComp(curPerm)) :: Nil): Stmt
+            (Assert(fracComp(curPerm) > RealLit(0), error.dueTo(reasons.InsufficientPermission(loc))) ++
+              Assume(wildcard < fracComp(curPerm))): Stmt
           } else if (isAbstractRead(perm)) {
-            (Assert(fracComp(curPerm) > RealLit(0), error.dueTo(reasons.InsufficientPermission(loc))) ::
-              Assume(fracComp(permVal) < fracComp(curPerm)) :: Nil): Stmt
+            (Assert(fracComp(curPerm) > RealLit(0), error.dueTo(reasons.InsufficientPermission(loc))) ++
+              Assume(fracComp(permVal) < fracComp(curPerm))): Stmt
           } else {
             Assert(permLe(permVal, curPerm), error.dueTo(reasons.InsufficientPermission(loc)))
-          }) ::
-          (curPerm := permSub(curPerm, permVar)) ::
-          Nil
+          }) ++
+          (if (!isUsingOldState) curPerm := permSub(curPerm, permVar) else Nil)
       case _ => Nil
     }
   }
@@ -282,12 +281,11 @@ class DefaultPermModule(val verifier: Verifier)
           } else {
             (translatePerm(perm), Nil)
           }
-        stmts ::
-          (permVar := permVal) ::
-          Assume(permissionPositive(permVar)) ::
-          Assume(checkNonNullReceiver(loc)) ::
-          (curPerm := permAdd(curPerm, permVar)) ::
-          Nil
+        stmts ++
+          (permVar := permVal) ++
+          Assume(permissionPositive(permVar)) ++
+          Assume(checkNonNullReceiver(loc)) ++
+          (if (!isUsingOldState) curPerm := permAdd(curPerm, permVar) else Nil)
       case _ => Nil
     }
   }

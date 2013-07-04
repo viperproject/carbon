@@ -211,7 +211,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
 
   override def freeAssumptions(e: sil.Exp): Stmt = {
     e match {
-      case sil.Unfolding(sil.PredicateAccessPredicate(loc, perm), exp) if heap.isInstanceOf[Var] =>
+      case sil.Unfolding(sil.PredicateAccessPredicate(loc, perm), exp) if !isUsingOldState =>
         addPermissionToPMask(loc)
       case _ => Nil
     }
@@ -302,8 +302,9 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
   }
 
   override def endExhale: Stmt = {
-    Assume(FuncApp(identicalOnKnownLocsName, Seq(heap, exhaleHeap) ++ currentMask, Bool)) ++
+    if (!isUsingOldState) Assume(FuncApp(identicalOnKnownLocsName, Seq(heap, exhaleHeap) ++ currentMask, Bool)) ++
       (heap := exhaleHeap)
+    else Nil
   }
 
   override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
