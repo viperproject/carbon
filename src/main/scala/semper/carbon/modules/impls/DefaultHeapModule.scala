@@ -150,14 +150,36 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
     val pmField = predicateMaskIdentifer(p)
     val t = predicateVersionFieldTypeOf(p)
     val pmT = predicateMaskFieldTypeOf(p)
+    val varDecls = p.formalArgs.tail map mainModule.translateLocalVarDecl
+    val vars = varDecls map (_.l)
+    val f0 = FuncApp(predicate, vars, t)
+    val f1 = predicateMaskField(f0)
+    val f2 = FuncApp(pmField, vars, pmT)
     TypeDecl(predicateMetaTypeOf(p)) ++
-      Func(predicate,
-        p.formalArgs.tail map mainModule.translateLocalVarDecl, t) ++
-      Func(pmField,
-        p.formalArgs.tail map mainModule.translateLocalVarDecl, pmT) ++
-      Axiom(predicateMaskField(FuncApp(predicate, Nil, t)) === FuncApp(pmField, Nil, pmT)) ++
-      Axiom(isPredicateField(FuncApp(predicate, Nil, t))) ++
-      Func(predicateTriggerIdentifer(p), Seq(LocalVarDecl(Identifier("this"), refType)), Bool)
+      Func(predicate, varDecls, t) ++
+      Func(pmField, varDecls, pmT) ++
+      Axiom(MaybeForall(varDecls, Trigger(f1), f1 === f2)) ++
+      Axiom(MaybeForall(varDecls, Trigger(f0), isPredicateField(f0))) ++
+      Func(predicateTriggerIdentifer(p), Seq(LocalVarDecl(Identifier("this"), refType)), Bool) ++
+      {
+        // axiom that two predicate identifiers can only be the same, if all arguments
+        // are the same (e.g., we immediatly know that valid(1) != valid(2))
+        if (vars.size == 0) Nil
+        else {
+          val varDecls2 = varDecls map (
+            v => LocalVarDecl(Identifier(v.name.name + "2")(v.name.namespace), v.typ))
+          val vars2 = varDecls2 map (_.l)
+          var varsEqual = All((vars zip vars2) map {
+            case (v1, v2) => v1 === v2
+          })
+          val f0_2 = FuncApp(predicate, vars2, t)
+          val f2_2 = FuncApp(pmField, vars2, t)
+          Axiom(Forall(varDecls ++ varDecls2, Trigger(Seq(f0, f0_2)),
+            (f0 === f0_2) ==> varsEqual)) ++
+            Axiom(Forall(varDecls ++ varDecls2, Trigger(Seq(f2, f2_2)),
+              (f2 === f2_2) ==> varsEqual))
+        }
+      }
   }
 
   /** Return the identifier corresponding to a SIL location. */

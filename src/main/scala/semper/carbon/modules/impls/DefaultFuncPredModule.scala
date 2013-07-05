@@ -327,8 +327,11 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   // --------------------------------------------
 
   override def translatePredicate(p: sil.Predicate): Seq[Decl] = {
-    MaybeCommentedDecl(s"Translation of predicate ${p.name}",
+    env = Environment(verifier, p)
+    val res = MaybeCommentedDecl(s"Translation of predicate ${p.name}",
       predicateGhostFieldDecl(p))
+    env = null
+    res
   }
 
   override def translateFold(fold: sil.Fold): Stmt = {

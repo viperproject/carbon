@@ -156,6 +156,14 @@ sealed trait Exp extends Node with PrettyExpression {
   def transform(f: PartialFunction[Exp, Option[Exp]]) = Nodes.transform(this, f)
 }
 
+object All {
+  def apply(exps: Seq[Exp]): Exp = exps match {
+    case Nil => TrueLit()
+    case x :: Nil => x
+    case x :: xs => BinExp(x, And, All(xs))
+  }
+}
+
 case class PartialCondExp(cond: Exp, thn: Exp) {
   def els(els: Exp) = CondExp(cond, thn, els)
 }

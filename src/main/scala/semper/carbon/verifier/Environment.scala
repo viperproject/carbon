@@ -29,6 +29,10 @@ case class Environment(verifier: Verifier, member: sil.Node) {
       for (v <- args) {
         define(v.localVar)
       }
+    case sil.Predicate(name, args, body) =>
+      for (v <- args) {
+        define(v.localVar)
+      }
     case f@sil.DomainFunc(name, args, typ, unique) =>
       for (v <- args) {
         define(v.localVar)
