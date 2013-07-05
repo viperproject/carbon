@@ -232,7 +232,7 @@ class DefaultPermModule(val verifier: Verifier)
     FuncApp(hasDirectPermName, Seq(mask, obj, loc), Bool)
   private def hasDirectPerm(obj: Exp, loc: Exp): Exp = hasDirectPerm(mask, obj, loc)
   override def hasDirectPerm(la: sil.LocationAccess): Exp =
-    hasDirectPerm(translateExp(la.rcv), locationMaskIndex(la))
+    hasDirectPerm(translateExp(la.rcv), translateLocation(la))
 
   private def permissionPositive(permission: Exp) = {
     fracComp(permission) > RealLit(0) ||
@@ -242,7 +242,7 @@ class DefaultPermModule(val verifier: Verifier)
   override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
       case sil.AccessPredicate(loc, perm) =>
-        val curPerm = MapSelect(mask, Seq(translateExp(loc.rcv), locationMaskIndex(loc)))
+        val curPerm = MapSelect(mask, Seq(translateExp(loc.rcv), translateLocation(loc)))
         val permVar = LocalVar(Identifier("perm"), permType)
         val (permVal, wildcard, stmts): (Exp, Exp, Stmt) =
           if (perm.isInstanceOf[WildcardPerm]) {
@@ -291,7 +291,7 @@ class DefaultPermModule(val verifier: Verifier)
   }
 
   def currentPermission(loc: sil.LocationAccess): MapSelect = {
-    currentPermission(translateExp(loc.rcv), locationMaskIndex(loc))
+    currentPermission(translateExp(loc.rcv), translateLocation(loc))
   }
   def currentPermission(rcv: Exp, location: Exp): MapSelect = {
     currentPermission(mask, rcv, location)
@@ -318,7 +318,7 @@ class DefaultPermModule(val verifier: Verifier)
       case sil.EpsilonPerm() =>
         epsPerm(RealLit(1))
       case sil.CurrentPerm(loc) =>
-        MapSelect(mask, Seq(translateExp(loc.rcv), locationMaskIndex(loc)))
+        MapSelect(mask, Seq(translateExp(loc.rcv), translateLocation(loc)))
       case sil.FractionalPerm(left, right) =>
         fracPerm(BinExp(translateExp(left), Div, translateExp(right)))
       case sil.PermAdd(a, b) =>

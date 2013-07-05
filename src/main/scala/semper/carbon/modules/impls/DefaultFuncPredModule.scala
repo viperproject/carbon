@@ -397,10 +397,10 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private def insidePredicate(a: sil.PredicateAccessPredicate, b: sil.PredicateAccessPredicate) = {
     Assume(FuncApp(insidePredicateName,
       Seq(translateExp(a.loc.rcv),
-        locationMaskIndex(a.loc),
+        translateLocation(a.loc),
         translateExp(a.loc),
         translateExp(b.loc.rcv),
-        locationMaskIndex(b.loc),
+        translateLocation(b.loc),
         translateExp(b.loc)),
       Bool))
   }

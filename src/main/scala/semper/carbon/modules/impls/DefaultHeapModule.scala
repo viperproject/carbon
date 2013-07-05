@@ -148,11 +148,15 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
   override def predicateGhostFieldDecl(p: sil.Predicate): Seq[Decl] = {
     val predicate = locationIdentifier(p)
     val pmField = predicateMaskIdentifer(p)
+    val t = predicateVersionFieldTypeOf(p)
+    val pmT = predicateMaskFieldTypeOf(p)
     TypeDecl(predicateMetaTypeOf(p)) ++
-      ConstDecl(predicate, predicateVersionFieldTypeOf(p), unique = true) ++
-      ConstDecl(pmField, predicateMaskFieldTypeOf(p), unique = true) ++
-      Axiom(predicateMaskField(Const(predicate)) === Const(pmField)) ++
-      Axiom(isPredicateField(Const(predicate))) ++
+      Func(predicate,
+        p.formalArgs.tail map mainModule.translateLocalVarDecl, t) ++
+      Func(pmField,
+        p.formalArgs.tail map mainModule.translateLocalVarDecl, pmT) ++
+      Axiom(predicateMaskField(FuncApp(predicate, Nil, t)) === FuncApp(pmField, Nil, pmT)) ++
+      Axiom(isPredicateField(FuncApp(predicate, Nil, t))) ++
       Func(predicateTriggerIdentifer(p), Seq(LocalVarDecl(Identifier("this"), refType)), Bool)
   }
 
@@ -166,7 +170,10 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
   }
 
   private def predicateMask(loc: sil.PredicateAccess) = {
-    MapSelect(heap, Seq(translateExp(loc.rcv), Const(predicateMaskIdentifer(loc.predicate))))
+    val t = predicateMaskFieldTypeOf(loc.predicate)
+    MapSelect(heap, Seq(translateExp(loc.rcv),
+      FuncApp(predicateMaskIdentifer(loc.predicate),
+        loc.args.tail map translateExp, t)))
   }
 
   private def predicateTriggerIdentifer(f: sil.Location): Identifier = {
@@ -189,11 +196,17 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
     translateLocationAccess(f, heap)
   }
   private def translateLocationAccess(f: sil.LocationAccess, heap: Exp): Exp = {
-    MapSelect(heap, Seq(translateExp(f.rcv), locationMaskIndex(f)))
+    MapSelect(heap, Seq(translateExp(f.rcv), translateLocation(f)))
   }
 
-  override def locationMaskIndex(l: sil.LocationAccess): Const = {
-    Const(locationIdentifier(l.loc))
+  override def translateLocation(l: sil.LocationAccess): Exp = {
+    l match {
+      case sil.PredicateAccess(args, pred) =>
+        val t = predicateMetaTypeOf(pred)
+        FuncApp(locationIdentifier(pred), args.tail map translateExp, t)
+      case sil.FieldAccess(rcv, field) =>
+        Const(locationIdentifier(field))
+    }
   }
 
   override def simpleHandleStmt(stmt: sil.Stmt): Stmt = {
