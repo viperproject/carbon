@@ -68,27 +68,27 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         Func(insidePredicateName,
           Seq(
             LocalVarDecl(Identifier("x"), refType),
-            LocalVarDecl(Identifier("p"), fieldTypeOf(Int)),
+            LocalVarDecl(Identifier("p"), predicateVersionFieldType("A")),
             LocalVarDecl(Identifier("v"), Int),
             LocalVarDecl(Identifier("y"), refType),
-            LocalVarDecl(Identifier("q"), fieldTypeOf(Int)),
+            LocalVarDecl(Identifier("q"), predicateVersionFieldType("B")),
             LocalVarDecl(Identifier("w"), Int)
           ),
           Bool), size = 1) ++
       CommentedDecl(s"Transitivity of ${insidePredicateName.name}", {
         val vars1 = Seq(
           LocalVarDecl(Identifier("x"), refType),
-          LocalVarDecl(Identifier("p"), fieldTypeOf(Int)),
+          LocalVarDecl(Identifier("p"), predicateVersionFieldType("A")),
           LocalVarDecl(Identifier("v"), Int)
         )
         val vars2 = Seq(
           LocalVarDecl(Identifier("y"), refType),
-          LocalVarDecl(Identifier("q"), fieldTypeOf(Int)),
+          LocalVarDecl(Identifier("q"), predicateVersionFieldType("B")),
           LocalVarDecl(Identifier("w"), Int)
         )
         val vars3 = Seq(
           LocalVarDecl(Identifier("z"), refType),
-          LocalVarDecl(Identifier("r"), fieldTypeOf(Int)),
+          LocalVarDecl(Identifier("r"), predicateVersionFieldType("C")),
           LocalVarDecl(Identifier("u"), Int)
         )
         val f1 = FuncApp(insidePredicateName, (vars1 ++ vars2) map (_.l), Bool)
@@ -103,7 +103,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         )
       }, size = 1) ++
       CommentedDecl(s"Knowledge that two identical instances of the same predicate cannot be inside each other", {
-        val p = LocalVarDecl(Identifier("p"), fieldTypeOf(Int))
+        val p = LocalVarDecl(Identifier("p"), predicateVersionFieldType())
         val vars = Seq(
           LocalVarDecl(Identifier("x"), refType),
           p,

@@ -122,8 +122,8 @@ class DefaultPermModule(val verifier: Verifier)
         permInZeroPMask === FalseLit())) ::
       // predicate mask function
       Func(predicateMaskFieldName,
-        Seq(LocalVarDecl(Identifier("f"), fieldType)),
-        fieldTypeOf(pmaskType)) ::
+        Seq(LocalVarDecl(Identifier("f"), predicateVersionFieldType())),
+        predicateMaskFieldType) ::
       // permission amount constants
       ConstDecl(noPermName, permType) ::
       Axiom((fracComp(noPerm) === RealLit(0)) && (epsComp(noPerm) === RealLit(0))) ::

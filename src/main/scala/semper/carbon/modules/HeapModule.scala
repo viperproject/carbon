@@ -28,6 +28,26 @@ trait HeapModule extends Module with StateComponent {
   def fieldTypeOf(t: Type): Type
 
   /**
+   * The type used for predicates.
+   */
+  def predicateVersionFieldType(genericT: String = "A"): Type
+
+  /**
+   * The type used for predicates mask fields.
+   */
+  def predicateMaskFieldType: Type
+
+  /**
+   * The type used for predicates mask fields of a given predicate family.
+   */
+  def predicateMaskFieldTypeOf(p: sil.Predicate): Type
+
+  /**
+   * The type used for predicates of a given family.
+   */
+  def predicateVersionFieldTypeOf(p: sil.Predicate): Type
+
+  /**
    * Definitions for a field.
    */
   def translateField(f: sil.Field): Seq[Decl]

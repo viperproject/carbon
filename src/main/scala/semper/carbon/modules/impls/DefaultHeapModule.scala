@@ -36,8 +36,19 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
   }
 
   private val fieldTypeName = "Field"
-  override def fieldTypeOf(t: Type) = NamedType(fieldTypeName, t)
-  override def fieldType = NamedType(fieldTypeName, TypeVar("T"))
+  private val normalFieldTypeName = "NormalField"
+  private val normalFieldType = NamedType(normalFieldTypeName)
+  override def fieldTypeOf(t: Type) = NamedType(fieldTypeName, Seq(normalFieldType, t))
+  override def fieldType = NamedType(fieldTypeName, Seq(TypeVar("A"), TypeVar("B")))
+  override def predicateVersionFieldTypeOf(p: sil.Predicate) =
+    NamedType(fieldTypeName, Seq(predicateMetaTypeOf(p), Int))
+  private def predicateMetaTypeOf(p: sil.Predicate) = NamedType("PredicateType_" + p.name)
+  override def predicateVersionFieldType(genericT: String = "A") =
+    NamedType(fieldTypeName, Seq(TypeVar(genericT), Int))
+  override def predicateMaskFieldType: Type =
+    NamedType(fieldTypeName, Seq(TypeVar("A"), pmaskType))
+  override def predicateMaskFieldTypeOf(p: sil.Predicate): Type =
+    NamedType(fieldTypeName, Seq(predicateMetaTypeOf(p), pmaskType))
   private val heapTyp = NamedType("HeapType")
   private val heapName = Identifier("Heap")
   private val exhaleHeapName = Identifier("ExhaleHeap")
@@ -58,13 +69,15 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
     val refField = LocalVarDecl(Identifier("f")(axiomNamespace), fieldTypeOf(refType))
     val obj_refField = lookup(LocalVar(heapName, heapTyp), obj.l, refField.l)
     val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
-    val intfield = LocalVarDecl(Identifier("pm_f")(axiomNamespace), fieldTypeOf(Int))
+    val predField = LocalVarDecl(Identifier("pm_f")(axiomNamespace),
+      predicateVersionFieldType("C"))
     TypeDecl(refType) ++
       GlobalVarDecl(heapName, heapTyp) ++
       ConstDecl(nullName, refType) ++
       TypeDecl(fieldType) ++
-      TypeAlias(heapTyp, MapType(Seq(refType, fieldType), TypeVar("T"), Seq(TypeVar("T")))) ++
-      ConstDecl(allocName, NamedType(fieldTypeName, Bool), unique = true) ++
+      TypeDecl(normalFieldType) ++
+      TypeAlias(heapTyp, MapType(Seq(refType, fieldType), TypeVar("B"), Seq(TypeVar("A"), TypeVar("B")))) ++
+      ConstDecl(allocName, NamedType(fieldTypeName, Seq(normalFieldType, Bool)), unique = true) ++
       // all heap-lookups yield allocated objects or null
       Axiom(Forall(
         obj ++
@@ -93,27 +106,27 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
       )), size = 1) ++
         // frame all predicate masks
         MaybeCommentedDecl("Frame all predicate mask locations of predicates with direct permission", Axiom(Forall(
-          vars ++ Seq(obj, intfield),
-          Trigger(Seq(identicalFuncApp, isPredicateField(intfield.l), lookup(eh.l, obj.l, predicateMaskField(intfield.l)))),
+          vars ++ Seq(obj, predField),
+          Trigger(Seq(identicalFuncApp, isPredicateField(predField.l), lookup(eh.l, obj.l, predicateMaskField(predField.l)))),
           identicalFuncApp ==>
-            ((staticPermissionPositive(obj.l, intfield.l) && isPredicateField(intfield.l)) ==>
-              (lookup(h.l, obj.l, predicateMaskField(intfield.l)) === lookup(eh.l, obj.l, predicateMaskField(intfield.l))))
+            ((staticPermissionPositive(obj.l, predField.l) && isPredicateField(predField.l)) ==>
+              (lookup(h.l, obj.l, predicateMaskField(predField.l)) === lookup(eh.l, obj.l, predicateMaskField(predField.l))))
         )), size = 1) ++
         // frame all locations with direct permission
         MaybeCommentedDecl("Frame all locations with known folded permissions", Axiom(Forall(
-          vars ++ Seq(obj, intfield),
-          Trigger(Seq(identicalFuncApp, lookup(h.l, obj.l, predicateMaskField(intfield.l)), isPredicateField(intfield.l))) ++
-            Trigger(Seq(identicalFuncApp, lookup(eh.l, obj.l, predicateMaskField(intfield.l)), isPredicateField(intfield.l))) ++
+          vars ++ Seq(obj, predField),
+          Trigger(Seq(identicalFuncApp, lookup(h.l, obj.l, predicateMaskField(predField.l)), isPredicateField(predField.l))) ++
+            Trigger(Seq(identicalFuncApp, lookup(eh.l, obj.l, predicateMaskField(predField.l)), isPredicateField(predField.l))) ++
             (verifier.program.predicates map (pred =>
-              Trigger(Seq(identicalFuncApp, predicateTrigger(pred, obj.l), isPredicateField(intfield.l))))
+              Trigger(Seq(identicalFuncApp, predicateTrigger(pred, obj.l), isPredicateField(predField.l))))
               ),
           identicalFuncApp ==>
             (
-              (staticPermissionPositive(obj.l, intfield.l) && isPredicateField(intfield.l)) ==>
+              (staticPermissionPositive(obj.l, predField.l) && isPredicateField(predField.l)) ==>
                 Forall(Seq(obj2, field),
                   Trigger(Seq(lookup(h.l, obj2.l, field.l))) ++
                     Trigger(Seq(lookup(eh.l, obj2.l, field.l))),
-                  (lookup(lookup(h.l, obj.l, predicateMaskField(intfield.l)), obj2.l, field.l) ==>
+                  (lookup(lookup(h.l, obj.l, predicateMaskField(predField.l)), obj2.l, field.l) ==>
                     (lookup(h.l, obj2.l, field.l) === lookup(eh.l, obj2.l, field.l))),
                   field.typ.freeTypeVars
                 )
@@ -128,18 +141,19 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
 
   override def translateField(f: sil.Field) = {
     val field = locationIdentifier(f)
-    ConstDecl(field, NamedType(fieldTypeName, translateType(f.typ)), unique = true) ++
+    ConstDecl(field, NamedType(fieldTypeName, Seq(normalFieldType, translateType(f.typ))), unique = true) ++
       Axiom(UnExp(Not, isPredicateField(Const(field))))
   }
 
-  override def predicateGhostFieldDecl(f: sil.Predicate): Seq[Decl] = {
-    val predicate = locationIdentifier(f)
-    val pmField = predicateMaskIdentifer(f)
-    ConstDecl(predicate, NamedType(fieldTypeName, Int), unique = true) ++
-      ConstDecl(pmField, NamedType(fieldTypeName, pmaskType), unique = true) ++
+  override def predicateGhostFieldDecl(p: sil.Predicate): Seq[Decl] = {
+    val predicate = locationIdentifier(p)
+    val pmField = predicateMaskIdentifer(p)
+    TypeDecl(predicateMetaTypeOf(p)) ++
+      ConstDecl(predicate, predicateVersionFieldTypeOf(p), unique = true) ++
+      ConstDecl(pmField, predicateMaskFieldTypeOf(p), unique = true) ++
       Axiom(predicateMaskField(Const(predicate)) === Const(pmField)) ++
       Axiom(isPredicateField(Const(predicate))) ++
-      Func(predicateTriggerIdentifer(f), Seq(LocalVarDecl(Identifier("this"), refType)), Bool)
+      Func(predicateTriggerIdentifer(p), Seq(LocalVarDecl(Identifier("this"), refType)), Bool)
   }
 
   /** Return the identifier corresponding to a SIL location. */
