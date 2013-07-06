@@ -65,6 +65,8 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           checkDefinedness(e, errors.AssertFailed(a)) :: backup :: exhaleStmt :: Nil
         }
       case mc@sil.MethodCall(method, args, targets) =>
+        method.pres map mainModule.defineLocalVars
+        method.posts map mainModule.defineLocalVars
         // save pre-call state
         val (preCallStateStmt, state) = stateModule.freshTempState("PreCall")
         val preCallState = stateModule.state
@@ -91,7 +93,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           }
         })
         val posts = method.posts map (e => Expressions.instantiateVariables(e, method.formalArgs ++ method.formalReturns, (actualArgs map (_._1)) ++ targets))
-        preCallStateStmt ++
+        val res = preCallStateStmt ++
           (targets map (e => checkDefinedness(e, errors.CallFailed(mc)))) ++
           (args map (e => checkDefinedness(e, errors.CallFailed(mc)))) ++
           (actualArgs map (_._2)) ++
@@ -103,6 +105,9 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           toUndefine map mainModule.env.undefine
           res
         }
+        method.pres map mainModule.undefineLocalVars
+        method.posts map mainModule.undefineLocalVars
+        res
       case w@sil.While(cond, invs, locals, body) =>
         val guard = translateExp(cond)
         MaybeCommentBlock("Exhale loop invariant before loop",
