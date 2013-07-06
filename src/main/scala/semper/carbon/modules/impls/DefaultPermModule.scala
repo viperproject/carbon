@@ -182,13 +182,11 @@ class DefaultPermModule(val verifier: Verifier)
       val args = staticMask ++ Seq(obj, field)
       val funcApp = FuncApp(hasDirectPermName, args map (_.l), Bool)
       val permission = currentPermission(staticMask(0).l, obj.l, field.l)
-      val permissionPositive = fracComp(permission) > RealLit(0) ||
-        ((fracComp(permission) === RealLit(0)) && epsComp(permission) > RealLit(0))
       Func(hasDirectPermName, args, Bool) ++
         Axiom(Forall(
           staticMask ++ Seq(obj, field),
           Trigger(funcApp),
-          funcApp <==> permissionPositive
+          funcApp <==> permissionPositive(permission)
         ))
     }
   }
@@ -234,9 +232,19 @@ class DefaultPermModule(val verifier: Verifier)
   override def hasDirectPerm(la: sil.LocationAccess): Exp =
     hasDirectPerm(translateExp(la.rcv), translateLocation(la))
 
-  private def permissionPositive(permission: Exp) = {
-    fracComp(permission) > RealLit(0) ||
-      ((fracComp(permission) === RealLit(0)) && epsComp(permission) > RealLit(0))
+  /**
+   * Expression that expresses that 'permission' is positive. 'silPerm' is used to
+   * optimize the check if possible.
+   */
+  private def permissionPositive(permission: Exp, silPerm: Option[sil.Exp] = None): Exp = {
+    (permission, silPerm) match {
+      case (x, _) if permission == fullPerm => TrueLit()
+      case (_, Some(sil.FullPerm())) => TrueLit()
+      case (_, Some(sil.WildcardPerm())) => TrueLit()
+      case (_, Some(sil.NoPerm())) => FalseLit()
+      case _ => fracComp(permission) > RealLit(0) ||
+        ((fracComp(permission) === RealLit(0)) && epsComp(permission) > RealLit(0))
+    }
   }
 
   override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
@@ -253,7 +261,7 @@ class DefaultPermModule(val verifier: Verifier)
           }
         stmts ++
           (permVar := permVal) ++
-          Assert(permissionPositive(permVar), error.dueTo(reasons.NonPositivePermission(perm))) ++
+          Assert(permissionPositive(permVar, Some(perm)), error.dueTo(reasons.NonPositivePermission(perm))) ++
           Assert(checkNonNullReceiver(loc), error.dueTo(reasons.ReceiverNull(loc))) ++
           (if (perm.isInstanceOf[WildcardPerm]) {
             (Assert(fracComp(curPerm) > RealLit(0), error.dueTo(reasons.InsufficientPermission(loc))) ++
@@ -283,7 +291,7 @@ class DefaultPermModule(val verifier: Verifier)
           }
         stmts ++
           (permVar := permVal) ++
-          Assume(permissionPositive(permVar)) ++
+          Assume(permissionPositive(permVar, Some(perm))) ++
           Assume(checkNonNullReceiver(loc)) ++
           (if (!isUsingOldState) curPerm := permAdd(curPerm, permVar) else Nil)
       case _ => Nil
@@ -407,10 +415,14 @@ class DefaultPermModule(val verifier: Verifier)
       ((fracComp(a) === fracComp(b)) && (epsComp(a) < epsComp(b)))
   }
   private def permLe(a: Exp, b: Exp): Exp = {
-    permLt(a, b) || permEq(a, b)
+    // simple optimization that helps in many cases
+    if (a == fullPerm || b == fullPerm) permEq(a, b)
+    else permLt(a, b) || permEq(a, b)
   }
   private def permGt(a: Exp, b: Exp): Exp = {
-    permLt(b, a)
+    // simple optimization that helps in many cases
+    if (a == fullPerm || b == fullPerm) permEq(a, b)
+    else UnExp(Not, permLt(b, a))
   }
   private def permGe(a: Exp, b: Exp): Exp = {
     permLe(b, a)
