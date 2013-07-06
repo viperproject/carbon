@@ -30,6 +30,14 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule {
       assumeGoodState
   }
 
+  def containsFunc(exp: sil.Exp): Boolean = {
+    var res = false
+    exp visit {
+      case _: sil.FuncApp => res = true
+    }
+    res
+  }
+
   /**
    * Inhales SIL expression connectives (such as logical and/or) and forwards the
    * translation of other expressions to the inhale components.
@@ -47,7 +55,8 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule {
       case _ =>
         val stmt = components map (_.inhaleExp(e))
         if (stmt.children.isEmpty) sys.error(s"missing translation for inhaling of $e")
-        stmt
+        if (containsFunc(e)) assumeGoodState ++ stmt
+        else stmt
     }
   }
 
