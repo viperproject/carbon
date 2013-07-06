@@ -129,6 +129,7 @@ object Optimizer {
         Statements.EmptyStmt
 
       case Assert(TrueLit(), _) => Statements.EmptyStmt
+      case Assume(TrueLit()) => Statements.EmptyStmt
     })
   }
 }
