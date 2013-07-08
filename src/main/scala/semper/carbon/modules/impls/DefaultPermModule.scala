@@ -359,7 +359,7 @@ class DefaultPermModule(val verifier: Verifier)
     }
   }
 
-  private val currentAbstractReads = collection.mutable.ListBuffer[String]()
+  val currentAbstractReads = collection.mutable.ListBuffer[String]()
 
   private def isAbstractRead(exp: sil.Exp) = {
     exp match {
@@ -485,6 +485,160 @@ class DefaultPermModule(val verifier: Verifier)
     typ match {
       case sil.Perm => Some(epsComp(variable) === RealLit(0))
       case _ => None
+    }
+  }
+
+  def splitter = PermissionSplitter
+  object PermissionSplitter {
+
+    def isPositivePerm(e: sil.Exp): Exp = {
+      require(e isSubtype sil.Perm)
+      val backup = permissionPositive(translatePerm(e), Some(e))
+      e match {
+        case sil.NoPerm() => FalseLit()
+        case sil.FullPerm() => TrueLit()
+        case sil.WildcardPerm() => TrueLit()
+        case sil.EpsilonPerm() => TrueLit()
+        case x: sil.LocalVar if isAbstractRead(x) => TrueLit()
+        case sil.CurrentPerm(loc) => backup
+        case sil.FractionalPerm(left, right) =>
+          val (l, r) = (translateExp(left), translateExp(right))
+          ((l > IntLit(0)) && (r > IntLit(0))) || ((l < IntLit(0)) && (r < IntLit(0)))
+        case sil.PermAdd(left, right) =>
+          val (l, r) = (translateExp(left), translateExp(right))
+          ((l > IntLit(0)) && (r > IntLit(0))) || backup
+        case sil.PermSub(left, right) => backup
+        case sil.PermMul(a, b) =>
+          (isPositivePerm(a) && isPositivePerm(b)) || (isNegativePerm(a) && isNegativePerm(b))
+        case sil.IntPermMul(a, b) =>
+          val n = translateExp(a)
+          ((n > IntLit(0)) && isPositivePerm(a)) || ((n < IntLit(0)) && isNegativePerm(a))
+        case _ => backup
+      }
+    }
+
+    def isNegativePerm(e: sil.Exp): Exp = {
+      require(e isSubtype sil.Perm)
+      val backup = permissionPositive(translatePerm(e), Some(e))
+      e match {
+        case sil.NoPerm() => TrueLit()
+        case sil.FullPerm() => FalseLit()
+        case sil.WildcardPerm() => FalseLit()
+        case sil.EpsilonPerm() => FalseLit()
+        case x: sil.LocalVar if isAbstractRead(x) => FalseLit()
+        case sil.CurrentPerm(loc) => backup
+        case sil.FractionalPerm(left, right) =>
+          val (l, r) = (translateExp(left), translateExp(right))
+          ((l < IntLit(0)) && (r > IntLit(0))) || ((l > IntLit(0)) && (r < IntLit(0)))
+        case sil.PermAdd(left, right) =>
+          val (l, r) = (translateExp(left), translateExp(right))
+          ((l < IntLit(0)) && (r < IntLit(0))) || backup
+        case sil.PermSub(left, right) => backup
+        case sil.PermMul(a, b) =>
+          (isPositivePerm(a) && isNegativePerm(b)) || (isNegativePerm(a) && isPositivePerm(b))
+        case sil.IntPermMul(a, b) =>
+          val n = translateExp(a)
+          ((n > IntLit(0)) && isNegativePerm(a)) || ((n < IntLit(0)) && isPositivePerm(a))
+        case _ => backup
+      }
+    }
+
+    def isFixedPerm(e: sil.Exp): Boolean = {
+      require(e isSubtype sil.Perm)
+      e match {
+        case x: sil.LocalVar if isAbstractRead(x) => false
+        case sil.NoPerm() => true
+        case sil.FullPerm() => true
+        case sil.WildcardPerm() => true
+        case sil.EpsilonPerm() => true
+        case sil.CurrentPerm(loc) => true
+        case sil.FractionalPerm(left, right) => true
+        case sil.PermAdd(left, right) =>
+          isFixedPerm(left) && isFixedPerm(right)
+        case sil.PermSub(left, right) =>
+          isFixedPerm(left) && isFixedPerm(right)
+        case sil.PermMul(left, right) =>
+          isFixedPerm(left) && isFixedPerm(right)
+        case sil.IntPermMul(a, b) =>
+          isFixedPerm(b)
+        case _: sil.LocalVar | _: sil.FuncLikeApp => true
+        case _ => sys.error(s"not a permission expression: $e")
+      }
+    }
+
+    def normalizePerm(e0: sil.Exp): sil.Exp ={
+      var r = normalizePermHelper(e0)
+      while (!r._1) {
+        println("-- " + r._2)
+        r = normalizePermHelper(r._2)
+      }
+      r._2
+    }
+
+    def normalizePermHelper(e0: sil.Exp): (Boolean, sil.Exp) ={
+      // we use this flag to indicate whether something changed
+      var done = true
+      if (isFixedPerm(e0)) {
+        // no rewriting of fixed permission necessary
+        (true, e0)
+      } else {
+        // remove permission subtraction
+        val e1 = e0.transform()(_ => true, {
+          case sil.PermSub(left, right) => done = false
+            sil.PermAdd(left, sil.IntPermMul(sil.IntLit(-1)(), right)())()
+        })
+
+        // move permission multiplications all the way to the inside
+        val e2 = e1.transform()(_ => true, {
+          case sil.PermMul(sil.PermAdd(a, b), c) => done = false
+            sil.PermAdd(sil.PermMul(a, c)(), sil.PermMul(b, c)())()
+          case sil.PermMul(a, sil.PermAdd(b, c)) => done = false
+            sil.PermAdd(sil.PermMul(a, b)(), sil.PermMul(a, c)())()
+        })
+
+        // move integer permission multiplications all the way to the inside
+        val e3 = e2.transform()(_ => true, {
+          case x@sil.IntPermMul(a, sil.PermAdd(b, c)) => done = false
+            sil.PermAdd(sil.IntPermMul(a, b)(), sil.IntPermMul(a, c)())()
+          case sil.IntPermMul(a, sil.PermMul(b, c)) => done = false
+            sil.PermMul(b, sil.IntPermMul(a, c)())()
+        })
+
+        // group integer permission multiplications
+        val e4 = e3.transform()(_ => true, {
+          case sil.IntPermMul(a, sil.IntPermMul(b, c)) => done = false
+            sil.IntPermMul(sil.Mul(a, b)(), c)()
+        })
+
+        // move non-fixed part of permission multiplication to right-hand side
+        val e5 = e4.transform()(_ => true, {
+          case sil.PermMul(a, b) if isFixedPerm(b) && !isFixedPerm(a) => done = false
+            sil.PermMul(b, a)()
+        })
+
+        (done, e5)
+      }
+    }
+
+    def splitPerm(e: sil.Exp): Seq[(Int, Seq[Exp], sil.Exp)] = {
+      val zero = IntLit(0)
+      normalizePerm(e) match {
+        case p if isFixedPerm(p) =>
+          (1, Nil, p)
+        case p: sil.LocalVar =>
+          assert(isAbstractRead(p))
+          (2, Nil, p)
+        case sil.IntPermMul(n, p: sil.LocalVar) if isAbstractRead(p) =>
+          val cond = translateExp(n) > zero
+          Seq((2, cond, e), (3, UnExp(Not, cond), e))
+        case sil.PermMul(left, right: sil.LocalVar) if isAbstractRead(right) =>
+          val cond = isPositivePerm(left)
+          Seq((2, cond, e), (3, UnExp(Not, cond), e))
+        case sil.PermAdd(left, right) if isFixedPerm(left) =>
+          (3, Nil, left) ++ splitPerm(right)
+        case _ =>
+          (3, Nil, e)
+      }
     }
   }
 }
