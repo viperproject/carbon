@@ -67,7 +67,12 @@ trait BoogieInterface {
           val internalError = new AbstractVerificationError {
             protected def text: String = s"Found an unparsable output from Boogie: $l"
             def id: String = "boogie.unknown.output"
-            def reason: ErrorReason = null
+            def reason: ErrorReason = new ErrorReason {
+              def pos: Position = NoPosition
+              def readableMessage: String = "?"
+              def id: String = "unknown"
+              def offendingNode = null
+            }
             def offendingNode = null
             override def pos = NoPosition
             override def readableMessage(full: Boolean = true) =
