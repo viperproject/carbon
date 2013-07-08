@@ -122,6 +122,7 @@ object Nodes {
           case IntLit(i) => Nil
           case BoolLit(b) => Nil
           case RealLit(b) => Nil
+          case RealConv(exp) => Seq(exp)
           case LocalVar(n, t) => Nil
           case GlobalVar(n, t) => Nil
           case Const(i) => Nil
@@ -153,6 +154,7 @@ object Nodes {
           case IntLit(i) => exp
           case BoolLit(b) => exp
           case RealLit(b) => exp
+          case RealConv(exp) => RealConv(func(exp))
           case LocalVar(n, tt) => exp
           case GlobalVar(n, tt) => exp
           case Const(i) => exp

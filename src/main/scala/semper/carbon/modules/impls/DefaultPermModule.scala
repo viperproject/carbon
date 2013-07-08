@@ -338,7 +338,7 @@ class DefaultPermModule(val verifier: Verifier)
       case sil.IntPermMul(a, b) =>
         val i = translateExp(a)
         val p = translatePerm(b)
-        val mul = (x: Exp) => BinExp(i, Mul, x)
+        val mul = (x: Exp) => BinExp(RealConv(i), Mul, x)
         mixedPerm(mul(fracComp(p)), mul(epsComp(p)))
       case _: sil.LocalVar | _: sil.FuncLikeApp =>
         translateExp(e)

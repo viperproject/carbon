@@ -61,6 +61,7 @@ object Transformer {
             case IntLit(i) => parent
             case BoolLit(b) => parent
             case RealLit(b) => parent
+            case RealConv(exp) => RealConv(go(exp))
             case LocalVar(n, t) => LocalVar(n, go(t))
             case GlobalVar(n, t) => GlobalVar(n, go(t))
             case Const(i) => parent

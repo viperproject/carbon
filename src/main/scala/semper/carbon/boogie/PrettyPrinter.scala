@@ -297,6 +297,7 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
       case IntLit(i) => value(i)
       case BoolLit(b) => value(b)
       case RealLit(d) => value("%.9f" format d)
+      case RealConv(exp) => "real" <> parens(show(exp))
       case Forall(vars, triggers, exp, Nil) =>
         parens("forall" <+> //("∀" or "forall") <+>
           commasep(vars) <+>

@@ -177,6 +177,7 @@ object BoolLit {
   def unapply(b: BoolLit) = Some(b.b)
   def apply(b: Boolean) = if (b) TrueLit() else FalseLit()
 }
+case class RealConv(e: Exp) extends Exp
 
 case class BinExp(left: Exp, binop: BinOp, right: Exp) extends Exp with PrettyBinaryExpression {
   lazy val op = binop.name
