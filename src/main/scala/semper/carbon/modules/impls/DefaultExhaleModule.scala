@@ -28,6 +28,7 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
 
   override def exhale(exps: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true): Stmt = {
     val phases = for (phase <- 1 to numberOfPhases) yield {
+      currentPhaseId = phase - 1
       val stmts = exps map (e => exhaleConnective(e._1.whenExhaling, e._2, phase - 1))
       if (stmts.children.isEmpty) {
         Statements.EmptyStmt
@@ -63,14 +64,14 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
         If(translateExp(e1), exhaleConnective(e2, error, phase), Statements.EmptyStmt)
       case sil.CondExp(c, e1, e2) =>
         If(translateExp(c), exhaleConnective(e1, error, phase), exhaleConnective(e2, error, phase))
-      case _ if phaseOf(e) == phase =>
-        val stmt = components map (_.exhaleExp(e, error))
-        if (stmt.children.isEmpty) sys.error(s"missing translation for exhaling of $e")
-        stmt
+      case _ if isInPhase(e, phase) =>
+        components map (_.exhaleExp(e, error))
       case _ =>
         Nil // nothing to do in this phase
     }
   }
+
+  var currentPhaseId: Int = -1
 
   override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
     if (e.isPure) {

@@ -19,4 +19,5 @@ import semper.sil.verifier.PartialVerificationError
  */
 trait ExhaleModule extends Module with ExhaleComponent with ComponentRegistry[ExhaleComponent] {
   def exhale(exp: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true): Stmt
+  def currentPhaseId: Int
 }

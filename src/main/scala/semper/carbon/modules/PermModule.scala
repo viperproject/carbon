@@ -34,7 +34,7 @@ trait PermModule extends Module {
   /**
    * The ID of the phase that this expression should be exhaled in.
    */
-  def phaseOf(e: sil.Exp): Int
+  def isInPhase(e: sil.Exp, phaseId: Int): Boolean
 
   /**
    * A short description of a given phase.

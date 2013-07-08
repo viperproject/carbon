@@ -249,30 +249,42 @@ class DefaultPermModule(val verifier: Verifier)
 
   override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
-      case sil.AccessPredicate(loc, perm) =>
-        val curPerm = MapSelect(mask, Seq(translateExp(loc.rcv), translateLocation(loc)))
-        val permVar = LocalVar(Identifier("perm"), permType)
-        val (permVal, wildcard, stmts): (Exp, Exp, Stmt) =
-          if (perm.isInstanceOf[WildcardPerm]) {
-            val w = LocalVar(Identifier("wildcard"), Real)
-            (fracPerm(w), w, LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil)
-          } else {
-            (translatePerm(perm), null, Nil)
-          }
-        stmts ++
-          (permVar := permVal) ++
-          Assert(permissionPositive(permVar, Some(perm)), error.dueTo(reasons.NonPositivePermission(perm))) ++
-          Assert(checkNonNullReceiver(loc), error.dueTo(reasons.ReceiverNull(loc))) ++
-          (if (perm.isInstanceOf[WildcardPerm]) {
-            (Assert(fracComp(curPerm) > RealLit(0), error.dueTo(reasons.InsufficientPermission(loc))) ++
-              Assume(wildcard < fracComp(curPerm))): Stmt
-          } else if (isAbstractRead(perm)) {
-            (Assert(fracComp(curPerm) > RealLit(0), error.dueTo(reasons.InsufficientPermission(loc))) ++
-              Assume(fracComp(permVal) < fracComp(curPerm))): Stmt
-          } else {
-            Assert(permLe(permVal, curPerm), error.dueTo(reasons.InsufficientPermission(loc)))
-          }) ++
-          (if (!isUsingOldState) curPerm := permSub(curPerm, permVar) else Nil)
+      case sil.AccessPredicate(loc, p) =>
+        val perms = PermissionSplitter.splitPerm(p) filter (x => x._1 - 1 == exhaleModule.currentPhaseId)
+        (if (exhaleModule.currentPhaseId == 0)
+          (if (!p.isInstanceOf[WildcardPerm])
+            Assert(permissionPositive(translatePerm(p), Some(p)), error.dueTo(reasons.NonPositivePermission(p))) else Nil: Stmt) ++
+            Assert(checkNonNullReceiver(loc), error.dueTo(reasons.ReceiverNull(loc)))
+          else Nil) ++
+          (if (perms.size == 0) {
+          Nil
+        } else {
+          (for ((_, cond, perm) <- perms) yield {
+            val curPerm = MapSelect(mask, Seq(translateExp(loc.rcv), translateLocation(loc)))
+            val permVar = LocalVar(Identifier("perm"), permType)
+            val (permVal, wildcard, stmts): (Exp, Exp, Stmt) =
+              if (perm.isInstanceOf[WildcardPerm]) {
+                val w = LocalVar(Identifier("wildcard"), Real)
+                (fracPerm(w), w, LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil)
+              } else {
+                (translatePerm(perm), null, Nil)
+              }
+            If(cond,
+              stmts ++
+                (permVar := permVal) ++
+                (if (perm.isInstanceOf[WildcardPerm]) {
+                  (Assert(fracComp(curPerm) > RealLit(0), error.dueTo(reasons.InsufficientPermission(loc))) ++
+                    Assume(wildcard < fracComp(curPerm))): Stmt
+                } else if (exhaleModule.currentPhaseId + 1 == 2) {
+                  (Assert(fracComp(curPerm) > RealLit(0), error.dueTo(reasons.InsufficientPermission(loc))) ++
+                    Assume(fracComp(permVal) < fracComp(curPerm))): Stmt
+                } else {
+                  Assert(permLe(permVal, curPerm), error.dueTo(reasons.InsufficientPermission(loc)))
+                }) ++
+                (if (!isUsingOldState) curPerm := permSub(curPerm, permVar) else Nil),
+              Nil)
+          }).flatten
+        })
       case _ => Nil
     }
   }
@@ -429,33 +441,19 @@ class DefaultPermModule(val verifier: Verifier)
   }
 
   override val numberOfPhases = 3
-  override def phaseOf(e: sil.Exp): Int = {
+  override def isInPhase(e: sil.Exp, phaseId: Int): Boolean = {
     e match {
-      case sil.AccessPredicate(loc, sil.LocalVar(name)) if currentAbstractReads.contains(name) => 1
-      case sil.AccessPredicate(loc, perm) if !containsAbstractRead(perm) => 0
-      case sil.AccessPredicate(loc, perm) => 2
-      case _ => 0
+      case sil.AccessPredicate(loc, perm) => true // do something in all phases
+      case _ => phaseId == 0
     }
   }
 
   override def phaseDescription(phase: Int): String = {
     phase match {
       case 0 => "pure assertions and fixed permissions"
-      case 1 => "abstract read permissions on their own"
-      case 2 => "all remaining permissions (containing read permissions, but not on their own)"
+      case 1 => "abstract read permissions (and scaled abstract read permissions)"
+      case 2 => "all remaining permissions (containing read permissions, but in a negative context)"
     }
-  }
-
-  /**
-   * Returns true if the given permission contains an abstract read permission.
-   */
-  private def containsAbstractRead(perm: sil.Exp): Boolean = {
-    var res = false
-    perm visit {
-      case l@sil.LocalVar(name) if (currentAbstractReads.contains(name)) =>
-        res = true
-    }
-    res
   }
 
   private var allowLocationAccessWithoutPerm = false
@@ -566,16 +564,15 @@ class DefaultPermModule(val verifier: Verifier)
       }
     }
 
-    def normalizePerm(e0: sil.Exp): sil.Exp ={
+    def normalizePerm(e0: sil.Exp): sil.Exp = {
       var r = normalizePermHelper(e0)
       while (!r._1) {
-        println("-- " + r._2)
         r = normalizePermHelper(r._2)
       }
       r._2
     }
 
-    def normalizePermHelper(e0: sil.Exp): (Boolean, sil.Exp) ={
+    def normalizePermHelper(e0: sil.Exp): (Boolean, sil.Exp) = {
       // we use this flag to indicate whether something changed
       var done = true
       if (isFixedPerm(e0)) {
@@ -620,24 +617,47 @@ class DefaultPermModule(val verifier: Verifier)
       }
     }
 
-    def splitPerm(e: sil.Exp): Seq[(Int, Seq[Exp], sil.Exp)] = {
+    def splitPerm(e: sil.Exp): Seq[(Int, Exp, sil.Exp)] = {
+      val perms = splitPermHelper(e)
+      // merge fixed permissions from phase 0
+      def pred(x: (Int, Exp, sil.Exp)) = x._1 == 1 && x._2 == TrueLit()
+      val p0 = perms filter pred
+      val p1 = perms filterNot pred
+      def addAll(pss: Seq[sil.Exp]): sil.Exp = {
+        pss match {
+          case Nil => null
+          case p :: Nil => p
+          case p :: ps => sil.PermAdd(p, addAll(ps))()
+        }
+      }
+      val res = if (p0.size == 0) p1
+      else {
+        (1, TrueLit(), addAll(p0 map (_._3))) ++ p1
+      }
+      res
+    }
+
+    def splitPermHelper(e: sil.Exp): Seq[(Int, Exp, sil.Exp)] ={
       val zero = IntLit(0)
       normalizePerm(e) match {
         case p if isFixedPerm(p) =>
-          (1, Nil, p)
+          (1, TrueLit(), p)
         case p: sil.LocalVar =>
           assert(isAbstractRead(p))
-          (2, Nil, p)
+          (2, TrueLit(), p)
         case sil.IntPermMul(n, p: sil.LocalVar) if isAbstractRead(p) =>
           val cond = translateExp(n) > zero
           Seq((2, cond, e), (3, UnExp(Not, cond), e))
         case sil.PermMul(left, right: sil.LocalVar) if isAbstractRead(right) =>
           val cond = isPositivePerm(left)
           Seq((2, cond, e), (3, UnExp(Not, cond), e))
-        case sil.PermAdd(left, right) if isFixedPerm(left) =>
-          (3, Nil, left) ++ splitPerm(right)
+        case sil.PermMul(left, sil.IntPermMul(n, p: sil.LocalVar)) if isAbstractRead(p) =>
+          val cond = isPositivePerm(left) && (translateExp(n) > zero)
+          Seq((2, cond, e), (3, UnExp(Not, cond), e))
+        case sil.PermAdd(left, right) =>
+          splitPermHelper(left) ++ splitPermHelper(right)
         case _ =>
-          (3, Nil, e)
+          (3, TrueLit(), e)
       }
     }
   }
