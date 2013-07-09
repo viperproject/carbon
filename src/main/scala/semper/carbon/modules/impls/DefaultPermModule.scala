@@ -279,7 +279,7 @@ class DefaultPermModule(val verifier: Verifier)
                   (Assert(fracComp(curPerm) > RealLit(0), error.dueTo(reasons.InsufficientPermission(loc))) ++
                     Assume(fracComp(permVal) < fracComp(curPerm))): Stmt
                 } else {
-                  Assert(permLe(permVal, curPerm), error.dueTo(reasons.InsufficientPermission(loc)))
+                  Assert(permLe(permVar, curPerm), error.dueTo(reasons.InsufficientPermission(loc)))
                 }) ++
                 (if (!isUsingOldState) curPerm := permSub(curPerm, permVar) else Nil),
               Nil)
@@ -428,13 +428,13 @@ class DefaultPermModule(val verifier: Verifier)
   }
   private def permLe(a: Exp, b: Exp): Exp = {
     // simple optimization that helps in many cases
-    if (a == fullPerm || b == fullPerm) permEq(a, b)
+    if (a == fullPerm) permEq(a, b)
     else permLt(a, b) || permEq(a, b)
   }
   private def permGt(a: Exp, b: Exp): Exp = {
     // simple optimization that helps in many cases
-    if (a == fullPerm || b == fullPerm) permEq(a, b)
-    else UnExp(Not, permLt(b, a))
+    if (b == fullPerm) permEq(a, b)
+    else permLt(b, a)
   }
   private def permGe(a: Exp, b: Exp): Exp = {
     permLe(b, a)
@@ -575,6 +575,11 @@ class DefaultPermModule(val verifier: Verifier)
     def normalizePermHelper(e0: sil.Exp): (Boolean, sil.Exp) = {
       // we use this flag to indicate whether something changed
       var done = true
+      e0 match {
+        case sil.PermSub(sil.FullPerm(), p: sil.LocalVar) if isAbstractRead(p) =>
+          return (true, e0)
+        case _ =>
+      }
       if (isFixedPerm(e0)) {
         // no rewriting of fixed permission necessary
         (true, e0)
@@ -640,6 +645,8 @@ class DefaultPermModule(val verifier: Verifier)
     def splitPermHelper(e: sil.Exp): Seq[(Int, Exp, sil.Exp)] ={
       val zero = IntLit(0)
       normalizePerm(e) match {
+        case sil.PermSub(sil.FullPerm(), p: sil.LocalVar) if isAbstractRead(p) =>
+          (3, TrueLit(), e)
         case p if isFixedPerm(p) =>
           (1, TrueLit(), p)
         case p: sil.LocalVar =>
