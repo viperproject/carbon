@@ -260,7 +260,7 @@ class DefaultPermModule(val verifier: Verifier)
           Nil
         } else {
           (for ((_, cond, perm) <- perms) yield {
-            val curPerm = MapSelect(mask, Seq(translateExp(loc.rcv), translateLocation(loc)))
+            val curPerm = currentPermission(loc)
             val permVar = LocalVar(Identifier("perm"), permType)
             val (permVal, wildcard, stmts): (Exp, Exp, Stmt) =
               if (perm.isInstanceOf[WildcardPerm]) {
@@ -311,7 +311,12 @@ class DefaultPermModule(val verifier: Verifier)
   }
 
   def currentPermission(loc: sil.LocationAccess): MapSelect = {
-    currentPermission(translateExp(loc.rcv), translateLocation(loc))
+    loc match {
+      case sil.FieldAccess(rcv, field) =>
+        currentPermission(translateExp(rcv), translateLocation(loc))
+      case sil.PredicateAccess(args, predicate) =>
+        currentPermission(translateNull, translateLocation(loc))
+    }
   }
   def currentPermission(rcv: Exp, location: Exp): MapSelect = {
     currentPermission(mask, rcv, location)
@@ -338,7 +343,7 @@ class DefaultPermModule(val verifier: Verifier)
       case sil.EpsilonPerm() =>
         epsPerm(RealLit(1))
       case sil.CurrentPerm(loc) =>
-        MapSelect(mask, Seq(translateExp(loc.rcv), translateLocation(loc)))
+        currentPermission(loc)
       case sil.FractionalPerm(left, right) =>
         fracPerm(BinExp(translateExp(left), Div, translateExp(right)))
       case sil.PermAdd(a, b) =>
