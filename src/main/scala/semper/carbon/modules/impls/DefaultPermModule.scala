@@ -490,7 +490,7 @@ class DefaultPermModule(val verifier: Verifier)
   object PermissionSplitter {
 
     def isPositivePerm(e: sil.Exp): Exp = {
-      require(e isSubtype sil.Perm)
+      require(e isSubtype sil.Perm, s"found ${e.typ} ($e), but required Perm")
       val backup = permissionPositive(translatePerm(e), Some(e))
       e match {
         case sil.NoPerm() => FalseLit()
@@ -503,14 +503,13 @@ class DefaultPermModule(val verifier: Verifier)
           val (l, r) = (translateExp(left), translateExp(right))
           ((l > IntLit(0)) && (r > IntLit(0))) || ((l < IntLit(0)) && (r < IntLit(0)))
         case sil.PermAdd(left, right) =>
-          val (l, r) = (translateExp(left), translateExp(right))
-          ((l > IntLit(0)) && (r > IntLit(0))) || backup
+          (isPositivePerm(left) && isPositivePerm(right)) || backup
         case sil.PermSub(left, right) => backup
         case sil.PermMul(a, b) =>
           (isPositivePerm(a) && isPositivePerm(b)) || (isNegativePerm(a) && isNegativePerm(b))
         case sil.IntPermMul(a, b) =>
           val n = translateExp(a)
-          ((n > IntLit(0)) && isPositivePerm(a)) || ((n < IntLit(0)) && isNegativePerm(a))
+          ((n > IntLit(0)) && isPositivePerm(b)) || ((n < IntLit(0)) && isNegativePerm(b))
         case _ => backup
       }
     }
@@ -529,14 +528,13 @@ class DefaultPermModule(val verifier: Verifier)
           val (l, r) = (translateExp(left), translateExp(right))
           ((l < IntLit(0)) && (r > IntLit(0))) || ((l > IntLit(0)) && (r < IntLit(0)))
         case sil.PermAdd(left, right) =>
-          val (l, r) = (translateExp(left), translateExp(right))
-          ((l < IntLit(0)) && (r < IntLit(0))) || backup
+          (isNegativePerm(left) && isNegativePerm(right)) || backup
         case sil.PermSub(left, right) => backup
         case sil.PermMul(a, b) =>
           (isPositivePerm(a) && isNegativePerm(b)) || (isNegativePerm(a) && isPositivePerm(b))
         case sil.IntPermMul(a, b) =>
           val n = translateExp(a)
-          ((n > IntLit(0)) && isNegativePerm(a)) || ((n < IntLit(0)) && isPositivePerm(a))
+          ((n > IntLit(0)) && isNegativePerm(b)) || ((n < IntLit(0)) && isPositivePerm(b))
         case _ => backup
       }
     }
