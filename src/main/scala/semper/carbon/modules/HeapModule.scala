@@ -63,6 +63,7 @@ trait HeapModule extends Module with StateComponent {
   def translateLocationAccess(f: sil.LocationAccess): Exp
 
   def translateLocation(f: sil.LocationAccess): Exp
+  def translateLocation(pred: sil.Predicate, args: Seq[Exp]): Exp
 
   /**
    * Translation of the null literal.

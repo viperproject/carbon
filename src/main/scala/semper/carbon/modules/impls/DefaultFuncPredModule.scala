@@ -33,6 +33,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   lazy val heights = Functions.heights(verifier.program)
   private val assumeFunctionsAboveName = Identifier("AssumeFunctionsAbove")
   private val assumeFunctionsAbove: Const = Const(assumeFunctionsAboveName)
+  private val specialRefName = Identifier("special_ref")
+  private val specialRef = Const(specialRefName)
   private val limitedPostfix = "'"
   private val triggerFuncPostfix = "#trigger"
   private val framePostfix = "#frame"
@@ -75,6 +77,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
             LocalVarDecl(Identifier("w"), Int)
           ),
           Bool), size = 1) ++
+      ConstDecl(specialRefName, refType, unique = true) ++
       CommentedDecl(s"Transitivity of ${insidePredicateName.name}", {
         val vars1 = Seq(
           LocalVarDecl(Identifier("x"), refType),
@@ -397,16 +400,27 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     }
   }
 
-  private def insidePredicate(a: sil.PredicateAccessPredicate, b: sil.PredicateAccessPredicate) = {
-    /*Assume(FuncApp(insidePredicateName,
-      Seq(translateExp(a.loc.rcv),
-        translateLocation(a.loc),
-        translateExp(a.loc),
-        translateExp(b.loc.rcv),
-        translateLocation(b.loc),
-        translateExp(b.loc)),
-      Bool))*/
-    Nil: Stmt
+  private def insidePredicate(p1: sil.PredicateAccessPredicate, p2: sil.PredicateAccessPredicate): Stmt = {
+    val allArgs1 = p1.loc.args.zipWithIndex
+    val args1 = allArgs1 filter (x => x._1.typ == sil.Ref)
+    val allArgs2 = p2.loc.args.zipWithIndex
+    val args2 = allArgs2 filter (x => x._1.typ == sil.Ref)
+    // go through all combinations of ref-type arguments
+    for (a1 <- args1; a2 <- args2) yield {
+      val (arg1, idx1) = a1
+      val (arg2, idx2) = a2
+      // we replace the argument we are currently considering with 'specialRef'
+      val newargs1 = allArgs1 map (e => if (e._2 != idx1) translateExp(e._1) else specialRef)
+      val newargs2 = allArgs2 map (e => if (e._2 != idx2) translateExp(e._1) else specialRef)
+      Assume(FuncApp(insidePredicateName,
+        Seq(translateExp(arg1),
+          translateLocation(p1.loc.predicate, newargs1),
+          translateExp(p1.loc),
+          translateExp(arg2),
+          translateLocation(p2.loc.predicate, newargs2),
+          translateExp(p2.loc)),
+        Bool))
+    }
   }
 
   override def inhaleExp(e: sil.Exp): Stmt = {

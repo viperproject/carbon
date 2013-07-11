@@ -236,6 +236,11 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
     }
   }
 
+  override def translateLocation(pred: sil.Predicate, args: Seq[Exp]): Exp = {
+    val t = predicateMetaTypeOf(pred)
+    FuncApp(locationIdentifier(pred), args, t)
+  }
+
   override def simpleHandleStmt(stmt: sil.Stmt): Stmt = {
     stmt match {
       case sil.FieldAssign(lhs, rhs) =>
