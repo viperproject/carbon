@@ -229,8 +229,14 @@ class DefaultPermModule(val verifier: Verifier)
   private def hasDirectPerm(mask: Exp, obj: Exp, loc: Exp): Exp =
     FuncApp(hasDirectPermName, Seq(mask, obj, loc), Bool)
   private def hasDirectPerm(obj: Exp, loc: Exp): Exp = hasDirectPerm(mask, obj, loc)
-  override def hasDirectPerm(la: sil.LocationAccess): Exp =
-    hasDirectPerm(translateExp(la.rcv), translateLocation(la))
+  override def hasDirectPerm(la: sil.LocationAccess): Exp = {
+    la match {
+      case sil.FieldAccess(rcv, field) =>
+        hasDirectPerm(translateExp(rcv), translateLocation(la))
+      case sil.PredicateAccess(args, pred) =>
+        hasDirectPerm(translateNull, translateLocation(la))
+    }
+  }
 
   /**
    * Expression that expresses that 'permission' is positive. 'silPerm' is used to
@@ -470,7 +476,7 @@ class DefaultPermModule(val verifier: Verifier)
       case sil.AccessPredicate(loc, perm) =>
         allowLocationAccessWithoutPerm = true
         Nil
-      case fa@sil.LocationAccess(rcv, field) =>
+      case fa@sil.LocationAccess(loc) =>
         if (allowLocationAccessWithoutPerm) {
           allowLocationAccessWithoutPerm = false
           Nil

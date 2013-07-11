@@ -73,7 +73,11 @@ trait HeapModule extends Module with StateComponent {
    * Check that the receiver of a location access is non-null.
    */
   def checkNonNullReceiver(loc: sil.LocationAccess): Exp = {
-    verifier.expModule.translateExp(loc.rcv) !== translateNull
+    loc match {
+      case sil.FieldAccess(rcv, _) =>
+        verifier.expModule.translateExp(rcv) !== translateNull
+      case _ => TrueLit()
+    }
   }
 
   /**

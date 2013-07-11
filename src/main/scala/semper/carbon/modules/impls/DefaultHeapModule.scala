@@ -343,7 +343,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
       case sil.AccessPredicate(loc, perm) =>
         allowHeapDeref = true
         Nil
-      case fa@sil.LocationAccess(rcv, field) =>
+      case fa@sil.FieldAccess(rcv, field) =>
         if (allowHeapDeref) {
           allowHeapDeref = false
           Nil

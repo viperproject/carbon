@@ -398,14 +398,15 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   }
 
   private def insidePredicate(a: sil.PredicateAccessPredicate, b: sil.PredicateAccessPredicate) = {
-    Assume(FuncApp(insidePredicateName,
+    /*Assume(FuncApp(insidePredicateName,
       Seq(translateExp(a.loc.rcv),
         translateLocation(a.loc),
         translateExp(a.loc),
         translateExp(b.loc.rcv),
         translateLocation(b.loc),
         translateExp(b.loc)),
-      Bool))
+      Bool))*/
+    Nil: Stmt
   }
 
   override def inhaleExp(e: sil.Exp): Stmt = {
