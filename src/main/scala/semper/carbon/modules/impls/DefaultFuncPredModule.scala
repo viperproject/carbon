@@ -7,7 +7,7 @@ import semper.carbon.verifier.{Environment, Verifier}
 import semper.carbon.boogie.Implicits._
 import semper.sil.ast.utility._
 import semper.carbon.modules.components.{InhaleComponent, ExhaleComponent, DefinednessComponent}
-import semper.sil.verifier.{errors, PartialVerificationError}
+import semper.sil.verifier.{NullPartialVerificationError, errors, PartialVerificationError}
 
 /**
  * The default implementation of a [[semper.carbon.modules.FuncPredModule]].
@@ -371,19 +371,24 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   }
 
   private def unfoldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError): Stmt = {
+    val oldDuringUnfold = duringUnfold
+    val oldUnfoldInfo = unfoldInfo
+    val oldDuringFold = duringFold
+    duringFold = false
     duringUnfold = true
     unfoldInfo = acc
     val stmt = predicateTrigger(acc.loc) ++
       exhale(Seq((acc, error)), havocHeap = false) ++
       inhale(acc.loc.predicateBody)
-    unfoldInfo = null
-    duringUnfold = false
+    unfoldInfo = oldUnfoldInfo
+    duringUnfold = oldDuringUnfold
+    duringFold = oldDuringFold
     stmt
   }
 
   override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
-      case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(rcv, pred), perm) if duringUnfold =>
+      case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(rcv, pred), perm) if duringUnfold && currentPhaseId == 0 =>
         val oldVersion = LocalVar(Identifier("oldVersion"), Int)
         val newVersion = LocalVar(Identifier("newVersion"), Int)
         val curVersion = translateExp(loc)
@@ -423,12 +428,26 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     }
   }
 
+  var exhaleTmpStateId = -1
+  var extraUnfolding = true
   override def inhaleExp(e: sil.Exp): Stmt = {
     e match {
       case sil.Unfolding(acc, exp) =>
         Nil
-      case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(rcv, pred), perm) if duringUnfold =>
-        insidePredicate(unfoldInfo, pap)
+      case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(rcv, pred), perm) =>
+        val res: Stmt = if (extraUnfolding) {
+          exhaleTmpStateId += 1
+          extraUnfolding = false
+          val tmpStateName = if (exhaleTmpStateId == 0) "\"ExtraUnfolding" else s"ExtraUnfolding$exhaleTmpStateId"
+          val (stmt, state) = stateModule.freshTempState(tmpStateName)
+          val r = stmt ++ unfoldPredicate(pap, NullPartialVerificationError)
+          extraUnfolding = true
+          exhaleTmpStateId -= 1
+          stateModule.restoreState(state)
+          r
+        } else Nil
+        CommentBlock("Extra unfolding of predicate",
+          res ++ (if (duringUnfold) insidePredicate(unfoldInfo, pap) else Nil))
       case _ => Nil
     }
   }

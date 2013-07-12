@@ -263,8 +263,15 @@ case class Lbl(name: Identifier)
 case class Goto(dests: Seq[Lbl]) extends Stmt
 case class Label(lbl: Lbl) extends Stmt
 case class Assume(exp: Exp) extends Stmt
-case class Assert(exp: Exp, error: VerificationError) extends Stmt {
+case class AssertImpl(exp: Exp, error: VerificationError) extends Stmt {
   var id = AssertIds.next // Used for mapping errors in the output back to VerificationErrors
+}
+object Assert {
+  def apply(exp: Exp, error: VerificationError) = {
+    if (error == null) Statements.EmptyStmt
+    else AssertImpl(exp, error)
+  }
+  def unapply(a: AssertImpl) = Some((a.exp, a.error))
 }
 object AssertIds {
   var id = 0
