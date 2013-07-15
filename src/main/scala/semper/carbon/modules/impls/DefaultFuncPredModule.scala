@@ -221,8 +221,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     Func(Identifier(f.name + triggerFuncPostfix), f.formalArgs map translateLocalVarDecl, Bool)
   }
 
-  private def triggerFuncApp(f: sil.Function, args: Seq[Exp]): Exp = {
-    FuncApp(Identifier(f.name + triggerFuncPostfix), args, Bool)
+  private def triggerFuncApp(f: sil.FuncApp): Exp = {
+    FuncApp(Identifier(f.func.name + triggerFuncPostfix), f.args map translateExp, Bool)
   }
 
   private def framingAxiom(f: sil.Function): Seq[Decl] = {

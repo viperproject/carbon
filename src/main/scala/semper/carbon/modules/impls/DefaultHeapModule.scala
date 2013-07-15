@@ -106,7 +106,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
       )), size = 1) ++
         // frame all predicate masks
         MaybeCommentedDecl("Frame all predicate mask locations of predicates with direct permission", Axiom(Forall(
-          vars ++ Seq( predField),
+          vars ++ Seq(predField),
           Trigger(Seq(identicalFuncApp, isPredicateField(predField.l), lookup(eh.l, nullLit, predicateMaskField(predField.l)))),
           identicalFuncApp ==>
             ((staticPermissionPositive(nullLit, predField.l) && isPredicateField(predField.l)) ==>
