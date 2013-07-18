@@ -10,7 +10,7 @@ import semper.sil.verifier.Verifier
  */
 object Carbon extends CarbonFrontend {
 
-  def main2(args: Array[String]) {
+  def main(args: Array[String]) {
     execute(args)
   }
 
