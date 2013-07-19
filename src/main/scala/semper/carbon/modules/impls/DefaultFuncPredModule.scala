@@ -429,7 +429,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   }
 
   var exhaleTmpStateId = -1
-  var extraUnfolding = true
+  var extraUnfolding = false
   override def inhaleExp(e: sil.Exp): Stmt = {
     e match {
       case sil.Unfolding(acc, exp) =>
@@ -438,7 +438,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         val res: Stmt = if (extraUnfolding) {
           exhaleTmpStateId += 1
           extraUnfolding = false
-          val tmpStateName = if (exhaleTmpStateId == 0) "\"ExtraUnfolding" else s"ExtraUnfolding$exhaleTmpStateId"
+          val tmpStateName = if (exhaleTmpStateId == 0) "ExtraUnfolding" else s"ExtraUnfolding$exhaleTmpStateId"
           val (stmt, state) = stateModule.freshTempState(tmpStateName)
           val r = stmt ++ unfoldPredicate(pap, NullPartialVerificationError)
           extraUnfolding = true
