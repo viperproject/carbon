@@ -392,7 +392,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         val oldVersion = LocalVar(Identifier("oldVersion"), Int)
         val newVersion = LocalVar(Identifier("newVersion"), Int)
         val curVersion = translateExp(loc)
-        val stmt = (oldVersion := curVersion) ++
+        val stmt: Stmt = if (exhaleTmpStateId >= 0) Nil else (oldVersion := curVersion) ++
           Havoc(Seq(newVersion)) ++
           Assume(oldVersion < newVersion) ++
           (curVersion := newVersion)
