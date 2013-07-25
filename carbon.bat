@@ -8,11 +8,13 @@ if "%IVY_HOME%"=="" (
 	REM Environment variable IVY_HOME not pre-defined; checks on classpath below will catch a false definition here
 	set IVY_HOME=%USERPROFILE%\.ivy2
 )
+set SBT_HOME=%USERPROFILE%\.sbt
 
 set SCALA_VERSION=2.10.0
 set SCALA_VRS=2.10
 
-set __CP.SCALA_LIB="%IVY_HOME%\cache\org.scala-lang\scala-library\jars\scala-library-%SCALA_VERSION%.jar"
+set __CP.SCALA_LIB="%SBT_HOME%\boot\scala-%SCALA_VERSION%\lib\scala-library.jar"
+set __CP.SCALA_LIB2="%SBT_HOME%\boot\scala-%SCALA_VERSION%\lib\scala-reflect.jar"
 set __CP.KIAMA_LIB="%IVY_HOME%\cache\com.googlecode.kiama\kiama_%SCALA_VRS%\jars\kiama_%SCALA_VRS%-1.5.0.jar"
 set __CP.SCALOP_LIB="%IVY_HOME%\cache\org.rogach\scallop_%SCALA_VRS%\jars\scallop_%SCALA_VRS%-0.8.1.jar"
 set __CP.JGRAPH_LIB="%IVY_HOME%\cache\org.jgrapht\jgrapht-jdk1.5\jars\jgrapht-jdk1.5-0.7.3.jar"
@@ -29,9 +31,8 @@ for /f "tokens=2* delims=.=" %%A in ('set __CP.') do (
 	)
 )
 
-set CARBON_MAIN=semper.carbon.Playground
+set CARBON_MAIN=semper.carbon.Carbon
 
-set CARBON_OPTS=verify
 set CARBON_OPTS=%CARBON_OPTS% %*
 
 ::-Xss16M 
