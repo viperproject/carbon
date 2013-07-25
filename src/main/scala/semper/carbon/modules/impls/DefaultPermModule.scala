@@ -636,22 +636,7 @@ class DefaultPermModule(val verifier: Verifier)
 
     def splitPerm(e: sil.Exp): Seq[(Int, Exp, sil.Exp)] = {
       val perms = splitPermHelper(e)
-      // merge fixed permissions from phase 0
-      def pred(x: (Int, Exp, sil.Exp)) = x._1 == 1 && x._2 == TrueLit()
-      val p0 = perms filter pred
-      val p1 = perms filterNot pred
-      def addAll(pss: Seq[sil.Exp]): sil.Exp = {
-        pss match {
-          case Nil => null
-          case p :: Nil => p
-          case p :: ps => sil.PermAdd(p, addAll(ps))()
-        }
-      }
-      val res = if (p0.size == 0) p1
-      else {
-        (1, TrueLit(), addAll(p0 map (_._3))) ++ p1
-      }
-      res
+      perms
     }
 
     def splitPermHelper(e: sil.Exp): Seq[(Int, Exp, sil.Exp)] ={
