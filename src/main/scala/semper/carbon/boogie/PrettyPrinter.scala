@@ -1,4 +1,4 @@
-package semper.carbon.boogie
+﻿package semper.carbon.boogie
 
 import org.kiama.output._
 import UnicodeString.string2unicodestring
@@ -70,11 +70,14 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
   }
 
   /** Show any AST node. */
-  def show(n: Node): Doc = {
+  def show(n: Node) : Doc = { show(n,false) }
+  
+  /** Show any AST node, with extra flag to indicate that (in the context), arguments are being parsed via whitespace (e.g., Field A (Seq B) is needed instead of Field A Seq B) */
+  def show(n: Node, spaceDelimitedContext : Boolean): Doc = {
     n match {
       case exp: Exp => toParenDoc(exp)
       case stmt: Stmt => showStmt(stmt)
-      case typ: Type => showType(typ)
+      case typ: Type => showType(typ, spaceDelimitedContext)
       case p: Program => showProgram(p)
       case m: Decl => showDecl(m)
       case t: Trigger => showTrigger(t)
@@ -83,17 +86,17 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
     }
   }
 
-  def showType(t: Type): Doc = {
+  def showType(t: Type, spaceDelimitedContext : Boolean): Doc = {
     t match {
       case Int => "int"
       case Bool => "bool"
       case Real => "real"
       case TypeVar(name) => name
       case NamedType(name, typVars) =>
-        name <> (if (typVars.size == 0) empty
-        else space <> ssep(typVars map show, space))
+        (if (typVars.size == 0) name
+        else (if (spaceDelimitedContext) "(" else "") <> name <> space <> ssep(typVars map (x => (show(x,true))),space) <> (if (spaceDelimitedContext) ")" else "") <> "")
       case MapType(doms, range, typVars) =>
-        showTypeVars(typVars) <> "[" <> commasep(doms) <> "]" <> showType(range)
+        showTypeVars(typVars) <> "[" <> commasep(doms) <> "]" <> showType(range,false)
     }
   }
 
@@ -280,7 +283,7 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
   def commasep(ns: Seq[Node]) = ssep(ns map show, comma <> space)
 
   def showVar(variable: LocalVarDecl) = {
-    variable.name <> ":" <+> showType(variable.typ) <>
+    variable.name <> ":" <+> showType(variable.typ,true) <>
       (variable.where match {
         case Some(e) => space <> "where" <+> show(e)
         case None => empty
@@ -299,7 +302,7 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
       case RealLit(d) => value("%.9f" format d)
       case RealConv(exp) => "real" <> parens(show(exp))
       case Forall(vars, triggers, exp, Nil) =>
-        parens("forall" <+> //("∀" or "forall") <+>
+        parens("forall" <+> 
           commasep(vars) <+>
           //("•" or "::") <+>
           "::" <>
@@ -309,7 +312,7 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
               show(exp)
           ) <> line)
       case Forall(vars, triggers, exp, tv) =>
-        parens("forall" <+> //("∀" or "forall") <+>
+        parens("forall" <+> 
           "<" <> (ssep(tv map show, comma <> space)) <> ">" <+>
           commasep(vars) <+>
           //("•" or "::") <+>
@@ -320,7 +323,7 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
               show(exp)
           ) <> line)
       case Exists(vars, exp) =>
-        parens("exists" <+> //("∃" or "exists") <+>
+        parens("exists" <+>
           commasep(vars) <+>
           //("•" or "::") <+>
           "::" <>
@@ -353,7 +356,7 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
    */
   def showTypeVars(typVars: Seq[TypeVar], endWithSpace: Boolean = true): Doc = {
     if (typVars.size > 0)
-      ("〈" or "<") <> commasep(typVars.distinct) <> ("〉" or ">") <>
+      ("<") <> commasep(typVars.distinct) <> (">") <> // AJS: removed non-standard alternate symbols that editor could not display
         (if (endWithSpace) space else empty)
     else empty
   }
