@@ -61,7 +61,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
   def name: String = "carbon"
   def version: String = "1.0"
   def buildVersion = version
-  def copyright: String = "(c) 2013 Stefan Heule"
+  def copyright: String = "(c) 2013 ETH Zurich"
 
   def getDebugInfo = _debugInfo
   def debugInfo(info: Seq[(String, Any)]) {
