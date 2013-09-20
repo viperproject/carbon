@@ -1,4 +1,4 @@
-﻿package semper.carbon.boogie
+package semper.carbon.boogie
 
 import org.kiama.output._
 import UnicodeString.string2unicodestring
