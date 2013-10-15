@@ -75,7 +75,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
     }))
   }
 
-  def commandLineArgs(options: Seq[String]) {}
+  def parseCommandLine(options: Seq[String]) {}
 
   lazy val dependencies: Seq[Dependency] = {
     import scala.sys.process._

@@ -1,6 +1,6 @@
 package semper.carbon
 
-import semper.sil.frontend.SilFrontend
+import semper.sil.frontend.{SilFrontend, SilFrontendConfig}
 import semper.sil.verifier.Verifier
 
 /**
@@ -19,4 +19,7 @@ object Carbon extends CarbonFrontend {
 
 class CarbonFrontend extends SilFrontend {
   def createVerifier(fullCmd: String) = CarbonVerifier(Seq("Arguments: " -> fullCmd))
+  def configureVerifier(args: Seq[String]) = {
+  	new SilFrontendConfig(args, "Carbon")
+  }
 }
