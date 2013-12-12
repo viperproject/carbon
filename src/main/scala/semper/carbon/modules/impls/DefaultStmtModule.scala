@@ -117,7 +117,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
             Havoc((w.writtenVars map translateExp).asInstanceOf[Seq[Var]])
           ) ++
           MaybeCommentBlock("Check definedness of invariant", NondetIf(
-            (invs map (inv => checkDefinednessOfSpec(inv, errors.WhileFailed(inv)))) ++
+            (invs map (inv => checkDefinednessOfSpec(inv, errors.WhileFailed(w)))) ++
               Assume(FalseLit())
           )) ++
           MaybeCommentBlock("Check the loop body", NondetIf({
@@ -125,7 +125,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
             val stmts = MaybeComment("Reset state", freshStateStmt ++ stateModule.initState) ++
               MaybeComment("Inhale invariant", inhale(w.invs)) ++
               Comment("Check and assume guard") ++
-              checkDefinedness(cond, errors.WhileFailed(cond)) ++
+              checkDefinedness(cond, errors.WhileFailed(w)) ++
               Assume(guard) ++ stateModule.assumeGoodState ++
               MaybeComment("Havoc locals", Havoc((locals map (x => translateExp(x.localVar))).asInstanceOf[Seq[Var]])) ++
               MaybeCommentBlock("Translate loop body", translateStmt(body)) ++
