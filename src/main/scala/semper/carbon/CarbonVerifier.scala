@@ -18,8 +18,10 @@ import java.io.File
  * @author Stefan Heule
  */
 case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) extends Verifier with sil.verifier.Verifier with BoogieInterface {
-
   var env = null
+
+  private var _config: CarbonConfig = _
+  def config = _config
 
   private var namespaceId = 0
   override def freshNamespace(name: String): Namespace = {
@@ -75,7 +77,9 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
     }))
   }
 
-  def parseCommandLine(options: Seq[String]) {}
+  def parseCommandLine(options: Seq[String]) {
+    _config = new CarbonConfig(options)
+  }
 
   lazy val dependencies: Seq[Dependency] = {
     import scala.sys.process._
@@ -119,7 +123,11 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
   def verify(program: Program) = {
     _program = program
     _translated = mainModule.translate(program)
-    invokeBoogie(_translated, Nil)
+
+    val options =
+      config.boogieProverLog.get.map(f => s"/proverLog:$f").toList
+
+    invokeBoogie(_translated, options)
   }
 
   private var _translated: semper.carbon.boogie.Program = null
