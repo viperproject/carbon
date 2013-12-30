@@ -124,8 +124,17 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
     _program = program
     _translated = mainModule.translate(program)
 
-    val options =
-      config.boogieProverLog.get.map(f => s"/proverLog:$f").toList
+    val options = {
+      if (config == null) {
+        Nil
+      } else {
+      config.boogieProverLog.get match {
+      case Some(l) =>
+        l.map(f => s"/proverLog:$f").toList
+      case None =>
+        Nil
+      } }
+    }
 
     invokeBoogie(_translated, options)
   }
