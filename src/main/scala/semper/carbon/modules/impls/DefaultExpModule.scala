@@ -210,7 +210,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           If(translateExp(e1), checkDefinednessImpl(e2, error, topLevel = true), Statements.EmptyStmt) ::
           Nil
       case sil.CondExp(c, e1, e2) if true /*topLevel*/ =>
-        checkDefinednessImpl(e1, error, topLevel = true) :: 
+        checkDefinednessImpl(c, error, topLevel = true) :: 
           If(translateExp(c), checkDefinednessImpl(e1, error, topLevel = true), checkDefinednessImpl(e2, error, topLevel = true)) ::
           Nil
       case sil.Or(e1, e2) if true /*topLevel*/ =>
