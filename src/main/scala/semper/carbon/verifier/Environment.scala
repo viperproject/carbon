@@ -24,7 +24,7 @@ case class Environment(verifier: Verifier, member: sil.Node) {
     case sil.Method(name, args, returns, pres, posts, locals, body) =>
       for (v <- args ++ returns ++ locals) {
         define(v.localVar)
-      }
+      } 
     case f@sil.Function(name, args, typ, pres, posts, exp) =>
       for (v <- args) {
         define(v.localVar)

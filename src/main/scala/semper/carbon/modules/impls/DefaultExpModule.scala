@@ -8,6 +8,7 @@ import semper.sil.verifier.{reasons, PartialVerificationError}
 import semper.carbon.boogie.Implicits._
 import semper.carbon.modules.components.DefinednessComponent
 import semper.sil.ast.QuantifiedExp
+import semper.sil.ast.utility.Expressions
 
 /**
  * The default implementation of [[semper.carbon.modules.ExpModule]].
@@ -47,7 +48,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       case f@sil.FieldAccess(rcv, field) =>
         translateLocationAccess(f)
       case sil.InhaleExhaleExp(a, b) =>
-        sys.error("should not occur here (either, we inhale or exhale this expression, in which case whenInahling/whenExhaling should be used, or the expression is not allowed to occur.")
+        sys.error("should not occur here (either, we inhale or exhale this expression, in which case whenInhaling/whenExhaling should be used, or the expression is not allowed to occur.")
       case p@sil.PredicateAccess(rcv, predicate) =>
         translateLocationAccess(p)
       case sil.Unfolding(acc, exp) =>
@@ -130,7 +131,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           case sil.AndOp => And
           case sil.ImpliesOp => Implies
           case _ =>
-            sys.error("should be handeled further above")
+            sys.error("should be handelled further above")
         }
         BinExp(translateExp(left), bop, translateExp(right))
       case sil.Neg(exp) =>
@@ -202,12 +203,20 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
     e match {
       case sil.And(e1, e2) if true /*topLevel*/ =>
         checkDefinednessImpl(e1, error, topLevel = true) ::
-          checkDefinednessImpl(e2, error, topLevel = true) ::
+          If(translateExp(Expressions.purify(e1)), checkDefinednessImpl(e2, error, topLevel = true), Statements.EmptyStmt) ::
           Nil
       case sil.Implies(e1, e2) if true /*topLevel*/ =>
-        If(translateExp(e1), checkDefinednessImpl(e2, error, topLevel = true), Statements.EmptyStmt)
+        checkDefinednessImpl(e1, error, topLevel = true) :: 
+          If(translateExp(e1), checkDefinednessImpl(e2, error, topLevel = true), Statements.EmptyStmt) ::
+          Nil
       case sil.CondExp(c, e1, e2) if true /*topLevel*/ =>
-        If(translateExp(c), checkDefinednessImpl(e1, error, topLevel = true), checkDefinednessImpl(e2, error, topLevel = true))
+        checkDefinednessImpl(e1, error, topLevel = true) :: 
+          If(translateExp(c), checkDefinednessImpl(e1, error, topLevel = true), checkDefinednessImpl(e2, error, topLevel = true)) ::
+          Nil
+      case sil.Or(e1, e2) if true /*topLevel*/ =>
+        checkDefinednessImpl(e1, error, topLevel = true) :: // short-circuiting evaluation:
+          If(UnExp(Not, translateExp(e1)), checkDefinednessImpl(e2, error, topLevel = true), Statements.EmptyStmt) ::
+          Nil
       case _ =>
         def translate: Seqn = {
           val checks = components map (_.partialCheckDefinedness(e, error))
