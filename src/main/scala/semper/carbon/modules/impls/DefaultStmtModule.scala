@@ -11,8 +11,6 @@ import semper.sil.ast.utility.Expressions
 
 /**
  * The default implementation of a [[semper.carbon.modules.StmtModule]].
- *
- * @author Stefan Heule
  */
 class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleStmtComponent {
 
@@ -65,8 +63,6 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           checkDefinedness(e, errors.AssertFailed(a)) :: backup :: exhaleStmt :: Nil
         }
       case mc@sil.MethodCall(method, args, targets) =>
-        method.pres map mainModule.defineLocalVars
-        method.posts map mainModule.defineLocalVars
         // save pre-call state
         val (preCallStateStmt, state) = stateModule.freshTempState("PreCall")
         val preCallState = stateModule.state
@@ -105,8 +101,6 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           toUndefine map mainModule.env.undefine
           res
         }
-        method.pres map mainModule.undefineLocalVars
-        method.posts map mainModule.undefineLocalVars
         res
       case w@sil.While(cond, invs, locals, body) =>
         val guard = translateExp(cond)
@@ -183,8 +177,6 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
       }
     }
 
-    if (!isComposite(stmt)) mainModule.defineLocalVars(stmt)
-
     var stmts = Seqn(Nil)
     for (c <- components) {
       val (before, after) = c.handleStmt(stmt)
@@ -196,8 +188,6 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
     val translation = stmts ::
       assumeGoodState ::
       Nil
-
-    if (!isComposite(stmt)) mainModule.undefineLocalVars(stmt)
 
     CommentBlock(comment + s" -- ${stmt.pos}", translation)
   }

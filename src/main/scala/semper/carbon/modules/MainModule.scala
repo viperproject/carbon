@@ -30,6 +30,6 @@ trait MainModule extends Module {
 
   def allAssumptionsAboutParam(arg: sil.LocalVarDecl): Stmt
 
-  def defineLocalVars(n: sil.Node)
-  def undefineLocalVars(n: sil.Node)
+//  def defineLocalVars(n: sil.Node)
+//  def undefineLocalVars(n: sil.Node)
 }

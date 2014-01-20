@@ -61,10 +61,16 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       case sil.CondExp(cond, thn, els) =>
         CondExp(translateExp(cond), translateExp(thn), translateExp(els))
       case sil.Exists(vars, exp) =>
-        Exists(vars map translateLocalVarDecl, translateExp(exp))
+        vars map (v => env.define(v.localVar))
+        val res = Exists(vars map translateLocalVarDecl, translateExp(exp))
+        vars map (v => env.undefine(v.localVar))
+        res
       case sil.Forall(vars, triggers, exp) =>
+        vars map (v => env.define(v.localVar))
         val ts = triggers map (t => Trigger(t.exps map translateExp))
-        Forall(vars map translateLocalVarDecl, ts, translateExp(exp))
+        val res = Forall(vars map translateLocalVarDecl, ts, translateExp(exp))
+        vars map (v => env.undefine(v.localVar))
+        res
       case sil.WildcardPerm() =>
         translatePerm(e)
       case sil.FullPerm() =>
@@ -131,7 +137,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           case sil.AndOp => And
           case sil.ImpliesOp => Implies
           case _ =>
-            sys.error("should be handelled further above")
+            sys.error("should be handeled further above")
         }
         BinExp(translateExp(left), bop, translateExp(right))
       case sil.Neg(exp) =>
@@ -228,15 +234,24 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           stmt ++ stmt2 ++ stmt3 ++
             MaybeCommentBlock("Free assumptions", allFreeAssumptions(e))
         }
-        val res = if (e.isInstanceOf[sil.Old]) {
-          stateModule.useOldState()
-          val res = translate
-          stateModule.useRegularState()
-          res
+        
+        if (e.isInstanceOf[sil.QuantifiedExp]) {
+          val bound_vars = e.asInstanceOf[sil.QuantifiedExp].variables
+	  bound_vars map (v => env.define(v.localVar))
+	  val res = handleQuantifiedLocals(e,translate)	  
+	  bound_vars map (v => env.undefine(v.localVar))
+          res        
         } else {
-          translate
+          val res = if (e.isInstanceOf[sil.Old]) {
+            stateModule.useOldState()
+            val res = translate
+            stateModule.useRegularState()
+            res
+          } else {
+            translate
+          }
+          handleQuantifiedLocals(e, res)
         }
-        handleQuantifiedLocals(e, res)
     }
   }
 
@@ -264,6 +279,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       case _ => res
     }
   }
+  // (AS) TODO: this is really "checkDefinednessOfSpecAndInhale" - should be renamed 
   override def checkDefinednessOfSpec(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
       case sil.And(e1, e2) =>
