@@ -14,8 +14,6 @@ import java.io.File
  * of modules and choosing which module implementations to use.
  *
  * Debug information can either be set using the constructor argument or the setter.
- *
- * @author Stefan Heule
  */
 case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) extends Verifier with sil.verifier.Verifier with BoogieInterface {
   var env = null
