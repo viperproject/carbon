@@ -59,7 +59,7 @@ trait BoogieInterface {
         case ErrorPattern(id) =>
           errors += id.toInt
         case SummaryPattern(v, e) =>
-          assert(e.toInt == errors.size, s"Found ${errors.size} errors, but there should be $e.")
+          assert(e.toInt == errors.size, s"Found ${errors.size} errors, but there should be $e. The output was: $output")
         case "" => // ignore empty lines
         case _ =>
           otherErrId -= 1
@@ -104,7 +104,7 @@ trait BoogieInterface {
     }
     // write program to a temporary file
     val tmp = File.createTempFile("carbon", ".bpl")
-    tmp.deleteOnExit()
+    //tmp.deleteOnExit()
     val stream = new BufferedOutputStream(new FileOutputStream(tmp))
     stream.write(input.getBytes)
     stream.close()
