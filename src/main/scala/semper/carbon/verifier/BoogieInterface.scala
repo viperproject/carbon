@@ -11,8 +11,6 @@ import semper.sil.ast.{NoPosition, Position}
 
 /**
  * Defines a clean interface to invoke Boogie and get a list of errors back.
- *
- * @author Stefan Heule
  */
 trait BoogieInterface {
 
@@ -75,7 +73,7 @@ trait BoogieInterface {
             }
             def offendingNode = null
             override def pos = NoPosition
-            override def readableMessage(full: Boolean = true) =
+            override def readableMessage(withId: Boolean, withPosition: Boolean) =
               s"Internal error: $text"
           }
           errormap += (otherErrId -> internalError)

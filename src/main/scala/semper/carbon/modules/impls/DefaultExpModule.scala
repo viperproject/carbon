@@ -12,8 +12,6 @@ import semper.sil.ast.utility.Expressions
 
 /**
  * The default implementation of [[semper.carbon.modules.ExpModule]].
- *
- * @author Stefan Heule
  */
 class DefaultExpModule(val verifier: Verifier) extends ExpModule with DefinednessComponent {
 
