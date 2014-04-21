@@ -94,9 +94,9 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           (args map (e => checkDefinedness(e, errors.CallFailed(mc)))) ++
           (actualArgs map (_._2)) ++
           Havoc((targets map translateExp).asInstanceOf[Seq[Var]]) ++
-          MaybeCommentBlock("Exhaling precondition", exhale(mc.pres map (e => (e, errors.PreconditionInCallFalse(mc))))) ++ {
+          MaybeCommentBlock("Exhaling precondition", (mc.pres map (pre => (if (pre.existsDefined[Unit]({case sil.Unfolding(_,_) => })) checkDefinedness(pre, errors.CallFailed(mc), false) else Nil:Stmt))) ++ exhale(mc.pres map (e => (e, errors.PreconditionInCallFalse(mc))))) ++ {
           stateModule.restoreOldState(preCallState)
-          val res = MaybeCommentBlock("Inhaling postcondition", inhale(posts))
+          val res = MaybeCommentBlock("Inhaling postcondition", (posts map (post => (if (post.existsDefined[Unit]({case sil.Unfolding(_,_) => })) checkDefinedness(post, errors.CallFailed(mc), false) else Nil:Stmt))) ++ inhale(posts))
           stateModule.restoreOldState(oldState)
           toUndefine map mainModule.env.undefine
           res
