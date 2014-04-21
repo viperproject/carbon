@@ -11,8 +11,6 @@ import semper.sil.verifier.{NullPartialVerificationError, errors, PartialVerific
 
 /**
  * The default implementation of a [[semper.carbon.modules.FuncPredModule]].
- *
- * @author Stefan Heule
  */
 class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule
 with DefinednessComponent with ExhaleComponent with InhaleComponent {
@@ -296,19 +294,21 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private def translateResultDecl(r: sil.Result) = LocalVarDecl(resultName, translateType(r.typ))
   override def translateResult(r: sil.Result) = translateResultDecl(r).l
 
-  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
-    e match {
-      case fa@sil.FuncApp(f, args) if !fa.pres.isEmpty =>
-        NondetIf(
-          MaybeComment("Exhale precondition of function application", exhale(fa.pres map (e => (e, errors.PreconditionInAppFalse(fa))))) ++
-            MaybeComment("Stop execution", Assume(FalseLit()))
-        )
-      case _ => Nil
-    }
+  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
+    (if(makeChecks) (
+      e match {
+        case fa@sil.FuncApp(f, args) if !fa.pres.isEmpty =>
+          NondetIf(
+            MaybeComment("Exhale precondition of function application", exhale(fa.pres map (e => (e, errors.PreconditionInAppFalse(fa))))) ++
+              MaybeComment("Stop execution", Assume(FalseLit()))
+          )
+        case _ => Nil
+      }
+    ) else Nil)
   }
 
   private var tmpStateId = -1
-  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError): (() => Stmt, () => Stmt) = {
+  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): (() => Stmt, () => Stmt) = {
     e match {
       case u@sil.Unfolding(acc@sil.PredicateAccessPredicate(loc, perm), exp) =>
         tmpStateId += 1
@@ -323,7 +323,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           Nil
         }
         (before, after)
-      case _ => (() => simplePartialCheckDefinedness(e, error), () => Nil)
+      case _ => (() => simplePartialCheckDefinedness(e, error, makeChecks), () => Nil)
     }
   }
 

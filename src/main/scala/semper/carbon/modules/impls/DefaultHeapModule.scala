@@ -10,8 +10,6 @@ import semper.sil.verifier.{reasons, PartialVerificationError}
 
 /**
  * The default implementation of a [[semper.carbon.modules.HeapModule]].
- *
- * @author Stefan Heule
  */
 class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleStmtComponent with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
@@ -343,20 +341,22 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
   }
 
   private var allowHeapDeref = false
-  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
-    e match {
-      case sil.AccessPredicate(loc, perm) =>
-        allowHeapDeref = true
-        Nil
-      case fa@sil.FieldAccess(rcv, field) =>
-        if (allowHeapDeref) {
-          allowHeapDeref = false
+  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
+    if(makeChecks) (
+      e match {
+        case sil.AccessPredicate(loc, perm) =>
+          allowHeapDeref = true
           Nil
-        } else {
-          Assert(translateExp(rcv) !== nullLit, error.dueTo(reasons.ReceiverNull(fa)))
-        }
-      case _ => Nil
-    }
+        case fa@sil.FieldAccess(rcv, field) =>
+          if (allowHeapDeref) {
+            allowHeapDeref = false
+            Nil
+          } else {
+            Assert(translateExp(rcv) !== nullLit, error.dueTo(reasons.ReceiverNull(fa)))
+          }
+        case _ => Nil
+      }
+    ) else Nil
   }
 
   override def beginExhale: Stmt = {

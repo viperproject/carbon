@@ -4,8 +4,6 @@ import semper.sil.frontend.{SilFrontend, SilFrontendConfig}
 
 /**
  * The main object for Carbon containing the execution start-point.
- *
- * @author Stefan Heule
  */
 object Carbon extends CarbonFrontend {
   def main(args: Array[String]) {

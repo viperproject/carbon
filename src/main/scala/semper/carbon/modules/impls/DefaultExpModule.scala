@@ -185,48 +185,50 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
     env.get(l)
   }
 
-  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
-    e match {
-      case sil.Div(a, b) =>
-        Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
-      case sil.Mod(a, b) =>
-        Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
-      case sil.FractionalPerm(a, b) =>
-        Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
-      case _ => Nil
-    }
+  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
+    if(makeChecks) (
+      e match {
+        case sil.Div(a, b) =>
+          Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
+        case sil.Mod(a, b) =>
+          Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
+        case sil.FractionalPerm(a, b) =>
+          Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
+        case _ => Nil
+      }
+    ) else Nil
   }
 
-  override def checkDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
+  override def checkDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks:Boolean): Stmt = {
     MaybeCommentBlock(s"Check definedness of $e",
-      MaybeStmt(checkDefinednessImpl(e, error, topLevel = true),
+      MaybeStmt(checkDefinednessImpl(e, error, makeChecks = makeChecks),
         stateModule.assumeGoodState))
   }
 
-  private def checkDefinednessImpl(e: sil.Exp, error: PartialVerificationError, topLevel: Boolean): Stmt = {
+  private def checkDefinednessImpl(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
     e match {
-      case sil.And(e1, e2) if true /*topLevel*/ =>
-        checkDefinednessImpl(e1, error, topLevel = true) ::
-          If(translateExp(Expressions.purify(e1)), checkDefinednessImpl(e2, error, topLevel = true), Statements.EmptyStmt) ::
+      case sil.And(e1, e2) =>
+        checkDefinednessImpl(e1, error, makeChecks = makeChecks) ::
+          If(translateExp(Expressions.purify(e1)), checkDefinednessImpl(e2, error, makeChecks = makeChecks), Statements.EmptyStmt) ::
           Nil
-      case sil.Implies(e1, e2) if true /*topLevel*/ =>
-        checkDefinednessImpl(e1, error, topLevel = true) :: 
-          If(translateExp(e1), checkDefinednessImpl(e2, error, topLevel = true), Statements.EmptyStmt) ::
+      case sil.Implies(e1, e2) =>
+        checkDefinednessImpl(e1, error, makeChecks = makeChecks) :: 
+          If(translateExp(e1), checkDefinednessImpl(e2, error, makeChecks = makeChecks), Statements.EmptyStmt) ::
           Nil
-      case sil.CondExp(c, e1, e2) if true /*topLevel*/ =>
-        checkDefinednessImpl(c, error, topLevel = true) :: 
-          If(translateExp(c), checkDefinednessImpl(e1, error, topLevel = true), checkDefinednessImpl(e2, error, topLevel = true)) ::
+      case sil.CondExp(c, e1, e2) =>
+        checkDefinednessImpl(c, error, makeChecks = makeChecks) :: 
+          If(translateExp(c), checkDefinednessImpl(e1, error, makeChecks = makeChecks), checkDefinednessImpl(e2, error, makeChecks = makeChecks)) ::
           Nil
-      case sil.Or(e1, e2) if true /*topLevel*/ =>
-        checkDefinednessImpl(e1, error, topLevel = true) :: // short-circuiting evaluation:
-          If(UnExp(Not, translateExp(e1)), checkDefinednessImpl(e2, error, topLevel = true), Statements.EmptyStmt) ::
+      case sil.Or(e1, e2) =>
+        checkDefinednessImpl(e1, error, makeChecks = makeChecks) :: // short-circuiting evaluation:
+          If(UnExp(Not, translateExp(e1)), checkDefinednessImpl(e2, error, makeChecks = makeChecks), Statements.EmptyStmt) ::
           Nil
       case _ =>
         def translate: Seqn = {
-          val checks = components map (_.partialCheckDefinedness(e, error))
+          val checks = components map (_.partialCheckDefinedness(e, error, makeChecks = makeChecks))
           val stmt = checks map (_._1())
           val stmt2 = for (sub <- e.subnodes if sub.isInstanceOf[sil.Exp]) yield {
-            checkDefinednessImpl(sub.asInstanceOf[sil.Exp], error, topLevel = e.isInstanceOf[sil.Unfolding] && (e.asInstanceOf[sil.Unfolding].exp eq sub))
+            checkDefinednessImpl(sub.asInstanceOf[sil.Exp], error, makeChecks = makeChecks)
           }
           val stmt3 = checks map (_._2())
           stmt ++ stmt2 ++ stmt3 ++

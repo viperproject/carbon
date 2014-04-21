@@ -29,11 +29,11 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
   override def exhale(exps: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true): Stmt = {
     val phases = for (phase <- 1 to numberOfPhases) yield {
       currentPhaseId = phase - 1
-      val stmts = exps map (e => exhaleConnective(e._1.whenExhaling, e._2, phase - 1))
+      val stmts = exps map (e => exhaleConnective(e._1.whenExhaling, e._2, currentPhaseId))
       if (stmts.children.isEmpty) {
         Statements.EmptyStmt
       } else {
-        Comment(s"Phase $phase: ${phaseDescription(phase - 1)}") ++ stmts: Stmt
+        Comment(s"Phase $phase: ${phaseDescription(currentPhaseId)}") ++ stmts: Stmt
       }
     }
     val assumptions = MaybeCommentBlock("Free assumptions",
@@ -73,7 +73,8 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
 
   var currentPhaseId: Int = -1
 
-  override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
+  override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt =  
+  {
     if (e.isPure) {
       Assert(translateExp(e), error.dueTo(AssertionFalse(e)))
     } else {

@@ -34,8 +34,6 @@ import semper.carbon.boogie.FuncApp
 
 /**
  * The default implementation of a [[semper.carbon.modules.PermModule]].
- *
- * @author Stefan Heule
  */
 class DefaultPermModule(val verifier: Verifier)
   extends PermModule
@@ -478,7 +476,8 @@ class DefaultPermModule(val verifier: Verifier)
   }
 
   private var allowLocationAccessWithoutPerm = false
-  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError): Stmt = {
+  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
+    if(makeChecks) (
     e match {
       case sil.CurrentPerm(loc) =>
         allowLocationAccessWithoutPerm = true
@@ -498,6 +497,7 @@ class DefaultPermModule(val verifier: Verifier)
           Assert(epsComp(translatePerm(b)) === RealLit(0), error.dueTo(reasons.InvalidPermMultiplication(pm)))
       case _ => Nil
     }
+    ) else Nil
   }
 
   override def assumptionAboutParameter(typ: sil.Type, variable: LocalVar) = {
