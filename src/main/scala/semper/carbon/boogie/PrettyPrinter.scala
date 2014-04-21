@@ -6,8 +6,6 @@ import semper.sil.verifier.VerificationError
 
 /**
  * A pretty printer for the Boogie AST.
- *
- * @author Stefan Heule
  */
 object PrettyPrinter {
   def pretty(n: Node): String = {
@@ -273,7 +271,13 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
     val t = collectFreeTypeVars(exp)
     val body = t match {
       case Nil => show(exp)
-      case _ => parens("forall" <+> showTypeVars(t) <> "::" <+> show(exp))
+      case _ => 
+        exp match {
+          case Forall(vars, triggers, exp, tv) =>
+            show(Forall(vars, triggers, exp, tv++t))          
+          case _ => 
+            parens("forall" <+> showTypeVars(t) <> "::" <+> show(exp))
+        }
     }
     body
   }
