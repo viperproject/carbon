@@ -102,7 +102,7 @@ trait BoogieInterface {
     }
     // write program to a temporary file
     val tmp = File.createTempFile("carbon", ".bpl")
-    //tmp.deleteOnExit()
+    tmp.deleteOnExit()
     val stream = new BufferedOutputStream(new FileOutputStream(tmp))
     stream.write(input.getBytes)
     stream.close()
