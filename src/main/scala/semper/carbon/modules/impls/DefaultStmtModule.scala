@@ -6,6 +6,7 @@ import semper.carbon.boogie._
 import semper.carbon.verifier.Verifier
 import Implicits._
 import semper.sil.verifier.errors
+import semper.sil.verifier.PartialVerificationError
 import semper.carbon.modules.components.SimpleStmtComponent
 import semper.sil.ast.utility.Expressions
 
@@ -31,6 +32,17 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
 
   def name = "Statement module"
 
+  /**
+   * Takes a list of assertions, and executes all of the unfolding expressions inside. In particular, this means that the correct
+   * predicate definitions get assumed, under the correct conditionals. Most checking of definedness is disabled (by the "false"
+   * parameter to checkDefinedness), however, note that checking that the predicates themselves are held when unfolding is still
+   * performed, because the code for that is an exhale. Because of this, it may be necessary to make sure that this operation is
+   * called before/after the corresponding exhale/inhale of the assertions.
+   */
+  def executeUnfoldings(exps: Seq[sil.Exp], exp_error: (sil.Exp => PartialVerificationError)): Stmt = {
+    (exps map (exp => (if (exp.existsDefined[Unit]({case sil.Unfolding(_,_) => })) checkDefinedness(exp, exp_error(exp), false) else Nil:Stmt)))
+  }
+
   override def simpleHandleStmt(stmt: sil.Stmt): Stmt = {
     stmt match {
       case assign@sil.LocalVarAssign(lhs, rhs) =>
@@ -38,7 +50,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           checkDefinedness(rhs, errors.AssignmentFailed(assign)) ++
           Assign(translateExp(lhs), translateExp(rhs))
       case assign@sil.FieldAssign(lhs, rhs) =>
-        checkDefinedness(lhs, errors.AssignmentFailed(assign)) ++
+        checkDefinedness(lhs, errors.AssignmentFailed(assign)) ++ 
           checkDefinedness(rhs, errors.AssignmentFailed(assign))
       case fold@sil.Fold(e) =>
         translateFold(fold)
@@ -94,9 +106,9 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           (args map (e => checkDefinedness(e, errors.CallFailed(mc)))) ++
           (actualArgs map (_._2)) ++
           Havoc((targets map translateExp).asInstanceOf[Seq[Var]]) ++
-          MaybeCommentBlock("Exhaling precondition", (mc.pres map (pre => (if (pre.existsDefined[Unit]({case sil.Unfolding(_,_) => })) checkDefinedness(pre, errors.CallFailed(mc), false) else Nil:Stmt))) ++ exhale(mc.pres map (e => (e, errors.PreconditionInCallFalse(mc))))) ++ {
+          MaybeCommentBlock("Exhaling precondition", executeUnfoldings(mc.pres, (pre => errors.Internal(pre))) ++ exhale(mc.pres map (e => (e, errors.PreconditionInCallFalse(mc))))) ++ {
           stateModule.restoreOldState(preCallState)
-          val res = MaybeCommentBlock("Inhaling postcondition", inhale(posts) ++ (posts map (post => (if (post.existsDefined[Unit]({case sil.Unfolding(_,_) => })) checkDefinedness(post, errors.CallFailed(mc), false) else Nil:Stmt))))
+          val res = MaybeCommentBlock("Inhaling postcondition", inhale(posts) ++ executeUnfoldings(posts, (post => errors.Internal(post))))
           stateModule.restoreOldState(oldState)
           toUndefine map mainModule.env.undefine
           res
@@ -105,7 +117,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
       case w@sil.While(cond, invs, locals, body) =>
         val guard = translateExp(cond)
         MaybeCommentBlock("Exhale loop invariant before loop",
-          exhale(w.invs map (e => (e, errors.LoopInvariantNotEstablished(e))))
+          executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotEstablished(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotEstablished(e))))
         ) ++
           MaybeCommentBlock("Havoc loop targets",
             Havoc((w.writtenVars map translateExp).asInstanceOf[Seq[Var]])
@@ -117,13 +129,13 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           MaybeCommentBlock("Check the loop body", NondetIf({
             val (freshStateStmt, prevState) = stateModule.freshTempState("loop")
             val stmts = MaybeComment("Reset state", freshStateStmt ++ stateModule.initState) ++
-              MaybeComment("Inhale invariant", inhale(w.invs)) ++
+              MaybeComment("Inhale invariant", inhale(w.invs) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv)))) ++
               Comment("Check and assume guard") ++
               checkDefinedness(cond, errors.WhileFailed(w)) ++
               Assume(guard) ++ stateModule.assumeGoodState ++
               MaybeComment("Havoc locals", Havoc((locals map (x => translateExp(x.localVar))).asInstanceOf[Seq[Var]])) ++
               MaybeCommentBlock("Translate loop body", translateStmt(body)) ++
-              MaybeComment("Exhale invariant", exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e))))) ++
+              MaybeComment("Exhale invariant", executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotPreserved(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e))))) ++
               MaybeComment("Terminate execution", Assume(FalseLit()))
             stateModule.restoreState(prevState)
             stmts
@@ -131,7 +143,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           )) ++
           MaybeCommentBlock("Inhale loop invariant after loop, and assume guard",
             Assume(guard.not) ++ stateModule.assumeGoodState ++
-              inhale(w.invs)
+              inhale(w.invs) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv)))
           )
       case fb@sil.FreshReadPerm(vars, body) =>
         MaybeCommentBlock(s"Start of fresh(${vars.mkString(", ")})", components map (_.enterFreshBlock(fb))) ++

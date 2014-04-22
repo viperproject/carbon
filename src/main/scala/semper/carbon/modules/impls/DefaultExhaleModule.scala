@@ -10,8 +10,6 @@ import semper.sil.verifier.reasons._
 
 /**
  * The default implementation of a [[semper.carbon.modules.ExhaleModule]].
- *
- * @author Stefan Heule
  */
 class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
 
@@ -73,6 +71,9 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
 
   var currentPhaseId: Int = -1
 
+  /**
+   * Handles only pure expressions - others will be dealt with by other modules
+   */
   override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt =  
   {
     if (e.isPure) {
