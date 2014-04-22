@@ -50,7 +50,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           checkDefinedness(rhs, errors.AssignmentFailed(assign)) ++
           Assign(translateExp(lhs), translateExp(rhs))
       case assign@sil.FieldAssign(lhs, rhs) =>
-        checkDefinedness(lhs, errors.AssignmentFailed(assign)) ++
+        checkDefinedness(lhs, errors.AssignmentFailed(assign)) ++ 
           checkDefinedness(rhs, errors.AssignmentFailed(assign))
       case fold@sil.Fold(e) =>
         translateFold(fold)
