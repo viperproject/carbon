@@ -41,9 +41,13 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
   }
 
   override def translate(p: sil.Program): Program = {
-    val pWithTriggers = p.transform({
-      case f: sil.Forall => f.autoTrigger
-    })((_) => true)
+    val pWithTriggers = {
+      p.transform({
+        case f: sil.Forall => {
+           f.autoTrigger
+        }
+      })((_) => true)
+    }
 
     val output = pWithTriggers match {
       case sil.Program(domains, fields, functions, predicates, methods) =>
