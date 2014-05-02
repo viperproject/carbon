@@ -57,8 +57,9 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
       case unfold@sil.Unfold(e) =>
         translateUnfold(unfold)
       case inh@sil.Inhale(e) =>
-        checkDefinedness(e, errors.InhaleFailed(inh)) ++
-          inhale(e)
+        checkDefinednessOfSpec(e, errors.InhaleFailed(inh))
+        //checkDefinedness(e, errors.InhaleFailed(inh)) ++
+        //  inhale(e)
       case exh@sil.Exhale(e) =>
         checkDefinedness(e, errors.ExhaleFailed(exh)) ++
           exhale((e, errors.ExhaleFailed(exh)))
