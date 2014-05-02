@@ -285,7 +285,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       expModule.checkDefinedness(f.exp, errors.FunctionNotWellformed(f)))
     val exp = MaybeCommentBlock("Translate function body",
       translateResult(res) := translateExp(f.exp))
-    val checkPost = MaybeCommentBlock("Inhaling precondition (with checking)",
+    val checkPost = MaybeCommentBlock("Exhaling postcondition (with checking)",
       f.posts map (e => checkDefinednessOfSpecAndExhale(e, errors.ContractNotWellformed(e), errors.PostconditionViolated(e, f))))
     val body = Seq(init, initOld, checkPre, checkExp, exp, checkPost)
     Procedure(Identifier(f.name + "#definedness"), args, translateResultDecl(res), body)
