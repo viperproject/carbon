@@ -1,5 +1,7 @@
 import sbt._
 import Keys._
+import sbtassembly.Plugin._
+import AssemblyKeys._
 
 object CarbonBuild extends Build {
   lazy val baseSettings = (
@@ -20,8 +22,11 @@ object CarbonBuild extends Build {
       base = file("."),
       settings = (
            baseSettings
+        ++ assemblySettings
         ++ Seq(
               name := "Carbon",
+              jarName in assembly := "carbon.jar",
+              test in assembly := {},
               testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oD"),
               traceLevel := 20,
               maxErrors := 6,
