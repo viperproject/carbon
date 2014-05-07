@@ -146,10 +146,12 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
             Assume(guard.not) ++ stateModule.assumeGoodState ++
               inhale(w.invs) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv)))
           )
-      case fb@sil.FreshReadPerm(vars, body) =>
-        MaybeCommentBlock(s"Start of fresh(${vars.mkString(", ")})", components map (_.enterFreshBlock(fb))) ++
+      case fr@sil.Fresh(vars) =>
+        MaybeCommentBlock(s"Translation of statement ${fr})", components map (_.freshReads(vars)))
+      case fb@sil.Constraining(vars, body) =>
+        MaybeCommentBlock(s"Start of constraining(${vars.mkString(", ")})", components map (_.enterConstrainingBlock(fb))) ++
           translateStmt(body) ++
-          MaybeCommentBlock(s"End of fresh(${vars.mkString(", ")})", components map (_.leaveFreshBlock(fb)))
+          MaybeCommentBlock(s"End of constraining(${vars.mkString(", ")})", components map (_.leaveConstrainingBlock(fb)))
       case i@sil.If(cond, thn, els) =>
         checkDefinedness(cond, errors.IfFailed(cond)) ++
           If(translateExp(cond),
@@ -159,7 +161,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
         Label(Lbl(Identifier(name)(lblNamespace)))
       case sil.Goto(target) =>
         Goto(Lbl(Identifier(target)(lblNamespace)))
-      case sil.NewStmt(lhs) =>
+      case sil.NewStmt(target,fields) =>
         Nil
       case _: sil.Seqn =>
         Nil
@@ -176,8 +178,10 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
         comment = s"Translating statement: if ($cond)"
       case sil.While(cond, invs, local, body) =>
         comment = s"Translating statement: while ($cond)"
-      case fb@sil.FreshReadPerm(vars, body) =>
-        comment = s"Translating statement: fresh(${vars.mkString(", ")})"
+      case fr@sil.Fresh(vars)  =>
+        comment = s"Translating statement: fresh ${vars.mkString(", ")} "
+      case cs@sil.Constraining(vars,body) =>
+        comment = s"Translating statement: constraining(${vars.mkString(", ")})"
       case _ =>
     }
 

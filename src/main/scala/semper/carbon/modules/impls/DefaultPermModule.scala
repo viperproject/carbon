@@ -399,24 +399,31 @@ class DefaultPermModule(val verifier: Verifier)
     }
   }
 
-  override def enterFreshBlock(fb: sil.FreshReadPerm): Stmt = {
-    val vars = fb.vars map translateLocalVar
-    currentAbstractReads ++= (fb.vars map (_.name))
-    Havoc(fb.vars map translateLocalVar) ++
-      (vars map (v => Assume((fracComp(v) > RealLit(0)) && (fracComp(v) < RealLit(0.001)) && (epsComp(v) === RealLit(0)))))
+  override def enterConstrainingBlock(cb: sil.Constraining): Stmt = {
+    val vars = cb.vars map translateLocalVar
+    currentAbstractReads ++= (cb.vars map (_.name))
+    Nil
   }
 
-  override def leaveFreshBlock(fb: sil.FreshReadPerm): Stmt = {
-    val vars = fb.vars map (_.name)
+  override def leaveConstrainingBlock(cb: sil.Constraining): Stmt = {
+    val vars = cb.vars map (_.name)
     currentAbstractReads --= vars
     Nil
   }
 
+
+  override def freshReads(vars: Seq[semper.sil.ast.LocalVar]): Stmt = {
+    val bvs = vars map translateLocalVar
+    Havoc(bvs) ++
+      (bvs map (v => Assume((fracComp(v) > RealLit(0)) && (fracComp(v) < RealLit(0.001)) && (epsComp(v) === RealLit(0)))))
+
+  }
+
   override def simpleHandleStmt(s: sil.Stmt): Stmt = {
     s match {
-      case n@sil.NewStmt(lhs) =>
-        for (field <- verifier.program.fields) yield {
-          Assign(currentPermission(sil.FieldAccess(lhs, field)()), fullPerm)
+      case n@sil.NewStmt(target,fields) =>
+        for (field <- fields) yield {
+          Assign(currentPermission(sil.FieldAccess(target, field)()), fullPerm)
         }
       case assign@sil.FieldAssign(fa, rhs) =>
         Assert(permGe(currentPermission(fa), fullPerm), errors.AssignmentFailed(assign).dueTo(reasons.InsufficientPermission(fa)))

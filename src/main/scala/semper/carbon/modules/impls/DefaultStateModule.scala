@@ -8,8 +8,6 @@ import semper.carbon.modules.components.StateComponent
 
 /**
  * The default implementation of a [[semper.carbon.modules.StateModule]].
- *
- * @author Stefan Heule
  */
 class DefaultStateModule(val verifier: Verifier) extends StateModule {
   def name = "State module"

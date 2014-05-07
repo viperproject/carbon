@@ -2,11 +2,10 @@ package semper.carbon.modules.components
 
 import semper.sil.{ast => sil}
 import semper.carbon.boogie.{Statements, Stmt}
+import semper.sil.ast.LocalVar
 
 /**
  * Contributes to the translation of one or several statements.
- *
- * @author Stefan Heule
  */
 trait StmtComponent extends Component {
 
@@ -21,14 +20,19 @@ trait StmtComponent extends Component {
   def handleStmt(s: sil.Stmt): (Stmt, Stmt)
 
   /**
-   * This method is called at the beginning of translating a fresh read permission block,
-   * and by default does nothing.
+   * This method is called when translating a "fresh" statement, and by default does nothing
    */
-  def enterFreshBlock(fb: sil.FreshReadPerm): Stmt = Statements.EmptyStmt
+  def freshReads(fb: Seq[LocalVar]): Stmt = Statements.EmptyStmt
 
   /**
-   * This method is called at the end of translating a fresh read permission block,
+   * This method is called at the beginning of translating a constraining read permission block,
    * and by default does nothing.
    */
-  def leaveFreshBlock(fb: sil.FreshReadPerm): Stmt = Statements.EmptyStmt
+  def enterConstrainingBlock(fb: sil.Constraining): Stmt = Statements.EmptyStmt
+
+  /**
+   * This method is called at the end of translating a constaining read permission block,
+   * and by default does nothing.
+   */
+  def leaveConstrainingBlock(fb: sil.Constraining): Stmt = Statements.EmptyStmt
 }

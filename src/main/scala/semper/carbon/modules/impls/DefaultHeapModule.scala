@@ -243,7 +243,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
     stmt match {
       case sil.FieldAssign(lhs, rhs) =>
         translateLocationAccess(lhs) := translateExp(rhs)
-      case sil.NewStmt(target) =>
+      case sil.NewStmt(target,fields) =>
         Havoc(freshObjectVar) ::
           // assume the fresh object is non-null and not allocated yet.
           // this means that whenever we allocate a new object and havoc freshObjectVar, we
