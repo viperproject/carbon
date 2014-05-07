@@ -303,7 +303,17 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
     e match {
       case IntLit(i) => value(i)
       case BoolLit(b) => value(b)
-      case RealLit(d) => value("%.9f" format d)
+      case RealLit(d) => value(d)
+        /* Used to be
+         *   value("%.9f" format d)
+         * but that resulted in unparsable Boogie output on systems where the
+         * default locale was German, since a real would be outputed as
+         * 0,000..., i.e., a comma instead of a dot, which Boogie cannot
+         * parse.
+         * The following might be an alternative in case just value(d) is
+         * not sufficient:
+         *   value("%.9f".formatLocal(java.util.Locale.US, d))
+         */
       case RealConv(exp) => "real" <> parens(show(exp))
       case Forall(vars, triggers, exp, Nil) =>
         parens("forall" <+> 
