@@ -340,11 +340,12 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
       case Old(exp) => "old" <> parens(show(exp))
       case MapSelect(map, idxs) =>
         show(map) <> "[" <> commasep(idxs) <> "]"
-      case FuncApp(name, args, typ) =>
+      case f@FuncApp(name, args, typ) =>
         // if the return type of the function is generic, include a type annotation
+        // also, if the FuncApp is explicitly flagged (showReturn
         val fa = name <> parens(commasep(args))
         typ.freeTypeVars match {
-          case Nil => fa
+          case Nil => (if (f.showReturnType) parens(fa <> ":" <+> show(typ)) else fa )
           case _ => parens(fa <> ":" <+> show(typ))
         }
       case CondExp(cond, e1, e2) =>

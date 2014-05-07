@@ -72,7 +72,11 @@ object Transformer {
             case Forall(v, triggers, exp, tv) => Forall(v map go, triggers map go, go(exp), tv)
             case BinExp(left, binop, right) => BinExp(go(left), binop, go(right))
             case UnExp(unop, exp) => UnExp(unop, go(exp))
-            case FuncApp(func, args, typ) => FuncApp(func, args map go, go(typ))
+            case f@FuncApp(func, args, typ) => {
+              val fa = FuncApp(func, args map go, go(typ))
+              fa.showReturnType = f.showReturnType
+              fa
+            }
           }
       }
     }
