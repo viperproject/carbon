@@ -165,7 +165,11 @@ object Nodes {
           case Forall(v, triggers, e, tv) => Forall(v, triggers, func(e), tv)
           case BinExp(left, binop, right) => BinExp(func(left), binop, func(right))
           case UnExp(unop, e) => UnExp(unop, func(e))
-          case FuncApp(ff, args, typ) => FuncApp(ff, args map func, typ)
+          case f@FuncApp(ff, args, typ) => {
+            val fa = FuncApp(ff, args map func, typ)
+            fa.showReturnType = f.showReturnType
+            fa
+          }
         }
     }
   }
