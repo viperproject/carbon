@@ -1,7 +1,6 @@
 package semper.carbon.boogie
 
 import org.kiama.output._
-import UnicodeString.string2unicodestring
 import semper.sil.verifier.VerificationError
 
 /**
@@ -9,7 +8,7 @@ import semper.sil.verifier.VerificationError
  */
 object PrettyPrinter {
   def pretty(n: Node): String = {
-    (new PrettyPrinter(n)).pretty
+    new PrettyPrinter(n).pretty
   }
 }
 
@@ -28,12 +27,12 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
   /**
    * The current mapping from identifier to names.
    */
-  private var idnMap = collection.mutable.HashMap[Identifier, String]()
+  private val idnMap = collection.mutable.HashMap[Identifier, String]()
 
   /**
    * The current store for where clauses of identifiers.
    */
-  private var whereMap = collection.mutable.HashMap[Identifier, Exp]()
+  private val whereMap = collection.mutable.HashMap[Identifier, Exp]()
 
   /**
    * The collection of all global variables.
@@ -69,7 +68,7 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
 
   /** Show any AST node. */
   def show(n: Node) : Doc = { show(n,false) }
-  
+
   /** Show any AST node, with extra flag to indicate that (in the context), arguments are being parsed via whitespace (e.g., Field A (Seq B) is needed instead of Field A Seq B) */
   def show(n: Node, spaceDelimitedContext : Boolean): Doc = {
     n match {
@@ -219,7 +218,7 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
         "axiom" <+> quantifyOverFreeTypeVars(exp) <> semi
       case Procedure(name, ins, outs, body) =>
         // collect all where clauses
-        whereMap = collection.mutable.HashMap[Identifier, Exp]()
+        whereMap.clear()
         body visit {
           case LocalVarWhereDecl(idn, where) =>
             whereMap.put(idn, where)
@@ -227,7 +226,7 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
         // we add a modifies clause that contains all global variables. since we do not actually
         // call any of the Boogie procedures, this works well and avoids the need to have
         // modules declare which variables they want to modify.
-        val modifies = globalDecls map (_.name) map (ident2doc(_))
+        val modifies = globalDecls map (_.name) map ident2doc
         val body2 = show(body)
         val undecl = body.undeclLocalVars filter (v1 => (ins ++ outs).forall(v2 => v2.name != v1.name))
         val vars = undecl map (v => LocalVarDecl(v.name, v.typ, whereMap.get(v.name)))
@@ -271,11 +270,11 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
     val t = collectFreeTypeVars(exp)
     val body = t match {
       case Nil => show(exp)
-      case _ => 
+      case _ =>
         exp match {
-          case Forall(vars, triggers, exp, tv) =>
-            show(Forall(vars, triggers, exp, tv++t))          
-          case _ => 
+          case Forall(vars, triggers, _body, tv) =>
+            show(Forall(vars, triggers, _body, tv++t))
+          case _ =>
             parens("forall" <+> showTypeVars(t) <> "::" <+> show(exp))
         }
     }
@@ -298,15 +297,20 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
     "{" <+> commasep(t.exps) <+> "}"
   }
 
-  // Note: pretty-printing expressions is mostly taken care of by kiama
+  // Note: pretty-printing expressions is mostly taken care of by Kiama
   override def toParenDoc(e: PrettyExpression): Doc = {
     e match {
       case IntLit(i) => value(i)
       case BoolLit(b) => value(b)
-      case RealLit(d) => value("%.9f" format d)
+      case RealLit(d) =>
+        /* Enforcing US locale prevents malformed real literals that would be
+         * generated on, e.g., a Windows with German locale, where the decimal
+         * separator would be a comma instead of a dot, e.g., "1,2345...".
+         */
+        value("%.9f".formatLocal(java.util.Locale.US, d))
       case RealConv(exp) => "real" <> parens(show(exp))
       case Forall(vars, triggers, exp, Nil) =>
-        parens("forall" <+> 
+        parens("forall" <+>
           commasep(vars) <+>
           //("•" or "::") <+>
           "::" <>
@@ -316,8 +320,8 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
               show(exp)
           ) <> line)
       case Forall(vars, triggers, exp, tv) =>
-        parens("forall" <+> 
-          "<" <> (ssep(tv map show, comma <> space)) <> ">" <+>
+        parens("forall" <+>
+          "<" <> ssep(tv map show, comma <> space) <> ">" <+>
           commasep(vars) <+>
           //("•" or "::") <+>
           "::" <>
@@ -345,7 +349,7 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
         // also, if the FuncApp is explicitly flagged (showReturn
         val fa = name <> parens(commasep(args))
         typ.freeTypeVars match {
-          case Nil => (if (f.showReturnType) parens(fa <> ":" <+> show(typ)) else fa )
+          case Nil => if (f.showReturnType) parens(fa <> ":" <+> show(typ)) else fa
           case _ => parens(fa <> ":" <+> show(typ))
         }
       case CondExp(cond, e1, e2) =>
