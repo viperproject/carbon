@@ -8,8 +8,6 @@ import semper.carbon.boogie.Implicits._
 
 /**
  * The default implementation of [[semper.carbon.modules.SeqModule]].
- *
- * @author Stefan Heule
  */
 class DefaultSeqModule(val verifier: Verifier) extends SeqModule {
 

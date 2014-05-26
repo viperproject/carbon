@@ -2,15 +2,13 @@ package semper.carbon.verifier
 
 import semper.sil.{ast => sil}
 import semper.carbon.boogie.{BoogieNameGenerator, Identifier, LocalVar}
-import semper.sil.utility.NameGenerator
+import semper.sil.ast.utility.Expressions
 
 /**
  * An environment that assigns unique names to SIL variables;  in SIL, loops can have
  * local variables and thus a method might have two declarations of a local variable
  * with the same name (in different loops).  In Boogie on the other hand, all variables
  * need to be unique.
- *
- * @author Stefan Heule
  */
 case class Environment(verifier: Verifier, member: sil.Node) {
 
@@ -66,6 +64,11 @@ case class Environment(verifier: Verifier, member: sil.Node) {
         bvar
     }
   }
+
+  def isDefinedAt(variable: sil.LocalVar) : Boolean = currentMapping.isDefinedAt(variable)
+
+  def makeUniquelyNamed(decl: sil.LocalVarDecl) : sil.LocalVarDecl =
+    if (isDefinedAt(decl.localVar)) new sil.LocalVarDecl(this.uniqueName(decl.localVar.name),decl.typ)(decl.pos, decl.info) else decl
 
   def undefine(variable: sil.LocalVar) {
     require(currentMapping.contains(variable))

@@ -58,17 +58,23 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         res
       case sil.CondExp(cond, thn, els) =>
         CondExp(translateExp(cond), translateExp(thn), translateExp(els))
-      case sil.Exists(vars, exp) =>
-        vars map (v => env.define(v.localVar))
-        val res = Exists(vars map translateLocalVarDecl, translateExp(exp))
-        vars map (v => env.undefine(v.localVar))
+      case sil.Exists(vars, exp) => {
+        // alpha renaming, to avoid clashes in context
+        val renamedVars : Seq[sil.LocalVarDecl] = vars map (v => { val v1 = env.makeUniquelyNamed(v); env.define(v1.localVar); v1 } );
+        val renaming = (e:sil.Exp) => Expressions.instantiateVariables(e,(vars map (_.localVar)), renamedVars map (_.localVar) )
+        val res = Exists(renamedVars map translateLocalVarDecl, translateExp(renaming(exp)))
+        renamedVars map (v => env.undefine(v.localVar))
         res
-      case sil.Forall(vars, triggers, exp) =>
-        vars map (v => env.define(v.localVar))
-        val ts = triggers map (t => Trigger(t.exps map translateExp))
-        val res = Forall(vars map translateLocalVarDecl, ts, translateExp(exp))
-        vars map (v => env.undefine(v.localVar))
+      }
+      case sil.Forall(vars, triggers, exp) => {
+        // alpha renaming, to avoid clashes in context
+        val renamedVars : Seq[sil.LocalVarDecl] = vars map (v => { val v1 = env.makeUniquelyNamed(v); env.define(v1.localVar); v1 } );
+        val renaming = (e:sil.Exp) => Expressions.instantiateVariables(e,(vars map (_.localVar)), renamedVars map (_.localVar) )
+        val ts = triggers map (t => Trigger(t.exps map (e => translateExp(renaming(e)))))
+        val res = Forall(renamedVars map translateLocalVarDecl, ts, translateExp(renaming(exp)))
+        renamedVars map (v => env.undefine(v.localVar))
         res
+      }
       case sil.WildcardPerm() =>
         translatePerm(e)
       case sil.FullPerm() =>

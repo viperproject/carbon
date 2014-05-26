@@ -7,8 +7,6 @@ import semper.carbon.verifier.Environment
 /**
  * A module for translating SIL programs by invoking the right modules and
  * gathering all the preambles, etc.
- *
- * @author Stefan Heule
  */
 trait MainModule extends Module {
   /**
