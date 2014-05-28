@@ -43,18 +43,14 @@ class DefaultSeqModule(val verifier: Verifier) extends SeqModule {
         fa
       }
 
-      case sil.ExplicitSeq(elems) =>
-        def buildSeq(es: Seq[sil.Exp]): Exp = {
-          es match {
-            case Nil => sys.error("did not expect empty sequence")
-            case a :: Nil =>
-              FuncApp(Identifier("Seq#Singleton"), t(a), typ)
-            case a :: as =>
-              val aTranslated = FuncApp(Identifier("Seq#Singleton"), t(a), typ)
-              FuncApp(Identifier("Seq#Append"), List(aTranslated, buildSeq(as)), typ)
-          }
+      case s@sil.ExplicitSeq(elems) =>
+        elems match {
+          case Nil => sys.error("did not expect empty sequence")
+          case a :: Nil =>
+            FuncApp(Identifier("Seq#Singleton"), t(a), typ)
+          case a :: as =>
+            translateSeqExp(s.desugared) // desugar into appends and singletons
         }
-        buildSeq(elems)
       case sil.RangeSeq(low, high) =>
         FuncApp(Identifier("Seq#Range"), List(t(low), t(high)), typ)
       case sil.SeqAppend(left, right) =>
