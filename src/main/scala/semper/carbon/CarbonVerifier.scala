@@ -21,6 +21,9 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
   private var _config: CarbonConfig = _
   def config = _config
 
+  def start() = {}
+  def stop() = {}
+
   private var namespaceId = 0
   override def freshNamespace(name: String): Namespace = {
     namespaceId += 1
