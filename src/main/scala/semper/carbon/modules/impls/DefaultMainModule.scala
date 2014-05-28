@@ -41,11 +41,12 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
   }
 
   override def translate(p: sil.Program): Program = {
+
     val pWithTriggers = {
       p.transform({
-        case f: sil.Forall => {
+        case f: sil.Forall =>
            f.autoTrigger
-        }
+
       })((_) => true)
     }
 
@@ -96,10 +97,10 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
         val initOld = stateModule.initOldState
         val paramAssumptions = m.formalArgs map allAssumptionsAboutParam
         val inhalePre = MaybeCommentBlock("Checked inhaling of precondition",
-          pres map (e => checkDefinednessOfSpec(e, errors.ContractNotWellformed(e))))
+          pres map (e => checkDefinednessOfSpecAndInhale(e, errors.ContractNotWellformed(e))))
         val checkPost: Stmt = if (posts.nonEmpty) NondetIf(
           MaybeComment("Checked inhaling of postcondition to check definedness",
-            posts map (e => checkDefinednessOfSpec(e, errors.ContractNotWellformed(e)))) ++
+            posts map (e => checkDefinednessOfSpecAndInhale(e, errors.ContractNotWellformed(e)))) ++
             MaybeComment("Stop execution", Assume(FalseLit())), Nil)
         else Nil
         val postsWithErrors = posts map (p => (p, errors.PostconditionViolated(p, m)))

@@ -280,7 +280,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       stateModule.initState ++ (f.formalArgs map allAssumptionsAboutParam) ++ assumeAllFunctionDefinitions)
     val initOld = MaybeCommentBlock("Initializing the old state", stateModule.initOldState)
     val checkPre = MaybeCommentBlock("Inhaling precondition (with checking)",
-      f.pres map (e => checkDefinednessOfSpec(e, errors.FunctionNotWellformed(f))))
+      f.pres map (e => checkDefinednessOfSpecAndInhale(e, errors.FunctionNotWellformed(f))))
     val checkExp = MaybeCommentBlock("Check definedness of function body",
       expModule.checkDefinedness(f.exp, errors.FunctionNotWellformed(f)))
     val exp = MaybeCommentBlock("Translate function body",

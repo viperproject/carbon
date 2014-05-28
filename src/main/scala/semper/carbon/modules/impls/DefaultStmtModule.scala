@@ -57,7 +57,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
       case unfold@sil.Unfold(e) =>
         translateUnfold(unfold)
       case inh@sil.Inhale(e) =>
-        checkDefinednessOfSpec(e, errors.InhaleFailed(inh))
+        checkDefinednessOfSpecAndInhale(e, errors.InhaleFailed(inh))
         //checkDefinedness(e, errors.InhaleFailed(inh)) ++
         //  inhale(e)
       case exh@sil.Exhale(e) =>
@@ -124,7 +124,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
             Havoc((w.writtenVars map translateExp).asInstanceOf[Seq[Var]])
           ) ++
           MaybeCommentBlock("Check definedness of invariant", NondetIf(
-            (invs map (inv => checkDefinednessOfSpec(inv, errors.WhileFailed(w)))) ++
+            (invs map (inv => checkDefinednessOfSpecAndInhale(inv, errors.WhileFailed(w)))) ++
               Assume(FalseLit())
           )) ++
           MaybeCommentBlock("Check the loop body", NondetIf({

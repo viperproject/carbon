@@ -70,7 +70,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         // alpha renaming, to avoid clashes in context
         val renamedVars : Seq[sil.LocalVarDecl] = vars map (v => { val v1 = env.makeUniquelyNamed(v); env.define(v1.localVar); v1 } );
         val renaming = (e:sil.Exp) => Expressions.instantiateVariables(e,(vars map (_.localVar)), renamedVars map (_.localVar) )
-        val ts = triggers map (t => Trigger(t.exps map (e => translateExp(renaming(e)))))
+        val ts = triggers map (t => Trigger(t.exps map {e => translateExp(renaming(e))}))
         val res = Forall(renamedVars map translateLocalVarDecl, ts, translateExp(renaming(exp)))
         renamedVars map (v => env.undefine(v.localVar))
         res
@@ -287,19 +287,19 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       case _ => res
     }
   }
-  // (AS) TODO: this is really "checkDefinednessOfSpecAndInhale" - should be renamed 
-  override def checkDefinednessOfSpec(e: sil.Exp, error: PartialVerificationError): Stmt = {
+
+  override def checkDefinednessOfSpecAndInhale(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
       case sil.And(e1, e2) =>
-        checkDefinednessOfSpec(e1, error) ::
-          checkDefinednessOfSpec(e2, error) ::
+        checkDefinednessOfSpecAndInhale(e1, error) ::
+          checkDefinednessOfSpecAndInhale(e2, error) ::
           Nil
       case sil.Implies(e1, e2) =>
         checkDefinedness(e1, error) ++
-          If(translateExp(e1), checkDefinednessOfSpec(e2, error), Statements.EmptyStmt)
+          If(translateExp(e1), checkDefinednessOfSpecAndInhale(e2, error), Statements.EmptyStmt)
       case sil.CondExp(c, e1, e2) =>
         checkDefinedness(c, error) ++
-          If(translateExp(c), checkDefinednessOfSpec(e1, error), checkDefinednessOfSpec(e2, error))
+          If(translateExp(c), checkDefinednessOfSpecAndInhale(e1, error), checkDefinednessOfSpecAndInhale(e2, error))
       case _ =>
         checkDefinedness(e, error) ++
           inhale(e)
