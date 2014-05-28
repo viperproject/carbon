@@ -1,6 +1,6 @@
 package semper.carbon
 
-import semper.sil.testing.DefaultSilSuite
+import semper.sil.testing.SilSuite
 import semper.sil.verifier.Verifier
 import semper.sil.frontend.Frontend
 import java.io.File
@@ -11,7 +11,7 @@ import java.nio.file.Path
   *
   * @author Stefan Heule
   */
-class AllTests extends DefaultSilSuite {
+class AllTests extends SilSuite {
 
   override def testDirectories: Seq[String] = Vector("all", "local"
     //, "generated"
