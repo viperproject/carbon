@@ -150,7 +150,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         UnExp(Not, translateExp(exp))
       case fa@sil.FuncApp(_, _) =>
         translateFuncApp(fa)
-      case fa@sil.DomainFuncApp(func, args, _) =>
+      case fa@sil.DomainFuncApp(_, _, _) =>
         translateDomainFuncApp(fa)
 
       case seqExp@sil.EmptySeq(elemTyp) =>

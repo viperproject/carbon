@@ -8,8 +8,6 @@ import semper.carbon.boogie.Implicits._
 
 /**
  * The default implementation of [[semper.carbon.modules.DomainModule]].
- *
- * @author Stefan Heule
  */
 class DefaultDomainModule(val verifier: Verifier) extends DomainModule {
 
@@ -56,15 +54,16 @@ class DefaultDomainModule(val verifier: Verifier) extends DomainModule {
   }
 
   override def translateDomainFuncApp(fa: sil.DomainFuncApp): Exp = {
-    if (fa.funct.unique) {
-      Const(Identifier(fa.funct.name))
+    val funct = verifier.program.findDomainFunction(fa.funcname)
+    if (funct.unique) {
+      Const(Identifier(funct.name))
     } else {
-      FuncApp(Identifier(fa.funct.name), fa.args map translateExp, translateType(fa.typ))
+      FuncApp(Identifier(funct.name), fa.args map translateExp, translateType(fa.typ))
     }
   }
 
   override def translateDomainTyp(typ: sil.DomainType): Type = {
-    val domain = typ.domain
+    val domain = verifier.program.findDomain(typ.domainName)
     val typArgs = domain.typVars map (tv => typ.typVarsMap.getOrElse(tv, tv))
     NamedType(domain.name, typArgs map translateType)
   }

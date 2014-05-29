@@ -40,7 +40,7 @@ class DefaultTypeModule(val verifier: Verifier) extends TypeModule {
         sys.error("this is an internal type, not expected here")
       case sil.TypeVar(name) =>
         TypeVar(name)
-      case t@sil.DomainType(domain, typVarsMap) =>
+      case t@sil.DomainType(_, _) =>
         translateDomainTyp(t)
     }
   }

@@ -298,7 +298,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     (if(makeChecks) (
       e match {
         case fa@sil.FuncApp(f, args) => {
-          val pres = verifier.program.findFunction(f).pres
+          val funct = verifier.program.findFunction(f);
+          val pres = funct.pres map (e => Expressions.instantiateVariables(e, funct.formalArgs, args))
           if (pres.isEmpty) Nil
           else
             NondetIf(
