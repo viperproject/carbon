@@ -6,8 +6,6 @@ import semper.carbon.boogie.Namespace
 
 /**
  * A verifier for SIL in Carbon (defines what modules need to be available).
- *
- * @author Stefan Heule
  */
 trait Verifier {
 
@@ -62,4 +60,9 @@ trait Verifier {
    * The program currently being verified.
    */
   def program: sil.Program
+
+  /**
+   *  Replace the program with the provided one (for instance, to achieve whole-program transformations, including updating lookups of method definitions etc.)
+   */
+  def replaceProgram(prog : sil.Program)
 }

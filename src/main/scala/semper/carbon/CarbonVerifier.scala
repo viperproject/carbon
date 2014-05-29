@@ -3,7 +3,7 @@ package semper.carbon
 import boogie.Namespace
 import modules.impls._
 import semper._
-import sil.ast.Program
+import sil.ast.{Program,Method}
 import sil.utility.Paths
 import sil.verifier.Dependency
 import verifier.{BoogieInterface, Verifier}
@@ -145,4 +145,9 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
 
   private var _program: Program = null
   def program = _program
+  def program_=(p : Program) {
+    _program = p
+  }
+
+  def replaceProgram(prog : Program) = {this.program = prog}
 }
