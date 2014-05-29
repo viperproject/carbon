@@ -75,7 +75,8 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           restoreState(snapshot)
           checkDefinedness(e, errors.AssertFailed(a)) :: backup :: exhaleStmt :: Nil
         }
-      case mc@sil.MethodCall(method, args, targets) =>
+      case mc@sil.MethodCall(methodName, args, targets) =>
+        val method = verifier.program.findMethod(methodName)
         // save pre-call state
         val (preCallStateStmt, state) = stateModule.freshTempState("PreCall")
         val preCallState = stateModule.state
@@ -101,13 +102,14 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
             (args(i), Nil: Stmt)
           }
         })
+        val pres = method.pres map (e => Expressions.instantiateVariables(e, method.formalArgs ++ method.formalReturns, (actualArgs map (_._1)) ++ targets))
         val posts = method.posts map (e => Expressions.instantiateVariables(e, method.formalArgs ++ method.formalReturns, (actualArgs map (_._1)) ++ targets))
         val res = preCallStateStmt ++
           (targets map (e => checkDefinedness(e, errors.CallFailed(mc)))) ++
           (args map (e => checkDefinedness(e, errors.CallFailed(mc)))) ++
           (actualArgs map (_._2)) ++
           Havoc((targets map translateExp).asInstanceOf[Seq[Var]]) ++
-          MaybeCommentBlock("Exhaling precondition", executeUnfoldings(mc.pres, (pre => errors.Internal(pre))) ++ exhale(mc.pres map (e => (e, errors.PreconditionInCallFalse(mc))))) ++ {
+          MaybeCommentBlock("Exhaling precondition", executeUnfoldings(pres, (pre => errors.Internal(pre))) ++ exhale(pres map (e => (e, errors.PreconditionInCallFalse(mc))))) ++ {
           stateModule.restoreOldState(preCallState)
           val res = MaybeCommentBlock("Inhaling postcondition", inhale(posts) ++ executeUnfoldings(posts, (post => errors.Internal(post))))
           stateModule.restoreOldState(oldState)

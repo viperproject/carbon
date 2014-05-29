@@ -158,10 +158,10 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   }
 
   override def translateFuncApp(fa: sil.FuncApp) = {
-    translateFuncApp(fa.func, heapModule.currentState ++ (fa.args map translateExp), fa.typ)
+    translateFuncApp(fa.funcname, heapModule.currentState ++ (fa.args map translateExp), fa.typ)
   }
-  def translateFuncApp(f: sil.Function, args: Seq[Exp], typ: sil.Type) = {
-    FuncApp(Identifier(f.name), args, translateType(typ))
+  def translateFuncApp(fname : String, args: Seq[Exp], typ: sil.Type) = {
+    FuncApp(Identifier(fname), args, translateType(typ))
   }
 
   private def assumeFunctionsAbove(i: Int): Exp =
@@ -176,7 +176,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val height = heights(f)
     val heap = heapModule.stateContributions
     val args = f.formalArgs map translateLocalVarDecl
-    val fapp = translateFuncApp(f, (heap ++ args) map (_.l), f.typ)
+    val fapp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
     val body = transformLimited(translateExp(f.exp))
     Axiom(Forall(
       stateModule.stateContributions ++ args,
@@ -202,7 +202,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val height = heights(f)
     val heap = heapModule.stateContributions
     val args = f.formalArgs map translateLocalVarDecl
-    val fapp = translateFuncApp(f, (heap ++ args) map (_.l), f.typ)
+    val fapp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
     val res = translateResult(sil.Result()(f.typ))
     for (post <- f.posts) yield {
       val bPost = translateExp(post) transform {
@@ -220,7 +220,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   }
 
   private def triggerFuncApp(f: sil.FuncApp): Exp = {
-    FuncApp(Identifier(f.func.name + triggerFuncPostfix), f.args map translateExp, Bool)
+    FuncApp(Identifier(f.funcname + triggerFuncPostfix), f.args map translateExp, Bool)
   }
 
   private def framingAxiom(f: sil.Function): Seq[Decl] = {
@@ -230,7 +230,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val func = Func(name, LocalVarDecl(Identifier("frame"), frameType) ++ args, typ)
     val funcApp = FuncApp(name, functionFrame(f.pres) ++ (args map (_.l)), Bool)
     val heap = heapModule.stateContributions
-    val funcApp2 = translateFuncApp(f, (heap ++ args) map (_.l), f.typ)
+    val funcApp2 = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
     func ++
       Axiom(Forall(
         stateModule.stateContributions ++ args,
@@ -297,11 +297,15 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
     (if(makeChecks) (
       e match {
-        case fa@sil.FuncApp(f, args) if !fa.pres.isEmpty =>
-          NondetIf(
-            MaybeComment("Exhale precondition of function application", exhale(fa.pres map (e => (e, errors.PreconditionInAppFalse(fa))))) ++
-              MaybeComment("Stop execution", Assume(FalseLit()))
-          )
+        case fa@sil.FuncApp(f, args) => {
+          val pres = verifier.program.findFunction(f).pres
+          if (pres.isEmpty) Nil
+          else
+            NondetIf(
+              MaybeComment("Exhale precondition of function application", exhale(pres map (e => (e, errors.PreconditionInAppFalse(fa))))) ++
+                MaybeComment("Stop execution", Assume(FalseLit()))
+            )
+        }
         case _ => Nil
       }
     ) else Nil)
@@ -339,7 +343,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   override def translateFold(fold: sil.Fold): Stmt = {
     fold match {
-      case sil.Fold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(rcv, pred), perm)) =>
+      case sil.Fold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(_, _), perm)) =>
         checkDefinedness(acc, errors.FoldFailed(fold)) ++
           checkDefinedness(perm, errors.FoldFailed(fold)) ++
           foldPredicate(acc, errors.FoldFailed(fold))
@@ -352,7 +356,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     duringFold = true
     foldInfo = acc
     val stmt = predicateTrigger(acc.loc) ++
-      exhale(Seq((acc.loc.predicateBody, error)), havocHeap = false) ++
+      exhale(Seq((acc.loc.predicateBody(verifier.program), error)), havocHeap = false) ++
       inhale(acc)
     foldInfo = null
     duringFold = false
@@ -363,7 +367,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private var unfoldInfo: sil.PredicateAccessPredicate = null
   override def translateUnfold(unfold: sil.Unfold): Stmt = {
     unfold match {
-      case sil.Unfold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(rcv, pred), perm)) =>
+      case sil.Unfold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(_, _), perm)) =>
         checkDefinedness(acc, errors.UnfoldFailed(unfold)) ++
           checkDefinedness(perm, errors.UnfoldFailed(unfold)) ++
           unfoldPredicate(acc, errors.UnfoldFailed(unfold))
@@ -379,7 +383,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     unfoldInfo = acc
     val stmt = predicateTrigger(acc.loc) ++
       exhale(Seq((acc, error)), havocHeap = false) ++
-      inhale(acc.loc.predicateBody)
+      inhale(acc.loc.predicateBody(verifier.program))
     unfoldInfo = oldUnfoldInfo
     duringUnfold = oldDuringUnfold
     duringFold = oldDuringFold
@@ -388,7 +392,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
-      case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(rcv, pred), perm) if duringUnfold && currentPhaseId == 0 =>
+      case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(_, _), perm) if duringUnfold && currentPhaseId == 0 =>
         val oldVersion = LocalVar(Identifier("oldVersion"), Int)
         val newVersion = LocalVar(Identifier("newVersion"), Int)
         val curVersion = translateExp(loc)
@@ -398,7 +402,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           (curVersion := newVersion)
         MaybeCommentBlock("Update version of predicate",
           If(hasDirectPerm(loc), stmt, Nil))
-      case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(rcv, pred), perm) if duringFold =>
+      case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(_, _), perm) if duringFold =>
         MaybeCommentBlock("Record predicate instance information",
           insidePredicate(foldInfo, pap))
       case _ => Nil
@@ -419,10 +423,10 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       val newargs2 = allArgs2 map (e => if (e._2 != idx2) translateExp(e._1) else specialRef)
       Assume(FuncApp(insidePredicateName,
         Seq(translateExp(arg1),
-          translateLocation(p1.loc.predicate, newargs1),
+          translateLocation(verifier.program.findPredicate(p1.loc.predicateName), newargs1),
           translateExp(p1.loc),
           translateExp(arg2),
-          translateLocation(p2.loc.predicate, newargs2),
+          translateLocation(verifier.program.findPredicate(p2.loc.predicateName), newargs2),
           translateExp(p2.loc)),
         Bool))
     }
@@ -434,7 +438,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     e match {
       case sil.Unfolding(acc, exp) =>
         Nil
-      case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(rcv, pred), perm) =>
+      case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(_, _), perm) =>
         val res: Stmt = if (extraUnfolding) {
           exhaleTmpStateId += 1
           extraUnfolding = false

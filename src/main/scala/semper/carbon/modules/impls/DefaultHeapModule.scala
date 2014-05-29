@@ -5,8 +5,8 @@ import semper.carbon.modules.components.{InhaleComponent, ExhaleComponent, Simpl
 import semper.sil.{ast => sil}
 import semper.carbon.boogie._
 import semper.carbon.boogie.Implicits._
-import semper.carbon.verifier.Verifier
 import semper.sil.verifier.{reasons, PartialVerificationError}
+import semper.carbon.verifier.Verifier
 
 /**
  * The default implementation of a [[semper.carbon.modules.HeapModule]].
@@ -190,9 +190,10 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
   }
 
   private def predicateMask(loc: sil.PredicateAccess) = {
-    val t = predicateMaskFieldTypeOf(loc.predicate)
+    val predicate = verifier.program.findPredicate(loc.predicateName)
+    val t = predicateMaskFieldTypeOf(predicate)
     MapSelect(heap, Seq(nullLit,
-      FuncApp(predicateMaskIdentifer(loc.predicate),
+      FuncApp(predicateMaskIdentifer(predicate),
         loc.args map translateExp, t)))
   }
 
@@ -203,7 +204,8 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
     FuncApp(predicateTriggerIdentifer(f), Seq(predicateField), Bool)
   }
   override def predicateTrigger(pred: sil.PredicateAccess): Stmt = {
-    Assume(FuncApp(predicateTriggerIdentifer(pred.predicate), Seq(translateLocation(pred)), Bool))
+    val predicate = verifier.program.findPredicate(pred.predicateName)
+    Assume(FuncApp(predicateTriggerIdentifer(predicate), Seq(translateLocation(pred)), Bool))
   }
 
   /** Returns a heap-lookup of the allocated field of an object. */
@@ -219,14 +221,15 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
     f match {
       case sil.FieldAccess(rcv, field) =>
         MapSelect(heap, Seq(translateExp(rcv), translateLocation(f)))
-      case sil.PredicateAccess(args, pred) =>
+      case sil.PredicateAccess(_, _) =>
         MapSelect(heap, Seq(nullLit, translateLocation(f)))
     }
   }
 
   override def translateLocation(l: sil.LocationAccess): Exp = {
     l match {
-      case sil.PredicateAccess(args, pred) =>
+      case sil.PredicateAccess(args, predName) =>
+        val pred = verifier.program.findPredicate(predName)
         val t = predicateMetaTypeOf(pred)
         FuncApp(locationIdentifier(pred), args map translateExp, t)
       case sil.FieldAccess(rcv, field) =>
@@ -281,7 +284,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
    * Adds the permissions from an expression to a permission mask.
    */
   private def addPermissionToPMask(loc: sil.PredicateAccess): Stmt = {
-    addPermissionToPMaskHelper(loc.predicateBody, predicateMask(loc))
+    addPermissionToPMaskHelper(loc.predicateBody(verifier.program), predicateMask(loc))
   }
   private def addPermissionToPMaskHelper(e: sil.Exp, pmask: Exp): Stmt = {
     e match {

@@ -4,7 +4,6 @@ import semper.carbon.modules._
 import semper.carbon.modules.components._
 import semper.sil.{ast => sil}
 import semper.carbon.boogie._
-import semper.carbon.verifier.Verifier
 import semper.carbon.boogie.Implicits._
 import semper.sil.verifier._
 import semper.carbon.boogie.NamedType
@@ -31,6 +30,7 @@ import semper.carbon.boogie.Assign
 import semper.carbon.boogie.Func
 import semper.carbon.boogie.TypeAlias
 import semper.carbon.boogie.FuncApp
+import semper.carbon.verifier.Verifier
 
 /**
  * The default implementation of a [[semper.carbon.modules.PermModule]].
@@ -231,7 +231,7 @@ class DefaultPermModule(val verifier: Verifier)
     la match {
       case sil.FieldAccess(rcv, field) =>
         hasDirectPerm(translateExp(rcv), translateLocation(la))
-      case sil.PredicateAccess(args, pred) =>
+      case sil.PredicateAccess(_, _) =>
         hasDirectPerm(translateNull, translateLocation(la))
     }
   }
@@ -326,7 +326,7 @@ class DefaultPermModule(val verifier: Verifier)
     loc match {
       case sil.FieldAccess(rcv, field) =>
         currentPermission(translateExp(rcv), translateLocation(loc))
-      case sil.PredicateAccess(args, predicate) =>
+      case sil.PredicateAccess(_, _) =>
         currentPermission(translateNull, translateLocation(loc))
     }
   }
@@ -427,7 +427,8 @@ class DefaultPermModule(val verifier: Verifier)
         }
       case assign@sil.FieldAssign(fa, rhs) =>
         Assert(permGe(currentPermission(fa), fullPerm), errors.AssignmentFailed(assign).dueTo(reasons.InsufficientPermission(fa)))
-      case c@sil.MethodCall(method, args, targets) =>
+      case c@sil.MethodCall(methodName, args, targets) =>
+        val method = verifier.program.findMethod(methodName)
         for ((formalArg, actualArg) <- method.formalArgs zip args) yield {
           formalArg.typ match {
             case sil.Perm =>
@@ -492,7 +493,7 @@ class DefaultPermModule(val verifier: Verifier)
       case sil.AccessPredicate(loc, perm) =>
         allowLocationAccessWithoutPerm = true
         Nil
-      case fa@sil.LocationAccess(loc) =>
+      case fa@sil.LocationAccess(_) =>
         if (allowLocationAccessWithoutPerm) {
           allowLocationAccessWithoutPerm = false
           Nil

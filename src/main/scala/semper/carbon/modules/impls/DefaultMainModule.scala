@@ -6,17 +6,15 @@ import semper.carbon.boogie._
 import semper.carbon.boogie.Implicits._
 import java.text.SimpleDateFormat
 import java.util.Date
-import semper.carbon.verifier.Verifier
 import semper.carbon.boogie.CommentedDecl
 import semper.carbon.boogie.Procedure
 import semper.carbon.boogie.Program
 import semper.carbon.verifier.Environment
 import semper.sil.verifier.errors
+import semper.carbon.verifier.Verifier
 
 /**
  * The default implementation of a [[semper.carbon.modules.MainModule]].
- *
- * @author Stefan Heule
  */
 class DefaultMainModule(val verifier: Verifier) extends MainModule {
 
@@ -42,15 +40,15 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
 
   override def translate(p: sil.Program): Program = {
 
-    val pWithTriggers = {
+    verifier.replaceProgram(
       p.transform({
         case f: sil.Forall =>
            f.autoTrigger
 
       })((_) => true)
-    }
+    )
 
-    val output = pWithTriggers match {
+    val output = verifier.program match {
       case sil.Program(domains, fields, functions, predicates, methods) =>
         // translate all members
         val translateFields =
