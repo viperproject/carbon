@@ -14,7 +14,7 @@ import semper.sil.ast.{NoPosition, Position}
  */
 trait BoogieInterface {
 
-  def defaultOptions = Seq("/nologo", "/errorTrace:0", s"/z3exe:$z3Path")
+  def defaultOptions = Seq("/nologo", "/vcsCores:" + java.lang.Runtime.getRuntime.availableProcessors, "/errorTrace:0", s"/z3exe:$z3Path")
 
   /** The (resolved) path where Boogie is supposed to be located. */
   def boogiePath: String
