@@ -20,11 +20,14 @@ class DefaultDomainModule(val verifier: Verifier) extends DomainModule {
 
   implicit val namespace = verifier.freshNamespace("domain")
 
+  // name for output identifier (to try to avoid clashes - should be improved for robustness (see issue #19)
+  def outputName(domain: sil.Domain) : String = domain.name + "DomainType"
+
   override def translateDomain(domain: sil.Domain): Seq[Decl] = {
     val fs = domain.functions flatMap translateDomainFunction
     val as = domain.axioms flatMap translateDomainAxiom
     val ts = CommentedDecl(s"The type for domain ${domain.name}",
-      TypeDecl(NamedType(domain.name, domain.typVars map (tv => TypeVar(tv.name)))), size = 1)
+      TypeDecl(NamedType(this.outputName(domain) , domain.typVars map (tv => TypeVar(tv.name)))), size = 1)
     CommentedDecl(s"Translation of domain ${domain.name}", ts ++ fs ++ as, nLines = 2)
   }
 
@@ -65,7 +68,7 @@ class DefaultDomainModule(val verifier: Verifier) extends DomainModule {
   override def translateDomainTyp(typ: sil.DomainType): Type = {
     val domain = verifier.program.findDomain(typ.domainName)
     val typArgs = domain.typVars map (tv => typ.typVarsMap.getOrElse(tv, tv))
-    NamedType(domain.name, typArgs map translateType)
+    NamedType(this.outputName(domain), typArgs map translateType)
   }
 
 }
