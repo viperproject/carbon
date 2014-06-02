@@ -343,6 +343,8 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
     heap = s(0)
   }
 
+  // AS: this is a trick to avoid well-definedness checks for the outermost heap dereference in an AccessPredicate node (since it describes the location to which permission is provided).
+  // The trick is somewhat fragile, in that it relies on the ordering of the calls to this method.
   private var allowHeapDeref = false
   override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
     if(makeChecks) (

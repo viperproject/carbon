@@ -233,6 +233,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         def translate: Seqn = {
           val checks = components map (_.partialCheckDefinedness(e, error, makeChecks = makeChecks))
           val stmt = checks map (_._1())
+          // AS: note that some implementations of the definedness checks rely on the order of these calls (i.e. parent nodes are checked before children, and children *are* always checked after parents.
           val stmt2 = for (sub <- e.subnodes if sub.isInstanceOf[sil.Exp]) yield {
             checkDefinednessImpl(sub.asInstanceOf[sil.Exp], error, makeChecks = makeChecks)
           }
