@@ -52,31 +52,45 @@ trait BoogieInterface {
     val ErrorPattern = "  .+ \\[([0-9]+)\\]".r
     val errors = collection.mutable.ListBuffer[Int]()
     var otherErrId = 0
+
+    val unexpected : (String => Unit) = ((msg:String) => {
+      otherErrId -= 1
+
+      errors += otherErrId
+      val internalError = new AbstractVerificationError {
+        protected def text: String = msg
+
+        def id: String = "boogie.unknown.output"
+
+        def reason: ErrorReason = new ErrorReason {
+          def pos: Position = NoPosition
+
+          def readableMessage: String = "?"
+
+          def id: String = "unknown"
+
+          def offendingNode = null
+        }
+
+        def offendingNode = null
+
+        override def pos = NoPosition
+
+        override def readableMessage(withId: Boolean, withPosition: Boolean) =
+          s"Internal error: $text"
+      }
+      errormap += (otherErrId -> internalError)
+    })
+
     for (l <- output.linesIterator) {
       l match {
         case ErrorPattern(id) =>
           errors += id.toInt
         case SummaryPattern(v, e) =>
-          assert(e.toInt == errors.size, s"Found ${errors.size} errors, but there should be $e. The output was: $output")
+          if(e.toInt != errors.size) unexpected(s"Found ${errors.size} errors, but there should be $e. The output was: $output")
         case "" => // ignore empty lines
         case _ =>
-          otherErrId -= 1
-          errors += otherErrId
-          val internalError = new AbstractVerificationError {
-            protected def text: String = s"Found an unparsable output from Boogie: $l"
-            def id: String = "boogie.unknown.output"
-            def reason: ErrorReason = new ErrorReason {
-              def pos: Position = NoPosition
-              def readableMessage: String = "?"
-              def id: String = "unknown"
-              def offendingNode = null
-            }
-            def offendingNode = null
-            override def pos = NoPosition
-            override def readableMessage(withId: Boolean, withPosition: Boolean) =
-              s"Internal error: $text"
-          }
-          errormap += (otherErrId -> internalError)
+          unexpected(s"Found an unparsable output from Boogie: $l")
       }
     }
     errors.toSeq
@@ -102,7 +116,7 @@ trait BoogieInterface {
     }
     // write program to a temporary file
     val tmp = File.createTempFile("carbon", ".bpl")
-    tmp.deleteOnExit()
+    //tmp.deleteOnExit()
     val stream = new BufferedOutputStream(new FileOutputStream(tmp))
     stream.write(input.getBytes)
     stream.close()
