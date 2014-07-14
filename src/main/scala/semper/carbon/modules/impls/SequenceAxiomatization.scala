@@ -112,5 +112,9 @@ object SequenceAxiomatization {
                 |axiom (forall<T> x, y: T ::
                 |  { Seq#Contains(Seq#Singleton(x),y) }
                 |    Seq#Contains(Seq#Singleton(x),y) <==> x==y);
+                |
+                |axiom (forall min: int, max: int, v: int :: {Seq#Contains(Seq#Range(min, max),v)}
+                |  (Seq#Contains(Seq#Range(min, max),v) <==> min <= v && v < max));
+                |
                 |""".stripMargin
 }
