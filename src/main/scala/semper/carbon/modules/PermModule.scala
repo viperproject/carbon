@@ -1,3 +1,9 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
 package semper.carbon.modules
 
 import semper.carbon.boogie._
@@ -6,8 +12,7 @@ import semper.sil.{ast => sil}
 /**
  * The permission module determines the encoding of permissions and allows to add or remove
  * permission.
- *
- * @author Stefan Heule
+
  */
 trait PermModule extends Module {
 

@@ -1,3 +1,9 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
 package semper.carbon.modules.impls
 
 import semper.carbon.modules.SetModule
@@ -8,8 +14,7 @@ import semper.carbon.boogie.Implicits._
 
 /**
  * The default implementation of [[semper.carbon.modules.SetModule]].
- *
- * @author Stefan Heule
+
  */
 class DefaultSetModule(val verifier: Verifier) extends SetModule {
 

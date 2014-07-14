@@ -1,3 +1,9 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
 package semper.carbon.modules
 
 import components.{InhaleComponent, ComponentRegistry}
@@ -13,8 +19,7 @@ import semper.carbon.boogie.{Stmt, Exp}
  *
  * The module also implements [[semper.carbon.modules.components.InhaleComponent]]
  * and performs some default behavior for most expressions.
- *
- * @author Stefan Heule
+
  */
 trait InhaleModule extends Module with InhaleComponent with ComponentRegistry[InhaleComponent] {
   def inhale(exp: Seq[sil.Exp]): Stmt

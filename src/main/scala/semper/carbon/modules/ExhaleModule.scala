@@ -1,3 +1,9 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
 package semper.carbon.modules
 
 import components.{ExhaleComponent, ComponentRegistry}
@@ -14,8 +20,7 @@ import semper.sil.verifier.PartialVerificationError
  *
  * The module also implements [[semper.carbon.modules.components.ExhaleComponent]]
  * and performs some default behavior for most expressions.
- *
- * @author Stefan Heule
+
  */
 trait ExhaleModule extends Module with ExhaleComponent with ComponentRegistry[ExhaleComponent] {
   def exhale(exp: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true): Stmt

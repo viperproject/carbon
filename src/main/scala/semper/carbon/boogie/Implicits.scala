@@ -1,11 +1,16 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
 package semper.carbon.boogie
 
 import language.implicitConversions
 
 /**
  * A collection of implicits for working with the Boogie AST.
- *
- * @author Stefan Heule
+
  */
 object Implicits {
   implicit def lift[T](t: T): Seq[T] = Seq(t)

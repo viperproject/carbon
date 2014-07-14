@@ -1,10 +1,15 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
 package semper.carbon.boogie
 
 
 /**
  * An implementation for transformers of the Boogie AST.
- *
- * @author Stefan Heule
+
  */
 object Transformer {
 

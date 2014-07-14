@@ -1,3 +1,9 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
 package semper.carbon.utility
 
 import org.jgrapht.graph.DefaultDirectedGraph
@@ -7,8 +13,7 @@ import scala.collection.mutable.ListBuffer
 
 /**
  * A utility object for sorting based on a partial order.
- *
- * @author Stefan Heule
+
  */
 object PartialSort {
 

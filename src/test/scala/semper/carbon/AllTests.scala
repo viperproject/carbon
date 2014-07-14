@@ -1,3 +1,9 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
 package semper.carbon
 
 import semper.sil.testing.SilSuite
@@ -8,8 +14,7 @@ import io.Source
 import java.nio.file.Path
 
 /** All tests for carbon.
-  *
-  * @author Stefan Heule
+
   */
 class AllTests extends SilSuite {
 

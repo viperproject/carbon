@@ -1,11 +1,14 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
 package semper.carbon.boogie
 
 
 /**
  * Utility methods for statements.
- *
- * @author Stefan Heule
- * @author Bernhard Brodowsky (parts of the SIL version of the corresponding object)
  */
 object Statements {
   /** An empty statement. */
@@ -68,8 +71,7 @@ object Statements {
 
 /**
  * Utility methods for AST nodes.
- *
- * @author Stefan Heule
+
  */
 object Nodes {
 
