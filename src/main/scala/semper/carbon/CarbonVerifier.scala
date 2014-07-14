@@ -49,23 +49,24 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
     m.initialize()
   })
 
-  /** The (unresolved) environment variable: where Boogie is supposed to be located unless --boogieExe somePath is passed. */
-  var _boogiePath: String = "${BOOGIE_EXE}"
+  /** The default location for Boogie (the environment variable ${BOOGIE_EXE}). */
+  lazy val boogieDefault: String = new File(Paths.resolveEnvVars("${BOOGIE_EXE}")).getAbsolutePath
 
-  /** The (unresolved) environment variable: where Z3 is supposed to be located unless --z3Exe somePath is passed. */
-  var _z3Path: String = "${Z3_EXE}"
+  /** The default location for Z3 (the environment variable ${Z3_EXE}). */
+  lazy val z3Default: String = new File(Paths.resolveEnvVars("${Z3_EXE}")).getAbsolutePath
 
   /** The (resolved) path where Boogie is supposed to be located. */
-  def boogiePath = config.boogieExecutable.get match {
+
+  def boogiePath = if (config != null) config.boogieExecutable.get match {
     case Some(path) => new File(path).getAbsolutePath
-    case None => new File(Paths.resolveEnvVars(_boogiePath)).getAbsolutePath
-  }
+    case None => boogieDefault
+  } else boogieDefault
 
   /** The (resolved) path where Z3 is supposed to be located. */
-  def z3Path = config.Z3executable.get match {
+  def z3Path = if (config != null) config.Z3executable.get match {
     case Some(path) => {new File(path).getAbsolutePath}
-    case None => {new File(Paths.resolveEnvVars(_z3Path)).getAbsolutePath}
-  }
+    case None => z3Default
+  } else z3Default
 
   def name: String = "carbon"
   def version: String = "1.0"
