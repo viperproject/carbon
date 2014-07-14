@@ -29,13 +29,13 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
 
   def name = "Main module"
 
-  override val silVarNamespace = verifier.freshNamespace("main.silvar")
+  override val silVarNamespace = verifier.freshNamespace("main.silver")
   implicit val mainNamespace = verifier.freshNamespace("main")
 
-  override def translateLocalVarDecl(l: sil.LocalVarDecl): LocalVarDecl = {
-    val typ: Type = translateType(l.typ)
-    val name: Identifier = env.get(l.localVar).name
-    LocalVarDecl(name, typ)
+  override def translateLocalVarSig(typ:sil.Type, v:sil.LocalVar): LocalVarDecl = {
+    val t: Type = translateType(typ)
+    val name: Identifier = env.get(v).name
+    LocalVarDecl(name, t)
   }
 
   override def translate(p: sil.Program): Program = {
@@ -93,7 +93,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
         val outs: Seq[LocalVarDecl] = formalReturns map translateLocalVarDecl
         val init = MaybeCommentBlock("Initializing the state", stateModule.initState ++ assumeAllFunctionDefinitions)
         val initOld = stateModule.initOldState
-        val paramAssumptions = m.formalArgs map allAssumptionsAboutParam
+        val paramAssumptions = m.formalArgs map (a => allAssumptionsAboutValue(a.typ, translateLocalVarDecl(a), true))
         val inhalePre = MaybeCommentBlock("Checked inhaling of precondition",
           pres map (e => checkDefinednessOfSpecAndInhale(e, errors.ContractNotWellformed(e))))
         val checkPost: Stmt = if (posts.nonEmpty) NondetIf(
@@ -115,11 +115,10 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
     res
   }
 
-  override def allAssumptionsAboutParam(arg: sil.LocalVarDecl): Stmt = {
-    val v = translateLocalVarDecl(arg)
-    val tmp = verifier.allModules map (_.assumptionAboutParameter(arg.typ, v.l))
-    val paramAssumptions = tmp.filter(_.isDefined).map(_.get)
-    paramAssumptions.allOption match {
+  override def allAssumptionsAboutValue(typ:sil.Type, arg: LocalVarDecl, isParameter:Boolean): Stmt = {
+    val tmp = verifier.allModules map (_.validValue(typ, arg.l, isParameter))
+    val assumptions = tmp.filter(_.isDefined).map(_.get)
+    assumptions.allOption match {
       case None => Nil
       case Some(e) => Assume(e)
     }

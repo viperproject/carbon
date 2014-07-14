@@ -15,10 +15,14 @@ trait MainModule extends Module {
   def translate(p: sil.Program): Program
 
   /**
-   * Translate a local variable declaration.  Assumes that the variables is already
+   * Translate a local variable along with its type (into a boogie declaration).  Assumes that the variable is already
    * defined in the current environment.
    */
-  def translateLocalVarDecl(l: sil.LocalVarDecl): LocalVarDecl
+  def translateLocalVarSig(typ:sil.Type, v:sil.LocalVar): LocalVarDecl
+  def translateLocalVarDecl(l: sil.LocalVarDecl): LocalVarDecl = {
+    translateLocalVarSig(l.typ,l.localVar)
+  }
+
 
   /** The current environment. */
   var env: Environment = null
@@ -26,8 +30,11 @@ trait MainModule extends Module {
   /** The namespace for SIL local variables. */
   def silVarNamespace: Namespace
 
-  def allAssumptionsAboutParam(arg: sil.LocalVarDecl): Stmt
+  /** Used to encode assumptions made about valid values of a given type (e.g. allocation of non-null references) */
+  /** the "isParameter" flag can be used to select assumptions which only apply to parameters */
+  def allAssumptionsAboutValue(typ:sil.Type, arg: LocalVarDecl, isParameter: Boolean): Stmt
+  def allAssumptionsAboutValue(arg:sil.LocalVarDecl, isParameter: Boolean) : Stmt = {
+    allAssumptionsAboutValue(arg.typ,translateLocalVarDecl(arg),isParameter)
+  }
 
-//  def defineLocalVars(n: sil.Node)
-//  def undefineLocalVars(n: sil.Node)
 }

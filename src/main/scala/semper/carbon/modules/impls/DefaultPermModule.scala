@@ -508,9 +508,9 @@ class DefaultPermModule(val verifier: Verifier)
     ) else Nil
   }
 
-  override def assumptionAboutParameter(typ: sil.Type, variable: LocalVar) = {
+  override def validValue(typ: sil.Type, variable: LocalVar, isParameter: Boolean) = {
     typ match {
-      case sil.Perm => Some(epsComp(variable) === RealLit(0))
+      case sil.Perm if isParameter => Some(epsComp(variable) === RealLit(0))
       case _ => None
     }
   }

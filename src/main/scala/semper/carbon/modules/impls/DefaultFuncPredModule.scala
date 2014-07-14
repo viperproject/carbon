@@ -277,7 +277,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val args = f.formalArgs map translateLocalVarDecl
     val res = sil.Result()(f.typ)
     val init = MaybeCommentBlock("Initializing the state",
-      stateModule.initState ++ (f.formalArgs map allAssumptionsAboutParam) ++ assumeAllFunctionDefinitions)
+      stateModule.initState ++ (f.formalArgs map (a => allAssumptionsAboutValue(a.typ,mainModule.translateLocalVarDecl(a),true))) ++ assumeAllFunctionDefinitions)
     val initOld = MaybeCommentBlock("Initializing the old state", stateModule.initOldState)
     val checkPre = MaybeCommentBlock("Inhaling precondition (with checking)",
       f.pres map (e => checkDefinednessOfSpecAndInhale(e, errors.FunctionNotWellformed(f))))

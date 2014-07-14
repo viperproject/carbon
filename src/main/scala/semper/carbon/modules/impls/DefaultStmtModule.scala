@@ -123,7 +123,8 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotEstablished(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotEstablished(e))))
         ) ++
           MaybeCommentBlock("Havoc loop targets",
-            Havoc((w.writtenVars map translateExp).asInstanceOf[Seq[Var]])
+            Havoc((w.writtenVars map translateExp).asInstanceOf[Seq[Var]]) ++
+              (w.writtenVars map (v => mainModule.allAssumptionsAboutValue(v.typ,mainModule.translateLocalVarSig(v.typ, v),false)))
           ) ++
           MaybeCommentBlock("Check definedness of invariant", NondetIf(
             (invs map (inv => checkDefinednessOfSpecAndInhale(inv, errors.WhileFailed(w)))) ++

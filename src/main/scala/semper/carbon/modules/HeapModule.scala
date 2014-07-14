@@ -7,8 +7,6 @@ import semper.carbon.modules.components.StateComponent
 /**
  * A module for translating heap expressions (access, updating) and determining
  * the heap encoding.
- *
- * @author Stefan Heule
  */
 trait HeapModule extends Module with StateComponent {
 

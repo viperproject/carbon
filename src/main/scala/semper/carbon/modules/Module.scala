@@ -35,9 +35,10 @@ trait Module {
   def preamble: Seq[Decl] = Nil
 
   /**
-   * The assumption that can be made about a parameter of a given type.
+   * The assumptions that can be made about a value of a given type (e.g. allocatedness of non-null references).
+   * the "isParameter" flag can be used to select assumptions which only apply to parameters
    */
-  def assumptionAboutParameter(typ: sil.Type, variable: LocalVar): Option[Exp] = None
+  def validValue(typ: sil.Type, variable: LocalVar, isParameter: Boolean): Option[Exp] = None
 
   override def toString = name
 }

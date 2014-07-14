@@ -27,7 +27,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
 
   override def initialize() {
     stateModule.register(this)
-    stmtModule.register(this, before = Seq(verifier.permModule))
+    stmtModule.register(this, before = Seq(verifier.permModule,verifier.stmtModule))
     expModule.register(this)
     exhaleModule.register(this)
     inhaleModule.register(this)
@@ -129,6 +129,14 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
                   field.typ.freeTypeVars
                 )
               )
+        )), size = 1) ++
+        // preserve "allocated" knowledge, where already true
+        MaybeCommentedDecl("All previously-allocated references are still allocated", Axiom(Forall(
+          vars ++ Seq(obj),
+          Trigger(Seq(identicalFuncApp, lookup(h.l, obj.l, Const(allocName)))) ++
+            Trigger(Seq(identicalFuncApp, lookup(eh.l, obj.l, Const(allocName)))),
+          identicalFuncApp ==>
+              (lookup(h.l, obj.l, Const(allocName)) ==> lookup(eh.l, obj.l, Const(allocName)))
         )), size = 1)
     }
   }
@@ -209,6 +217,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
   }
 
   /** Returns a heap-lookup of the allocated field of an object. */
+  /** (should only be used for known-non-null references) */
   private def alloc(o: Exp) = lookup(heap, o, Const(allocName))
 
   /** Returns a heap-lookup for o.f in a given heap h. */
@@ -252,7 +261,9 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
           // this means that whenever we allocate a new object and havoc freshObjectVar, we
           // assume that we consider a newly allocated cell, which gives the prover
           // the information that this object is different from anything allocated
-          // earlier.
+          // earlier. Note that "validReference" must be used in appropriate places
+          // in the encoding to get this fact (e.g. below for method targets, and also
+          // for loops (see the StateModule implementation)
           Assume((freshObjectVar !== nullLit) && alloc(freshObjectVar).not) ::
           (alloc(freshObjectVar) := TrueLit()) ::
           (translateExp(target) := freshObjectVar) ::
@@ -312,7 +323,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
     }
   }
 
-  override def assumptionAboutParameter(typ: sil.Type, variable: LocalVar): Option[Exp] = {
+  override def validValue(typ: sil.Type, variable: LocalVar, isParameter: Boolean): Option[Exp] = {
     typ match {
       case sil.Ref => Some(validReference(variable))
       case _ => None

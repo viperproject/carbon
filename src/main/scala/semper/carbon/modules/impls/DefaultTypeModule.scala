@@ -6,9 +6,7 @@ import semper.carbon.boogie._
 import semper.carbon.verifier.Verifier
 
 /**
- * The default implementation of a [[semper.carbon.modules.StmtModule]].
- *
- * @author Stefan Heule
+ * The default implementation of a [[semper.carbon.modules.TypeModule]].
  */
 class DefaultTypeModule(val verifier: Verifier) extends TypeModule {
 
