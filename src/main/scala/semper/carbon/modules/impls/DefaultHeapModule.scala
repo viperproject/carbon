@@ -74,6 +74,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
       ConstDecl(nullName, refType) ++
       TypeDecl(fieldType) ++
       TypeDecl(normalFieldType) ++
+      // Heap Type Definition :
       TypeAlias(heapTyp, MapType(Seq(refType, fieldType), TypeVar("B"), Seq(TypeVar("A"), TypeVar("B")))) ++
       ConstDecl(allocName, NamedType(fieldTypeName, Seq(normalFieldType, Bool)), unique = true) ++
       // all heap-lookups yield allocated objects or null

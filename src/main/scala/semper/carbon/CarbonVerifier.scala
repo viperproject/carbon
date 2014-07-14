@@ -49,17 +49,23 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
     m.initialize()
   })
 
-  /** The (unresolved) path where Boogie is supposed to be located. */
+  /** The (unresolved) environment variable: where Boogie is supposed to be located unless --boogieExe somePath is passed. */
   var _boogiePath: String = "${BOOGIE_EXE}"
 
-  /** The (unresolved) path where Z3 is supposed to be located. */
+  /** The (unresolved) environment variable: where Z3 is supposed to be located unless --z3Exe somePath is passed. */
   var _z3Path: String = "${Z3_EXE}"
 
   /** The (resolved) path where Boogie is supposed to be located. */
-  def boogiePath = new File(Paths.resolveEnvVars(_boogiePath)).getAbsolutePath
+  def boogiePath = config.boogieExecutable.get match {
+    case Some(path) => new File(path).getAbsolutePath
+    case None => new File(Paths.resolveEnvVars(_boogiePath)).getAbsolutePath
+  }
 
   /** The (resolved) path where Z3 is supposed to be located. */
-  def z3Path = new File(Paths.resolveEnvVars(_z3Path)).getAbsolutePath
+  def z3Path = config.Z3executable.get match {
+    case Some(path) => {new File(path).getAbsolutePath}
+    case None => {new File(Paths.resolveEnvVars(_z3Path)).getAbsolutePath}
+  }
 
   def name: String = "carbon"
   def version: String = "1.0"
@@ -129,12 +135,19 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
       if (config == null) {
         Nil
       } else {
-      config.boogieProverLog.get match {
+        (config.boogieProverLog.get match {
       case Some(l) =>
-        l.map(f => s"/proverLog:$f").toList
+        List("/proverLog:" + l + " ")
       case None =>
         Nil
-      } }
+      }) ++
+        (config.boogieOpt.get match {
+          case Some(l) =>
+            List(l + " ")
+          case None =>
+            Nil
+        })
+      }
     }
 
     invokeBoogie(_translated, options)
