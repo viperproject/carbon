@@ -8,7 +8,7 @@ package viper.carbon
 
 import boogie.Namespace
 import modules.impls._
-import semper._
+import viper._
 import viper.silver.ast.{Program,Method}
 import viper.silver.utility.Paths
 import viper.silver.verifier.Dependency

@@ -7,7 +7,7 @@ object CarbonBuild extends Build {
   lazy val baseSettings = (
        Defaults.defaultSettings
     ++ Seq(
-          organization := "semper",
+          organization := "viper",
           version := "1.0-SNAPSHOT",
           scalaVersion := "2.10.1",
           scalacOptions in Compile ++= Seq("-deprecation", "-unchecked", "-feature"),
