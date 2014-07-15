@@ -31,7 +31,7 @@ for /f "tokens=2* delims=.=" %%A in ('set __CP.') do (
 	)
 )
 
-set CARBON_MAIN=semper.carbon.Carbon
+set CARBON_MAIN=viper.carbon.Carbon
 
 set CARBON_OPTS=%CARBON_OPTS% %*
 

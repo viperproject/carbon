@@ -12,4 +12,4 @@
 export BOOGIE_EXE=$BOOGIE_HOME/Boogie.exe
 export Z3_EXE=$BOOGIE_HOME/z3.exe
 
-sbt "run-main semper.carbon.Carbon $@"
+sbt "run-main viper.carbon.Carbon $@"

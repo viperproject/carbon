@@ -4,11 +4,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon
+package viper.carbon
 
-import semper.sil.testing.SilSuite
-import semper.sil.verifier.Verifier
-import semper.sil.frontend.Frontend
+import viper.silver.testing.SilSuite
+import viper.silver.verifier.Verifier
+import viper.silver.frontend.Frontend
 import java.io.File
 import io.Source
 import java.nio.file.Path
