@@ -47,7 +47,7 @@ object CarbonBuild extends Build {
   }
 
   object dependencies {
-    lazy val sil = "semper" %% "silver" %  "0.1-SNAPSHOT" % "compile->compile;test->test"
+    lazy val sil = "viper" %% "silver" %  "0.1-SNAPSHOT" % "compile->compile;test->test"
     lazy val silSrc = RootProject(new java.io.File("../silver"))
   }
 }
