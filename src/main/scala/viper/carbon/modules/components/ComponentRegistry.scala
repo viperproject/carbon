@@ -4,10 +4,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.modules.components
+package viper.carbon.modules.components
 
-import semper.carbon.utility.PartialSort
-import semper.carbon.modules.Module
+import viper.carbon.utility.PartialSort
+import viper.carbon.modules.Module
 
 /**
  * A trait to allow registering of components.

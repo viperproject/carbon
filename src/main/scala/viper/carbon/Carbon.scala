@@ -4,9 +4,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon
+package viper.carbon
 
-import semper.sil.frontend.{SilFrontend, SilFrontendConfig}
+import viper.silver.frontend.{SilFrontend, SilFrontendConfig}
 
 /**
  * The main object for Carbon containing the execution start-point.

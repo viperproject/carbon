@@ -4,10 +4,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.modules.components
+package viper.carbon.modules.components
 
-import semper.sil.{ast => sil}
-import semper.carbon.boogie.{Statements, Stmt}
+import viper.silver.{ast => sil}
+import viper.carbon.boogie.{Statements, Stmt}
 
 /**
  * A statement component that only contributes at the end.
@@ -17,7 +17,7 @@ trait SimpleStmtComponent extends StmtComponent {
 
   /**
    * Potentially contributes to the translation of a statement.  If no contribution
-   * is desired, then [[semper.carbon.boogie.Statements.EmptyStmt]] can be used as a
+   * is desired, then [[viper.carbon.boogie.Statements.EmptyStmt]] can be used as a
    * return value.
    */
   def simpleHandleStmt(s: sil.Stmt): Stmt

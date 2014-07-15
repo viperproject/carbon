@@ -4,11 +4,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.verifier
+package viper.carbon.verifier
 
-import semper.sil.{ast => sil}
-import semper.carbon.boogie.{BoogieNameGenerator, Identifier, LocalVar}
-import semper.sil.ast.utility.Expressions
+import viper.silver.{ast => sil}
+import viper.carbon.boogie.{BoogieNameGenerator, Identifier, LocalVar}
+import viper.silver.ast.utility.Expressions
 
 /**
  * An environment that assigns unique names to SIL variables;  in SIL, loops can have

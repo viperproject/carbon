@@ -4,20 +4,20 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.modules.impls
+package viper.carbon.modules.impls
 
-import semper.carbon.modules.ExpModule
-import semper.sil.{ast => sil}
-import semper.carbon.boogie._
-import semper.carbon.verifier.Verifier
-import semper.sil.verifier.{reasons, PartialVerificationError}
-import semper.carbon.boogie.Implicits._
-import semper.carbon.modules.components.DefinednessComponent
-import semper.sil.ast.QuantifiedExp
-import semper.sil.ast.utility.Expressions
+import viper.carbon.modules.ExpModule
+import viper.silver.{ast => sil}
+import viper.carbon.boogie._
+import viper.carbon.verifier.Verifier
+import viper.silver.verifier.{reasons, PartialVerificationError}
+import viper.carbon.boogie.Implicits._
+import viper.carbon.modules.components.DefinednessComponent
+import viper.silver.ast.QuantifiedExp
+import viper.silver.ast.utility.Expressions
 
 /**
- * The default implementation of [[semper.carbon.modules.ExpModule]].
+ * The default implementation of [[viper.carbon.modules.ExpModule]].
  */
 class DefaultExpModule(val verifier: Verifier) extends ExpModule with DefinednessComponent {
 

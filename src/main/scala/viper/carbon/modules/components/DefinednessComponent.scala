@@ -4,11 +4,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.modules.components
+package viper.carbon.modules.components
 
-import semper.carbon.boogie.{Statements, Stmt}
-import semper.sil.{ast => sil}
-import semper.sil.verifier.PartialVerificationError
+import viper.carbon.boogie.{Statements, Stmt}
+import viper.silver.{ast => sil}
+import viper.silver.verifier.PartialVerificationError
 
 /**
  * Takes care of determining whether expressions are well-formed.

@@ -4,20 +4,20 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.modules.impls
+package viper.carbon.modules.impls
 
-import semper.carbon.modules.StmtModule
-import semper.sil.{ast => sil}
-import semper.carbon.boogie._
-import semper.carbon.verifier.Verifier
+import viper.carbon.modules.StmtModule
+import viper.silver.{ast => sil}
+import viper.carbon.boogie._
+import viper.carbon.verifier.Verifier
 import Implicits._
-import semper.sil.verifier.errors
-import semper.sil.verifier.PartialVerificationError
-import semper.carbon.modules.components.SimpleStmtComponent
-import semper.sil.ast.utility.Expressions
+import viper.silver.verifier.errors
+import viper.silver.verifier.PartialVerificationError
+import viper.carbon.modules.components.SimpleStmtComponent
+import viper.silver.ast.utility.Expressions
 
 /**
- * The default implementation of a [[semper.carbon.modules.StmtModule]].
+ * The default implementation of a [[viper.carbon.modules.StmtModule]].
  */
 class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleStmtComponent {
 

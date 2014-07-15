@@ -4,11 +4,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.modules
+package viper.carbon.modules
 
-import semper.sil.{ast => sil}
-import semper.carbon.boogie._
-import semper.carbon.modules.components.StateComponent
+import viper.silver.{ast => sil}
+import viper.carbon.boogie._
+import viper.carbon.modules.components.StateComponent
 
 /**
  * A module for translating heap expressions (access, updating) and determining

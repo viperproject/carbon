@@ -4,10 +4,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.modules
+package viper.carbon.modules
 
-import semper.carbon.boogie._
-import semper.sil.{ast => sil}
+import viper.carbon.boogie._
+import viper.silver.{ast => sil}
 
 /**
  * The permission module determines the encoding of permissions and allows to add or remove

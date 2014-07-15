@@ -4,19 +4,19 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.modules.impls
+package viper.carbon.modules.impls
 
-import semper.carbon.modules._
-import semper.sil.{ast => sil}
-import semper.carbon.boogie._
-import semper.carbon.verifier.{Environment, Verifier}
-import semper.carbon.boogie.Implicits._
-import semper.sil.ast.utility._
-import semper.carbon.modules.components.{InhaleComponent, ExhaleComponent, DefinednessComponent}
-import semper.sil.verifier.{NullPartialVerificationError, errors, PartialVerificationError}
+import viper.carbon.modules._
+import viper.silver.{ast => sil}
+import viper.carbon.boogie._
+import viper.carbon.verifier.{Environment, Verifier}
+import viper.carbon.boogie.Implicits._
+import viper.silver.ast.utility._
+import viper.carbon.modules.components.{InhaleComponent, ExhaleComponent, DefinednessComponent}
+import viper.silver.verifier.{NullPartialVerificationError, errors, PartialVerificationError}
 
 /**
- * The default implementation of a [[semper.carbon.modules.FuncPredModule]].
+ * The default implementation of a [[viper.carbon.modules.FuncPredModule]].
  */
 class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule
 with DefinednessComponent with ExhaleComponent with InhaleComponent {

@@ -4,11 +4,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.modules
+package viper.carbon.modules
 
-import semper.sil.{ast => sil}
-import semper.carbon.boogie.{LocalVar, Exp, Decl}
-import semper.carbon.verifier.Verifier
+import viper.silver.{ast => sil}
+import viper.carbon.boogie.{LocalVar, Exp, Decl}
+import viper.carbon.verifier.Verifier
 
 /**
  * Common trait for modules.

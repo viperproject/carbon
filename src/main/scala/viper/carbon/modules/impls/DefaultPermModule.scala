@@ -4,42 +4,42 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.modules.impls
+package viper.carbon.modules.impls
 
-import semper.carbon.modules._
-import semper.carbon.modules.components._
-import semper.sil.{ast => sil}
-import semper.carbon.boogie._
-import semper.carbon.boogie.Implicits._
-import semper.sil.verifier._
-import semper.carbon.boogie.NamedType
-import semper.carbon.boogie.MapSelect
-import semper.carbon.boogie.LocalVarWhereDecl
-import semper.carbon.boogie.Trigger
-import semper.carbon.boogie.TypeDecl
-import semper.sil.verifier.PartialVerificationError
-import semper.carbon.boogie.LocalVarDecl
-import semper.carbon.boogie.Assume
-import semper.carbon.boogie.RealLit
-import semper.carbon.boogie.GlobalVar
-import semper.carbon.boogie.GlobalVarDecl
-import semper.carbon.boogie.Axiom
-import semper.carbon.boogie.BinExp
-import semper.carbon.boogie.MapType
-import semper.carbon.boogie.Assert
-import semper.carbon.boogie.ConstDecl
-import semper.carbon.boogie.Const
-import semper.carbon.boogie.LocalVar
-import semper.sil.ast.WildcardPerm
-import semper.carbon.boogie.Forall
-import semper.carbon.boogie.Assign
-import semper.carbon.boogie.Func
-import semper.carbon.boogie.TypeAlias
-import semper.carbon.boogie.FuncApp
-import semper.carbon.verifier.Verifier
+import viper.carbon.modules._
+import viper.carbon.modules.components._
+import viper.silver.{ast => sil}
+import viper.carbon.boogie._
+import viper.carbon.boogie.Implicits._
+import viper.silver.verifier._
+import viper.carbon.boogie.NamedType
+import viper.carbon.boogie.MapSelect
+import viper.carbon.boogie.LocalVarWhereDecl
+import viper.carbon.boogie.Trigger
+import viper.carbon.boogie.TypeDecl
+import viper.silver.verifier.PartialVerificationError
+import viper.carbon.boogie.LocalVarDecl
+import viper.carbon.boogie.Assume
+import viper.carbon.boogie.RealLit
+import viper.carbon.boogie.GlobalVar
+import viper.carbon.boogie.GlobalVarDecl
+import viper.carbon.boogie.Axiom
+import viper.carbon.boogie.BinExp
+import viper.carbon.boogie.MapType
+import viper.carbon.boogie.Assert
+import viper.carbon.boogie.ConstDecl
+import viper.carbon.boogie.Const
+import viper.carbon.boogie.LocalVar
+import viper.silver.ast.WildcardPerm
+import viper.carbon.boogie.Forall
+import viper.carbon.boogie.Assign
+import viper.carbon.boogie.Func
+import viper.carbon.boogie.TypeAlias
+import viper.carbon.boogie.FuncApp
+import viper.carbon.verifier.Verifier
 
 /**
- * The default implementation of a [[semper.carbon.modules.PermModule]].
+ * The default implementation of a [[viper.carbon.modules.PermModule]].
  */
 class DefaultPermModule(val verifier: Verifier)
   extends PermModule
@@ -418,7 +418,7 @@ class DefaultPermModule(val verifier: Verifier)
   }
 
 
-  override def freshReads(vars: Seq[semper.sil.ast.LocalVar]): Stmt = {
+  override def freshReads(vars: Seq[viper.silver.ast.LocalVar]): Stmt = {
     val bvs = vars map translateLocalVar
     Havoc(bvs) ++
       (bvs map (v => Assume((fracComp(v) > RealLit(0)) && (fracComp(v) < RealLit(0.001)) && (epsComp(v) === RealLit(0)))))
@@ -582,7 +582,7 @@ class DefaultPermModule(val verifier: Verifier)
     def isFixedPerm(e: sil.Exp): Boolean = {
       require(e isSubtype sil.Perm)
       e match {
-        //case x: sil.LocalVar if isAbstractRead(x) => false
+        //case x: silver.LocalVar if isAbstractRead(x) => false
         case x: sil.LocalVar => false // we have to be conservative - anything could have been assigned here
         case sil.NoPerm() => true
         case sil.FullPerm() => true

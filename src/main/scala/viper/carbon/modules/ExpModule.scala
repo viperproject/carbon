@@ -4,12 +4,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.modules
+package viper.carbon.modules
 
-import semper.sil.{ast => sil}
-import semper.carbon.boogie.{Stmt, LocalVar, Exp}
-import semper.carbon.modules.components.{ComponentRegistry, DefinednessComponent}
-import semper.sil.verifier.PartialVerificationError
+import viper.silver.{ast => sil}
+import viper.carbon.boogie.{Stmt, LocalVar, Exp}
+import viper.carbon.modules.components.{ComponentRegistry, DefinednessComponent}
+import viper.silver.verifier.PartialVerificationError
 
 /**
  * A module for translating SIL expressions.

@@ -4,7 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.modules.impls
+package viper.carbon.modules.impls
 
 /**
  * This object contains a set and multiset axiomatization for Boogie.  These axioms have been taken

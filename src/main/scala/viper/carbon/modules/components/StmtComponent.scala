@@ -4,11 +4,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.modules.components
+package viper.carbon.modules.components
 
-import semper.sil.{ast => sil}
-import semper.carbon.boogie.{Statements, Stmt}
-import semper.sil.ast.LocalVar
+import viper.silver.{ast => sil}
+import viper.carbon.boogie.{Statements, Stmt}
+import viper.silver.ast.LocalVar
 
 /**
  * Contributes to the translation of one or several statements.
@@ -17,7 +17,7 @@ trait StmtComponent extends Component {
 
   /**
    * Potentially contributes to the translation of a statement.  If no contribution
-   * is desired, then [[semper.carbon.boogie.Statements.EmptyStmt]] can be used as a
+   * is desired, then [[viper.carbon.boogie.Statements.EmptyStmt]] can be used as a
    * return value.
    *
    * The pair (a,b) is used as follows: a is used at the beginning of the translation so

@@ -4,11 +4,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.verifier
+package viper.carbon.verifier
 
-import semper.sil.{ast => sil}
-import semper.carbon.modules._
-import semper.carbon.boogie.Namespace
+import viper.silver.{ast => sil}
+import viper.carbon.modules._
+import viper.carbon.boogie.Namespace
 
 /**
  * A verifier for SIL in Carbon (defines what modules need to be available).

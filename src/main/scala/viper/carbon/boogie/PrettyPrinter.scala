@@ -4,10 +4,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.boogie
+package viper.carbon.boogie
 
 import org.kiama.output._
-import semper.sil.verifier.VerificationError
+import viper.silver.verifier.VerificationError
 
 /**
  * A pretty printer for the Boogie AST.

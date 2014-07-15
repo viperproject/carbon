@@ -4,10 +4,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.utility
+package viper.carbon.utility
 
 import org.jgrapht.graph.DefaultDirectedGraph
-import semper.sil.ast.utility.Functions.{Edge, Factory}
+import viper.silver.ast.utility.Functions.{Edge, Factory}
 import org.jgrapht.traverse.TopologicalOrderIterator
 import scala.collection.mutable.ListBuffer
 

@@ -4,9 +4,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.boogie
+package viper.carbon.boogie
 
-import semper.sil.utility.DefaultNameGenerator
+import viper.silver.utility.DefaultNameGenerator
 
 class BoogieNameGenerator extends DefaultNameGenerator {
   // in principle, some others would also be allowed, but this is good enough for now

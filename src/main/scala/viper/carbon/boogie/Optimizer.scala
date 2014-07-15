@@ -4,7 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.boogie
+package viper.carbon.boogie
 
 /**
  * Optimize a given Boogie program or expression.

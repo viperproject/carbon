@@ -5,11 +5,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.boogie
+package viper.carbon.boogie
 
 import org.kiama.output._
 import UnicodeString.string2unicodestring
-import semper.sil.verifier.VerificationError
+import viper.silver.verifier.VerificationError
 
 /** The root of the Boogie AST. */
 sealed trait Node {
@@ -72,7 +72,7 @@ sealed trait Node {
 /**
  * A local variable declaration.  Note that this is not a statement, as local variables do not
  * have to be declared (but if a where clause is needed, then
- * [[semper.carbon.boogie.LocalVarWhereDecl]] can be used.
+ * [[viper.carbon.boogie.LocalVarWhereDecl]] can be used.
  */
 case class LocalVarDecl(name: Identifier, typ: Type, where: Option[Exp] = None) extends Node {
   def l = LocalVar(name, typ)

@@ -4,16 +4,16 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.modules.impls
+package viper.carbon.modules.impls
 
-import semper.carbon.modules._
-import semper.sil.{ast => sil}
-import semper.carbon.boogie._
-import semper.carbon.verifier.Verifier
-import semper.carbon.boogie.Implicits._
+import viper.carbon.modules._
+import viper.silver.{ast => sil}
+import viper.carbon.boogie._
+import viper.carbon.verifier.Verifier
+import viper.carbon.boogie.Implicits._
 
 /**
- * The default implementation of a [[semper.carbon.modules.InhaleModule]].
+ * The default implementation of a [[viper.carbon.modules.InhaleModule]].
 
  */
 class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule {

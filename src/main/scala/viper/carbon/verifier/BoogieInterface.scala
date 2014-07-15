@@ -4,16 +4,16 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.verifier
+package viper.carbon.verifier
 
-import semper.sil.verifier._
+import viper.silver.verifier._
 import sys.process._
 import java.io._
-import semper.carbon.boogie._
-import semper.sil.verifier.Failure
-import semper.carbon.boogie.Assert
-import semper.carbon.boogie.Program
-import semper.sil.ast.{NoPosition, Position}
+import viper.carbon.boogie._
+import viper.silver.verifier.Failure
+import viper.carbon.boogie.Assert
+import viper.carbon.boogie.Program
+import viper.silver.ast.{NoPosition, Position}
 
 /**
  * Defines a clean interface to invoke Boogie and get a list of errors back.

@@ -4,16 +4,16 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.modules.impls
+package viper.carbon.modules.impls
 
-import semper.carbon.modules._
-import semper.carbon.verifier.Verifier
-import semper.carbon.boogie._
-import semper.carbon.boogie.Implicits._
-import semper.carbon.modules.components.StateComponent
+import viper.carbon.modules._
+import viper.carbon.verifier.Verifier
+import viper.carbon.boogie._
+import viper.carbon.boogie.Implicits._
+import viper.carbon.modules.components.StateComponent
 
 /**
- * The default implementation of a [[semper.carbon.modules.StateModule]].
+ * The default implementation of a [[viper.carbon.modules.StateModule]].
  */
 class DefaultStateModule(val verifier: Verifier) extends StateModule {
   def name = "State module"

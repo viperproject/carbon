@@ -4,16 +4,16 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.modules.impls
+package viper.carbon.modules.impls
 
-import semper.carbon.modules.SeqModule
-import semper.sil.{ast => sil}
-import semper.carbon.boogie._
-import semper.carbon.verifier.Verifier
-import semper.carbon.boogie.Implicits._
+import viper.carbon.modules.SeqModule
+import viper.silver.{ast => sil}
+import viper.carbon.boogie._
+import viper.carbon.verifier.Verifier
+import viper.carbon.boogie.Implicits._
 
 /**
- * The default implementation of [[semper.carbon.modules.SeqModule]].
+ * The default implementation of [[viper.carbon.modules.SeqModule]].
  */
 class DefaultSeqModule(val verifier: Verifier) extends SeqModule {
 

@@ -4,23 +4,23 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.modules.impls
+package viper.carbon.modules.impls
 
-import semper.carbon.modules._
-import semper.sil.{ast => sil}
-import semper.carbon.boogie._
-import semper.carbon.boogie.Implicits._
+import viper.carbon.modules._
+import viper.silver.{ast => sil}
+import viper.carbon.boogie._
+import viper.carbon.boogie.Implicits._
 import java.text.SimpleDateFormat
 import java.util.Date
-import semper.carbon.boogie.CommentedDecl
-import semper.carbon.boogie.Procedure
-import semper.carbon.boogie.Program
-import semper.carbon.verifier.Environment
-import semper.sil.verifier.errors
-import semper.carbon.verifier.Verifier
+import viper.carbon.boogie.CommentedDecl
+import viper.carbon.boogie.Procedure
+import viper.carbon.boogie.Program
+import viper.carbon.verifier.Environment
+import viper.silver.verifier.errors
+import viper.carbon.verifier.Verifier
 
 /**
- * The default implementation of a [[semper.carbon.modules.MainModule]].
+ * The default implementation of a [[viper.carbon.modules.MainModule]].
  */
 class DefaultMainModule(val verifier: Verifier) extends MainModule {
 

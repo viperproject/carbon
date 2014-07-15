@@ -4,15 +4,15 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.modules
+package viper.carbon.modules
 
 import components.{StateComponent, ComponentRegistry}
-import semper.sil.{ast => sil}
-import semper.carbon.boogie.{LocalVarDecl, Exp, Stmt}
+import viper.silver.{ast => sil}
+import viper.carbon.boogie.{LocalVarDecl, Exp, Stmt}
 
 /**
  * A module for dealing with the state of a program during execution.  Allows other modules
- * to register [[semper.carbon.modules.components.StateComponent]]s that contribute to the
+ * to register [[viper.carbon.modules.components.StateComponent]]s that contribute to the
  * state.
 
  */

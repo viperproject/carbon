@@ -4,14 +4,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon
+package viper.carbon
 
 import boogie.Namespace
 import modules.impls._
 import semper._
-import sil.ast.{Program,Method}
-import sil.utility.Paths
-import sil.verifier.Dependency
+import viper.silver.ast.{Program,Method}
+import viper.silver.utility.Paths
+import viper.silver.verifier.Dependency
 import verifier.{BoogieInterface, Verifier}
 import java.io.File
 
@@ -21,7 +21,7 @@ import java.io.File
  *
  * Debug information can either be set using the constructor argument or the setter.
  */
-case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) extends Verifier with sil.verifier.Verifier with BoogieInterface {
+case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) extends Verifier with viper.silver.verifier.Verifier with BoogieInterface {
   var env = null
 
   private var _config: CarbonConfig = _
@@ -160,7 +160,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
     invokeBoogie(_translated, options)
   }
 
-  private var _translated: semper.carbon.boogie.Program = null
+  private var _translated: viper.carbon.boogie.Program = null
   def translated = _translated
 
   private var _program: Program = null

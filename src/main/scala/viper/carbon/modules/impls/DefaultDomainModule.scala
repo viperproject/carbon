@@ -4,16 +4,16 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.modules.impls
+package viper.carbon.modules.impls
 
-import semper.carbon.modules.DomainModule
-import semper.sil.{ast => sil}
-import semper.carbon.boogie._
-import semper.carbon.verifier.{Environment, Verifier}
-import semper.carbon.boogie.Implicits._
+import viper.carbon.modules.DomainModule
+import viper.silver.{ast => sil}
+import viper.carbon.boogie._
+import viper.carbon.verifier.{Environment, Verifier}
+import viper.carbon.boogie.Implicits._
 
 /**
- * The default implementation of [[semper.carbon.modules.DomainModule]].
+ * The default implementation of [[viper.carbon.modules.DomainModule]].
  */
 class DefaultDomainModule(val verifier: Verifier) extends DomainModule {
 

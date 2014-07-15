@@ -4,15 +4,15 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.modules.impls
+package viper.carbon.modules.impls
 
-import semper.carbon.modules.TypeModule
-import semper.sil.{ast => sil}
-import semper.carbon.boogie._
-import semper.carbon.verifier.Verifier
+import viper.carbon.modules.TypeModule
+import viper.silver.{ast => sil}
+import viper.carbon.boogie._
+import viper.carbon.verifier.Verifier
 
 /**
- * The default implementation of a [[semper.carbon.modules.TypeModule]].
+ * The default implementation of a [[viper.carbon.modules.TypeModule]].
  */
 class DefaultTypeModule(val verifier: Verifier) extends TypeModule {
 

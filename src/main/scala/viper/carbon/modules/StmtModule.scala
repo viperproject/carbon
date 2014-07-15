@@ -4,11 +4,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package semper.carbon.modules
+package viper.carbon.modules
 
-import semper.carbon.modules.components.{DefinednessComponent, StmtComponent, ComponentRegistry}
-import semper.sil.{ast => sil}
-import semper.carbon.boogie.Stmt
+import viper.carbon.modules.components.{DefinednessComponent, StmtComponent, ComponentRegistry}
+import viper.silver.{ast => sil}
+import viper.carbon.boogie.Stmt
 
 /**
  * A module for translating SIL statements.
