@@ -7,7 +7,7 @@ object CarbonBuild extends Build {
   lazy val baseSettings = (
        Defaults.defaultSettings
     ++ Seq(
-          organization := "semper",
+          organization := "viper",
           version := "1.0-SNAPSHOT",
           scalaVersion := "2.10.1",
           scalacOptions in Compile ++= Seq("-deprecation", "-unchecked", "-feature"),
@@ -47,7 +47,7 @@ object CarbonBuild extends Build {
   }
 
   object dependencies {
-    lazy val sil = "semper" %% "sil" %  "0.1-SNAPSHOT" % "compile->compile;test->test"
-    lazy val silSrc = RootProject(new java.io.File("../sil"))
+    lazy val sil = "viper" %% "silver" %  "0.1-SNAPSHOT" % "compile->compile;test->test"
+    lazy val silSrc = RootProject(new java.io.File("../silver"))
   }
 }
