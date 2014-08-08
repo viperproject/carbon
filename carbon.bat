@@ -19,7 +19,7 @@ set __CP.KIAMA_LIB="%IVY_HOME%\cache\com.googlecode.kiama\kiama_%SCALA_VRS%\jars
 set __CP.SCALOP_LIB="%IVY_HOME%\cache\org.rogach\scallop_%SCALA_VRS%\jars\scallop_%SCALA_VRS%-0.9.4.jar"
 set __CP.JGRAPH_LIB="%IVY_HOME%\cache\org.jgrapht\jgrapht-jdk1.5\jars\jgrapht-jdk1.5-0.7.3.jar"
 set __CP.CARBON="%ROOT_DIR%target\scala-%SCALA_VRS%\classes"
-set __CP.SIL="%ROOT_DIR%..\sil\target\scala-%SCALA_VRS%\classes"
+set __CP.SILVER="%ROOT_DIR%..\silver\target\scala-%SCALA_VRS%\classes"
 
 set CP=
 for /f "tokens=2* delims=.=" %%A in ('set __CP.') do (
