@@ -11,6 +11,7 @@ import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.Verifier
 import viper.carbon.boogie.Implicits._
+import viper.carbon.modules.impls.dafny_axioms.SetAxiomatization
 
 /**
  * The default implementation of [[viper.carbon.modules.SetModule]].
