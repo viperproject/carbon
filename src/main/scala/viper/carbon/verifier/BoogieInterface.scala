@@ -15,12 +15,19 @@ import viper.carbon.boogie.Assert
 import viper.carbon.boogie.Program
 import viper.silver.ast.{NoPosition, Position}
 
+class BoogieDependency(_location: String) extends Dependency {
+  def name = "Boogie"
+  def location = _location
+  var version = "" // filled-in when Boogie is invoked
+}
+
 /**
  * Defines a clean interface to invoke Boogie and get a list of errors back.
  */
+
 trait BoogieInterface {
 
-  def defaultOptions = Seq("/nologo", "/vcsCores:" + java.lang.Runtime.getRuntime.availableProcessors, "/errorTrace:0", s"/z3exe:$z3Path")
+  def defaultOptions = Seq("/vcsCores:" + java.lang.Runtime.getRuntime.availableProcessors, "/errorTrace:0", s"/z3exe:$z3Path")
 
   /** The (resolved) path where Boogie is supposed to be located. */
   def boogiePath: String
@@ -29,7 +36,7 @@ trait BoogieInterface {
   def z3Path: String
 
   var errormap: Map[Int, VerificationError] = Map()
-  def invokeBoogie(program: Program, options: Seq[String]): VerificationResult = {
+  def invokeBoogie(program: Program, options: Seq[String]): (String,VerificationResult) = {
     // find all errors and assign everyone a unique id
     errormap = Map()
     program.visit {
@@ -42,22 +49,24 @@ trait BoogieInterface {
 
     // parse the output
     parse(output) match {
-      case Nil =>
-        Success
-      case errorIds =>
+      case (version,Nil) =>
+        (version,Success)
+      case (version,errorIds) =>
         val errors = errorIds map (errormap.get(_).get)
-        Failure(errors)
+        (version,Failure(errors))
     }
   }
 
   /**
-   * Parse the output of Boogie.
+   * Parse the output of Boogie. Returns a pair of the detected version number and a sequence of error identifiers.
    */
-  private def parse(output: String): Seq[Int] = {
+  private def parse(output: String): (String,Seq[Int]) = {
+    val LogoPattern = "Boogie program verifier version ([0-9.]+),.*".r
     val SummaryPattern = "Boogie program verifier finished with ([0-9]+) verified, ([0-9]+) error.*".r
     val ErrorPattern = "  .+ \\[([0-9]+)\\]".r
     val errors = collection.mutable.ListBuffer[Int]()
     var otherErrId = 0
+    var version_found : String = null
 
     val unexpected : (String => Unit) = ((msg:String) => {
       otherErrId -= 1
@@ -90,6 +99,8 @@ trait BoogieInterface {
 
     for (l <- output.linesIterator) {
       l match {
+        case LogoPattern(version) =>
+          version_found = version
         case ErrorPattern(id) =>
           errors += id.toInt
         case SummaryPattern(v, e) =>
@@ -99,7 +110,7 @@ trait BoogieInterface {
           unexpected(s"Found an unparsable output from Boogie: $l")
       }
     }
-    errors.toSeq
+    (version_found,errors.toSeq)
   }
 
   /**
@@ -122,7 +133,7 @@ trait BoogieInterface {
     }
     // write program to a temporary file
     val tmp = File.createTempFile("carbon", ".bpl")
-    //tmp.deleteOnExit()
+    tmp.deleteOnExit()
     val stream = new BufferedOutputStream(new FileOutputStream(tmp))
     stream.write(input.getBytes)
     stream.close()

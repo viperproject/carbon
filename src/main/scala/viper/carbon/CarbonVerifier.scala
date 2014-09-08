@@ -12,8 +12,10 @@ import viper._
 import viper.silver.ast.{Program,Method}
 import viper.silver.utility.Paths
 import viper.silver.verifier.Dependency
-import verifier.{BoogieInterface, Verifier}
+import verifier.{BoogieInterface, Verifier, BoogieDependency}
 import java.io.File
+
+
 
 /**
  * The main class to perform verification of SIL programs.  Deals with command-line arguments, configuration
@@ -98,29 +100,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
   lazy val dependencies: Seq[Dependency] = {
     import scala.sys.process._
     val unknownVersion = "(?)"
-    List(new Dependency {
-      def name = "Boogie"
-      def version = {
-        def convertStreamToString(is: java.io.InputStream) = {
-          val s = new java.util.Scanner(is).useDelimiter("\\A")
-          if (s.hasNext) s.next() else ""
-        }
-        var res: String = ""
-        def out(input: java.io.InputStream) {
-          res = convertStreamToString(input)
-          input.close()
-        }
-        // Note: call exitValue to block until Boogie has finished
-        // Note: we call boogie with an empty input "file" on stdin and parse the output
-        Seq(boogiePath, "stdin.bpl").run(new ProcessIO(_.close(), out, _.close())).exitValue()
-        if (res.startsWith("Boogie program verifier version ")) {
-          res.substring(0, res.indexOf(",")).substring("Boogie program verifier version ".length)
-        } else {
-          unknownVersion
-        }
-      }
-      def location = boogiePath
-    }, new Dependency {
+    List(new BoogieDependency(boogiePath), new Dependency {
       def name = "Z3"
       def version = {
         val v = List(z3Path, "-version").lines.to[List]
@@ -157,7 +137,13 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
       }
     }
 
-    invokeBoogie(_translated, options)
+    invokeBoogie(_translated, options) match {
+      case (version,result) =>
+        if (version!=null) { dependencies.foreach(_ match {
+          case b:BoogieDependency => b.version = version
+          case _ => }) }
+        result
+    }
   }
 
   private var _translated: viper.carbon.boogie.Program = null
