@@ -421,7 +421,7 @@ class DefaultPermModule(val verifier: Verifier)
   override def freshReads(vars: Seq[viper.silver.ast.LocalVar]): Stmt = {
     val bvs = vars map translateLocalVar
     Havoc(bvs) ++
-      (bvs map (v => Assume((fracComp(v) > RealLit(0)) && (fracComp(v) < RealLit(0.001)) && (epsComp(v) === RealLit(0)))))
+      (bvs map (v => Assume((fracComp(v) > RealLit(0)) && (fracComp(v) < RealLit(1)) && (epsComp(v) === RealLit(0)))))
 
   }
 
