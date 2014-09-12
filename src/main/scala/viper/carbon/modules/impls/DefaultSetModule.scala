@@ -42,15 +42,18 @@ class DefaultSetModule(val verifier: Verifier) extends SetModule {
 
   override def translateSetExp(e: sil.Exp): Exp = {
     def t(e: sil.Exp) = translateExp(e)
-    val isMultiset = e.typ match {
+    val isMultiset = ((x:sil.Exp) => x.typ match {
       case _: sil.MultisetType => true
-      case _ => false
-    }
+      case _: sil.SetType => false
+      case _ => sys.error("Internal Error: expression " + e + "was expected to be of Set or Multiset type")
+    })
     used = true
     val typ = translateType(e.typ)
     e match {
       case sil.EmptySet(elemTyp) =>
-        FuncApp(Identifier("Set#Empty"), Nil, typ)
+        val fa = FuncApp(Identifier("Set#Empty"), Nil, typ)
+        fa.showReturnType = true // needed (in general) to avoid Boogie complaints about ambiguous type variable
+        fa
       case sil.ExplicitSet(elems) =>
         def buildSet(es: Seq[sil.Exp]): Exp = {
           es match {
@@ -63,7 +66,9 @@ class DefaultSetModule(val verifier: Verifier) extends SetModule {
         }
         buildSet(elems)
       case sil.EmptyMultiset(elemTyp) =>
-        FuncApp(Identifier("MultiSet#Empty"), Nil, typ)
+        val fa = FuncApp(Identifier("MultiSet#Empty"), Nil, typ)
+        fa.showReturnType = true // needed (in general) to avoid Boogie complaints about ambiguous type variable
+        fa
       case sil.ExplicitMultiset(elems) =>
         def buildSet(es: Seq[sil.Exp]): Exp = {
           es match {
@@ -76,30 +81,30 @@ class DefaultSetModule(val verifier: Verifier) extends SetModule {
         }
         buildSet(elems)
       case sil.AnySetUnion(left, right) =>
-        if (isMultiset) FuncApp(Identifier("MultiSet#Union"), List(t(left), t(right)), typ)
+        if (isMultiset(e)) FuncApp(Identifier("MultiSet#Union"), List(t(left), t(right)), typ)
         else FuncApp(Identifier("Set#Union"), List(t(left), t(right)), typ)
       case sil.AnySetIntersection(left, right) =>
-        if (isMultiset) FuncApp(Identifier("MultiSet#Intersection"), List(t(left), t(right)), typ)
+        if (isMultiset(e)) FuncApp(Identifier("MultiSet#Intersection"), List(t(left), t(right)), typ)
         else FuncApp(Identifier("Set#Intersection"), List(t(left), t(right)), typ)
       case sil.AnySetSubset(left, right) =>
-        if (left.isInstanceOf[sil.MultisetType]) FuncApp(Identifier("MultiSet#Subset"), List(t(left), t(right)), Bool)
+        if (isMultiset(left)) FuncApp(Identifier("MultiSet#Subset"), List(t(left), t(right)), Bool)
         else FuncApp(Identifier("Set#Subset"), List(t(left), t(right)), Bool)
       case sil.AnySetMinus(left, right) =>
-        if (isMultiset) FuncApp(Identifier("MultiSet#Difference"), List(t(left), t(right)), typ)
+        if (isMultiset(e)) FuncApp(Identifier("MultiSet#Difference"), List(t(left), t(right)), typ)
         else FuncApp(Identifier("Set#Difference"), List(t(left), t(right)), typ)
       case sil.AnySetContains(left, right) =>
-        if (left.isInstanceOf[sil.MultisetType])
+        if (isMultiset(right))
           FuncApp(Identifier("MultiSet#Subset"), List(FuncApp(Identifier("MultiSet#Singleton"), List(t(left)), typ), t(right)), Bool)
         else
           FuncApp(Identifier("Set#Subset"), List(FuncApp(Identifier("Set#Singleton"), List(t(left)), typ), t(right)), Bool)
       case sil.AnySetCardinality(set) =>
-        if (set.isInstanceOf[sil.MultisetType]) FuncApp(Identifier("MultiSet#Card"), t(set), Bool)
+        if (isMultiset(set)) FuncApp(Identifier("MultiSet#Card"), t(set), Bool)
         else FuncApp(Identifier("Set#Card"), t(set), Bool)
       case sil.EqCmp(left, right) =>
-        if (left.isInstanceOf[sil.MultisetType]) FuncApp(Identifier("MultiSet#Equal"), List(t(left), t(right)), Bool)
+        if (isMultiset(left)) FuncApp(Identifier("MultiSet#Equal"), List(t(left), t(right)), Bool)
         else FuncApp(Identifier("Set#Equal"), List(t(left), t(right)), Bool)
       case sil.NeCmp(left, right) =>
-        if (left.isInstanceOf[sil.MultisetType]) UnExp(Not, FuncApp(Identifier("MultiSet#Equal"), List(t(left), t(right)), Bool))
+        if (isMultiset(left)) UnExp(Not, FuncApp(Identifier("MultiSet#Equal"), List(t(left), t(right)), Bool))
         else UnExp(Not, FuncApp(Identifier("Set#Equal"), List(t(left), t(right)), Bool))
       case _ => sys.error("not a set expression")
     }

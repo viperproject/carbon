@@ -44,12 +44,10 @@ class DefaultSeqModule(val verifier: Verifier) extends SeqModule {
     used = true
     val typ = translateType(e.typ)
     e match {
-      case sil.EmptySeq(elemTyp) => {
+      case sil.EmptySeq(elemTyp) =>
         val fa = FuncApp(Identifier("Seq#Empty"), Nil, typ)
         fa.showReturnType = true // needed (in general) to avoid Boogie complaints about ambiguous type variable
         fa
-      }
-
       case s@sil.ExplicitSeq(elems) =>
         elems match {
           case Nil => sys.error("did not expect empty sequence")

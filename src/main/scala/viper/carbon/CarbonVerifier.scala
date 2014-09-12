@@ -116,6 +116,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
 
   def verify(program: Program) = {
     _program = program
+
     _translated = mainModule.translate(program)
 
     val options = {

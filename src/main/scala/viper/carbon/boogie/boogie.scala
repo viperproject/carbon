@@ -249,7 +249,7 @@ case class GlobalVar(name: Identifier, typ: Type) extends Var(name, typ)
 case class Const(name: Identifier) extends Exp
 // typ indicates the return type (needed to compute the free type variables)
 case class FuncApp(name: Identifier, args: Seq[Exp], typ: Type) extends Exp {
-  var showReturnType = false
+  var showReturnType = false // indicates that the return type should be explicitly pretty-printed (e.g. Seq#Empty() : Seq T)
 }
 
 case class MapSelect(map: Exp, idxs: Seq[Exp]) extends Exp
