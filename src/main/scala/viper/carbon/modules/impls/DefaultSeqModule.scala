@@ -82,6 +82,6 @@ class DefaultSeqModule(val verifier: Verifier) extends SeqModule {
 
   override def translateSeqType(seqType: sil.SeqType): Type = {
     used = true
-    NamedType("Seq_", translateType(seqType.elementType))
+    NamedType("Seq", translateType(seqType.elementType))
   }
 }
