@@ -211,25 +211,25 @@ object SetAxiomatization {
       |axiom (forall<T> s: Set T :: { MultiSet#Card(MultiSet#FromSet(s)) }
       |  MultiSet#Card(MultiSet#FromSet(s)) == Set#Card(s));
       |
-      |// conversion to a multiset, from a sequence.
-      |function MultiSet#FromSeq<T>(Seq T): MultiSet T;
-      |// conversion produces a good map.
-      |axiom (forall<T> s: Seq T :: { MultiSet#FromSeq(s) } $IsGoodMultiSet(MultiSet#FromSeq(s)) );
-      |// cardinality axiom
-      |axiom (forall<T> s: Seq T ::
-      |  { MultiSet#Card(MultiSet#FromSeq(s)) }
-      |    MultiSet#Card(MultiSet#FromSeq(s)) == Seq#Length(s));
-      |// building axiom
-      |axiom (forall<T> s: Seq T, v: T ::
-      |  { MultiSet#FromSeq(Seq#Build(s, v)) }
-      |    MultiSet#FromSeq(Seq#Build(s, v)) == MultiSet#UnionOne(MultiSet#FromSeq(s), v)
-      |  );
-      |axiom (forall<T> :: MultiSet#FromSeq(Seq#Empty(): Seq T) == MultiSet#Empty(): MultiSet T);
-      |
-      |// concatenation axiom
-      |axiom (forall<T> a: Seq T, b: Seq T ::
-      |  { MultiSet#FromSeq(Seq#Append(a, b)) }
-      |    MultiSet#FromSeq(Seq#Append(a, b)) == MultiSet#Union(MultiSet#FromSeq(a), MultiSet#FromSeq(b)) );
+      |//// conversion to a multiset, from a sequence.
+      |//function MultiSet#FromSeq<T>(Seq T): MultiSet T;
+      |//// conversion produces a good map.
+      |//axiom (forall<T> s: Seq T :: { MultiSet#FromSeq(s) } $IsGoodMultiSet(MultiSet#FromSeq(s)) );
+      |//// cardinality axiom
+      |//axiom (forall<T> s: Seq T ::
+      |//  { MultiSet#Card(MultiSet#FromSeq(s)) }
+      |//    MultiSet#Card(MultiSet#FromSeq(s)) == Seq#Length(s));
+      |//// building axiom
+      |//axiom (forall<T> s: Seq T, v: T ::
+      |//  { MultiSet#FromSeq(Seq#Build(s, v)) }
+      |//    MultiSet#FromSeq(Seq#Build(s, v)) == MultiSet#UnionOne(MultiSet#FromSeq(s), v)
+      |//  );
+      |//axiom (forall<T> :: MultiSet#FromSeq(Seq#Empty(): Seq T) == MultiSet#Empty(): MultiSet T);
+      |//
+      |//// concatenation axiom
+      |//axiom (forall<T> a: Seq T, b: Seq T ::
+      |//  { MultiSet#FromSeq(Seq#Append(a, b)) }
+      |//    MultiSet#FromSeq(Seq#Append(a, b)) == MultiSet#Union(MultiSet#FromSeq(a), MultiSet#FromSeq(b)) );
       |
       |// update axiom
       |axiom (forall<T> s: Seq T, i: int, v: T, x: T ::
