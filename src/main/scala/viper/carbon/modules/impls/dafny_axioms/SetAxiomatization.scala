@@ -55,8 +55,8 @@ object SetAxiomatization {
       |    Set#Difference(Set#Union(a, b), b) == a);
       |// Follows from the general union axiom, but might be still worth including, because disjoint union is a common case:
       |// axiom (forall<T> a, b: Set T :: { Set#Card(Set#Union(a, b)) }
-      |  // Set#Disjoint(a, b) ==>
-      |    // Set#Card(Set#Union(a, b)) == Set#Card(a) + Set#Card(b));
+      |//   Set#Disjoint(a, b) ==>
+      |//     Set#Card(Set#Union(a, b)) == Set#Card(a) + Set#Card(b));
       |
       |function Set#Intersection<T>(Set T, Set T): Set T;
       |axiom (forall<T> a: Set T, b: Set T, o: T :: { Set#Intersection(a,b)[o] }
@@ -78,13 +78,19 @@ object SetAxiomatization {
       |  Set#Difference(a,b)[o] <==> a[o] && !b[o]);
       |axiom (forall<T> a, b: Set T, y: T :: { Set#Difference(a, b), b[y] }
       |  b[y] ==> !Set#Difference(a, b)[y] );
+      |axiom (forall<T> a, b: Set T ::
+      |  { Set#Card(Set#Difference(a, b)) }
+      |  Set#Card(Set#Difference(a, b)) + Set#Card(Set#Difference(b, a))
+      |  + Set#Card(Set#Intersection(a, b))
+      |    == Set#Card(Set#Union(a, b)) &&
+      |  Set#Card(Set#Difference(a, b)) == Set#Card(a) - Set#Card(Set#Intersection(a, b)));
       |
       |function Set#Subset<T>(Set T, Set T): bool;
       |axiom(forall<T> a: Set T, b: Set T :: { Set#Subset(a,b) }
       |  Set#Subset(a,b) <==> (forall o: T :: {a[o]} {b[o]} a[o] ==> b[o]));
-      |//axiom(forall<T> a: Set T, b: Set T ::
-      |// { Set#Subset(a,b), Set#Card(a), Set#Card(b) }  // very restrictive trigger
-      |//  Set#Subset(a,b) ==> Set#Card(a) <= Set#Card(b));
+      |// axiom(forall<T> a: Set T, b: Set T ::
+      |//   { Set#Subset(a,b), Set#Card(a), Set#Card(b) }  // very restrictive trigger
+      |//   Set#Subset(a,b) ==> Set#Card(a) <= Set#Card(b));
       |
       |
       |function Set#Equal<T>(Set T, Set T): bool;
@@ -115,7 +121,8 @@ object SetAxiomatization {
       |function $IsGoodMultiSet<T>(ms: MultiSet T): bool;
       |// ints are non-negative, used after havocing, and for conversion from sequences to multisets.
       |axiom (forall<T> ms: MultiSet T :: { $IsGoodMultiSet(ms) }
-      |  $IsGoodMultiSet(ms) <==> (forall bx: T :: { ms[bx] } 0 <= ms[bx]));
+      |  $IsGoodMultiSet(ms) <==>
+      |  (forall bx: T :: { ms[bx] } 0 <= ms[bx] && ms[bx] <= MultiSet#Card(ms)));
       |
       |function MultiSet#Card<T>(MultiSet T): int;
       |axiom (forall<T> s: MultiSet T :: { MultiSet#Card(s) } 0 <= MultiSet#Card(s));
@@ -157,17 +164,6 @@ object SetAxiomatization {
       |axiom (forall<T> a: MultiSet T, b: MultiSet T :: { MultiSet#Card(MultiSet#Union(a,b)) }
       |  MultiSet#Card(MultiSet#Union(a,b)) == MultiSet#Card(a) + MultiSet#Card(b));
       |
-      |// two containment axioms
-      |axiom (forall<T> a, b: MultiSet T, y: T :: { MultiSet#Union(a, b), a[y] }
-      |  0 < a[y] ==> 0 < MultiSet#Union(a, b)[y]);
-      |axiom (forall<T> a, b: MultiSet T, y: T :: { MultiSet#Union(a, b), b[y] }
-      |  0 < b[y] ==> 0 < MultiSet#Union(a, b)[y]);
-      |
-      |// symmetry axiom
-      |axiom (forall<T> a, b: MultiSet T :: { MultiSet#Union(a, b) }
-      |  MultiSet#Difference(MultiSet#Union(a, b), a) == b &&
-      |  MultiSet#Difference(MultiSet#Union(a, b), b) == a);
-      |
       |function MultiSet#Intersection<T>(MultiSet T, MultiSet T): MultiSet T;
       |axiom (forall<T> a: MultiSet T, b: MultiSet T, o: T :: { MultiSet#Intersection(a,b)[o] }
       |  MultiSet#Intersection(a,b)[o] == Math#min(a[o],  b[o]));
@@ -184,6 +180,12 @@ object SetAxiomatization {
       |  MultiSet#Difference(a,b)[o] == Math#clip(a[o] - b[o]));
       |axiom (forall<T> a, b: MultiSet T, y: T :: { MultiSet#Difference(a, b), b[y], a[y] }
       |  a[y] <= b[y] ==> MultiSet#Difference(a, b)[y] == 0 );
+      |axiom (forall<T> a, b: MultiSet T ::
+      |  { MultiSet#Card(MultiSet#Difference(a, b)) }
+      |  MultiSet#Card(MultiSet#Difference(a, b)) + MultiSet#Card(MultiSet#Difference(b, a))
+      |  + 2 * MultiSet#Card(MultiSet#Intersection(a, b))
+      |    == MultiSet#Card(MultiSet#Union(a, b)) &&
+      |  MultiSet#Card(MultiSet#Difference(a, b)) == MultiSet#Card(a) - MultiSet#Card(MultiSet#Intersection(a, b)));
       |
       |// multiset subset means a must have at most as many of each element as b
       |function MultiSet#Subset<T>(MultiSet T, MultiSet T): bool;
@@ -208,6 +210,36 @@ object SetAxiomatization {
       |  (MultiSet#FromSet(s)[a] == 1 <==> s[a]));
       |axiom (forall<T> s: Set T :: { MultiSet#Card(MultiSet#FromSet(s)) }
       |  MultiSet#Card(MultiSet#FromSet(s)) == Set#Card(s));
+      |
+      |// conversion to a multiset, from a sequence.
+      |function MultiSet#FromSeq<T>(Seq T): MultiSet T;
+      |// conversion produces a good map.
+      |axiom (forall<T> s: Seq T :: { MultiSet#FromSeq(s) } $IsGoodMultiSet(MultiSet#FromSeq(s)) );
+      |// cardinality axiom
+      |axiom (forall<T> s: Seq T ::
+      |  { MultiSet#Card(MultiSet#FromSeq(s)) }
+      |    MultiSet#Card(MultiSet#FromSeq(s)) == Seq#Length(s));
+      |// building axiom
+      |axiom (forall<T> s: Seq T, v: T ::
+      |  { MultiSet#FromSeq(Seq#Build(s, v)) }
+      |    MultiSet#FromSeq(Seq#Build(s, v)) == MultiSet#UnionOne(MultiSet#FromSeq(s), v)
+      |  );
+      |axiom (forall<T> :: MultiSet#FromSeq(Seq#Empty(): Seq T) == MultiSet#Empty(): MultiSet T);
+      |
+      |// concatenation axiom
+      |axiom (forall<T> a: Seq T, b: Seq T ::
+      |  { MultiSet#FromSeq(Seq#Append(a, b)) }
+      |    MultiSet#FromSeq(Seq#Append(a, b)) == MultiSet#Union(MultiSet#FromSeq(a), MultiSet#FromSeq(b)) );
+      |
+      |// update axiom
+      |axiom (forall<T> s: Seq T, i: int, v: T, x: T ::
+      |  { MultiSet#FromSeq(Seq#Update(s, i, v))[x] }
+      |    0 <= i && i < Seq#Length(s) ==>
+      |    MultiSet#FromSeq(Seq#Update(s, i, v))[x] ==
+      |      MultiSet#Union(MultiSet#Difference(MultiSet#FromSeq(s), MultiSet#Singleton(Seq#Index(s,i))), MultiSet#Singleton(v))[x] );
+      |  // i.e. MS(Update(s, i, v)) == MS(s) - {{s[i]}} + {{v}}
+      |axiom (forall<T> s: Seq T, x: T :: { MultiSet#FromSeq(s)[x] }
+      |  (exists i : int :: { Seq#Index(s,i) } 0 <= i && i < Seq#Length(s) && x == Seq#Index(s,i)) <==> 0 < MultiSet#FromSeq(s)[x] );
       |
     """.stripMargin
 }
