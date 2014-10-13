@@ -53,10 +53,6 @@ object SetAxiomatization {
       |  Set#Disjoint(a, b) ==>
       |    Set#Difference(Set#Union(a, b), a) == b &&
       |    Set#Difference(Set#Union(a, b), b) == a);
-      |// Follows from the general union axiom, but might be still worth including, because disjoint union is a common case:
-      |// axiom (forall<T> a, b: Set T :: { Set#Card(Set#Union(a, b)) }
-      |//   Set#Disjoint(a, b) ==>
-      |//     Set#Card(Set#Union(a, b)) == Set#Card(a) + Set#Card(b));
       |
       |function Set#Intersection<T>(Set T, Set T): Set T;
       |axiom (forall<T> a: Set T, b: Set T, o: T :: { Set#Intersection(a,b)[o] }
@@ -202,44 +198,6 @@ object SetAxiomatization {
       |function MultiSet#Disjoint<T>(MultiSet T, MultiSet T): bool;
       |axiom (forall<T> a: MultiSet T, b: MultiSet T :: { MultiSet#Disjoint(a,b) }
       |  MultiSet#Disjoint(a,b) <==> (forall o: T :: {a[o]} {b[o]} a[o] == 0 || b[o] == 0));
-      |
-      |// conversion to a multiset. each element in the original set has duplicity 1.
-      |function MultiSet#FromSet<T>(Set T): MultiSet T;
-      |axiom (forall<T> s: Set T, a: T :: { MultiSet#FromSet(s)[a] }
-      |  (MultiSet#FromSet(s)[a] == 0 <==> !s[a]) &&
-      |  (MultiSet#FromSet(s)[a] == 1 <==> s[a]));
-      |axiom (forall<T> s: Set T :: { MultiSet#Card(MultiSet#FromSet(s)) }
-      |  MultiSet#Card(MultiSet#FromSet(s)) == Set#Card(s));
-      |
-      |//// conversion to a multiset, from a sequence.
-      |//function MultiSet#FromSeq<T>(Seq T): MultiSet T;
-      |//// conversion produces a good map.
-      |//axiom (forall<T> s: Seq T :: { MultiSet#FromSeq(s) } $IsGoodMultiSet(MultiSet#FromSeq(s)) );
-      |//// cardinality axiom
-      |//axiom (forall<T> s: Seq T ::
-      |//  { MultiSet#Card(MultiSet#FromSeq(s)) }
-      |//    MultiSet#Card(MultiSet#FromSeq(s)) == Seq#Length(s));
-      |//// building axiom
-      |//axiom (forall<T> s: Seq T, v: T ::
-      |//  { MultiSet#FromSeq(Seq#Build(s, v)) }
-      |//    MultiSet#FromSeq(Seq#Build(s, v)) == MultiSet#UnionOne(MultiSet#FromSeq(s), v)
-      |//  );
-      |//axiom (forall<T> :: MultiSet#FromSeq(Seq#Empty(): Seq T) == MultiSet#Empty(): MultiSet T);
-      |//
-      |//// concatenation axiom
-      |//axiom (forall<T> a: Seq T, b: Seq T ::
-      |//  { MultiSet#FromSeq(Seq#Append(a, b)) }
-      |//    MultiSet#FromSeq(Seq#Append(a, b)) == MultiSet#Union(MultiSet#FromSeq(a), MultiSet#FromSeq(b)) );
-      |//
-      |//// update axiom
-      |//axiom (forall<T> s: Seq T, i: int, v: T, x: T ::
-      |//  { MultiSet#FromSeq(Seq#Update(s, i, v))[x] }
-      |//    0 <= i && i < Seq#Length(s) ==>
-      |//    MultiSet#FromSeq(Seq#Update(s, i, v))[x] ==
-      |//      MultiSet#Union(MultiSet#Difference(MultiSet#FromSeq(s), MultiSet#Singleton(Seq#Index(s,i))), MultiSet#Singleton(v))[x] );
-      |//  // i.e. MS(Update(s, i, v)) == MS(s) - {{s[i]}} + {{v}}
-      |//axiom (forall<T> s: Seq T, x: T :: { MultiSet#FromSeq(s)[x] }
-      |//  (exists i : int :: { Seq#Index(s,i) } 0 <= i && i < Seq#Length(s) && x == Seq#Index(s,i)) <==> 0 < MultiSet#FromSeq(s)[x] );
       |
     """.stripMargin
 }

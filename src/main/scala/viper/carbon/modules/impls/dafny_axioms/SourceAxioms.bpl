@@ -52,10 +52,6 @@ axiom (forall<T> a, b: Set T :: { Set#Union(a, b) }
   Set#Disjoint(a, b) ==>
     Set#Difference(Set#Union(a, b), a) == b &&
     Set#Difference(Set#Union(a, b), b) == a);
-// Follows from the general union axiom, but might be still worth including, because disjoint union is a common case:
-// axiom (forall<T> a, b: Set T :: { Set#Card(Set#Union(a, b)) }
-//   Set#Disjoint(a, b) ==>
-//     Set#Card(Set#Union(a, b)) == Set#Card(a) + Set#Card(b));
 
 function Set#Intersection<T>(Set T, Set T): Set T;
 axiom (forall<T> a: Set T, b: Set T, o: T :: { Set#Intersection(a,b)[o] }
@@ -77,7 +73,7 @@ axiom (forall<T> a: Set T, b: Set T, o: T :: { Set#Difference(a,b)[o] }
   Set#Difference(a,b)[o] <==> a[o] && !b[o]);
 axiom (forall<T> a, b: Set T, y: T :: { Set#Difference(a, b), b[y] }
   b[y] ==> !Set#Difference(a, b)[y] );
-axiom (forall<T> a, b: Set T ::
+axiom (forall<T> a, b: Set T :: // **NEW
   { Set#Card(Set#Difference(a, b)) }
   Set#Card(Set#Difference(a, b)) + Set#Card(Set#Difference(b, a))
   + Set#Card(Set#Intersection(a, b))
@@ -87,9 +83,6 @@ axiom (forall<T> a, b: Set T ::
 function Set#Subset<T>(Set T, Set T): bool;
 axiom(forall<T> a: Set T, b: Set T :: { Set#Subset(a,b) }
   Set#Subset(a,b) <==> (forall o: T :: {a[o]} {b[o]} a[o] ==> b[o]));
-// axiom(forall<T> a: Set T, b: Set T ::
-//   { Set#Subset(a,b), Set#Card(a), Set#Card(b) }  // very restrictive trigger
-//   Set#Subset(a,b) ==> Set#Card(a) <= Set#Card(b));
 
 
 function Set#Equal<T>(Set T, Set T): bool;
@@ -121,7 +114,7 @@ function $IsGoodMultiSet<T>(ms: MultiSet T): bool;
 // ints are non-negative, used after havocing, and for conversion from sequences to multisets.
 axiom (forall<T> ms: MultiSet T :: { $IsGoodMultiSet(ms) }
   $IsGoodMultiSet(ms) <==>
-  (forall bx: T :: { ms[bx] } 0 <= ms[bx] && ms[bx] <= MultiSet#Card(ms)));
+  (forall bx: T :: { ms[bx] } 0 <= ms[bx] && ms[bx] <= MultiSet#Card(ms))); // ** NEW: second conjunct
 
 function MultiSet#Card<T>(MultiSet T): int;
 axiom (forall<T> s: MultiSet T :: { MultiSet#Card(s) } 0 <= MultiSet#Card(s));
@@ -179,7 +172,7 @@ axiom (forall<T> a: MultiSet T, b: MultiSet T, o: T :: { MultiSet#Difference(a,b
   MultiSet#Difference(a,b)[o] == Math#clip(a[o] - b[o]));
 axiom (forall<T> a, b: MultiSet T, y: T :: { MultiSet#Difference(a, b), b[y], a[y] }
   a[y] <= b[y] ==> MultiSet#Difference(a, b)[y] == 0 );
-axiom (forall<T> a, b: MultiSet T ::
+axiom (forall<T> a, b: MultiSet T :: // ** NEW
   { MultiSet#Card(MultiSet#Difference(a, b)) }
   MultiSet#Card(MultiSet#Difference(a, b)) + MultiSet#Card(MultiSet#Difference(b, a))
   + 2 * MultiSet#Card(MultiSet#Intersection(a, b))
@@ -202,45 +195,7 @@ function MultiSet#Disjoint<T>(MultiSet T, MultiSet T): bool;
 axiom (forall<T> a: MultiSet T, b: MultiSet T :: { MultiSet#Disjoint(a,b) }
   MultiSet#Disjoint(a,b) <==> (forall o: T :: {a[o]} {b[o]} a[o] == 0 || b[o] == 0));
 
-// conversion to a multiset. each element in the original set has duplicity 1.
-function MultiSet#FromSet<T>(Set T): MultiSet T;
-axiom (forall<T> s: Set T, a: T :: { MultiSet#FromSet(s)[a] }
-  (MultiSet#FromSet(s)[a] == 0 <==> !s[a]) &&
-  (MultiSet#FromSet(s)[a] == 1 <==> s[a]));
-axiom (forall<T> s: Set T :: { MultiSet#Card(MultiSet#FromSet(s)) }
-  MultiSet#Card(MultiSet#FromSet(s)) == Set#Card(s));
-
-// conversion to a multiset, from a sequence.
-function MultiSet#FromSeq<T>(Seq T): MultiSet T;
-// conversion produces a good map.
-axiom (forall<T> s: Seq T :: { MultiSet#FromSeq(s) } $IsGoodMultiSet(MultiSet#FromSeq(s)) );
-// cardinality axiom
-axiom (forall<T> s: Seq T ::
-  { MultiSet#Card(MultiSet#FromSeq(s)) }
-    MultiSet#Card(MultiSet#FromSeq(s)) == Seq#Length(s));
-// building axiom
-axiom (forall<T> s: Seq T, v: T ::
-  { MultiSet#FromSeq(Seq#Build(s, v)) }
-    MultiSet#FromSeq(Seq#Build(s, v)) == MultiSet#UnionOne(MultiSet#FromSeq(s), v)
-  );
-axiom (forall<T> :: MultiSet#FromSeq(Seq#Empty(): Seq T) == MultiSet#Empty(): MultiSet T);
-
-// concatenation axiom
-axiom (forall<T> a: Seq T, b: Seq T ::
-  { MultiSet#FromSeq(Seq#Append(a, b)) }
-    MultiSet#FromSeq(Seq#Append(a, b)) == MultiSet#Union(MultiSet#FromSeq(a), MultiSet#FromSeq(b)) );
-
-// update axiom
-axiom (forall<T> s: Seq T, i: int, v: T, x: T ::
-  { MultiSet#FromSeq(Seq#Update(s, i, v))[x] }
-    0 <= i && i < Seq#Length(s) ==>
-    MultiSet#FromSeq(Seq#Update(s, i, v))[x] ==
-      MultiSet#Union(MultiSet#Difference(MultiSet#FromSeq(s), MultiSet#Singleton(Seq#Index(s,i))), MultiSet#Singleton(v))[x] );
-  // i.e. MS(Update(s, i, v)) == MS(s) - {{s[i]}} + {{v}}
-axiom (forall<T> s: Seq T, x: T :: { MultiSet#FromSeq(s)[x] }
-  (exists i : int :: { Seq#Index(s,i) } 0 <= i && i < Seq#Length(s) && x == Seq#Index(s,i)) <==> 0 < MultiSet#FromSeq(s)[x] );
-
-// ---------------------------------------------------------------
+-----------------------------------------------------
 // -- Axiomatization of sequences --------------------------------
 // ---------------------------------------------------------------
 
@@ -269,6 +224,7 @@ axiom (forall<T> s0: Seq T, s1: Seq T :: { Seq#Length(Seq#Append(s0,s1)) }
 
 function Seq#Index<T>(Seq T, int): T;
 axiom (forall<T> t: T :: { Seq#Index(Seq#Singleton(t), 0) } Seq#Index(Seq#Singleton(t), 0) == t);
+// ** AS: 1st of 3 axioms which get instantiated very often in certain problems involving take/drop/append
 axiom (forall<T> s0: Seq T, s1: Seq T, n: int :: { Seq#Index(Seq#Append(s0,s1), n) }
   (n < Seq#Length(s0) ==> Seq#Index(Seq#Append(s0,s1), n) == Seq#Index(s0, n)) &&
   (Seq#Length(s0) <= n ==> Seq#Index(Seq#Append(s0,s1), n) == Seq#Index(s1, n - Seq#Length(s0))));
@@ -285,7 +241,7 @@ function Seq#Contains<T>(Seq T, T): bool;
 axiom (forall<T> s: Seq T, x: T :: { Seq#Contains(s,x) }
   Seq#Contains(s,x) <==>
     (exists i: int :: { Seq#Index(s,i) } 0 <= i && i < Seq#Length(s) && Seq#Index(s,i) == x));
-// AS: made one change here - changed type of x from ref to T
+// ** AS: made one change here - changed type of x from ref to T
 axiom (forall<T> x: T ::
   { Seq#Contains(Seq#Empty(), x) }
   !Seq#Contains(Seq#Empty(), x));
@@ -329,6 +285,7 @@ axiom (forall<T> s: Seq T, n: int :: { Seq#Length(Seq#Take(s,n)) }
   0 <= n ==>
     (n <= Seq#Length(s) ==> Seq#Length(Seq#Take(s,n)) == n) &&
     (Seq#Length(s) < n ==> Seq#Length(Seq#Take(s,n)) == Seq#Length(s)));
+// ** AS: 2nd of 3 axioms which get instantiated very often in certain problems involving take/drop/append
 axiom (forall<T> s: Seq T, n: int, j: int :: { Seq#Index(Seq#Take(s,n), j) } {:weight 25}
   0 <= j && j < n && j < Seq#Length(s) ==>
     Seq#Index(Seq#Take(s,n), j) == Seq#Index(s, j));
@@ -338,14 +295,26 @@ axiom (forall<T> s: Seq T, n: int :: { Seq#Length(Seq#Drop(s,n)) }
   0 <= n ==>
     (n <= Seq#Length(s) ==> Seq#Length(Seq#Drop(s,n)) == Seq#Length(s) - n) &&
     (Seq#Length(s) < n ==> Seq#Length(Seq#Drop(s,n)) == 0));
+// ** AS: 3rd of 3 axioms which get instantiated very often in certain problems involving take/drop/append
 axiom (forall<T> s: Seq T, n: int, j: int :: { Seq#Index(Seq#Drop(s,n), j) } {:weight 25}
   0 <= n && 0 <= j && j < Seq#Length(s)-n ==>
     Seq#Index(Seq#Drop(s,n), j) == Seq#Index(s, j+n));
 
+// ** AS: We dropped the weak trigger on this axiom. One option is to strengthen the triggers:
 axiom (forall<T> s, t: Seq T ::
-  { Seq#Append(s, t) }
+ // { Seq#Append(s, t) }
+  {Seq#Take(Seq#Append(s, t), Seq#Length(s))}{Seq#Drop(Seq#Append(s, t), Seq#Length(s))}
   Seq#Take(Seq#Append(s, t), Seq#Length(s)) == s &&
   Seq#Drop(Seq#Append(s, t), Seq#Length(s)) == t);
+
+// ** AS: another option is to split the axiom (for some reason, this seems in some cases to perform slightly less well (but this could be random):
+//axiom (forall<T> s, t: Seq T ::
+// { Seq#Take(Seq#Append(s, t), Seq#Length(s)) }
+//  Seq#Take(Seq#Append(s, t), Seq#Length(s)) == s);
+
+//axiom (forall<T> s, t: Seq T ::
+// { Seq#Drop(Seq#Append(s, t), Seq#Length(s)) }
+//  Seq#Drop(Seq#Append(s, t), Seq#Length(s)) == t);
 
 // Commutability of Take and Drop with Update.
 axiom (forall<T> s: Seq T, i: int, v: T, n: int ::
@@ -366,11 +335,11 @@ axiom (forall<T> s: Seq T, v: T, n: int ::
         0 <= n && n <= Seq#Length(s) ==> Seq#Drop(Seq#Build(s, v), n) == Seq#Build(Seq#Drop(s, n), v) );
 
 // Additional axioms about common things
-axiom (forall<T> s: Seq T, n: int :: { Seq#Drop(s, n) }
+axiom (forall<T> s: Seq T, n: int :: { Seq#Drop(s, n) } // ** NEW
         n == 0 ==> Seq#Drop(s, n) == s);
-axiom (forall<T> s: Seq T, n: int :: { Seq#Take(s, n) }
+axiom (forall<T> s: Seq T, n: int :: { Seq#Take(s, n) } // ** NEW
         n == 0 ==> Seq#Take(s, n) == Seq#Empty());
-axiom (forall<T> s: Seq T, m, n: int :: { Seq#Drop(Seq#Drop(s, m), n) }
+axiom (forall<T> s: Seq T, m, n: int :: { Seq#Drop(Seq#Drop(s, m), n) } // ** NEW - AS: could have bad triggering behaviour?
         0 <= m && 0 <= n && m+n <= Seq#Length(s) ==>
         Seq#Drop(Seq#Drop(s, m), n) == Seq#Drop(s, m+n));
 

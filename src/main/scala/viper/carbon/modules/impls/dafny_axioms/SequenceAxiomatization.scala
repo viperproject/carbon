@@ -111,9 +111,19 @@ object SequenceAxiomatization {
       |    Seq#Index(Seq#Drop(s,n), j) == Seq#Index(s, j+n));
       |
       |axiom (forall<T> s, t: Seq T ::
-      |  { Seq#Append(s, t) }
+      | { Seq#Take(Seq#Append(s, t), Seq#Length(s)) }{ Seq#Drop(Seq#Append(s, t), Seq#Length(s)) }
+      | //{Seq#Append(s,t)}
       |  Seq#Take(Seq#Append(s, t), Seq#Length(s)) == s &&
       |  Seq#Drop(Seq#Append(s, t), Seq#Length(s)) == t);
+      |
+      |//axiom (forall<T> s, t: Seq T ::
+      |// { Seq#Take(Seq#Append(s, t), Seq#Length(s)) }
+      |//  Seq#Take(Seq#Append(s, t), Seq#Length(s)) == s);
+      |
+      |//axiom (forall<T> s, t: Seq T ::
+      |// { Seq#Drop(Seq#Append(s, t), Seq#Length(s)) }
+      |//  Seq#Drop(Seq#Append(s, t), Seq#Length(s)) == t);
+      |
       |
       |// Commutability of Take and Drop with Update.
       |axiom (forall<T> s: Seq T, i: int, v: T, n: int ::
