@@ -152,7 +152,7 @@ object SetAxiomatization {
       |
       |// union-ing increases count by one for x, not for others
       |axiom (forall<T> a: MultiSet T, x: T, o: T :: { MultiSet#UnionOne(a,x)[o] }
-      |  MultiSet#UnionOne(a, x)[o] == (if x==o then a[x] + 1 else a[x]));
+      |  MultiSet#UnionOne(a, x)[o] == (if x==o then a[o] + 1 else a[o]));
       |// non-decreasing
       |axiom (forall<T> a: MultiSet T, x: T :: { MultiSet#Card(MultiSet#UnionOne(a, x)) }
       |  MultiSet#Card(MultiSet#UnionOne(a, x)) == MultiSet#Card(a) + 1);
