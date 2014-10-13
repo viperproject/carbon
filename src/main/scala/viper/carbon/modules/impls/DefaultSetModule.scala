@@ -12,12 +12,13 @@ import viper.carbon.boogie._
 import viper.carbon.verifier.Verifier
 import viper.carbon.boogie.Implicits._
 import viper.carbon.modules.impls.dafny_axioms.SetAxiomatization
+import viper.carbon.modules.components.DefinednessComponent
 
 /**
  * The default implementation of [[viper.carbon.modules.SetModule]].
 
  */
-class DefaultSetModule(val verifier: Verifier) extends SetModule {
+class DefaultSetModule(val verifier: Verifier) extends SetModule with DefinednessComponent {
 
   import verifier._
   import typeModule._
@@ -31,6 +32,18 @@ class DefaultSetModule(val verifier: Verifier) extends SetModule {
 
   def name = "Set module"
   implicit val namespace = verifier.freshNamespace("set")
+
+  override def freeAssumptions(e: sil.Exp): Stmt = {
+    e match {
+      case _ if e.typ.isInstanceOf[sil.MultisetType] =>
+        Assume(FuncApp(Identifier("$IsGoodMultiSet"),translateExp(e),Bool))
+      case _ => Nil
+    }
+  }
+
+  override def validValue(typ: sil.Type, variable: LocalVar, isParameter: Boolean): Option[Exp] = {
+    if (typ.isInstanceOf[sil.MultisetType]) Some(FuncApp(Identifier("$IsGoodMultiSet"),variable,Bool)) else None
+  }
 
   override def preamble = {
     if (used) {
@@ -94,9 +107,11 @@ class DefaultSetModule(val verifier: Verifier) extends SetModule {
         else FuncApp(Identifier("Set#Difference"), List(t(left), t(right)), typ)
       case sil.AnySetContains(left, right) =>
         if (isMultiset(right))
-          FuncApp(Identifier("MultiSet#Subset"), List(FuncApp(Identifier("MultiSet#Singleton"), List(t(left)), typ), t(right)), Bool)
+          BinExp(MapSelect(t(right),Seq(t(left))),GtCmp,IntLit(0))
+         // FuncApp(Identifier("MultiSet#Subset"), List(FuncApp(Identifier("MultiSet#Singleton"), List(t(left)), typ), t(right)), Bool)
         else
-          FuncApp(Identifier("Set#Subset"), List(FuncApp(Identifier("Set#Singleton"), List(t(left)), typ), t(right)), Bool)
+          MapSelect(t(right),Seq(t(left)))
+          //FuncApp(Identifier("Set#Subset"), List(FuncApp(Identifier("Set#Singleton"), List(t(left)), typ), t(right)), Bool)
       case sil.AnySetCardinality(set) =>
         if (isMultiset(set)) FuncApp(Identifier("MultiSet#Card"), t(set), Bool)
         else FuncApp(Identifier("Set#Card"), t(set), Bool)

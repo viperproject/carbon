@@ -12,11 +12,12 @@ import viper.carbon.boogie._
 import viper.carbon.verifier.Verifier
 import viper.carbon.boogie.Implicits._
 import viper.carbon.modules.impls.dafny_axioms.SequenceAxiomatization
+import viper.carbon.modules.components.DefinednessComponent
 
 /**
  * The default implementation of [[viper.carbon.modules.SeqModule]].
  */
-class DefaultSeqModule(val verifier: Verifier) extends SeqModule {
+class DefaultSeqModule(val verifier: Verifier) extends SeqModule with DefinednessComponent {
 
   import verifier._
   import typeModule._
@@ -30,6 +31,8 @@ class DefaultSeqModule(val verifier: Verifier) extends SeqModule {
 
   def name = "Sequence module"
   implicit val namespace = verifier.freshNamespace("seq")
+
+  override def freeAssumptions(e: sil.Exp): Stmt = Statements.EmptyStmt
 
   override def preamble = {
     if (used) {

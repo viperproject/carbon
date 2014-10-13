@@ -100,6 +100,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
         val init = MaybeCommentBlock("Initializing the state", stateModule.initState ++ assumeAllFunctionDefinitions)
         val initOld = stateModule.initOldState
         val paramAssumptions = m.formalArgs map (a => allAssumptionsAboutValue(a.typ, translateLocalVarDecl(a), true))
+        val localAssumptions = m.locals map (a => allAssumptionsAboutValue(a.typ, translateLocalVarDecl(a), true))
         val inhalePre = MaybeCommentBlock("Checked inhaling of precondition",
           pres map (e => checkDefinednessOfSpecAndInhale(e, errors.ContractNotWellformed(e))))
         val checkPost: Stmt = if (posts.nonEmpty) NondetIf(
@@ -114,6 +115,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
           Seq(init, inhalePre,
             MaybeCommentBlock(initOldStateComment, initOld), checkPost,
             MaybeCommentBlock("Assumptions about method arguments", paramAssumptions),
+            MaybeCommentBlock("Assumptions about local variables", localAssumptions),
             body, exhalePost))
         CommentedDecl(s"Translation of method $name", proc)
     }
