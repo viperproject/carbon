@@ -138,17 +138,22 @@ object SetAxiomatization {
       |
       |function MultiSet#UnionOne<T>(MultiSet T, T): MultiSet T;
       |// pure containment axiom (in the original multiset or is the added element)
-      |axiom (forall<T> a: MultiSet T, x: T, o: T :: { MultiSet#UnionOne(a,x)[o] }
-      |  0 < MultiSet#UnionOne(a,x)[o] <==> o == x || 0 < a[o]);
+      |//axiom (forall<T> a: MultiSet T, x: T, o: T :: { MultiSet#UnionOne(a,x)[o] }
+      |//  0 < MultiSet#UnionOne(a,x)[o] <==> o == x || 0 < a[o]);
       |// union-ing increases count by one
-      |axiom (forall<T> a: MultiSet T, x: T :: { MultiSet#UnionOne(a, x) }
-      |  MultiSet#UnionOne(a, x)[x] == a[x] + 1);
+      |//axiom (forall<T> a: MultiSet T, x: T :: { MultiSet#UnionOne(a, x) }
+      |//  MultiSet#UnionOne(a, x)[x] == a[x] + 1);
       |// non-decreasing
-      |axiom (forall<T> a: MultiSet T, x: T, y: T :: { MultiSet#UnionOne(a, x), a[y] }
-      |  0 < a[y] ==> 0 < MultiSet#UnionOne(a, x)[y]);
+      |//axiom (forall<T> a: MultiSet T, x: T, y: T :: { MultiSet#UnionOne(a, x), a[y] }
+      |//  0 < a[y] ==> 0 < MultiSet#UnionOne(a, x)[y]);
       |// other elements unchanged
-      |axiom (forall<T> a: MultiSet T, x: T, y: T :: { MultiSet#UnionOne(a, x), a[y] }
-      |  x != y ==> a[y] == MultiSet#UnionOne(a, x)[y]);
+      |//axiom (forall<T> a: MultiSet T, x: T, y: T :: { MultiSet#UnionOne(a, x), a[y] }
+      |//  x != y ==> a[y] == MultiSet#UnionOne(a, x)[y]);
+      |
+      |// union-ing increases count by one for x, not for others
+      |axiom (forall<T> a: MultiSet T, x: T, o: T :: { MultiSet#UnionOne(a,x)[o] }
+      |  MultiSet#UnionOne(a, x)[o] == (if x==o then a[x] + 1 else a[x]));
+      |// non-decreasing
       |axiom (forall<T> a: MultiSet T, x: T :: { MultiSet#Card(MultiSet#UnionOne(a, x)) }
       |  MultiSet#Card(MultiSet#UnionOne(a, x)) == MultiSet#Card(a) + 1);
       |
