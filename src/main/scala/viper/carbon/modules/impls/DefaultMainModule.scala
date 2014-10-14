@@ -112,10 +112,11 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
         val exhalePost = MaybeCommentBlock("Exhaling postcondition", exhale(postsWithErrors))
         val body: Stmt = translateStmt(b)
         val proc = Procedure(Identifier(name), ins, outs,
-          Seq(init, inhalePre,
-            MaybeCommentBlock(initOldStateComment, initOld), checkPost,
+          Seq(init,
             MaybeCommentBlock("Assumptions about method arguments", paramAssumptions),
             MaybeCommentBlock("Assumptions about local variables", localAssumptions),
+            inhalePre,
+            MaybeCommentBlock(initOldStateComment, initOld), checkPost,
             body, exhalePost))
         CommentedDecl(s"Translation of method $name", proc)
     }
