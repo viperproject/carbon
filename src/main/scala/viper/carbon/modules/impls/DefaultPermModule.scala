@@ -377,7 +377,7 @@ class DefaultPermModule(val verifier: Verifier)
         mixedPerm(mul(fracComp(p)), mul(epsComp(p)))
       case sil.CondExp(cond, thn, els) =>
         CondExp(translateExp(cond), translatePerm(thn), translatePerm(els))
-      case _: sil.LocalVar | _: sil.FuncLikeApp =>
+      case _: sil.LocalVar | _: sil.FuncLikeApp | _:sil.FieldAccess =>
         translateExp(e)
       case _ => sys.error(s"not a permission expression: $e")
     }
