@@ -370,6 +370,8 @@ class DefaultPermModule(val verifier: Verifier)
         permSub(translatePerm(a), translatePerm(b))
       case sil.PermMul(a, b) =>
         fracPerm(BinExp(fracComp(translatePerm(a)), Mul, fracComp(translatePerm(b))))
+      case sil.PermDiv(a,b) =>
+        fracPerm(BinExp(translatePerm(a),Div,translateExp(b)))
       case sil.IntPermMul(a, b) =>
         val i = translateExp(a)
         val p = translatePerm(b)
