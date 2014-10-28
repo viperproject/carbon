@@ -140,6 +140,8 @@ trait BoogieInterface {
 
     // Note: call exitValue to block until Boogie has finished
     // Note: we call boogie with an empty input "file" on stdin and parse the output
+    println(Seq(boogiePath) ++ options ++ Seq(tmp.getAbsolutePath))
+
     (Seq(boogiePath) ++ options ++ Seq(tmp.getAbsolutePath)).run(new ProcessIO(_.close(), out, err)).exitValue()
     reserr + res
   }
