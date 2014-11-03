@@ -130,7 +130,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
            sil.DomainBinExp(_, sil.PermMulOp, _) |
            sil.DomainBinExp(_, sil.PermSubOp, _) |
            sil.DomainBinExp(_, sil.IntPermMulOp, _) |
-           sil.DomainBinExp(_, sil.FracOp, _) =>
+           sil.DomainBinExp(_, sil.FracOp, _) |
+           sil.DomainBinExp(_, sil.PermDivOp, _) =>
         translatePerm(e)
       case sil.DomainBinExp(left, op, right) =>
         val bop = op match {
@@ -147,7 +148,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           case sil.AndOp => And
           case sil.ImpliesOp => Implies
           case _ =>
-            sys.error("Expression translation did not match any cases (should be handled before reaching translateExp code)")
+            sys.error("Expression translation did not match any cases (should be handled before reaching translateExp code)"+e.getClass())
         }
         BinExp(translateExp(left), bop, translateExp(right))
       case sil.Neg(exp) =>

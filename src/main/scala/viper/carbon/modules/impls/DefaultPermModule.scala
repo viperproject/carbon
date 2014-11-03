@@ -89,6 +89,7 @@ class DefaultPermModule(val verifier: Verifier)
   private val fullPerm = Const(fullPermName)
   private val permAddName = Identifier("PermAdd")
   private val permSubName = Identifier("PermSub")
+  private val permDivName = Identifier("PermDiv")
   private val permConstructName = Identifier("Perm")
   private val goodMaskName = Identifier("GoodMask")
   private val hasDirectPermName = Identifier("HasDirectPerm")
@@ -150,6 +151,20 @@ class DefaultPermModule(val verifier: Verifier)
       Axiom(Forall(Seq(a, b, comp),
         Trigger(MapSelect(permSub(a.l, b.l), comp.l)),
         MapSelect(permSub(a.l, b.l), comp.l) === (MapSelect(a.l, comp.l) - MapSelect(b.l, comp.l))))
+    } ::
+      // permission division
+      Func(permDivName, Seq(LocalVarDecl(Identifier("a"), permType), LocalVarDecl(Identifier("n"), Int)), permType) :: {
+      val a = LocalVarDecl(Identifier("a"), permType)
+      val n = LocalVarDecl(Identifier("n"), Int)
+      Axiom(Forall(Seq(a, n),
+        Trigger(fracComp(permDiv(a.l, n.l))),
+        fracComp(permDiv(a.l, n.l)) === fracComp(a.l) / RealConv(n.l)))
+    } :: {
+      val a = LocalVarDecl(Identifier("a"), permType)
+      val n = LocalVarDecl(Identifier("n"), Int)
+      Axiom(Forall(Seq(a, n),
+        Trigger(epsComp(permDiv(a.l, n.l))),
+        (n.l > IntLit(0)) ==> (epsComp(permDiv(a.l, n.l)) === epsComp(a.l) / RealConv(n.l))))
     } ::
       // permission constructor
       Func(permConstructName, Seq(LocalVarDecl(Identifier("a"), Real), LocalVarDecl(Identifier("b"), Real)), permType) :: {
@@ -214,6 +229,7 @@ class DefaultPermModule(val verifier: Verifier)
 
   private def permAdd(a: Exp, b: Exp): Exp = FuncApp(permAddName, Seq(a, b), permType)
   private def permSub(a: Exp, b: Exp): Exp = FuncApp(permSubName, Seq(a, b), permType)
+  private def permDiv(a: Exp, b: Exp): Exp = FuncApp(permDivName, Seq(a, b), permType)
 
   private def fracPerm(frac: Exp) = mixedPerm(frac, RealLit(0))
   private def epsPerm(eps: Exp) = mixedPerm(RealLit(0), eps)
@@ -371,7 +387,7 @@ class DefaultPermModule(val verifier: Verifier)
       case sil.PermMul(a, b) =>
         fracPerm(BinExp(fracComp(translatePerm(a)), Mul, fracComp(translatePerm(b))))
       case sil.PermDiv(a,b) =>
-        fracPerm(BinExp(translatePerm(a),Div,translateExp(b)))
+        permDiv(translatePerm(a), translateExp(b))
       case sil.IntPermMul(a, b) =>
         val i = translateExp(a)
         val p = translatePerm(b)
@@ -512,6 +528,8 @@ class DefaultPermModule(val verifier: Verifier)
       case pm@sil.PermMul(a, b) =>
         Assert(epsComp(translatePerm(a)) === RealLit(0), error.dueTo(reasons.InvalidPermMultiplication(pm))) ++
           Assert(epsComp(translatePerm(b)) === RealLit(0), error.dueTo(reasons.InvalidPermMultiplication(pm)))
+      case sil.PermDiv(a, b) =>
+        Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
       case _ => Nil
     }
     ) else Nil
@@ -545,6 +563,8 @@ class DefaultPermModule(val verifier: Verifier)
         case sil.PermSub(left, right) => backup
         case sil.PermMul(a, b) =>
           (isPositivePerm(a) && isPositivePerm(b)) || (isNegativePerm(a) && isNegativePerm(b))
+        case sil.PermDiv(a, b) =>
+          isPositivePerm(a) // note: b should be ruled out from being non-positive
         case sil.IntPermMul(a, b) =>
           val n = translateExp(a)
           ((n > IntLit(0)) && isPositivePerm(b)) || ((n < IntLit(0)) && isNegativePerm(b))
@@ -572,6 +592,8 @@ class DefaultPermModule(val verifier: Verifier)
         case sil.PermSub(left, right) => backup
         case sil.PermMul(a, b) =>
           (isPositivePerm(a) && isNegativePerm(b)) || (isNegativePerm(a) && isPositivePerm(b))
+        case sil.PermDiv(a, b) =>
+          isNegativePerm(a) // note: b should be ruled out from being non-positive
         case sil.IntPermMul(a, b) =>
           val n = translateExp(a)
           ((n > IntLit(0)) && isNegativePerm(b)) || ((n < IntLit(0)) && isPositivePerm(b))
@@ -599,6 +621,8 @@ class DefaultPermModule(val verifier: Verifier)
           isFixedPerm(left) && isFixedPerm(right)
         case sil.PermMul(left, right) =>
           isFixedPerm(left) && isFixedPerm(right)
+        case sil.PermDiv(left, right) =>
+          isFixedPerm(left)
         case sil.IntPermMul(a, b) =>
           isFixedPerm(b)
         case sil.CondExp(cond, thn, els) =>
@@ -618,12 +642,13 @@ class DefaultPermModule(val verifier: Verifier)
 
     // Applies the following rewrite rules (a,b,c are perms, m,n are ints):
     // (a - b) --> (a + (-1*b))
-    // (a+b)*c --> ((a*c) + (b*c)) 
+    // (a+b)*c --> ((a*c) + (b*c))
     // (n*(b+c)) --> (n*b + n*c)
+    // (a+b)/n --> ((a/n) + (b/n))
     // (m*(n*c)) --> ((m*n)*c)
     // (a*b) --> (b*a) if b is a "fixedPerm" and a is not
     // a*(x?b:c) --> (x?(a*b):(a*c)) etc.
-    //
+    // (x?b:c)/n --> (x?(b/n):(c/n)) etc.
     
     def normalizePermHelper(e0: sil.Exp): (Boolean, sil.Exp) = {
       // we use this flag to indicate whether something changed
@@ -637,7 +662,7 @@ class DefaultPermModule(val verifier: Verifier)
           case sil.PermSub(left, right) => done = false
             sil.PermAdd(left, sil.IntPermMul(sil.IntLit(-1)(), right)())()
         })
-        
+
         // move permission multiplications all the way to the inside
         val e2 = e1.transform()(_ => true, {
           case sil.PermMul(sil.PermAdd(a, b), c) => done = false
@@ -646,8 +671,14 @@ class DefaultPermModule(val verifier: Verifier)
             sil.PermAdd(sil.PermMul(a, b)(), sil.PermMul(a, c)())()
         })
 
+        // move permission divisions all the way to the inside
+        val e2b = e2.transform()(_ => true, {
+          case sil.PermDiv(sil.PermAdd(a, b), n) => done = false
+            sil.PermAdd(sil.PermDiv(a,n)(),sil.PermDiv(b,n)())()
+        })
+
         // move integer permission multiplications all the way to the inside
-        val e3 = e2.transform()(_ => true, {
+        val e3 = e2b.transform()(_ => true, {
           case x@sil.IntPermMul(a, sil.PermAdd(b, c)) => done = false
             sil.PermAdd(sil.IntPermMul(a, b)(), sil.IntPermMul(a, c)())()
           case sil.IntPermMul(a, sil.PermMul(b, c)) => done = false
@@ -666,7 +697,7 @@ class DefaultPermModule(val verifier: Verifier)
             sil.PermMul(b, a)()
         })
         
-        // propagate multiplication into conditional expressions
+        // propagate multiplication and division into conditional expressions
         val e6 = e5.transform()(_ => true, {
           case sil.IntPermMul(a, sil.CondExp(cond, thn, els)) => done = false
             sil.CondExp(cond, sil.IntPermMul(a,thn)(), sil.IntPermMul(a,els)())()
@@ -676,6 +707,8 @@ class DefaultPermModule(val verifier: Verifier)
             sil.CondExp(cond, sil.PermMul(a,thn)(), sil.PermMul(a,els)())()
           case sil.PermMul(sil.CondExp(cond, thn, els),a) => done = false
             sil.CondExp(cond, sil.PermMul(thn,a)(), sil.PermMul(els,a)())()
+          case sil.PermDiv(sil.CondExp(cond, thn, els),n) => done = false
+            sil.CondExp(cond, sil.PermDiv(thn,n)(), sil.PermDiv(els,n)())()
         })
 	        
         // propagate addition into conditional expressions
@@ -700,6 +733,9 @@ class DefaultPermModule(val verifier: Verifier)
     def splitPermHelper(e: sil.Exp): Seq[(Int, Exp, sil.Exp)] ={
       def addCond(in: Seq[(Int, Exp, sil.Exp)], c: Exp): Seq[(Int, Exp, sil.Exp)] = {
         in map (x => (x._1, BinExp(c, And, x._2), x._3))
+      }
+      def divideBy(in: Seq[(Int, Exp, sil.Exp)], c: sil.Exp): Seq[(Int, Exp, sil.Exp)] = {
+        in map (x => (x._1, x._2, sil.PermDiv(x._3,c)()))
       }
       val zero = IntLit(0)
       normalizePerm(e) match {
@@ -732,6 +768,9 @@ class DefaultPermModule(val verifier: Verifier)
           val elscases = splitPermHelper(els)
           val transcond = translateExp(cond)
           addCond(thncases,transcond) ++ addCond(elscases,UnExp(Not,transcond))
+        case sil.PermDiv(a,n) =>
+          val cases = splitPermHelper(a)
+          divideBy(cases,n)
         case _ =>
           (3, TrueLit(), e)
       }
