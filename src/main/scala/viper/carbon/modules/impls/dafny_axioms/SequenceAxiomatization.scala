@@ -18,6 +18,7 @@ object SequenceAxiomatization {
       |axiom (forall<T> s: Seq T :: { Seq#Length(s) } 0 <= Seq#Length(s));
       |
       |function Seq#Empty<T>(): Seq T;
+      |function Seq#Empty<T>(): Seq T;
       |axiom (forall<T> :: Seq#Length(Seq#Empty(): Seq T) == 0);
       |axiom (forall<T> s: Seq T :: { Seq#Length(s) } Seq#Length(s) == 0 ==> s == Seq#Empty());
       |
@@ -97,7 +98,7 @@ object SequenceAxiomatization {
       |  0 <= n ==>
       |    (n <= Seq#Length(s) ==> Seq#Length(Seq#Take(s,n)) == n) &&
       |    (Seq#Length(s) < n ==> Seq#Length(Seq#Take(s,n)) == Seq#Length(s)));
-      |axiom (forall<T> s: Seq T, n: int, j: int :: { Seq#Index(Seq#Take(s,n), j) } {:weight 25}
+      |axiom (forall<T> s: Seq T, n: int, j: int :: { Seq#Index(Seq#Take(s,n), j) }
       |  0 <= j && j < n && j < Seq#Length(s) ==>
       |    Seq#Index(Seq#Take(s,n), j) == Seq#Index(s, j));
       |
@@ -106,7 +107,7 @@ object SequenceAxiomatization {
       |  0 <= n ==>
       |    (n <= Seq#Length(s) ==> Seq#Length(Seq#Drop(s,n)) == Seq#Length(s) - n) &&
       |    (Seq#Length(s) < n ==> Seq#Length(Seq#Drop(s,n)) == 0));
-      |axiom (forall<T> s: Seq T, n: int, j: int :: { Seq#Index(Seq#Drop(s,n), j) } {:weight 25}
+      |axiom (forall<T> s: Seq T, n: int, j: int :: { Seq#Index(Seq#Drop(s,n), j) }
       |  0 <= n && 0 <= j && j < Seq#Length(s)-n ==>
       |    Seq#Index(Seq#Drop(s,n), j) == Seq#Index(s, j+n));
       |
