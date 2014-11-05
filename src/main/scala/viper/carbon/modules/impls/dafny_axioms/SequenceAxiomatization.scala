@@ -18,7 +18,6 @@ object SequenceAxiomatization {
       |axiom (forall<T> s: Seq T :: { Seq#Length(s) } 0 <= Seq#Length(s));
       |
       |function Seq#Empty<T>(): Seq T;
-      |function Seq#Empty<T>(): Seq T;
       |axiom (forall<T> :: Seq#Length(Seq#Empty(): Seq T) == 0);
       |axiom (forall<T> s: Seq T :: { Seq#Length(s) } Seq#Length(s) == 0 ==> s == Seq#Empty());
       |
