@@ -27,7 +27,7 @@ class BoogieDependency(_location: String) extends Dependency {
 
 trait BoogieInterface {
 
-  def defaultOptions = Seq("/vcsCores:" + java.lang.Runtime.getRuntime.availableProcessors, "/errorTrace:0", s"/z3exe:$z3Path")
+  def defaultOptions = Seq("/vcsCores:" + java.lang.Runtime.getRuntime.availableProcessors, "/errorTrace:0", "/proverOpt:O:smt.QI.EAGER_THRESHOLD=10000", s"/z3exe:$z3Path")
 
   /** The (resolved) path where Boogie is supposed to be located. */
   def boogiePath: String
