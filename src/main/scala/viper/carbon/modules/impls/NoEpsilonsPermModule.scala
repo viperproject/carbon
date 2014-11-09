@@ -201,13 +201,13 @@ class NoEpsilonsPermModule(val verifier: Verifier)
    * Expression that expresses that 'permission' is positive. 'silPerm' is used to
    * optimize the check if possible.
    */
-  private def permissionPositive(permission: Exp, silPerm: Option[sil.Exp] = None): Exp = {
+  private def permissionPositive(permission: Exp, silPerm: Option[sil.Exp] = None, zeroOK : Boolean = false): Exp = {
     (permission, silPerm) match {
       case (x, _) if permission == fullPerm => TrueLit()
       case (_, Some(sil.FullPerm())) => TrueLit()
       case (_, Some(sil.WildcardPerm())) => TrueLit()
-      case (_, Some(sil.NoPerm())) => FalseLit()
-      case _ => permission > RealLit(0)
+      case (_, Some(sil.NoPerm())) => if (zeroOK) TrueLit() else FalseLit()
+      case _ => if(zeroOK) permission >= RealLit(0) else permission > RealLit(0)
     }
   }
 
@@ -217,7 +217,7 @@ class NoEpsilonsPermModule(val verifier: Verifier)
         val perms = PermissionSplitter.splitPerm(p) filter (x => x._1 - 1 == exhaleModule.currentPhaseId)
         (if (exhaleModule.currentPhaseId == 0)
           (if (!p.isInstanceOf[WildcardPerm])
-            Assert(permissionPositive(translatePerm(p), Some(p)), error.dueTo(reasons.NonPositivePermission(p))) else Nil: Stmt) ++
+            Assert(permissionPositive(translatePerm(p), Some(p), true), error.dueTo(reasons.NegativePermission(p))) else Nil: Stmt) ++
             Assert(checkNonNullReceiver(loc), error.dueTo(reasons.ReceiverNull(loc)))
           else Nil) ++
           (if (perms.size == 0) {
@@ -275,7 +275,7 @@ class NoEpsilonsPermModule(val verifier: Verifier)
           }
         stmts ++
           (permVar := permVal) ++
-          Assume(permissionPositive(permVar, Some(perm))) ++
+          Assume(permissionPositive(permVar, Some(perm), true)) ++
           Assume(checkNonNullReceiver(loc)) ++
           (if (!isUsingOldState) curPerm := permAdd(curPerm, permVar) else Nil)
       case _ => Nil
@@ -489,7 +489,7 @@ class NoEpsilonsPermModule(val verifier: Verifier)
 
     def isNegativePerm(e: sil.Exp): Exp = {
       require(e isSubtype sil.Perm)
-      val backup = permissionPositive(translatePerm(e), Some(e))
+      val backup = UnExp(Not,permissionPositive(translatePerm(e), Some(e), true))
       e match {
         case sil.NoPerm() => TrueLit()
         case sil.FullPerm() => FalseLit()
