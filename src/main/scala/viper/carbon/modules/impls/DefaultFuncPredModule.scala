@@ -250,8 +250,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private def functionFrame(pres: Seq[sil.Exp]): Exp = {
     pres match {
       case Nil => emptyFrame
-      case pre :: Nil => functionFrameHelper(pre)
-      case p :: ps => combineFrames(functionFrameHelper(p), functionFrame(ps))
+      case pre +: Nil => functionFrameHelper(pre)
+      case p +: ps => combineFrames(functionFrameHelper(p), functionFrame(ps))
     }
   }
   private def combineFrames(a: Exp, b: Exp) = {
