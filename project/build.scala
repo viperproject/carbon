@@ -12,7 +12,8 @@ object CarbonBuild extends Build {
           scalaVersion := "2.10.1",
           scalacOptions in Compile ++= Seq("-deprecation", "-unchecked", "-feature"),
           libraryDependencies += "org.rogach" %% "scallop" % "0.9.4",
-          libraryDependencies += "org.jgrapht" % "jgrapht-jdk1.5" % "0.7.3"
+          libraryDependencies += "org.jgrapht" % "jgrapht-core" % "0.9.0",
+          libraryDependencies += "org.jgrapht" % "jgrapht-ext" % "0.9.0"
        )
   )
 
