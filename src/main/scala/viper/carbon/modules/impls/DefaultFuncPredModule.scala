@@ -194,11 +194,11 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   /**
    * Transform all function applications to their limited form.
-   * If height is provided, functions of that height and below need not have their applications replaced with the limited form.
+   * If height is provided, functions of above that height need not have their applications replaced with the limited form.
    */
   private def transformLimited(exp: Exp, heightToSkip : Int = -1): Exp = {
     def transformer: PartialFunction[Exp, Option[Exp]] = {
-      case FuncApp(recf, recargs, t) if recf.namespace == fpNamespace && (heightToSkip == -1 || heights(verifier.program.findFunction(recf.name)) < heightToSkip) => {
+      case FuncApp(recf, recargs, t) if recf.namespace == fpNamespace && (heightToSkip == -1 || heights(verifier.program.findFunction(recf.name)) <= heightToSkip) => {
         // change all function applications to use the limited form, and still go through all arguments
         Some(FuncApp(Identifier(recf.name + limitedPostfix), recargs map (_.transform(transformer)), t))
       }
