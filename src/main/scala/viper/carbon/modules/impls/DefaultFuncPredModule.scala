@@ -183,7 +183,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val heap = heapModule.stateContributions
     val args = f.formalArgs map translateLocalVarDecl
     val fapp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
-    val body = transformLimited(translateExp(f.exp))
+    val body = transformLimited(translateExp(f.exp),height)
     Axiom(Forall(
       stateModule.stateContributions ++ args,
       Trigger(Seq(staticGoodState, fapp)),
@@ -194,12 +194,14 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   /**
    * Transform all function applications to their limited form.
+   * If height is provided, functions of that height and below need not have their applications replaced with the limited form.
    */
-  private def transformLimited(exp: Exp): Exp = {
+  private def transformLimited(exp: Exp, heightToSkip : Int = -1): Exp = {
     def transformer: PartialFunction[Exp, Option[Exp]] = {
-      case FuncApp(recf, recargs, t) if recf.namespace == fpNamespace =>
+      case FuncApp(recf, recargs, t) if recf.namespace == fpNamespace && (heightToSkip == -1 || heights(verifier.program.findFunction(recf.name)) < heightToSkip) => {
         // change all function applications to use the limited form, and still go through all arguments
         Some(FuncApp(Identifier(recf.name + limitedPostfix), recargs map (_.transform(transformer)), t))
+      }
     }
     exp transform transformer
   }
@@ -216,8 +218,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       }
       Axiom(Forall(
         stateModule.stateContributions ++ args,
-        Trigger(Seq(staticGoodState, fapp)),
-        (staticGoodState && assumeFunctionsAbove(height)) ==> bPost))
+        Trigger(Seq(staticGoodState, transformLimited(fapp))),
+        (staticGoodState && assumeFunctionsAbove(height)) ==> transformLimited(bPost)))
     }
   }
 
@@ -241,7 +243,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       Axiom(Forall(
         stateModule.stateContributions ++ args,
         Trigger(Seq(staticGoodState, transformLimited(funcApp2))),
-        staticGoodState ==> (funcApp2 === funcApp)))
+        staticGoodState ==> (transformLimited(funcApp2) === funcApp)))
   }
 
   /** Generate an expression that represents the state a function can depend on
