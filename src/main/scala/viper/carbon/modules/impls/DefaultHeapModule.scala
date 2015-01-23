@@ -218,9 +218,9 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
   private def predicateTrigger(f: sil.Predicate, predicateField: Exp): Exp = {
     FuncApp(predicateTriggerIdentifer(f), Seq(predicateField), Bool)
   }
-  override def predicateTrigger(pred: sil.PredicateAccess): Stmt = {
+  override def predicateTrigger(pred: sil.PredicateAccess): Exp = {
     val predicate = verifier.program.findPredicate(pred.predicateName)
-    Assume(FuncApp(predicateTriggerIdentifer(predicate), Seq(translateLocation(pred)), Bool))
+    FuncApp(predicateTriggerIdentifer(predicate), Seq(translateLocation(pred)), Bool)
   }
 
   /** Returns a heap-lookup of the allocated field of an object. */

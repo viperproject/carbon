@@ -7,6 +7,7 @@
 package viper.carbon.modules.impls
 
 import viper.carbon.modules._
+import viper.silver.ast.{PredicateAccess, PredicateAccessPredicate, Unfolding}
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.{Environment, Verifier}
@@ -183,10 +184,12 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val heap = heapModule.stateContributions
     val args = f.formalArgs map translateLocalVarDecl
     val fapp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
-    val body = transformLimited(translateExp(f.exp),height)
+    val body = transformLimited(translateExp(f.body),height)
+    val outerUnfoldings : Seq[Unfolding] = Functions.recursiveCallsAndSurroundingUnfoldings(f).map((pair) => pair._2.headOption).flatten
+    val predicateTriggers = outerUnfoldings.map{case Unfolding(PredicateAccessPredicate(predacc : PredicateAccess,perm),exp) => predicateTrigger(predacc)}
     Axiom(Forall(
       stateModule.stateContributions ++ args,
-      Trigger(Seq(staticGoodState, fapp)),
+      Trigger((if (predicateTriggers.isEmpty) Seq(staticGoodState,fapp) else Seq(staticGoodState, transformLimited(fapp)) ++ predicateTriggers)),
       (staticGoodState && assumeFunctionsAbove(height)) ==>
         (fapp === body)
     ))
@@ -194,7 +197,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   /**
    * Transform all function applications to their limited form.
-   * If height is provided, functions of above that height need not have their applications replaced with the limited form.
+   * If height is provided (i.e., non-negative), functions of above that height need not have their applications replaced with the limited form.
    */
   private def transformLimited(exp: Exp, heightToSkip : Int = -1): Exp = {
     def transformer: PartialFunction[Exp, Option[Exp]] = {
@@ -290,9 +293,9 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val checkPre = MaybeCommentBlock("Inhaling precondition (with checking)",
       f.pres map (e => checkDefinednessOfSpecAndInhale(e, errors.FunctionNotWellformed(f))))
     val checkExp = MaybeCommentBlock("Check definedness of function body",
-      expModule.checkDefinedness(f.exp, errors.FunctionNotWellformed(f)))
+      expModule.checkDefinedness(f.body, errors.FunctionNotWellformed(f)))
     val exp = MaybeCommentBlock("Translate function body",
-      translateResult(res) := translateExp(f.exp))
+      translateResult(res) := translateExp(f.body))
     val checkPost = MaybeCommentBlock("Exhaling postcondition (with checking)",
       f.posts map (e => checkDefinednessOfSpecAndExhale(e, errors.ContractNotWellformed(e), errors.PostconditionViolated(e, f))))
     val body = Seq(init, initOld, checkPre, checkExp, exp, checkPost)
@@ -364,7 +367,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private def foldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError): Stmt = {
     duringFold = true
     foldInfo = acc
-    val stmt = predicateTrigger(acc.loc) ++
+    val stmt = Assume(predicateTrigger(acc.loc)) ++
       exhale(Seq((acc.loc.predicateBody(verifier.program), error)), havocHeap = false) ++
       inhale(acc)
     foldInfo = null
@@ -390,7 +393,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     duringFold = false
     duringUnfold = true
     unfoldInfo = acc
-    val stmt = predicateTrigger(acc.loc) ++
+    val stmt = Assume(predicateTrigger(acc.loc)) ++
       exhale(Seq((acc, error)), havocHeap = false) ++
       inhale(acc.loc.predicateBody(verifier.program))
     unfoldInfo = oldUnfoldInfo
