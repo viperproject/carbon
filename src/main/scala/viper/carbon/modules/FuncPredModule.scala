@@ -15,10 +15,18 @@ import viper.carbon.boogie.{Stmt, Decl, Exp}
  */
 trait FuncPredModule extends Module {
   def translateFunction(f: sil.Function): Seq[Decl]
+
   def translateFuncApp(fa: sil.FuncApp): Exp
+
   def translatePredicate(p: sil.Predicate): Seq[Decl]
+
   def assumeAllFunctionDefinitions: Stmt
+
   def translateResult(r: sil.Result): Exp
+
   def translateFold(fold: sil.Fold): Stmt
+
   def translateUnfold(unfold: sil.Unfold): Stmt
+
+  def toTriggers(e: Exp): Exp
 }

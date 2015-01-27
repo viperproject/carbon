@@ -306,7 +306,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   override def translateResult(r: sil.Result) = translateResultDecl(r).l
 
   override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
-    (if(makeChecks) (
+    if(makeChecks)
       e match {
         case fa@sil.FuncApp(f, args) => {
           val funct = verifier.program.findFunction(f);
@@ -320,7 +320,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         }
         case _ => Nil
       }
-    ) else Nil)
+    else Nil
   }
 
   private var tmpStateId = -1
@@ -341,6 +341,11 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         (before, after)
       case _ => (() => simplePartialCheckDefinedness(e, error, makeChecks), () => Nil)
     }
+  }
+
+
+  override def toTriggers(e: Exp): Exp = {
+    transformLimited(e)
   }
 
   // --------------------------------------------

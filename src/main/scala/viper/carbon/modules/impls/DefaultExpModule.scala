@@ -76,7 +76,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         // alpha renaming, to avoid clashes in context
         val renamedVars : Seq[sil.LocalVarDecl] = vars map (v => { val v1 = env.makeUniquelyNamed(v); env.define(v1.localVar); v1 } );
         val renaming = (e:sil.Exp) => Expressions.instantiateVariables(e,(vars map (_.localVar)), renamedVars map (_.localVar) )
-        val ts = triggers map (t => Trigger(t.exps map {e => translateExp(renaming(e))}))
+        val ts = triggers map (t => Trigger(t.exps map {e => verifier.funcPredModule.toTriggers(translateExp(renaming(e)))}))
         val res = Forall(renamedVars map translateLocalVarDecl, ts, translateExp(renaming(exp)))
         renamedVars map (v => env.undefine(v.localVar))
         res
@@ -199,7 +199,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   }
 
   override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
-    if(makeChecks) (
+    if(makeChecks)
       e match {
         case sil.Div(a, b) =>
           Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
@@ -209,7 +209,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
         case _ => Nil
       }
-    ) else Nil
+    else Nil
   }
 
   override def checkDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks:Boolean): Stmt = {
@@ -248,7 +248,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           stmt ++ stmt2 ++ stmt3 ++
             MaybeCommentBlock("Free assumptions", allFreeAssumptions(e))
         }
-        
+
         if (e.isInstanceOf[sil.QuantifiedExp]) {
           val bound_vars = e.asInstanceOf[sil.QuantifiedExp].variables
 	  bound_vars map (v => env.define(v.localVar))
