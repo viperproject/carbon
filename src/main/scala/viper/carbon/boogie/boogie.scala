@@ -149,7 +149,7 @@ sealed trait Exp extends Node with PrettyExpression {
   def >(other: Exp) = BinExp(this, GtCmp, other)
   def <=(other: Exp) = BinExp(this, LeCmp, other)
   def >=(other: Exp) = BinExp(this, GeCmp, other)
-  def neg = UnExp(Neg, this)
+  def neg = UnExp(Minus, this)
   def &&(other: Exp) = BinExp(this, And, other)
   def ||(other: Exp) = BinExp(this, Or, other)
   def ==>(other: Exp) = BinExp(this, Implies, other)
@@ -225,7 +225,7 @@ case object Equiv extends BinOp("<==>", 25, Infix(NonAssoc))// removed non ASCII
 
 sealed abstract class UnOp(val name: String, val priority: Int, val fixity: Fixity)
 case object Not extends UnOp("¬" or "!", 1, Prefix)
-case object Neg extends UnOp("-", 1, Prefix)
+case object Minus extends UnOp("-", 1, Prefix)
 
 sealed trait QuantifiedExp extends Exp {
   def vars: Seq[LocalVarDecl]

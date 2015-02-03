@@ -81,9 +81,9 @@ object Optimizer {
       case Exists(_, BoolLit(literal)) =>
         BoolLit(literal)
 
-      case UnExp(Neg, IntLit(literal)) => IntLit(-literal)
-      case UnExp(Neg, RealLit(literal)) => RealLit(-literal)
-      case UnExp(Neg, UnExp(Neg, single)) => single
+      case UnExp(Minus, IntLit(literal)) => IntLit(-literal)
+      case UnExp(Minus, RealLit(literal)) => RealLit(-literal)
+      case UnExp(Minus, UnExp(Minus, single)) => single
 
       case BinExp(IntLit(left), GeCmp, IntLit(right)) =>
         BoolLit(left >= right)
