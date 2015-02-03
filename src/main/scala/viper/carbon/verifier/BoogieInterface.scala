@@ -68,7 +68,7 @@ trait BoogieInterface {
     var otherErrId = 0
     var version_found : String = null
 
-    val unexpected : (String => Unit) = ((msg:String) => {
+    val unexpected : (String => Unit) = (msg:String) => {
       otherErrId -= 1
 
       errors += otherErrId
@@ -95,7 +95,7 @@ trait BoogieInterface {
           s"Internal error: $text"
       }
       errormap += (otherErrId -> internalError)
-    })
+    }
 
     for (l <- output.linesIterator) {
       l match {
