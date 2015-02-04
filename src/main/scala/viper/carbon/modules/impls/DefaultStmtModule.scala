@@ -128,8 +128,8 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
         MaybeCommentBlock("Exhale loop invariant before loop",
           executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotEstablished(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotEstablished(e))))
         ) ++
-          MaybeCommentBlock("Havoc loop targets",
-            Havoc((w.writtenVars map translateExp).asInstanceOf[Seq[Var]]) ++
+          MaybeCommentBlock("Havoc loop written variables (except locals)", // this should perhaps be revisited when scopes are properly implemented
+            Havoc(((w.writtenVars diff (locals map (_.localVar))) map translateExp).asInstanceOf[Seq[Var]]) ++
               (w.writtenVars map (v => mainModule.allAssumptionsAboutValue(v.typ,mainModule.translateLocalVarSig(v.typ, v),false)))
           ) ++
           MaybeCommentBlock("Check definedness of invariant", NondetIf(
@@ -137,6 +137,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
               Assume(FalseLit())
           )) ++
           MaybeCommentBlock("Check the loop body", NondetIf({
+            locals map (v => mainModule.env.define(v.localVar)) // add local variables to environment - this should be revisited when scopes are properly implemented
             val (freshStateStmt, prevState) = stateModule.freshTempState("loop")
             val stmts = MaybeComment("Reset state", freshStateStmt ++ stateModule.initState) ++
               MaybeComment("Inhale invariant", inhale(w.invs) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv)))) ++
@@ -148,6 +149,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
               MaybeComment("Exhale invariant", executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotPreserved(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e))))) ++
               MaybeComment("Terminate execution", Assume(FalseLit()))
             stateModule.restoreState(prevState)
+            locals map (v => mainModule.env.undefine(v.localVar)) // remove local variables from environment - this should be revisited when scopes are properly implemented
             stmts
           }
           )) ++
