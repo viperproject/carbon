@@ -66,6 +66,15 @@ sealed trait Node {
     Visitor.visitOpt(this, f1, f2)
   }
 
+  /**
+   * Performs substitution on the AST
+   * @param original The node to match against (and replace)
+   * @param replacement The node to replace all occurrences with
+   * @return The result of the substitution
+   */
+  def replace[A <: Node](original: A, replacement: A): A =
+    Transformer.transform(this,{case `original` => replacement})()
+
   override def toString = PrettyPrinter.pretty(this)
 }
 
