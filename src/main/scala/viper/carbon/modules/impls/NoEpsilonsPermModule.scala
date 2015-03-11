@@ -520,7 +520,6 @@ class NoEpsilonsPermModule(val verifier: Verifier)
     def isFixedPerm(e: sil.Exp): Boolean = {
       require(e isSubtype sil.Perm)
       e match {
-        //case x: silver.LocalVar if isAbstractRead(x) => false
         case x: sil.LocalVar => false // we have to be conservative - anything could have been assigned here
         case sil.NoPerm() => true
         case sil.FullPerm() => true
@@ -637,13 +636,11 @@ class NoEpsilonsPermModule(val verifier: Verifier)
       }
     }
 
-    def splitPerm(e: sil.Exp): Seq[(Int, Exp, sil.Exp)] = {
-      val perms = splitPermHelper(e)
-      perms
-    }
-
     // decide which phase this permission amount belongs to, and the conditional under which the decision is made
-    def splitPermHelper(e: sil.Exp): Seq[(Int, Exp, sil.Exp)] ={
+    // Phase 1: isFixedPerm(p)
+    // Phase 2: positive occurrences of abstract read permissions (and multiples thereof)
+    // Phase 3: everything else (e.g. 1-k where k is abstract read permission)
+    def splitPerm(e: sil.Exp): Seq[(Int, Exp, sil.Exp)] ={
       def addCond(in: Seq[(Int, Exp, sil.Exp)], c: Exp): Seq[(Int, Exp, sil.Exp)] = {
         in map (x => (x._1, BinExp(c, And, x._2), x._3))
       }
@@ -673,16 +670,16 @@ class NoEpsilonsPermModule(val verifier: Verifier)
           val cond = isPositivePerm(left) && (translateExp(n) > zero)
           Seq((2, cond, e), (3, UnExp(Not, cond), e))
         case sil.PermAdd(left, right) =>
-          val splitted = splitPermHelper(left) ++ splitPermHelper(right)
+          val splitted = splitPerm(left) ++ splitPerm(right)
           val cond = isPositivePerm(left) && isPositivePerm(right)
           addCond(splitted, cond) ++ Seq((3, UnExp(Not, cond), e))
         case sil.CondExp(cond,thn,els) =>
-          val thncases = splitPermHelper(thn)
-          val elscases = splitPermHelper(els)
+          val thncases = splitPerm(thn)
+          val elscases = splitPerm(els)
           val transcond = translateExp(cond)
           addCond(thncases,transcond) ++ addCond(elscases,UnExp(Not,transcond))
         case sil.PermDiv(a,n) =>
-          val cases = splitPermHelper(a)
+          val cases = splitPerm(a)
           divideBy(cases,n)
         case _ =>
           (3, TrueLit(), e)
