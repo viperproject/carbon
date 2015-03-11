@@ -7,7 +7,7 @@
 package viper.carbon.boogie
 
 /**
- * An implementation for visitors of the SIL AST.
+ * An implementation for visitors of the Boogie AST.
 
  */
 object Visitor {
