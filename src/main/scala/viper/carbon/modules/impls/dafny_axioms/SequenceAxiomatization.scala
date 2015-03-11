@@ -37,7 +37,8 @@ object SequenceAxiomatization {
       |
       |function Seq#Index<T>(Seq T, int): T;
       |axiom (forall<T> t: T :: { Seq#Index(Seq#Singleton(t), 0) } Seq#Index(Seq#Singleton(t), 0) == t);
-      |axiom (forall<T> s0: Seq T, s1: Seq T, n: int :: { Seq#Index(Seq#Append(s0,s1), n) }
+      |// ** AS: 1st of 3 axioms which get instantiated very often in certain problems involving take/drop/append
+      |axiom (forall<T> s0: Seq T, s1: Seq T, n: int :: { Seq#Index(Seq#Append(s0,s1), n) } // {:weight 25} // AS: dropped weight
       |  (n < Seq#Length(s0) ==> Seq#Index(Seq#Append(s0,s1), n) == Seq#Index(s0, n)) &&
       |  (Seq#Length(s0) <= n ==> Seq#Index(Seq#Append(s0,s1), n) == Seq#Index(s1, n - Seq#Length(s0))));
       |
@@ -53,7 +54,7 @@ object SequenceAxiomatization {
       |axiom (forall<T> s: Seq T, x: T :: { Seq#Contains(s,x) }
       |  Seq#Contains(s,x) <==>
       |    (exists i: int :: { Seq#Index(s,i) } 0 <= i && i < Seq#Length(s) && Seq#Index(s,i) == x));
-      |// AS: made one change here - changed type of x from ref to T
+      |// ** AS: made one change here - changed type of x from ref to T
       |axiom (forall<T> x: T ::
       |  { Seq#Contains(Seq#Empty(), x) }
       |  !Seq#Contains(Seq#Empty(), x));
@@ -97,7 +98,8 @@ object SequenceAxiomatization {
       |  0 <= n ==>
       |    (n <= Seq#Length(s) ==> Seq#Length(Seq#Take(s,n)) == n) &&
       |    (Seq#Length(s) < n ==> Seq#Length(Seq#Take(s,n)) == Seq#Length(s)));
-      |axiom (forall<T> s: Seq T, n: int, j: int :: { Seq#Index(Seq#Take(s,n), j) }
+      |// ** AS: 2nd of 3 axioms which get instantiated very often in certain problems involving take/drop/append
+      |axiom (forall<T> s: Seq T, n: int, j: int :: { Seq#Index(Seq#Take(s,n), j) } // {:weight 25} // AS: dropped weight
       |  0 <= j && j < n && j < Seq#Length(s) ==>
       |    Seq#Index(Seq#Take(s,n), j) == Seq#Index(s, j));
       |
@@ -106,24 +108,26 @@ object SequenceAxiomatization {
       |  0 <= n ==>
       |    (n <= Seq#Length(s) ==> Seq#Length(Seq#Drop(s,n)) == Seq#Length(s) - n) &&
       |    (Seq#Length(s) < n ==> Seq#Length(Seq#Drop(s,n)) == 0));
-      |axiom (forall<T> s: Seq T, n: int, j: int :: { Seq#Index(Seq#Drop(s,n), j) }
+      |// ** AS: 3rd of 3 axioms which get instantiated very often in certain problems involving take/drop/append
+      |axiom (forall<T> s: Seq T, n: int, j: int :: { Seq#Index(Seq#Drop(s,n), j) } // {:weight 25} // AS: dropped weight
       |  0 <= n && 0 <= j && j < Seq#Length(s)-n ==>
       |    Seq#Index(Seq#Drop(s,n), j) == Seq#Index(s, j+n));
       |
+      |// ** AS: We dropped the weak trigger on this axiom. One option is to strengthen the triggers:
       |//axiom (forall<T> s, t: Seq T ::
-      |// { Seq#Take(Seq#Append(s, t), Seq#Length(s)) }{ Seq#Drop(Seq#Append(s, t), Seq#Length(s)) }
-      |// //{Seq#Append(s,t)}
+      |// // { Seq#Append(s, t) }
+      |//  {Seq#Take(Seq#Append(s, t), Seq#Length(s))}{Seq#Drop(Seq#Append(s, t), Seq#Length(s))}
       |//  Seq#Take(Seq#Append(s, t), Seq#Length(s)) == s &&
       |//  Seq#Drop(Seq#Append(s, t), Seq#Length(s)) == t);
       |
-      |axiom (forall<T> s, t: Seq T ::
-      | { Seq#Take(Seq#Append(s, t), Seq#Length(s)) }
-      |  Seq#Take(Seq#Append(s, t), Seq#Length(s)) == s);
+      |// ** AS: another option is to split the axiom (for some reason, this seems in some cases to perform slightly less well (but this could be random):
+      |//axiom (forall<T> s, t: Seq T ::
+      |// { Seq#Take(Seq#Append(s, t), Seq#Length(s)) }
+      |//  Seq#Take(Seq#Append(s, t), Seq#Length(s)) == s);
       |
-      |axiom (forall<T> s, t: Seq T ::
-      | { Seq#Drop(Seq#Append(s, t), Seq#Length(s)) }
-      |  Seq#Drop(Seq#Append(s, t), Seq#Length(s)) == t);
-      |
+      |//axiom (forall<T> s, t: Seq T ::
+      |// { Seq#Drop(Seq#Append(s, t), Seq#Length(s)) }
+      |//  Seq#Drop(Seq#Append(s, t), Seq#Length(s)) == t);
       |
       |// Commutability of Take and Drop with Update.
       |axiom (forall<T> s: Seq T, i: int, v: T, n: int ::
@@ -144,25 +148,27 @@ object SequenceAxiomatization {
       |        0 <= n && n <= Seq#Length(s) ==> Seq#Drop(Seq#Build(s, v), n) == Seq#Build(Seq#Drop(s, n), v) );
       |
       |// Additional axioms about common things
-      |axiom (forall<T> s: Seq T, n: int :: { Seq#Drop(s, n) }
+      |axiom (forall<T> s: Seq T, n: int :: { Seq#Drop(s, n) } // ** NEW
       |        n == 0 ==> Seq#Drop(s, n) == s);
-      |axiom (forall<T> s: Seq T, n: int :: { Seq#Take(s, n) }
+      |axiom (forall<T> s: Seq T, n: int :: { Seq#Take(s, n) } // ** NEW
       |        n == 0 ==> Seq#Take(s, n) == Seq#Empty());
-      |axiom (forall<T> s: Seq T, m, n: int :: { Seq#Drop(Seq#Drop(s, m), n) }
+      |axiom (forall<T> s: Seq T, m, n: int :: { Seq#Drop(Seq#Drop(s, m), n) } // ** NEW - AS: could have bad triggering behaviour?
       |        0 <= m && 0 <= n && m+n <= Seq#Length(s) ==>
       |        Seq#Drop(Seq#Drop(s, m), n) == Seq#Drop(s, m+n));
+      |
+      |// extra stuff not in current Dafny Prelude
       |
       |axiom (forall<T> x, y: T ::
       |  { Seq#Contains(Seq#Singleton(x),y) }
       |    Seq#Contains(Seq#Singleton(x),y) <==> x==y);
       |
       |function Seq#Range(min: int, max: int) returns (Seq int);
-      |
       |axiom (forall min: int, max: int :: { Seq#Length(Seq#Range(min, max)) } (min < max ==> Seq#Length(Seq#Range(min, max)) == max-min) && (max <= min ==> Seq#Length(Seq#Range(min, max)) == 0));
       |axiom (forall min: int, max: int, j: int :: { Seq#Index(Seq#Range(min, max), j) } 0<=j && j<max-min ==> Seq#Index(Seq#Range(min, max), j) == min + j);
       |
       |axiom (forall min: int, max: int, v: int :: {Seq#Contains(Seq#Range(min, max),v)}
       |  (Seq#Contains(Seq#Range(min, max),v) <==> min <= v && v < max));
+      |
       |
       |""".stripMargin
 }
