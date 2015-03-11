@@ -302,7 +302,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
    * Adds the permissions from an expression to a permission mask.
    */
   private def addPermissionToPMask(loc: sil.PredicateAccess): Stmt = {
-    addPermissionToPMaskHelper(loc.predicateBody(verifier.program), predicateMask(loc))
+    addPermissionToPMaskHelper(loc.predicateBody(verifier.program).get, predicateMask(loc))
   }
   private def addPermissionToPMaskHelper(e: sil.Exp, pmask: Exp): Stmt = {
     e match {
