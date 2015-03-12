@@ -50,6 +50,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   import verifier._
   import heapModule._
+  import mainModule._
   import expModule._
   import stateModule._
 
@@ -277,6 +278,9 @@ class QuantifiedPermModule(val verifier: Verifier)
           Assume(permissionPositive(permVar, Some(perm), true)) ++
           Assume(checkNonNullReceiver(loc)) ++
           (if (!isUsingOldState) curPerm := permAdd(curPerm, permVar) else Nil)
+      case sil.QuantifiedPermissionSupporter.ForallRefPerm(v,cond,recv,fld,perms,forall,fieldAccess) =>
+        val v1 = env.makeUniquelyNamed(v); env.define(v1.localVar);
+        Nil
       case _ => Nil
     }
   }
