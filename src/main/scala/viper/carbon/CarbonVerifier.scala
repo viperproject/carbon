@@ -13,7 +13,7 @@ import viper.silver.ast.{Program,Method}
 import viper.silver.utility.Paths
 import viper.silver.verifier.Dependency
 import verifier.{BoogieInterface, Verifier, BoogieDependency}
-import java.io.File
+import java.io.{FileOutputStream, BufferedOutputStream, File}
 
 
 
@@ -135,6 +135,19 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
           case None =>
             Nil
         })
+      }
+    }
+
+    if(config != null)
+    {
+      config.boogieOut.get match {
+        case Some(filename) =>
+          // write Boogie program to the specified file
+          val f = new File(filename)
+          val stream = new BufferedOutputStream(new FileOutputStream(f))
+          stream.write(_translated.toString.getBytes)
+          stream.close()
+        case None =>
       }
     }
 
