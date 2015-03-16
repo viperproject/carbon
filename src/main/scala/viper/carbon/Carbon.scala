@@ -40,7 +40,7 @@ class CarbonConfig(args: Seq[String]) extends SilFrontendConfig(args, "Carbon") 
     noshort = true
   )
 
-  val boogieOut = opt[String]("boogieOut",
+  val boogieOut = opt[String]("print",
     descr = "Write the Boogie output file to the provided filename (default: none)",
     default = None,
     noshort = true
