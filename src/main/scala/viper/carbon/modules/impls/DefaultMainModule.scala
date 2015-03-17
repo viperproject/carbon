@@ -92,30 +92,30 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
 
   def translateMethodDecl(m: sil.Method): Seq[Decl] = {
     env = Environment(verifier, m)
-    val res = m match {
-      case sil.Method(name, formalArgs, formalReturns, pres, posts, locals, b) =>
-        val initOldStateComment = "Initializing of old state"
-        val ins: Seq[LocalVarDecl] = formalArgs map translateLocalVarDecl
-        val outs: Seq[LocalVarDecl] = formalReturns map translateLocalVarDecl
-        val init = MaybeCommentBlock("Initializing the state", stateModule.initState ++ assumeAllFunctionDefinitions)
-        val initOld = stateModule.initOldState
-        val paramAssumptions = m.formalArgs map (a => allAssumptionsAboutValue(a.typ, translateLocalVarDecl(a), true))
-        val localAssumptions = m.locals map (a => allAssumptionsAboutValue(a.typ, translateLocalVarDecl(a), true))
-        val inhalePre = MaybeCommentBlock("Checked inhaling of precondition",
-          pres map (e => checkDefinednessOfSpecAndInhale(e, errors.ContractNotWellformed(e))))
-        val checkPost: Stmt = if (posts.nonEmpty) NondetIf(
-          MaybeComment("Checked inhaling of postcondition to check definedness",
-            posts map (e => checkDefinednessOfSpecAndInhale(e, errors.ContractNotWellformed(e)))) ++
-            MaybeComment("Stop execution", Assume(FalseLit())), Nil)
-        else Nil
-        val postsWithErrors = posts map (p => (p, errors.PostconditionViolated(p, m)))
-        val exhalePost = MaybeCommentBlock("Exhaling postcondition", exhale(postsWithErrors))
-        val body: Stmt = translateStmt(b)
-        val proc = Procedure(Identifier(name), ins, outs,
-          Seq(init,
-            MaybeCommentBlock("Assumptions about method arguments", paramAssumptions),
-            MaybeCommentBlock("Assumptions about local variables", localAssumptions),
-            inhalePre,
+        val res = m match {
+          case sil.Method(name, formalArgs, formalReturns, pres, posts, locals, b) =>
+            val initOldStateComment = "Initializing of old state"
+            val ins: Seq[LocalVarDecl] = formalArgs map translateLocalVarDecl
+            val outs: Seq[LocalVarDecl] = formalReturns map translateLocalVarDecl
+            val init = MaybeCommentBlock("Initializing the state", stateModule.initState ++ assumeAllFunctionDefinitions)
+            val initOld = stateModule.initOldState
+            val paramAssumptions = m.formalArgs map (a => allAssumptionsAboutValue(a.typ, translateLocalVarDecl(a), true))
+            val localAssumptions = m.locals map (a => allAssumptionsAboutValue(a.typ, translateLocalVarDecl(a), true))
+            val inhalePre = MaybeCommentBlock("Checked inhaling of precondition",
+              pres map (e => checkDefinednessOfSpecAndInhale(e, errors.ContractNotWellformed(e))))
+            val checkPost: Stmt = if (posts.nonEmpty) NondetIf(
+              MaybeComment("Checked inhaling of postcondition to check definedness",
+                posts map (e => checkDefinednessOfSpecAndInhale(e, errors.ContractNotWellformed(e)))) ++
+                MaybeComment("Stop execution", Assume(FalseLit())), Nil)
+            else Nil
+            val postsWithErrors = posts map (p => (p, errors.PostconditionViolated(p, m)))
+            val exhalePost = MaybeCommentBlock("Exhaling postcondition", exhale(postsWithErrors))
+            val body: Stmt = translateStmt(b)
+            val proc = Procedure(Identifier(name), ins, outs,
+              Seq(init,
+                MaybeCommentBlock("Assumptions about method arguments", paramAssumptions),
+                MaybeCommentBlock("Assumptions about local variables", localAssumptions),
+                inhalePre,
             MaybeCommentBlock(initOldStateComment, initOld), checkPost,
             body, exhalePost))
         CommentedDecl(s"Translation of method $name", proc)

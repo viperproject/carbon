@@ -523,7 +523,7 @@ class NoEpsilonsPermModule(val verifier: Verifier)
         case x: sil.LocalVar => false // we have to be conservative - anything could have been assigned here
         case sil.NoPerm() => true
         case sil.FullPerm() => true
-        case sil.WildcardPerm() => true
+        case sil.WildcardPerm() => false
         case sil.EpsilonPerm() =>  sys.error("epsilon permissions are not supported by this permission module")
         case sil.CurrentPerm(loc) => true
         case sil.FractionalPerm(left, right) => true
