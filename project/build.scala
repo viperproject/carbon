@@ -12,8 +12,7 @@ object CarbonBuild extends Build {
           scalaVersion := "2.10.1",
           scalacOptions in Compile ++= Seq("-deprecation", "-unchecked", "-feature"),
           libraryDependencies += "org.rogach" %% "scallop" % "0.9.4",
-          libraryDependencies += "org.jgrapht" % "jgrapht-core" % "0.9.0",
-          libraryDependencies += "org.jgrapht" % "jgrapht-ext" % "0.9.0"
+          libraryDependencies += "org.jgrapht" % "jgrapht-core" % "0.9.0"
        )
   )
 
@@ -43,9 +42,7 @@ object CarbonBuild extends Build {
   // On the build-server, we cannot have all project in the same directory, and thus we use the publish-local mechanism for dependencies.
   def isBuildServer = sys.env.contains("BUILD_TAG") // should only be defined on the build server
   def internalDep = if (isBuildServer) Nil else Seq(dependencies.silSrc % "compile->compile;test->test")
-  def externalDep = {
-    (if (isBuildServer) Seq(dependencies.sil) else Nil)
-  }
+  def externalDep = if (isBuildServer) Seq(dependencies.sil) else Nil
 
   object dependencies {
     lazy val sil = "viper" %% "silver" %  "0.1-SNAPSHOT" % "compile->compile;test->test"
