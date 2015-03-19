@@ -31,6 +31,7 @@ trait Verifier {
   val domainModule: DomainModule
   val seqModule: SeqModule
   val setModule: SetModule
+  val wandModule: WandModule
 
   /**
    * A list of all modules.

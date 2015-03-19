@@ -73,6 +73,26 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     (s, previousState)
   }
 
+  //added by Gaurav 07.03.15
+  override def freshEmptyState(name: String): (Stmt, StateSnapshot) = {
+    val previousState = new java.util.IdentityHashMap[StateComponent, Seq[Exp]]()
+    val s = (for (c <- components) yield {
+      val tmpExps = c.freshTempState(name)
+      val curExps = curState.get(c)
+      previousState.put(c, curExps)
+      curState.put(c, tmpExps)
+      c.restoreState(tmpExps)
+      val stmt: Stmt  =
+        (tmpExps ) map (x => x match {
+          case v@LocalVar(_,_) => Havoc(v)
+          //Gaurav: should this be implemented by the components themselves?
+          case _ => Statements.EmptyStmt
+        })
+      stmt
+    })
+    (s, previousState)
+  }
+
   override def restoreState(snapshot: StateSnapshot) {
     curState = snapshot
     for (c <- components) {

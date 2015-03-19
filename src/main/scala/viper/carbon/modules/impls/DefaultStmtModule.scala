@@ -28,6 +28,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
   import inhaleModule._
   import typeModule._
   import funcPredModule._
+  import wandModule._
 
   override def initialize() {
     // this is the main translation, so it should come at the beginning
@@ -174,6 +175,8 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
         Goto(Lbl(Identifier(target)(lblNamespace)))
       case sil.NewStmt(target,fields) =>
         Nil
+      case pa@sil.Package(wand) =>
+        translatePackage(pa)
       case _: sil.Seqn =>
         Nil
     }

@@ -59,6 +59,12 @@ trait StateModule extends Module with ComponentRegistry[StateComponent] {
   def freshTempState(name: String): (Stmt, StateSnapshot)
 
   /**
+   * Create a state without any information and return a snapshot of the current state.
+   * [added by Gaurav 06.03.2015]
+   */
+  def freshEmptyState(name: String): (Stmt, StateSnapshot)
+
+  /**
    * Restore the state to a given snapshot.
    */
   def restoreState(snapshot: StateSnapshot)

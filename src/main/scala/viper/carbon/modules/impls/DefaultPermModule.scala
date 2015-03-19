@@ -281,44 +281,44 @@ class DefaultPermModule(val verifier: Verifier)
           (if (!p.isInstanceOf[WildcardPerm])
             Assert(permissionPositive(translatePerm(p), Some(p),true), error.dueTo(reasons.NegativePermission(p))) else Nil: Stmt) ++
             Assert(checkNonNullReceiver(loc), error.dueTo(reasons.ReceiverNull(loc)))
-          else Nil) ++
+        else Nil) ++
           (if (perms.size == 0) {
-          Nil
-        } else {
+            Nil
+          } else {
             val permVar = LocalVar(Identifier("perm"), permType)
             val curPerm = currentPermission(loc)
             var onlyWildcard = true
             (permVar := noPerm) ++
-            (for ((_, cond, perm) <- perms) yield {
-            val (permVal, wildcard, stmts): (Exp, Exp, Stmt) =
-              if (perm.isInstanceOf[WildcardPerm]) {
-                val w = LocalVar(Identifier("wildcard"), Real)
-                (fracPerm(w), w, LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil)
-              } else {
-                onlyWildcard = false
-                (translatePerm(perm), null, Nil)
-              }
-            If(cond,
-              stmts ++
-                (permVar := permAdd(permVar, permVal)) ++
-                (if (perm.isInstanceOf[WildcardPerm]) {
-                  (Assert(fracComp(curPerm) > RealLit(0), error.dueTo(reasons.InsufficientPermission(loc))) ++
-                    Assume(wildcard < fracComp(curPerm))): Stmt
-                } else {
-                  Nil
-                }),
-              Nil)
-          }).flatten ++
+              (for ((_, cond, perm) <- perms) yield {
+                val (permVal, wildcard, stmts): (Exp, Exp, Stmt) =
+                  if (perm.isInstanceOf[WildcardPerm]) {
+                    val w = LocalVar(Identifier("wildcard"), Real)
+                    (fracPerm(w), w, LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil)
+                  } else {
+                    onlyWildcard = false
+                    (translatePerm(perm), null, Nil)
+                  }
+                If(cond,
+                  stmts ++
+                    (permVar := permAdd(permVar, permVal)) ++
+                    (if (perm.isInstanceOf[WildcardPerm]) {
+                      (Assert(fracComp(curPerm) > RealLit(0), error.dueTo(reasons.InsufficientPermission(loc))) ++
+                        Assume(wildcard < fracComp(curPerm))): Stmt
+                    } else {
+                      Nil
+                    }),
+                  Nil)
+              }).flatten ++
               (if (onlyWildcard) Nil else if (exhaleModule.currentPhaseId + 1 == 2) {
                 If(permVar !== noPerm,
-                (Assert(fracComp(curPerm) > RealLit(0), error.dueTo(reasons.InsufficientPermission(loc))) ++
-                  Assume(fracComp(permVar) < fracComp(curPerm))): Stmt, Nil)
+                  (Assert(fracComp(curPerm) > RealLit(0), error.dueTo(reasons.InsufficientPermission(loc))) ++
+                    Assume(fracComp(permVar) < fracComp(curPerm))): Stmt, Nil)
               } else {
                 If(permVar !== noPerm,
-                Assert(permLe(permVar, curPerm), error.dueTo(reasons.InsufficientPermission(loc))), Nil)
+                  Assert(permLe(permVar, curPerm), error.dueTo(reasons.InsufficientPermission(loc))), Nil)
               }) ++
               (if (!isUsingOldState) curPerm := permSub(curPerm, permVar) else Nil)
-        })
+          })
       case _ => Nil
     }
   }
@@ -396,7 +396,7 @@ class DefaultPermModule(val verifier: Verifier)
       case sil.CondExp(cond, thn, els) =>
         CondExp(translateExp(cond), translatePerm(thn), translatePerm(els))
       case _ //sil.LocalVar | _: sil.FuncLikeApp | _:sil.FieldAccess
-       =>
+      =>
         translateExp(e) // any permission-typed expression should be translatable
       //case _ => sys.error(s"not a permission expression: $e")
     }
@@ -511,28 +511,28 @@ class DefaultPermModule(val verifier: Verifier)
   private var allowLocationAccessWithoutPerm = false
   override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
     if(makeChecks) (
-    e match {
-      case sil.CurrentPerm(loc) =>
-        allowLocationAccessWithoutPerm = true
-        Nil
-      case sil.AccessPredicate(loc, perm) =>
-        allowLocationAccessWithoutPerm = true
-        Nil
-      case fa@sil.LocationAccess(_) =>
-        if (allowLocationAccessWithoutPerm) {
-          allowLocationAccessWithoutPerm = false
+      e match {
+        case sil.CurrentPerm(loc) =>
+          allowLocationAccessWithoutPerm = true
           Nil
-        } else {
-          Assert(hasDirectPerm(fa), error.dueTo(reasons.InsufficientPermission(fa)))
-        }
-      case pm@sil.PermMul(a, b) =>
-        Assert(epsComp(translatePerm(a)) === RealLit(0), error.dueTo(reasons.InvalidPermMultiplication(pm))) ++
-          Assert(epsComp(translatePerm(b)) === RealLit(0), error.dueTo(reasons.InvalidPermMultiplication(pm)))
-      case sil.PermDiv(a, b) =>
-        Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
-      case _ => Nil
-    }
-    ) else Nil
+        case sil.AccessPredicate(loc, perm) =>
+          allowLocationAccessWithoutPerm = true
+          Nil
+        case fa@sil.LocationAccess(_) =>
+          if (allowLocationAccessWithoutPerm) {
+            allowLocationAccessWithoutPerm = false
+            Nil
+          } else {
+            Assert(hasDirectPerm(fa), error.dueTo(reasons.InsufficientPermission(fa)))
+          }
+        case pm@sil.PermMul(a, b) =>
+          Assert(epsComp(translatePerm(a)) === RealLit(0), error.dueTo(reasons.InvalidPermMultiplication(pm))) ++
+            Assert(epsComp(translatePerm(b)) === RealLit(0), error.dueTo(reasons.InvalidPermMultiplication(pm)))
+        case sil.PermDiv(a, b) =>
+          Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
+        case _ => Nil
+      }
+      ) else Nil
   }
 
   override def validValue(typ: sil.Type, variable: LocalVar, isParameter: Boolean) = {
@@ -649,7 +649,7 @@ class DefaultPermModule(val verifier: Verifier)
     // (a*b) --> (b*a) if b is a "fixedPerm" and a is not
     // a*(x?b:c) --> (x?(a*b):(a*c)) etc.
     // (x?b:c)/n --> (x?(b/n):(c/n)) etc.
-    
+
     def normalizePermHelper(e0: sil.Exp): (Boolean, sil.Exp) = {
       // we use this flag to indicate whether something changed
       var done = true
@@ -696,7 +696,7 @@ class DefaultPermModule(val verifier: Verifier)
           case sil.PermMul(a, b) if isFixedPerm(b) && !isFixedPerm(a) => done = false
             sil.PermMul(b, a)()
         })
-        
+
         // propagate multiplication and division into conditional expressions
         val e6 = e5.transform()(_ => true, {
           case sil.IntPermMul(a, sil.CondExp(cond, thn, els)) => done = false
@@ -710,7 +710,7 @@ class DefaultPermModule(val verifier: Verifier)
           case sil.PermDiv(sil.CondExp(cond, thn, els),n) => done = false
             sil.CondExp(cond, sil.PermDiv(thn,n)(), sil.PermDiv(els,n)())()
         })
-	        
+
         // propagate addition into conditional expressions
         val e7 = e6.transform()(_ => true, {
           case sil.PermAdd(a, sil.CondExp(cond, thn, els)) => done = false
@@ -718,7 +718,7 @@ class DefaultPermModule(val verifier: Verifier)
           case sil.PermAdd(sil.CondExp(cond, thn, els),a) => done = false
             sil.CondExp(cond, sil.PermAdd(thn,a)(), sil.PermMul(els,a)())()
         })
-	        
+
 
         (done, e7)
       }
