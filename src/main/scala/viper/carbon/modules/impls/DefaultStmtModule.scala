@@ -176,7 +176,10 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
       case sil.NewStmt(target,fields) =>
         Nil
       case pa@sil.Package(wand) =>
-        translatePackage(pa)
+        checkDefinedness(wand, errors.MagicWandNotWellformed(wand))
+        translatePackage(pa,errors.PackageFailed(pa))
+      case a@sil.Apply(wand) =>
+        sys.error("Apply statement not yet implemented")
       case _: sil.Seqn =>
         Nil
     }

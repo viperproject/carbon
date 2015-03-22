@@ -47,7 +47,8 @@ class DefaultPermModule(val verifier: Verifier)
   with InhaleComponent
   with ExhaleComponent
   with SimpleStmtComponent
-  with DefinednessComponent {
+  with DefinednessComponent
+  with TransferComponent {
 
   import verifier._
   import heapModule._
@@ -341,6 +342,12 @@ class DefaultPermModule(val verifier: Verifier)
           Assume(checkNonNullReceiver(loc)) ++
           (if (!isUsingOldState) curPerm := permAdd(curPerm, permVar) else Nil)
       case _ => Nil
+    }
+  }
+
+  override def transferAdd(e:sil.Exp, b: LocalVar): Stmt = {
+    e match {
+      case sil.AccessPredicate(loc,perm) => inhaleExp(e)
     }
   }
 
@@ -760,6 +767,7 @@ class DefaultPermModule(val verifier: Verifier)
           val cond = isPositivePerm(left) && (translateExp(n) > zero)
           Seq((2, cond, e), (3, UnExp(Not, cond), e))
         case sil.PermAdd(left, right) =>
+          println("Case PermAdd")
           val splitted = splitPermHelper(left) ++ splitPermHelper(right)
           val cond = isPositivePerm(left) && isPositivePerm(right)
           addCond(splitted, cond) ++ Seq((3, UnExp(Not, cond), e))

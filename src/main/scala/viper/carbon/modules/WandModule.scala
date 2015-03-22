@@ -5,12 +5,13 @@ package viper.carbon.modules
  */
 
 import viper.carbon.modules.components.{TransferComponent, ComponentRegistry}
+import viper.silver.verifier.PartialVerificationError
 import viper.silver.{ast => sil}
 import viper.carbon.boogie.{Stmt}
 
 
 trait WandModule extends Module with ComponentRegistry[TransferComponent] {
-  def translatePackage(p: sil.Package):Stmt
+  def translatePackage(p: sil.Package, error: PartialVerificationError):Stmt
 
 //  def translateApply(p: sil.Apply):Stmt
 
