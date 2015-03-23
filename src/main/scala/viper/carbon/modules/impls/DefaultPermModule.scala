@@ -345,7 +345,7 @@ class DefaultPermModule(val verifier: Verifier)
     }
   }
 
-  override def transferAdd(e:sil.Exp, b: LocalVar): Stmt = {
+  override def transferAdd(e:sil.Exp, cond:Exp): Stmt = {
     e match {
       case sil.AccessPredicate(loc,perm) => inhaleExp(e)
     }

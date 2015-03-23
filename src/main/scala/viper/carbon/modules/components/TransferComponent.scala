@@ -16,23 +16,23 @@ trait TransferComponent {
   /**
    *
    * @param e
-   * @return (stmt,exp), After stmt is executed exp evaluates to true iff e can be transferred according to the specific component
+   * @return the statements
    */
-  def transferValid(e:sil.Exp):(Stmt,Exp)
+  def transferValid(e:sil.Exp):Seq[(Stmt,Exp)]
 
   /**
    *
    * @param e
-   * @param b all assumptions and assertions should be wrapped inside an if statement with condition b (b is a Boolean)
+   * @param cond all assumptions and assertions should be wrapped inside an if statement with condition cond
    * @return  statement which adds the expression e to the current state (for example permissions, wand)
    */
-  def transferAdd(e:sil.Exp, b: LocalVar): Stmt
+  def transferAdd(e:sil.Exp, cond: Exp): Stmt
 
   /**
    *
    * @param e
-   * @param b all assumptions and assertions should be wrapped inside an if statement with condition b (b is a Boolean)
+   * @param cond all assumptions and assertions should be wrapped inside an if statement with condition cond
    * @return  statement which removes the expression e to the current state (for example permissions, wand)
    */
-  def transferRemove(e:sil.Exp, b:LocalVar): Stmt
+  def transferRemove(e:sil.Exp, cond:Exp): Stmt
 }
