@@ -34,13 +34,13 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule with Transfer
   /* used to track the permissions still needed to transfer */
   val neededLocal = LocalVar(Identifier("neededTransfer")(transferNamespace), permType)
 
-  val SILcurpermLocal = sil.LocalVar("maskTransfer")(sil.Perm)
-  /* used to store the current mask in */
   val curpermLocal = LocalVar(Identifier("maskTransfer")(transferNamespace), permType)
 /** specific to access predicates transfer END**/
 
-  val boolTransferUsed = LocalVar(Identifier("accVar1"), Bool)
-  val boolTransferTop = LocalVar(Identifier("accVar2"), Bool)
+  val boolTransferUsed = LocalVar(Identifier("accVar1")(transferNamespace), Bool)
+  val boolTransferTop = LocalVar(Identifier("accVar2")(transferNamespace), Bool)
+
+  val boogieNoPerm:Exp = permModule.translatePerm(sil.NoPerm()(null,null))
 
 
   //use this to generate unique names for states
@@ -116,13 +116,22 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule with Transfer
   def transferMain(states: List[StateSnapshot], used:StateSnapshot, e: sil.Exp, b: LocalVar,error:PartialVerificationError):Stmt = {
     e match {
       case sil.MagicWand(left,right) => sys.error("still need to implement this")
-      case p@sil.AccessPredicate(loc,e)  =>
-        val s1 = neededLocal := permModule.translatePerm(e) //store the permission to be transferred into a separate variable
-        val definedness = MaybeCommentBlock("checking if access predicate defined in used state",
-                            expModule.checkDefinedness(e, error))
+      case p@sil.AccessPredicate(loc,perm)  =>
+        val currentState = stateModule.state //store current state so that it can be restored in the end
+
+        val s1 = neededLocal := permModule.translatePerm(perm) //store the permission to be transferred into a separate variable
         val positivePerm = Assert(neededLocal >= RealLit(0), error.dueTo(reasons.NegativePermission(e)))
-        val s2 = transferAcc(states,used, transformAccessPred(p))
-        s1 ++ s2
+        val definedness = MaybeCommentBlock("checking if access predicate defined in used state",
+                            expModule.checkDefinedness(p, error))
+        stateModule.restoreState(used)
+        val rcv_loc: (Exp,Exp) =
+                  p match {
+                    case loc@sil.FieldAccess(rcv,field) => (expModule.translateExp(rcv), heapModule.translateLocation(loc))
+                    case _ => sys.error("This version only supports transfer of field access predicates")
+                  }
+
+        val s2 = transferAcc(states,used, transformAccessPred(p),b,rcv_loc)
+        definedness ++ s1 ++  positivePerm ++ s2
       case _ => sys.error("This version only supports access predicates for packaging of wands")
     }
   }
@@ -138,61 +147,54 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule with Transfer
     }
   }
 
-  def transferAcc(states: List[StateSnapshot], used:StateSnapshot, e: sil.AccessPredicate,cond:Exp):Stmt = {
+  def transferAcc(states: List[StateSnapshot], used:StateSnapshot, e: sil.AccessPredicate, b: LocalVar, rcv_loc: (Exp,Exp)):Stmt = {
     states match {
-      case (x :: xs) =>
+      case (top :: xs) =>
         val currentState = stateModule.state
         //check definedness of e in state x
-        stateModule.restoreState(used)
-        val definednessUsed =
-          Havoc(boolTransferUsed)++ (boolTransferUsed := TrueLit()) ++
-            exchangeAssertsWithBoolean(expModule.checkDefinedness(e,),boolTransferUsed)
-        stateModule.restoreState(x)
+        stateModule.restoreState(top)
         val definednessTop:Stmt = Havoc(boolTransferTop) ++ (boolTransferTop := TrueLit()) ++
           (generateStmtCheck(components flatMap (_.transferValid(e)), boolTransferTop))
+        val minStmt = If(neededLocal <= curpermLocal, tempLocal := neededLocal, tempLocal := curpermLocal)
+        val curPermTop = permModule.currentPermission(rcv_loc._1, rcv_loc._2)
+        val removeFromTop = components flatMap (_.transferRemove(e,b))
 
-        val transferComplete = Havoc(tempLocal)++ transferAccOnce(x,used,e) ++ (neededLocal := RealLit(0))
+        stateModule.restoreState(used)
+        val addToUsed = components flatMap (_.transferAdd(e,b))
+        val equateExpr = equate(top,e.loc)
 
-        val curPerm = permModule.currentPermission(e.loc)
-        val transferPartial = Havoc(tempLocal) ++
-          (tempLocal := curPerm) ++ transferAccOnce(x,used,e) ++ (neededLocal := neededLocal - curPerm)
 
         stateModule.restoreState(currentState)
 
-        Havoc(tempLocal)++(tempLocal := neededLocal) ++ definednessUsed ++ definednessTop ++
-          If(boolTransferUsed&&boolTransferTop,
-            transferComplete, Statements.EmptyStmt) ++
-        Havoc(tempLocal)++ (tempLocal := curPerm) ++ definednessUsed ++ definednessTop ++
-        If(boolTransferUsed&&boolTransferTop,
-          transferPartial, Statements.EmptyStmt) ++
-        transferAcc(xs,used, e,cond)
+        If(boolTransferTop && neededLocal > boogieNoPerm,
+          (curpermLocal := curPermTop) ++
+            minStmt ++
+            If(tempLocal > boogieNoPerm,
+
+              (neededLocal := neededLocal - tempLocal) ++
+              addToUsed ++
+              (b := b && equateExpr) ++
+              removeFromTop,
+
+              Nil),
+
+            Nil
+          )
+
+
       case Nil =>
         Nil
     }
   }
 
-  def transferAccOnce(top: StateSnapshot, used: StateSnapshot, e: sil.AccessPredicate,cond:Exp):Stmt = {
-    val currentState = stateModule.state
-    stateModule.restoreState(top)
-    val addToUsed = components map (_.transferAdd(e,))
-    val equateLoc = equate(top, e.loc)
-    stateModule.restoreState(top)
-    val removeFromTop = components map (_.transferRemove(e,))
-    stateModule.restoreState(currentState)
-
-    addToUsed++If(cond, equateLoc, Statements.EmptyStmt)++removeFromTop
-  }
-
-
-
   //equate loc in current state with loc in state s (current.equate(s,loc))
-  def equate(s: StateSnapshot, loc: sil.LocationAccess): Stmt = {
+  def equate(s: StateSnapshot, loc: sil.LocationAccess): Exp = {
     val lhs = heapModule.translateLocation(loc)
     val current = stateModule.state
     stateModule.restoreState(s)
     val rhs = heapModule.translateLocation(loc)
     stateModule.restoreState(current)
-    Assume(lhs === rhs)
+    (lhs === rhs)
   }
 
 
