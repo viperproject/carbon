@@ -324,6 +324,8 @@ class DefaultPermModule(val verifier: Verifier)
     }
   }
 
+  /* Original version of inhaleExp
+
   override def inhaleExp(e: sil.Exp): Stmt = {
     e match {
       case sil.AccessPredicate(loc, perm) =>
@@ -344,10 +346,33 @@ class DefaultPermModule(val verifier: Verifier)
       case _ => Nil
     }
   }
+  */
+  override def inhaleExp(e: sil.Exp): Stmt = {
+    inhaleAux(e, Assume)
+  }
 
-  override def transferAdd(e:sil.Exp, cond:Exp): Stmt = {
+  /*
+   * same as the original inhale statement except that it abstracts over the way assumptions are expressed in the
+   * Boogie program
+   */
+  private def inhaleAux(e: sil.Exp, assmsToStmt: Exp => Stmt):Stmt = {
     e match {
-      case sil.AccessPredicate(loc,perm) => inhaleExp(e)
+      case sil.AccessPredicate(loc, perm) =>
+        val curPerm = currentPermission(loc)
+        val permVar = LocalVar(Identifier("perm"), permType)
+        val (permVal, stmts): (Exp, Stmt) =
+          if (perm.isInstanceOf[WildcardPerm]) {
+            val w = LocalVar(Identifier("wildcard"), Real)
+            (fracPerm(w), LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil)
+          } else {
+            (translatePerm(perm), Nil)
+          }
+        stmts ++
+          (permVar := permVal) ++
+          assmsToStmt(permissionPositive(permVar, Some(perm), true)) ++
+          assmsToStmt(checkNonNullReceiver(loc)) ++
+          (if (!isUsingOldState) curPerm := permAdd(curPerm, permVar) else Nil)
+      case _ => Nil
     }
   }
 
