@@ -351,7 +351,11 @@ class DefaultPermModule(val verifier: Verifier)
     }
   }
 
-  def currentPermission(loc: sil.LocationAccess): MapSelect = {
+  override def transferAdd(e:sil.Exp, cond:Exp): Stmt = {
+    inhaleAux(e, exp => cond := cond && exp)
+  }
+
+  override def currentPermission(loc: sil.LocationAccess): MapSelect = {
     loc match {
       case sil.FieldAccess(rcv, field) =>
         currentPermission(translateExp(rcv), translateLocation(loc))
@@ -359,7 +363,7 @@ class DefaultPermModule(val verifier: Verifier)
         currentPermission(translateNull, translateLocation(loc))
     }
   }
-  def currentPermission(rcv: Exp, location: Exp): MapSelect = {
+  override def currentPermission(rcv: Exp, location: Exp): MapSelect = {
     currentPermission(mask, rcv, location)
   }
   def currentPermission(mask: Exp, rcv: Exp, location: Exp): MapSelect = {
