@@ -324,6 +324,34 @@ class DefaultPermModule(val verifier: Verifier)
     }
   }
 
+  /*
+   * Gaurav (03.04.15): this basically is a simplified exhale so some code is duplicated,
+   * I haven't yet found a nice way of avoiding the code duplication
+   */
+  override def transferRemove(e:sil.Exp, cond:Exp): Stmt = {
+    e match {
+      case sil.AccessPredicate(loc,p) =>
+        if(p.isInstanceOf[WildcardPerm]) {
+          sys.error("This module doesn't support the transfer of wildcard permissions.")
+        }
+        val permVar = LocalVar(Identifier("perm"), permType)
+        val curPerm = currentPermission(loc)
+        val permVal = translatePerm(p)
+        curPerm := permSub(curPerm,permVal)
+    }
+  }
+
+  override def transferValid(e:sil.Exp):Seq[(Stmt,Exp)] = {
+    e match {
+      case sil.AccessPredicate(loc,p) =>
+        (Statements.EmptyStmt, permissionPositive(translatePerm(p), Some(p),true)) ::
+          (Statements.EmptyStmt, checkNonNullReceiver(loc)) :: Nil
+    }
+  }
+
+
+
+
   /* Original version of inhaleExp
 
   override def inhaleExp(e: sil.Exp): Stmt = {
@@ -352,8 +380,9 @@ class DefaultPermModule(val verifier: Verifier)
   }
 
   /*
-   * same as the original inhale statement except that it abstracts over the way assumptions are expressed in the
+   * same as the original inhale except that it abstracts over the way assumptions are expressed in the
    * Boogie program
+   * Note: right now (03.04.15) inhale AND transferAdd both use this function
    */
   private def inhaleAux(e: sil.Exp, assmsToStmt: Exp => Stmt):Stmt = {
     e match {

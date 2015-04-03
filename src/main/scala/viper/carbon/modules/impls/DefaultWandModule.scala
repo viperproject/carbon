@@ -27,7 +27,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule with Transfer
   /** specific to access predicates transfer START**/
 /* used to pass as expression in AccessPredicate when transfer of permission needed */
   //val SILneededLocal: sil.LocalVar = sil.LocalVar("neededTransfer")(sil.Perm)
-  val SILtempLocal: sil.LocalVar = sil.LocalVar("neededTransfer")(sil.Perm)
+  val SILtempLocal: sil.LocalVar = sil.LocalVar("takeTransfer")(sil.Perm)
 
   val tempLocal: LocalVar = mainModule.env.define(SILtempLocal)
 
@@ -42,7 +42,11 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule with Transfer
   val boolTransferUsed = LocalVar(Identifier("accVar1")(transferNamespace), Bool)
   val boolTransferTop = LocalVar(Identifier("accVar2")(transferNamespace), Bool)
 
-  val boogieNoPerm:Exp = permModule.translatePerm(sil.NoPerm()(null,null))
+  /* Gaurav (03.04.15): this seems nicer as an end result in the Boogie program but null for pos,info params is
+   * not really nice
+   *   val boogieNoPerm:Exp = permModule.translatePerm(sil.NoPerm()(null,null))
+  */
+  val boogieNoPerm:Exp = RealLit(0)
 
   var mainError: PartialVerificationError
 
@@ -175,6 +179,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule with Transfer
                   }
 
         val s2 = transferAcc(states,used, transformAccessPred(p),b,rcv_loc)
+        stateModule.restoreState(currentState)
         definedness ++ (permLocal := permAmount) ++ (neededLocal := permAmount) ++  positivePerm ++ s2
       case _ => sys.error("This version only supports access predicates for packaging of wands")
     }
@@ -219,9 +224,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule with Transfer
               Nil),
 
             Nil
-          )
-
-
+        )
       case Nil =>
         stateModule.restoreState(used)
         val curPermUsed = permModule.currentPermission(rcv_loc._1, rcv_loc._2)
@@ -252,7 +255,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule with Transfer
     *
     * Assert x != null
     * Assert y >= 0 is transformed to:
-    * b = b && x!= null; b = b && y >= 0
+    * b := (b && x!= null); b := (b && y >= 0);
     */
   def exchangeAssertsWithBoolean(stmt: Stmt,boolVar: LocalVar):Stmt = {
     stmt match {
