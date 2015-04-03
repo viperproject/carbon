@@ -88,8 +88,8 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
           //Gaurav: should this be implemented by the components themselves?
           case _ => Statements.EmptyStmt
         })
-      stmt
-    })
+      stmt ++ c.initState
+    }).flatten
     (s, previousState)
   }
 

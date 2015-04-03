@@ -34,6 +34,8 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule with Transfer
   /* used to track the permissions still needed to transfer */
   val neededLocal = LocalVar(Identifier("neededTransfer")(transferNamespace), permType)
 
+  val permLocal = LocalVar(Identifier("permTransfer")(transferNamespace), permType)
+
   val curpermLocal = LocalVar(Identifier("maskTransfer")(transferNamespace), permType)
 /** specific to access predicates transfer END**/
 
@@ -41,6 +43,8 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule with Transfer
   val boolTransferTop = LocalVar(Identifier("accVar2")(transferNamespace), Bool)
 
   val boogieNoPerm:Exp = permModule.translatePerm(sil.NoPerm()(null,null))
+
+  var mainError: PartialVerificationError
 
 
   //use this to generate unique names for states
@@ -53,6 +57,18 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule with Transfer
     register(this)
   }
 
+  override def transferRemove(e:sil.Exp, cond:Exp): Stmt = {
+    Nil
+  }
+
+  def transferAdd(e:sil.Exp, cond: Exp): Stmt = {
+    Nil
+  }
+
+  def transferValid(e:sil.Exp):Seq[(Stmt,Exp)] = {
+    Nil
+  }
+
   override def translatePackage(p: sil.Package,error: PartialVerificationError):Stmt = {
     p match {
       case pa@sil.Package(wand) =>
@@ -60,9 +76,11 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule with Transfer
           case w@sil.MagicWand(left,right) =>
             //val definedness = expModule.checkDefinedness()
 
+            mainError = error //set the default error to be used by all operations
             /**DEFINE STATES **/
 
             val currentState = stateModule.state
+
             //hypothetical state for left hand side of wand
             val hypName = names.createUniqueIdentifier("Hypo")
             val (hypStmt,hypState) = stateModule.freshEmptyState("Hypo")
@@ -73,56 +91,82 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule with Transfer
 
             /**DEFINE STATES END **/
 
-
-            val emptyState = hypStmt++usedStmt
             //inhale left hand side to initialize hypothetical state
             stateModule.restoreState(hypState)
-            val inhaleLeft = stmtModule.translateStmt(sil.Inhale(left)(p.pos,p.info))
+
+            /**create a new boolean variable under which all assumptions belonging to the package are made
+              *(which makes sure that the assumptions won't be part of the main state after the package)
+              */
+            val b = LocalVar(Identifier("b")(transferNamespace), Bool)
+
+            val inhaleLeft =
+              exchangeAssertsWithBoolean(stmtModule.translateStmt(sil.Inhale(left)(p.pos,p.info)), b)
 
             /*Gaurav: the position and info is taken from the Package node, might be misleading, also
              *the InhaleError will be used and not the package error. Might want to duplicate the translateStmt code
              * for an Inhale node.
              */
 
-            stateModule.restoreState(usedState)
-            Nil
+            stateModule.restoreState(currentState)
+
+            (b := TrueLit()) ++ inhaleLeft ++ exec(currentState :: hypState :: Nil, usedState, right, b)
+            //TODO: add wand to current state
         }
     }
   }
 
-  /*generates code that transfers permissions from states to used such that e can be satisfied*/
-   def exhaleExt(states: List[StateSnapshot], used:StateSnapshot, e: sil.Exp):Stmt = {
+  def exec(states: List[StateSnapshot], ops: StateSnapshot, e:sil.Exp, b: LocalVar):Stmt = {
     e match {
-      case acc@sil.AccessPredicate(_,_) => Nil //transfer(states, used, acc)
-      case acc@sil.MagicWand(_,_) => sys.error("exhaleExtConnective: Magic Wands not yet supported ")
-      case acc@sil.And(e1,e2) => exhaleExt(states, used, e1) :: exhaleExt(states,used,e2) :: Nil
-      case acc@sil.Implies(e1,e2) => If(expModule.translateExp(e1), exhaleExt(states,used,e1),Statements.EmptyStmt)
-      case acc@sil.CondExp(c,e1,e2) => If(expModule.translateExp(c), exhaleExt(states,used,e1), exhaleExt(states,used,e1))
-      case _ => exhaleExtExp(states,used,e)
+      case sil.Folding(acc,body) =>
+        sys.error("exec: folding not yet supported")
+      case sil.Unfolding(acc,body) =>
+        sys.error("exec: unfolding not yet supported")
+      case sil.Applying(wand, body) =>
+        sys.error("exec: applying not yet supported")
+      case sil.Packaging(wand,body) =>
+        sys.error("exec: packaging not yet supported")
+      case _ =>
+        //no ghost operation
+        val currentState = stateModule.state
+        val usedName = names.createUniqueIdentifier("Used")
+        val (usedStmt,usedState) = stateModule.freshEmptyState(usedName)
+        usedStmt ++ exhaleExt(ops :: states, usedState,e,b)
     }
 
   }
 
-  def exhaleExtExp(states: List[StateSnapshot], used:StateSnapshot, e: sil.Exp):Stmt = {
+  /*generates code that transfers permissions from states to used such that e can be satisfied*/
+   def exhaleExt(states: List[StateSnapshot], used:StateSnapshot, e: sil.Exp, b:LocalVar):Stmt = {
+    e match {
+      case acc@sil.AccessPredicate(_,_) => transferMain(states,used, e, b) //transfer(states, used, acc)
+      case acc@sil.MagicWand(_,_) => sys.error("exhaleExtConnective: Magic Wands not yet supported ")
+      case acc@sil.And(e1,e2) => exhaleExt(states, used, e1,b) :: exhaleExt(states,used,e2,b) :: Nil
+      case acc@sil.Implies(e1,e2) => If(expModule.translateExp(e1), exhaleExt(states,used,e1,b),Statements.EmptyStmt)
+      case acc@sil.CondExp(c,e1,e2) => If(expModule.translateExp(c), exhaleExt(states,used,e1,b), exhaleExt(states,used,e1,b))
+      case _ => exhaleExtExp(states,used,e,b)
+    }
+
+  }
+
+  def exhaleExtExp(states: List[StateSnapshot], used:StateSnapshot, e: sil.Exp, b:LocalVar):Stmt = {
     if(e.isPure) {
-      //wrap in if condition on b
-      Assert(expModule.translateExp(e), null)
+      Assert(b ==> expModule.translateExp(e), null)
     } else {
       Statements.EmptyStmt
     }
   }
 
 
-  def transferMain(states: List[StateSnapshot], used:StateSnapshot, e: sil.Exp, b: LocalVar,error:PartialVerificationError):Stmt = {
+  def transferMain(states: List[StateSnapshot], used:StateSnapshot, e: sil.Exp, b: LocalVar):Stmt = {
     e match {
       case sil.MagicWand(left,right) => sys.error("still need to implement this")
       case p@sil.AccessPredicate(loc,perm)  =>
         val currentState = stateModule.state //store current state so that it can be restored in the end
 
-        val s1 = neededLocal := permModule.translatePerm(perm) //store the permission to be transferred into a separate variable
-        val positivePerm = Assert(neededLocal >= RealLit(0), error.dueTo(reasons.NegativePermission(e)))
+        val permAmount = permModule.translatePerm(perm) //store the permission to be transferred into a separate variable
+        val positivePerm = Assert(neededLocal >= RealLit(0), mainError.dueTo(reasons.NegativePermission(e)))
         val definedness = MaybeCommentBlock("checking if access predicate defined in used state",
-                            expModule.checkDefinedness(p, error))
+                            expModule.checkDefinedness(p, mainError))
         stateModule.restoreState(used)
         val rcv_loc: (Exp,Exp) =
                   p match {
@@ -131,7 +175,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule with Transfer
                   }
 
         val s2 = transferAcc(states,used, transformAccessPred(p),b,rcv_loc)
-        definedness ++ s1 ++  positivePerm ++ s2
+        definedness ++ (permLocal := permAmount) ++ (neededLocal := permAmount) ++  positivePerm ++ s2
       case _ => sys.error("This version only supports access predicates for packaging of wands")
     }
   }
@@ -150,7 +194,6 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule with Transfer
   def transferAcc(states: List[StateSnapshot], used:StateSnapshot, e: sil.AccessPredicate, b: LocalVar, rcv_loc: (Exp,Exp)):Stmt = {
     states match {
       case (top :: xs) =>
-        val currentState = stateModule.state
         //check definedness of e in state x
         stateModule.restoreState(top)
         val definednessTop:Stmt = Havoc(boolTransferTop) ++ (boolTransferTop := TrueLit()) ++
@@ -162,9 +205,6 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule with Transfer
         stateModule.restoreState(used)
         val addToUsed = components flatMap (_.transferAdd(e,b))
         val equateExpr = equate(top,e.loc)
-
-
-        stateModule.restoreState(currentState)
 
         If(boolTransferTop && neededLocal > boogieNoPerm,
           (curpermLocal := curPermTop) ++
@@ -183,7 +223,15 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule with Transfer
 
 
       case Nil =>
-        Nil
+        stateModule.restoreState(used)
+        val curPermUsed = permModule.currentPermission(rcv_loc._1, rcv_loc._2)
+        Assert(b ==> neededLocal === boogieNoPerm && curPermUsed === permLocal, mainError.dueTo(reasons.InsufficientPermission(e.loc)))
+
+        /**
+         * actually only curPermUsed === permLocal would be sufficient if the transfer is written correctly, since
+         * the two conjuncts should be equivalent in theory, but to be safe we ask for the conjunction to hold
+         * in case of bugs
+         * */
     }
   }
 
