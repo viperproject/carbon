@@ -73,22 +73,26 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     (s, previousState)
   }
 
-  //added by Gaurav 07.03.15
   override def freshEmptyState(name: String): (Stmt, StateSnapshot) = {
     val previousState = new java.util.IdentityHashMap[StateComponent, Seq[Exp]]()
     val s = (for (c <- components) yield {
       val tmpExps = c.freshTempState(name)
       val curExps = curState.get(c)
-      previousState.put(c, curExps)
-      curState.put(c, tmpExps)
-      c.restoreState(tmpExps)
+      previousState.put(c, tmpExps)
       val stmt: Stmt  =
-        (tmpExps ) map (x => x match {
+        (tmpExps) map (x => x match {
           case v@LocalVar(_,_) => Havoc(v)
           //Gaurav: should this be implemented by the components themselves?
           case _ => Statements.EmptyStmt
         })
-      stmt ++ c.initState
+      /*Gaurav 05.04.15: kind of a "hack" since init is only defined on the current state, hence here I temporarily
+        *change the current state but then reset it, which goes against the initial intent of freshEmptyState that
+        *it shouldn't have an effect on the current state since it assumes changing the current state and then resetting
+        *it doesn't change the end result */
+      c.restoreState(tmpExps)
+      val initStmt = c.initState
+      c.restoreState(curExps)
+      stmt ++ initStmt
     }).flatten
     (s, previousState)
   }
@@ -129,5 +133,13 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
 
   override def state: StateSnapshot = {
     curState
+  }
+
+  override def getCopyState:StateSnapshot = {
+    val currentCopy = new java.util.IdentityHashMap[StateComponent, Seq[Exp]]()
+    val s = for (c <- components) yield {
+                currentCopy.put(c, curState.get(c))
+            }
+    currentCopy
   }
 }
