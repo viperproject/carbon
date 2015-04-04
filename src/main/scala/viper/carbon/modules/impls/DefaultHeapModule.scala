@@ -17,7 +17,7 @@ import viper.carbon.verifier.Verifier
 /**
  * The default implementation of a [[viper.carbon.modules.HeapModule]].
  */
-class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleStmtComponent with DefinednessComponent with ExhaleComponent with InhaleComponent {
+class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleStmtComponent with DefinednessComponent with InhaleComponent {
 
   import verifier._
   import typeModule._
@@ -35,7 +35,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
     stateModule.register(this)
     stmtModule.register(this, before = Seq(verifier.permModule,verifier.stmtModule))
     expModule.register(this)
-    exhaleModule.register(this)
+  //  exhaleModule.register(this)
     inhaleModule.register(this)
   }
 
@@ -302,7 +302,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
    * Adds the permissions from an expression to a permission mask.
    */
   private def addPermissionToPMask(loc: sil.PredicateAccess): Stmt = {
-    addPermissionToPMaskHelper(loc.predicateBody(verifier.program), predicateMask(loc))
+    addPermissionToPMaskHelper(loc.predicateBody(verifier.program).get, predicateMask(loc))
   }
   private def addPermissionToPMaskHelper(e: sil.Exp, pmask: Exp): Stmt = {
     e match {
@@ -390,12 +390,6 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
     if (!isUsingOldState) Assume(FuncApp(identicalOnKnownLocsName, Seq(heap, exhaleHeap) ++ currentMask, Bool)) ++
       (heap := exhaleHeap)
     else Nil
-  }
-
-  override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
-    e match {
-      case _ => Nil
-    }
   }
 
   override def inhaleExp(e: sil.Exp): Stmt = {

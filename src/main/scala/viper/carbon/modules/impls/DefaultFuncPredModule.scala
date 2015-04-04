@@ -141,7 +141,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     env = Environment(verifier, f)
     val res = MaybeCommentedDecl(s"Translation of function ${f.name}",
       MaybeCommentedDecl("Uninterpreted function definitions", functionDefinitions(f), size = 1) ++
-        MaybeCommentedDecl("Definitional axiom", definitionalAxiom(f), size = 1) ++
+        (if (f.isAbstract) Nil else
+        MaybeCommentedDecl("Definitional axiom", definitionalAxiom(f), size = 1)) ++
         MaybeCommentedDecl("Framing axioms", framingAxiom(f), size = 1) ++
         MaybeCommentedDecl("Postcondition axioms", postconditionAxiom(f), size = 1) ++
         MaybeCommentedDecl("State-independent trigger function", triggerFunction(f), size = 1) ++
@@ -184,7 +185,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val heap = heapModule.stateContributions
     val args = f.formalArgs map translateLocalVarDecl
     val fapp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
-    val body = transformLimited(translateExp(f.body),height)
+    val body = transformLimited(translateExp(f.body.get),height)
     val outerUnfoldings : Seq[Unfolding] = Functions.recursiveCallsAndSurroundingUnfoldings(f).map((pair) => pair._2.headOption).flatten
     val predicateTriggers = outerUnfoldings.map{case Unfolding(PredicateAccessPredicate(predacc : PredicateAccess,perm),exp) => predicateTrigger(predacc)}
     Axiom(Forall(
@@ -292,11 +293,17 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val initOld = MaybeCommentBlock("Initializing the old state", stateModule.initOldState)
     val checkPre = MaybeCommentBlock("Inhaling precondition (with checking)",
       f.pres map (e => checkDefinednessOfSpecAndInhale(e, errors.FunctionNotWellformed(f))))
-    val checkExp = MaybeCommentBlock("Check definedness of function body",
-      expModule.checkDefinedness(f.body, errors.FunctionNotWellformed(f)))
-    val exp = MaybeCommentBlock("Translate function body",
-      translateResult(res) := translateExp(f.body))
-    val checkPost = MaybeCommentBlock("Exhaling postcondition (with checking)",
+      val checkExp = if (f.isAbstract) MaybeCommentBlock("(no definition for abstract function)",Nil) else
+        MaybeCommentBlock("Check definedness of function body",
+        expModule.checkDefinedness(f.body.get, errors.FunctionNotWellformed(f)))
+      val exp = if (f.isAbstract) MaybeCommentBlock("(no definition for abstract function)",Nil) else
+        MaybeCommentBlock("Translate function body",
+        translateResult(res) := translateExp(f.body.get))
+    val checkPost = if (f.isAbstract)
+      MaybeCommentBlock("Checking definedness of postcondition (no body)",
+      f.posts map (e => checkDefinedness(e, errors.ContractNotWellformed(e))))
+    else
+      MaybeCommentBlock("Exhaling postcondition (with checking)",
       f.posts map (e => checkDefinednessOfSpecAndExhale(e, errors.ContractNotWellformed(e), errors.PostconditionViolated(e, f))))
     val body = Seq(init, initOld, checkPre, checkExp, exp, checkPost)
     Procedure(Identifier(f.name + "#definedness"), args, translateResultDecl(res), body)
@@ -373,7 +380,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     duringFold = true
     foldInfo = acc
     val stmt = Assume(predicateTrigger(acc.loc)) ++
-      exhale(Seq((acc.loc.predicateBody(verifier.program), error)), havocHeap = false) ++
+      exhale(Seq((acc.loc.predicateBody(verifier.program).get, error)), havocHeap = false) ++
       inhale(acc)
     foldInfo = null
     duringFold = false
@@ -400,7 +407,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     unfoldInfo = acc
     val stmt = Assume(predicateTrigger(acc.loc)) ++
       exhale(Seq((acc, error)), havocHeap = false) ++
-      inhale(acc.loc.predicateBody(verifier.program))
+      inhale(acc.loc.predicateBody(verifier.program).get)
     unfoldInfo = oldUnfoldInfo
     duringUnfold = oldDuringUnfold
     duringFold = oldDuringFold
