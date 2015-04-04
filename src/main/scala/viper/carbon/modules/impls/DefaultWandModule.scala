@@ -78,12 +78,17 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
       case pa@sil.Package(wand) =>
         wand match {
           case w@sil.MagicWand(left,right) =>
-            //val definedness = expModule.checkDefinedness()
 
+            def debugMask = permModule.currentMask(0)  match {
+              case GlobalVar(id,typ) => id.name
+              case LocalVar(id,typ) => id.name
+            }
+            //val definedness = expModule.checkDefinedness()
+            tempLocal = mainModule.env.define(SILtempLocal) //TODO: find cleaner way to handle this
             mainError = error //set the default error to be used by all operations
             /**DEFINE STATES **/
 
-            val currentState = stateModule.state
+            val currentState = stateModule.getCopyState
 
             //hypothetical state for left hand side of wand
             val hypName = names.createUniqueIdentifier("Hypo")
@@ -98,23 +103,36 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
             //inhale left hand side to initialize hypothetical state
             stateModule.restoreState(hypState)
 
+            val maskBefore = debugMask
+
             /**create a new boolean variable under which all assumptions belonging to the package are made
               *(which makes sure that the assumptions won't be part of the main state after the package)
               */
             val b = LocalVar(Identifier("b")(transferNamespace), Bool)
 
             val inhaleLeft =
-              exchangeAssertsWithBoolean(stmtModule.translateStmt(sil.Inhale(left)(p.pos,p.info)), b)
+              exchangeAssumesWithBoolean(stmtModule.translateStmt(sil.Inhale(left)(p.pos,p.info)), b)
 
             /*Gaurav: the position and info is taken from the Package node, might be misleading, also
              *the InhaleError will be used and not the package error. Might want to duplicate the translateStmt code
              * for an Inhale node.
              */
 
+            stateModule.restoreState(usedState)
+            val stmt = hypStmt ++ usedStmt ++ (b := TrueLit()) ++
+                       inhaleLeft ++ exec(hypState :: currentState :: Nil, usedState, right, b)
+
+            val mask1Name = debugMask
             stateModule.restoreState(currentState)
 
-            (b := TrueLit()) ++ inhaleLeft ++ exec(currentState :: hypState :: Nil, usedState, right, b)
-            //TODO: add wand to current state
+            val mask2Name = debugMask
+
+
+            Comment("before exec " + maskBefore) ++
+            Comment("before restoring " + mask1Name) ++
+            Comment("after restoring " + mask2Name) ++ stmt
+
+          //TODO: add wand to current state
         }
     }
   }
