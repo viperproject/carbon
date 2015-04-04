@@ -7,12 +7,18 @@ package viper.carbon.modules
 import viper.carbon.modules.components.{TransferComponent, ComponentRegistry}
 import viper.silver.verifier.PartialVerificationError
 import viper.silver.{ast => sil}
-import viper.carbon.boogie.{Stmt}
+import viper.carbon.boogie.{Exp, Stmt}
 
 
-trait WandModule extends Module with ComponentRegistry[TransferComponent] {
+trait WandModule extends Module with TransferComponent with ComponentRegistry[TransferComponent] {
   def translatePackage(p: sil.Package, error: PartialVerificationError):Stmt
 
-//  def translateApply(p: sil.Apply):Stmt
+  def transferValid(e:sil.Exp):Seq[(Stmt,Exp)]
+
+  def transferAdd(e:sil.Exp, cond: Exp): Stmt
+
+  def transferRemove(e:sil.Exp, cond:Exp): Stmt
+
+  //  def translateApply(p: sil.Apply):Stmt
 
 }

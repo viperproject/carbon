@@ -12,7 +12,7 @@ import viper.carbon.modules.StateModule
 /**
  *used to handle the transfer operation across different modules
  */
-trait TransferComponent {
+trait TransferComponent extends Component {
   /**
    *
    * @param e

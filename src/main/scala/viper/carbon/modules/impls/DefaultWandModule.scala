@@ -16,7 +16,7 @@ import viper.silver.{ast => sil}
  */
 
 
-class DefaultWandModule(val verifier: Verifier) extends WandModule with TransferComponent with DefinednessComponent {
+class DefaultWandModule(val verifier: Verifier) extends WandModule {
   import verifier._
   import stateModule._
   import permModule._
@@ -29,7 +29,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule with Transfer
   //val SILneededLocal: sil.LocalVar = sil.LocalVar("neededTransfer")(sil.Perm)
   val SILtempLocal: sil.LocalVar = sil.LocalVar("takeTransfer")(sil.Perm)
 
-  val tempLocal: LocalVar = mainModule.env.define(SILtempLocal)
+  var tempLocal: LocalVar = null // mainModule.env.define(SILtempLocal)
 
   /* used to track the permissions still needed to transfer */
   val neededLocal = LocalVar(Identifier("neededTransfer")(transferNamespace), permType)
@@ -48,7 +48,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule with Transfer
   */
   val boogieNoPerm:Exp = RealLit(0)
 
-  var mainError: PartialVerificationError
+  var mainError: PartialVerificationError = null
 
 
   //use this to generate unique names for states
@@ -131,9 +131,9 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule with Transfer
         sys.error("exec: packaging not yet supported")
       case _ =>
         //no ghost operation
-        val currentState = stateModule.state
         val usedName = names.createUniqueIdentifier("Used")
         val (usedStmt,usedState) = stateModule.freshEmptyState(usedName)
+        stateModule.restoreState(usedState)
         usedStmt ++ exhaleExt(ops :: states, usedState,e,b)
     }
 
@@ -165,21 +165,20 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule with Transfer
     e match {
       case sil.MagicWand(left,right) => sys.error("still need to implement this")
       case p@sil.AccessPredicate(loc,perm)  =>
-        val currentState = stateModule.state //store current state so that it can be restored in the end
+       // val currentState = stateModule.state //store current state so that it can be restored in the end
 
         val permAmount = permModule.translatePerm(perm) //store the permission to be transferred into a separate variable
         val positivePerm = Assert(neededLocal >= RealLit(0), mainError.dueTo(reasons.NegativePermission(e)))
         val definedness = MaybeCommentBlock("checking if access predicate defined in used state",
                             expModule.checkDefinedness(p, mainError))
-        stateModule.restoreState(used)
+
         val rcv_loc: (Exp,Exp) =
                   p match {
-                    case loc@sil.FieldAccess(rcv,field) => (expModule.translateExp(rcv), heapModule.translateLocation(loc))
+                    case loc: sil.FieldAccess => (expModule.translateExp(loc.rcv), heapModule.translateLocation(loc))
                     case _ => sys.error("This version only supports transfer of field access predicates")
                   }
 
         val s2 = transferAcc(states,used, transformAccessPred(p),b,rcv_loc)
-        stateModule.restoreState(currentState)
         definedness ++ (permLocal := permAmount) ++ (neededLocal := permAmount) ++  positivePerm ++ s2
       case _ => sys.error("This version only supports access predicates for packaging of wands")
     }
@@ -199,6 +198,9 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule with Transfer
   def transferAcc(states: List[StateSnapshot], used:StateSnapshot, e: sil.AccessPredicate, b: LocalVar, rcv_loc: (Exp,Exp)):Stmt = {
     states match {
       case (top :: xs) =>
+        val addToUsed = components flatMap (_.transferAdd(e,b))
+        val equateExpr = equate(top,e.loc)
+
         //check definedness of e in state x
         stateModule.restoreState(top)
         val definednessTop:Stmt = Havoc(boolTransferTop) ++ (boolTransferTop := TrueLit()) ++
@@ -208,8 +210,6 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule with Transfer
         val removeFromTop = components flatMap (_.transferRemove(e,b))
 
         stateModule.restoreState(used)
-        val addToUsed = components flatMap (_.transferAdd(e,b))
-        val equateExpr = equate(top,e.loc)
 
         If(boolTransferTop && neededLocal > boogieNoPerm,
           (curpermLocal := curPermTop) ++
@@ -226,7 +226,6 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule with Transfer
             Nil
         )
       case Nil =>
-        stateModule.restoreState(used)
         val curPermUsed = permModule.currentPermission(rcv_loc._1, rcv_loc._2)
         Assert(b ==> neededLocal === boogieNoPerm && curPermUsed === permLocal, mainError.dueTo(reasons.InsufficientPermission(e.loc)))
 
@@ -250,23 +249,23 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule with Transfer
 
 
    /*
-    *transforms a statement such that it doesn't have any asserts anymore and all asserted expressions
+    *transforms a statement such that it doesn't have any explicit assumptions anymore and all assumptions
     * are accumulated in a single variable, i.e.:
     *
-    * Assert x != null
-    * Assert y >= 0 is transformed to:
+    * Assume x != null
+    * Assume y >= 0 is transformed to:
     * b := (b && x!= null); b := (b && y >= 0);
     */
-  def exchangeAssertsWithBoolean(stmt: Stmt,boolVar: LocalVar):Stmt = {
+  def exchangeAssumesWithBoolean(stmt: Stmt,boolVar: LocalVar):Stmt = {
     stmt match {
-      case AssertImpl(exp,error) =>
+      case Assume(exp) =>
         boolVar := (boolVar && exp)
       case Seqn(statements) =>
-       Seqn(statements.map(s => exchangeAssertsWithBoolean(s, boolVar)))
+       Seqn(statements.map(s => exchangeAssumesWithBoolean(s, boolVar)))
       case If(c,thn,els) =>
-        If(c,exchangeAssertsWithBoolean(thn,boolVar),exchangeAssertsWithBoolean(els,boolVar))
-      case NondetIf(c,thn,els) =>
-        NondetIf(c,exchangeAssertsWithBoolean(thn,boolVar))
+        If(c,exchangeAssumesWithBoolean(thn,boolVar),exchangeAssumesWithBoolean(els,boolVar))
+      case NondetIf(thn,els) =>
+        NondetIf(exchangeAssumesWithBoolean(thn,boolVar))
       case s => s
     }
   }

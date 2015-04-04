@@ -63,6 +63,7 @@ class DefaultPermModule(val verifier: Verifier)
     inhaleModule.register(this)
     stmtModule.register(this)
     expModule.register(this)
+    wandModule.register(this)
   }
 
   implicit val namespace = verifier.freshNamespace("perm")
@@ -346,6 +347,7 @@ class DefaultPermModule(val verifier: Verifier)
       case sil.AccessPredicate(loc,p) =>
         (Statements.EmptyStmt, permissionPositive(translatePerm(p), Some(p),true)) ::
           (Statements.EmptyStmt, checkNonNullReceiver(loc)) :: Nil
+      case _ => Nil
     }
   }
 

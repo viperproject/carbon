@@ -59,8 +59,8 @@ trait StateModule extends Module with ComponentRegistry[StateComponent] {
   def freshTempState(name: String): (Stmt, StateSnapshot)
 
   /**
-   * Create a state without any information and return a snapshot of the current state.
-   * [added by Gaurav 06.03.2015]
+   * Create a state without any information and return a snapshot of the created state.
+   * Note: the current state is not affected by this in contrast to "freshTempState"
    */
   def freshEmptyState(name: String): (Stmt, StateSnapshot)
 
@@ -83,6 +83,14 @@ trait StateModule extends Module with ComponentRegistry[StateComponent] {
    * Get the current old state.
    */
   def state: StateSnapshot
+
+  /**
+   * Get a copy of the current state's snapshot. Should guarantee that if the current state changes then the
+   * returned copy is not affected.
+   * Gaurav: I think "def state" should do this, since it doesn't make sense to me that the client sees updates of
+   * the current state without making additional queries.
+   */
+  def getCopyState:StateSnapshot
 
   /**
    * Change the state for all state components to the old state.
