@@ -111,7 +111,8 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
             val b = LocalVar(Identifier("b")(transferNamespace), Bool)
 
             val inhaleLeft =
-              exchangeAssumesWithBoolean(stmtModule.translateStmt(sil.Inhale(left)(p.pos,p.info)), b)
+              MaybeComment("Inhaling left hand side of current wand into hypothetical state",
+                exchangeAssumesWithBoolean(stmtModule.translateStmt(sil.Inhale(left)(p.pos,p.info)), b) )
 
             /*Gaurav: the position and info is taken from the Package node, might be misleading, also
              *the InhaleError will be used and not the package error. Might want to duplicate the translateStmt code
@@ -157,7 +158,9 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
 
   }
 
-  /*generates code that transfers permissions from states to used such that e can be satisfied*/
+  /*generates code that transfers permissions from states to used such that e can be satisfied
+    * Precondition: current state is set to the used state
+    * */
    def exhaleExt(states: List[StateSnapshot], used:StateSnapshot, e: sil.Exp, b:LocalVar):Stmt = {
     e match {
       case acc@sil.AccessPredicate(_,_) => transferMain(states,used, e, b) //transfer(states, used, acc)
@@ -178,7 +181,9 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
     }
   }
 
-
+ /*
+  * Precondition: current state is set to the used state
+   */
   def transferMain(states: List[StateSnapshot], used:StateSnapshot, e: sil.Exp, b: LocalVar):Stmt = {
     e match {
       case sil.MagicWand(left,right) => sys.error("still need to implement this")
@@ -213,6 +218,9 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
     }
   }
 
+  /*
+   * Precondition: current state is set to the used state
+    */
   def transferAcc(states: List[StateSnapshot], used:StateSnapshot, e: sil.AccessPredicate, b: LocalVar, rcv_loc: (Exp,Exp)):Stmt = {
     states match {
       case (top :: xs) =>
@@ -284,6 +292,8 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
         If(c,exchangeAssumesWithBoolean(thn,boolVar),exchangeAssumesWithBoolean(els,boolVar))
       case NondetIf(thn,els) =>
         NondetIf(exchangeAssumesWithBoolean(thn,boolVar))
+      case CommentBlock(comment,s) =>
+        CommentBlock(comment, exchangeAssumesWithBoolean(s,boolVar))
       case s => s
     }
   }
