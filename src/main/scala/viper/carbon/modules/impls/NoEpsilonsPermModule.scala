@@ -46,6 +46,7 @@ class NoEpsilonsPermModule(val verifier: Verifier)
   with StateComponent
   with InhaleComponent
   with ExhaleComponent
+  with TransferComponent
   with SimpleStmtComponent
   with DefinednessComponent {
 
@@ -62,6 +63,7 @@ class NoEpsilonsPermModule(val verifier: Verifier)
     inhaleModule.register(this)
     stmtModule.register(this)
     expModule.register(this)
+    wandModule.register(this)
   }
 
   implicit val namespace = verifier.freshNamespace("perm")
@@ -261,6 +263,36 @@ class NoEpsilonsPermModule(val verifier: Verifier)
     }
   }
 
+  /*
+ * Gaurav (03.04.15): this basically is a simplified exhale so some code is duplicated,
+ * I haven't yet found a nice way of avoiding the code duplication
+ */
+  override def transferRemove(e:sil.Exp, cond:Exp): Stmt = {
+    e match {
+      case sil.AccessPredicate(loc,p) =>
+        if(p.isInstanceOf[WildcardPerm]) {
+          sys.error("This module doesn't support the transfer of wildcard permissions.")
+        }
+        val permVar = LocalVar(Identifier("perm"), permType)
+        val curPerm = currentPermission(loc)
+        val permVal = translatePerm(p)
+        curPerm := permSub(curPerm,permVal)
+      case _ => Nil
+    }
+  }
+
+  override def transferValid(e:sil.Exp):Seq[(Stmt,Exp)] = {
+    e match {
+      case sil.AccessPredicate(loc,p) =>
+        (Statements.EmptyStmt, permissionPositive(translatePerm(p), Some(p),true)) ::
+          (Statements.EmptyStmt, checkNonNullReceiver(loc)) :: Nil
+      case _ => Nil
+    }
+  }
+
+
+
+/* old version of inhaleExp (05.04.15)
   override def inhaleExp(e: sil.Exp): Stmt = {
     e match {
       case sil.AccessPredicate(loc, perm) =>
@@ -280,9 +312,43 @@ class NoEpsilonsPermModule(val verifier: Verifier)
           (if (!isUsingOldState) curPerm := permAdd(curPerm, permVar) else Nil)
       case _ => Nil
     }
+  }*/
+
+  override def inhaleExp(e: sil.Exp): Stmt = {
+    inhaleAux(e, Assume)
   }
 
-  def currentPermission(loc: sil.LocationAccess): MapSelect = {
+  /*
+   * same as the original inhale except that it abstracts over the way assumptions are expressed in the
+   * Boogie program
+   * Note: right now (05.04.15) inhale AND transferAdd both use this function
+   */
+  private def inhaleAux(e: sil.Exp, assmsToStmt: Exp => Stmt):Stmt = {
+    e match {
+      case sil.AccessPredicate(loc, perm) =>
+        val curPerm = currentPermission(loc)
+        val permVar = LocalVar(Identifier("perm"), permType)
+        val (permVal, stmts): (Exp, Stmt) =
+          if (perm.isInstanceOf[WildcardPerm]) {
+            val w = LocalVar(Identifier("wildcard"), Real)
+            (w, LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil)
+          } else {
+            (translatePerm(perm), Nil)
+          }
+        stmts ++
+          (permVar := permVal) ++
+          assmsToStmt(permissionPositive(permVar, Some(perm), true)) ++
+          assmsToStmt(checkNonNullReceiver(loc)) ++
+          (if (!isUsingOldState) curPerm := permAdd(curPerm, permVar) else Nil)
+      case _ => Nil
+    }
+  }
+
+  override def transferAdd(e:sil.Exp, cond:Exp): Stmt = {
+    inhaleAux(e, exp => cond := cond && exp)
+  }
+
+  override def currentPermission(loc: sil.LocationAccess): MapSelect = {
     loc match {
       case sil.FieldAccess(rcv, field) =>
         currentPermission(translateExp(rcv), translateLocation(loc))
@@ -290,7 +356,8 @@ class NoEpsilonsPermModule(val verifier: Verifier)
         currentPermission(translateNull, translateLocation(loc))
     }
   }
-  def currentPermission(rcv: Exp, location: Exp): MapSelect = {
+
+  override def currentPermission(rcv: Exp, location: Exp): MapSelect = {
     currentPermission(mask, rcv, location)
   }
   def currentPermission(mask: Exp, rcv: Exp, location: Exp): MapSelect = {

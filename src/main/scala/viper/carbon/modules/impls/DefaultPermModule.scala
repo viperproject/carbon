@@ -339,6 +339,7 @@ class DefaultPermModule(val verifier: Verifier)
         val curPerm = currentPermission(loc)
         val permVal = translatePerm(p)
         curPerm := permSub(curPerm,permVal)
+      case _ => Nil
     }
   }
 
