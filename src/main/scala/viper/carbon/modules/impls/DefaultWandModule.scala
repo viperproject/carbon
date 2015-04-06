@@ -11,6 +11,8 @@ import viper.carbon.boogie.Namespace
 
 import viper.silver.verifier.{errors, reasons, PartialVerificationError}
 import viper.silver.{ast => sil}
+
+
 /**
  * Created by Gaurav on 06.03.2015.
  */
@@ -172,7 +174,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
 
   def exhaleExtExp(states: List[StateSnapshot], used:StateSnapshot, e: sil.Exp, b:LocalVar):Stmt = {
     if(e.isPure) {
-      Assert(b ==> expModule.translateExp(e), null)
+      Assert(b ==> expModule.translateExp(e), mainError.dueTo(reasons.AssertionFalse(e)))
     } else {
       Statements.EmptyStmt
     }
