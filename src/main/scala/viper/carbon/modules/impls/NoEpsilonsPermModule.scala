@@ -357,7 +357,7 @@ class NoEpsilonsPermModule(val verifier: Verifier)
     }
   }
 
-  override def currentPermission(rcv: Exp, location: Exp): MapSelect = {
+  def currentPermission(rcv: Exp, location: Exp): MapSelect = {
     currentPermission(mask, rcv, location)
   }
   def currentPermission(mask: Exp, rcv: Exp, location: Exp): MapSelect = {

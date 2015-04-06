@@ -80,5 +80,4 @@ trait PermModule extends Module {
    */
   def currentPermission(loc: sil.LocationAccess): Exp
 
-  def currentPermission(rcv: Exp, location: Exp): Exp
 }

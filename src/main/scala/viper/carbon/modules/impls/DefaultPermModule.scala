@@ -420,7 +420,7 @@ class DefaultPermModule(val verifier: Verifier)
         currentPermission(translateNull, translateLocation(loc))
     }
   }
-  override def currentPermission(rcv: Exp, location: Exp): MapSelect = {
+  def currentPermission(rcv: Exp, location: Exp): MapSelect = {
     currentPermission(mask, rcv, location)
   }
   def currentPermission(mask: Exp, rcv: Exp, location: Exp): MapSelect = {
