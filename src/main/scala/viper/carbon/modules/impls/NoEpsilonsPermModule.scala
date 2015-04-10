@@ -284,8 +284,7 @@ class NoEpsilonsPermModule(val verifier: Verifier)
   override def transferValid(e:sil.Exp):Seq[(Stmt,Exp)] = {
     e match {
       case sil.AccessPredicate(loc,p) =>
-        (Statements.EmptyStmt, permissionPositive(translatePerm(p), Some(p),true)) ::
-          (Statements.EmptyStmt, checkNonNullReceiver(loc)) :: Nil
+        Nil
       case _ => Nil
     }
   }

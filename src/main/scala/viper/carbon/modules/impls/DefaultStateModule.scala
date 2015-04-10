@@ -97,10 +97,10 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     (s, previousState)
   }
 
-  override def restoreState(snapshot: StateSnapshot) {
-    curState = snapshot
-    for (c <- components) {
-      c.restoreState(snapshot.get(c))
+      override def restoreState(snapshot: StateSnapshot) {
+        curState = snapshot
+        for (c <- components) {
+          c.restoreState(snapshot.get(c))
     }
   }
 

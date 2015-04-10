@@ -80,7 +80,7 @@ trait StateModule extends Module with ComponentRegistry[StateComponent] {
   def restoreOldState(snapshot: StateSnapshot)
 
   /**
-   * Get the current old state.
+   * Get the current state.
    */
   def state: StateSnapshot
 

@@ -12,6 +12,8 @@ import viper.carbon.boogie.Namespace
 import viper.silver.verifier.{errors, reasons, PartialVerificationError}
 import viper.silver.{ast => sil}
 
+import scala.reflect.internal.util.NoPosition
+
 
 /**
  * Created by Gaurav on 06.03.2015.
@@ -25,30 +27,31 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
 
   val transferNamespace = verifier.freshNamespace("transfer")
 
-  /**Gaurav: still need to worry about namespaces/scopes **/
-  /** specific to access predicates transfer START**/
-/* used to pass as expression in AccessPredicate when transfer of permission needed */
-  //val SILneededLocal: sil.LocalVar = sil.LocalVar("neededTransfer")(sil.Perm)
-  val SILtempLocal: sil.LocalVar = sil.LocalVar("takeTransfer")(sil.Perm)
+/** CONSTANTS FOR TRANSFER START**/
 
-  var tempLocal: LocalVar = null // mainModule.env.define(SILtempLocal)
+/* denotes amount of permission to add/remove during a specific transfer,
+ * this is inserted as permission into the initial AccessPredicate such that existing interfaces can be used
+ * and the transfer can be kept general
+ * */
+  val SILtempLocalDecl: sil.LocalVarDecl = sil.LocalVarDecl("takeTransfer", sil.Perm)(sil.NoPosition,sil.NoInfo)
 
-  /* used to track the permissions still needed to transfer */
-  val SILneededLocal = sil.LocalVar("neededTransfer")(sil.Perm)
-  var neededLocal: LocalVar = null
+  /*stores amount of permission still needed during transfer*/
+  val neededLocal: LocalVar = LocalVar(Identifier("neededTransfer")(transferNamespace),permType)
 
-  val permLocal = LocalVar(Identifier("permTransfer")(transferNamespace), permType)
+  /*stores initial amount of permission needed during transfer*/
+  val initNeededLocal = LocalVar(Identifier("initNeededTransfer")(transferNamespace), permType)
 
+  /*used to store the current permission of the top state of the stack during transfer*/
   val curpermLocal = LocalVar(Identifier("maskTransfer")(transferNamespace), permType)
 
-/* used to store receiver evaluated in used state */
-  val SILrcvLocal = sil.LocalVar("rcvTransfer")(sil.Ref)
-  var rcvLocal: LocalVar = null
+/*denotes the receiver evaluated in the Used state, this is inserted as receiver to FieldAccessPredicates such that
+* existing interfaces can be reused and the transfer can be kept general */
+  val SILrcvLocalDecl: sil.LocalVarDecl = sil.LocalVarDecl("rcvTransfer", sil.Ref)(sil.NoPosition,sil.NoInfo)
 
-/** specific to access predicates transfer END**/
-
-  val boolTransferUsed = LocalVar(Identifier("accVar1")(transferNamespace), Bool)
+/* boolean variable which is used to accumulate assertions concerning the validity of a transfer*/
   val boolTransferTop = LocalVar(Identifier("accVar2")(transferNamespace), Bool)
+
+/** CONSTANTS FOR TRANSFER END**/
 
   /* Gaurav (03.04.15): this seems nicer as an end result in the Boogie program but null for pos,info params is
    * not really nice
@@ -86,11 +89,6 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
       case pa@sil.Package(wand) =>
         wand match {
           case w@sil.MagicWand(left,right) =>
-            //initialize Boogie local variables used during the package
-            tempLocal = mainModule.env.define(SILtempLocal) //TODO: find cleaner way to handle this
-            neededLocal = mainModule.env.define(SILneededLocal)
-            rcvLocal = mainModule.env.define(SILrcvLocal)
-
             mainError = error //set the default error to be used by all operations
             /**DEFINE STATES **/
 
@@ -111,12 +109,12 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
 
             /**create a new boolean variable under which all assumptions belonging to the package are made
               *(which makes sure that the assumptions won't be part of the main state after the package)
+              *
               */
             val b = LocalVar(Identifier("b")(transferNamespace), Bool)
 
-            val inhaleLeft =
-              MaybeComment("Inhaling left hand side of current wand into hypothetical state",
-                exchangeAssumesWithBoolean(stmtModule.translateStmt(sil.Inhale(left)(p.pos,p.info)), b) )
+            val inhaleLeft = MaybeComment("Inhaling left hand side of current wand into hypothetical state",
+                                If(b, stmtModule.translateStmt(sil.Inhale(left)(p.pos,p.info)) , Statements.EmptyStmt ))
 
             /*Gaurav: the position and info is taken from the Package node, might be misleading, also
              *the InhaleError will be used and not the package error. Might want to duplicate the translateStmt code
@@ -124,8 +122,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
              */
 
             stateModule.restoreState(usedState)
-            val stmt = hypStmt ++ usedStmt ++ (b := TrueLit()) ++
-                       inhaleLeft ++ exec(hypState :: currentState :: Nil, usedState, right, b)
+            val stmt = hypStmt ++ usedStmt ++ inhaleLeft ++ exec(hypState :: currentState :: Nil, usedState, right, b)
 
             stateModule.restoreState(currentState)
 
@@ -187,6 +184,13 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
     e match {
       case sil.MagicWand(left,right) => sys.error("still need to implement this")
       case p@sil.AccessPredicate(loc,perm)  =>
+        //initialize Boogie local variables used during the transfer
+        val SILtempLocal = mainModule.env.makeUniquelyNamed(SILtempLocalDecl).localVar
+        val tempLocal = mainModule.env.define(SILtempLocal) //bind Boogie to Silver variable
+
+        val SILrcvLocal = mainModule.env.makeUniquelyNamed(SILrcvLocalDecl).localVar
+        val rcvLocal = mainModule.env.define(SILrcvLocal) //bind Boogie to Silver variable
+
         val permAmount = permModule.translatePerm(perm) //store the permission to be transferred into a separate variable
         val positivePerm = Assert(neededLocal >= RealLit(0), mainError.dueTo(reasons.NegativePermission(e)))
         val definedness = MaybeCommentBlock("checking if access predicate defined in used state",
@@ -198,8 +202,14 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
             case _ => sys.error("This version only supports transfer of field access predicates")
           }
 
-        val s2 = transferAcc(states,used, AccessPredWrapper(transformAccessPred(p,SILneededLocal), transformAccessPred(p,SILtempLocal)),b)
-        definedness ++ (rcvLocal := rcv) ++ (permLocal := permAmount) ++ (neededLocal := permAmount) ++  positivePerm ++ s2
+        val transferRest = transferAcc(states,used, transformAccessPred(p,SILtempLocal, SILrcvLocal),TransferBoogieVars(tempLocal,b))
+        val stmt = definedness ++ (rcvLocal := rcv) ++ (initNeededLocal := permAmount) ++
+                  (neededLocal := permAmount) ++  positivePerm ++ transferRest
+
+        mainModule.env.undefine(SILtempLocal)
+        mainModule.env.undefine(SILrcvLocal)
+
+        stmt
       case _ => sys.error("This version only supports access predicates for packaging of wands")
     }
   }
@@ -207,39 +217,40 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
   /**
    *
    * @param e
-   * @param local denotes permission in a local variable
+   * @param localPerm denotes permission in a local variable
+*    @param localRCV denotes receiver in a field access predicate
    * @return access predicate where the receiver of the location is changed for field accesses
    *         to the local variable which in Boogie stores the receiver evaluated in the current used state,
    *         also permission is changed to the local variable given as argument
    */
-  def transformAccessPred(e: sil.AccessPredicate, local: sil.LocalVar):sil.AccessPredicate = {
+  def transformAccessPred(e: sil.AccessPredicate, localPerm: sil.LocalVar, localRCV:sil.LocalVar):sil.AccessPredicate = {
     e match {
       case p@sil.FieldAccessPredicate(loc,perm) =>
-        val newLocation = sil.FieldAccess(SILrcvLocal, loc.field)(p.pos,p.info)
-        sil.FieldAccessPredicate(newLocation,local)(p.pos,p.info)
-      case p@sil.PredicateAccessPredicate(loc,perm) => sil.PredicateAccessPredicate(loc,local)(p.pos,p.info)
+        val newLocation = sil.FieldAccess(localRCV, loc.field)(p.pos,p.info)
+        sil.FieldAccessPredicate(newLocation,localPerm)(p.pos,p.info)
+      case p@sil.PredicateAccessPredicate(loc,perm) => sil.PredicateAccessPredicate(loc,localPerm)(p.pos,p.info)
     }
   }
 
   /*
    * Precondition: current state is set to the used state
     */
-  def transferAcc(states: List[StateSnapshot], used:StateSnapshot, w: AccessPredWrapper, b: LocalVar):Stmt = {
+  def transferAcc(states: List[StateSnapshot], used:StateSnapshot, e: sil.AccessPredicate, vars: TransferBoogieVars):Stmt = {
+    val TransferBoogieVars(tempLocal, b) = vars
     states match {
-      case (top :: xs) =>
-        val AccessPredWrapper(validityAP, addRemoveAP) = w
-        val addToUsed = (components flatMap (_.transferAdd(addRemoveAP,b))) ++
+    case (top :: xs) =>
+        val addToUsed = (components flatMap (_.transferAdd(e,b))) ++
                       exchangeAssumesWithBoolean(stateModule.assumeGoodState, b)
-        val equateLHS = heapModule.translateLocation(addRemoveAP.loc)
+        val equateLHS = heapModule.translateLocationAccess(e.loc)
 
         //check definedness of e in state x
         stateModule.restoreState(top)
-        val equateRHS = heapModule.translateLocation(addRemoveAP.loc)
-        val definednessTop:Stmt = Havoc(boolTransferTop) ++ (boolTransferTop := TrueLit()) ++
-          (generateStmtCheck(components flatMap (_.transferValid(validityAP)), boolTransferTop))
+        val equateRHS = heapModule.translateLocationAccess(e.loc)
+        val definednessTop:Stmt = (boolTransferTop := TrueLit()) ++
+          (generateStmtCheck(components flatMap (_.transferValid(e)), boolTransferTop))
         val minStmt = If(neededLocal <= curpermLocal, tempLocal := neededLocal, tempLocal := curpermLocal)
-        val curPermTop = permModule.currentPermission(addRemoveAP.loc)
-        val removeFromTop = (components flatMap (_.transferRemove(addRemoveAP,b))) ++
+        val curPermTop = permModule.currentPermission(e.loc)
+        val removeFromTop = (components flatMap (_.transferRemove(e,b))) ++
                           exchangeAssumesWithBoolean(stateModule.assumeGoodState, b)
 
         stateModule.restoreState(used)
@@ -262,11 +273,10 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
 
                 Nil
               )
-        ) ++ transferAcc(xs,used,w,b)
+        ) ++ transferAcc(xs,used,e,vars)
       case Nil =>
-        val AccessPredWrapper(_, addRemoveAP) = w
-        val curPermUsed = permModule.currentPermission(addRemoveAP.loc)
-        Assert(b ==> (neededLocal === boogieNoPerm && curPermUsed === permLocal), mainError.dueTo(reasons.InsufficientPermission(addRemoveAP.loc)))
+        val curPermUsed = permModule.currentPermission(e.loc)
+        Assert(b ==> (neededLocal === boogieNoPerm && curPermUsed === initNeededLocal), mainError.dueTo(reasons.InsufficientPermission(e.loc)))
 
         /**
          * actually only curPermUsed === permLocal would be sufficient if the transfer is written correctly, since
@@ -309,6 +319,10 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
     (x map (y => y._1 ++ (boolVar := boolVar&&y._2))).flatten
   }
 
-  case class AccessPredWrapper(validityAP: sil.AccessPredicate, addRemoveAP: sil.AccessPredicate)
+  /*
+   *this class is used to group the local boogie variables used for the transfer which are potentially different
+   * for each transfer (in contrast to "neededLocal" which ist declared as a constant)
+   */
+  case class TransferBoogieVars(transferAmount: LocalVar, boolVar: LocalVar)
 }
 
