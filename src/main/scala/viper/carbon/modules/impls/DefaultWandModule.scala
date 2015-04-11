@@ -94,35 +94,9 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
 
             val currentState = stateModule.getCopyState
 
-            //hypothetical state for left hand side of wand
-            val hypName = names.createUniqueIdentifier("Hypo")
-            val (hypStmt,hypState) = stateModule.freshEmptyState("Hypo")
+            val PackageSetup(hypState, usedState, initStmt, boolVar) = packageAux(wand, None)
 
-            //state which is used to check if the wand holds
-            val usedName = names.createUniqueIdentifier("Used")
-            val (usedStmt, usedState) = stateModule.freshEmptyState(usedName)
-
-            /**DEFINE STATES END **/
-
-            //inhale left hand side to initialize hypothetical state
-            stateModule.restoreState(hypState)
-
-            /**create a new boolean variable under which all assumptions belonging to the package are made
-              *(which makes sure that the assumptions won't be part of the main state after the package)
-              *
-              */
-            val b = LocalVar(Identifier("b")(transferNamespace), Bool)
-
-            val inhaleLeft = MaybeComment("Inhaling left hand side of current wand into hypothetical state",
-                                If(b, stmtModule.translateStmt(sil.Inhale(left)(p.pos,p.info)) , Statements.EmptyStmt ))
-
-            /*Gaurav: the position and info is taken from the Package node, might be misleading, also
-             *the InhaleError will be used and not the package error. Might want to duplicate the translateStmt code
-             * for an Inhale node.
-             */
-
-            stateModule.restoreState(usedState)
-            val stmt = hypStmt ++ usedStmt ++ inhaleLeft ++ exec(hypState :: currentState :: Nil, usedState, right, b)
+            val stmt = initStmt ++ exec(hypState :: currentState :: Nil, usedState, right, boolVar)
 
             stateModule.restoreState(currentState)
 
@@ -143,38 +117,17 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
       case sil.Applying(wand, body) =>
         sys.error("exec: applying not yet supported")
       case p@sil.Packaging(wand,body) =>
-        //hypothetical state for left hand side of wand
-        val hypName = names.createUniqueIdentifier("Hypo")
-        val (hypStmt,hypState) = stateModule.freshEmptyState("Hypo")
+        val PackageSetup(hypState, usedState, initStmt, b_new) = packageAux(wand, Some(b))
 
-        //state which is used to check if the wand holds
-        val usedName = names.createUniqueIdentifier("Used")
-        val (usedStmt, usedState) = stateModule.freshEmptyState(usedName)
-
-        /**DEFINE STATES END **/
-
-        //inhale left hand side to initialize hypothetical state
-        stateModule.restoreState(hypState)
-
-        /**create a new boolean variable under which all assumptions belonging to the package are made
-          *(which makes sure that the assumptions won't be part of the main state after the package)
-          *
-          */
-        val b_new = LocalVar(Identifier(names.createUniqueIdentifier("b"))(transferNamespace), Bool)
-
-        val inhaleLeft = MaybeComment("Inhaling left hand side of current wand into hypothetical state",
-          If(b_new, stmtModule.translateStmt(sil.Inhale(wand.left)(e.pos,e.info)) , Statements.EmptyStmt ))
-
-        stateModule.restoreState(usedState)
         val execInnerWand = exec(hypState :: ops :: states, usedState, wand.right, b_new)
 
-        val packaging =  MaybeCommentBlock("Code for the packaging of wand in" + p.toString(),
-          hypStmt ++ usedStmt ++ (b_new := b && b_new) ++ inhaleLeft ++ execInnerWand)
+        val packaging =  MaybeCommentBlock("Code for the packaging of wand" + wand.toString() +" in" + p.toString(),
+          initStmt ++ execInnerWand)
 
         stateModule.restoreState(ops)
         //TODO add wand
         MaybeCommentBlock("Translating " + p.toString(),
-          packaging ++ MaybeCommentBlock("Code for body of " + p.toString(), exec(states,ops,body,b)) )
+          packaging ++ MaybeCommentBlock("Code for body " + body.toString() + " of " + p.toString(), exec(states,ops,body,b)) )
 
       case _ =>
         //no ghost operation
@@ -184,6 +137,50 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
        usedStmt ++ exhaleExt(ops :: states, usedState,e,b)
     }
 
+  }
+
+  /**
+   * @param wand wand to be packaged
+   * @param boolVar boolean variable to which the newly generated boolean variable associated with the package should
+   *                be set to in the beginning
+   * @return structure that contains all the necessary blocks to initiate a package
+   *
+   * Postcondition: state is set to the "Used" state generated in the function
+   */
+  private def packageAux(wand:sil.MagicWand, boolVar: Option[LocalVar]):PackageSetup = {
+    /**create a new boolean variable under which all assumptions belonging to the package are made
+      *(which makes sure that the assumptions won't be part of the main state after the package)
+      *
+      */
+
+    var boolStmt:Stmt = null
+
+    val b = LocalVar(Identifier("b")(transferNamespace), Bool)
+
+    boolVar match {
+      case Some(b_old) => boolStmt = (b := b_old)
+      case _ => boolStmt = Nil
+    }
+
+    //hypothetical state for left hand side of wand
+    val hypName = names.createUniqueIdentifier("Hypo")
+    val (hypStmt,hypState) = stateModule.freshEmptyState(hypName)
+
+    //state which is used to check if the wand holds
+    val usedName = names.createUniqueIdentifier("Used")
+    val (usedStmt, usedState) = stateModule.freshEmptyState(usedName)
+
+    /**DEFINE STATES END **/
+
+    //inhale left hand side to initialize hypothetical state
+    stateModule.restoreState(hypState)
+
+    val inhaleLeft = MaybeComment("Inhaling left hand side of current wand into hypothetical state",
+      If(b, stmtModule.translateStmt(sil.Inhale(wand.left)(wand.pos,wand.info)) , Statements.EmptyStmt ))
+
+    stateModule.restoreState(usedState)
+
+    PackageSetup(hypState,usedState,hypStmt++usedStmt++boolStmt++inhaleLeft, b)
   }
 
   /*generates code that transfers permissions from states to used such that e can be satisfied
@@ -356,6 +353,10 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
    */
   case class TransferBoogieVars(transferAmount: LocalVar, boolVar: LocalVar)
 
+  /*
+   *PackageSetup is used to store all the relevant blocks needed to start a package. It is used mainly such that
+   * the main package and nested packages can share code.
+   */
   case class PackageSetup(hypState: StateSnapshot, usedState: StateSnapshot, initStmt: Stmt, boolVar: LocalVar)
 }
 
