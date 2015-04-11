@@ -142,14 +142,46 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
         sys.error("exec: unfolding not yet supported")
       case sil.Applying(wand, body) =>
         sys.error("exec: applying not yet supported")
-      case sil.Packaging(wand,body) =>
-        sys.error("exec: packaging not yet supported")
+      case p@sil.Packaging(wand,body) =>
+        //hypothetical state for left hand side of wand
+        val hypName = names.createUniqueIdentifier("Hypo")
+        val (hypStmt,hypState) = stateModule.freshEmptyState("Hypo")
+
+        //state which is used to check if the wand holds
+        val usedName = names.createUniqueIdentifier("Used")
+        val (usedStmt, usedState) = stateModule.freshEmptyState(usedName)
+
+        /**DEFINE STATES END **/
+
+        //inhale left hand side to initialize hypothetical state
+        stateModule.restoreState(hypState)
+
+        /**create a new boolean variable under which all assumptions belonging to the package are made
+          *(which makes sure that the assumptions won't be part of the main state after the package)
+          *
+          */
+        val b_new = LocalVar(Identifier(names.createUniqueIdentifier("b"))(transferNamespace), Bool)
+
+        val inhaleLeft = MaybeComment("Inhaling left hand side of current wand into hypothetical state",
+          If(b_new, stmtModule.translateStmt(sil.Inhale(wand.left)(e.pos,e.info)) , Statements.EmptyStmt ))
+
+        stateModule.restoreState(usedState)
+        val execInnerWand = exec(hypState :: ops :: states, usedState, wand.right, b_new)
+
+        val packaging =  MaybeCommentBlock("Code for the packaging of wand in" + p.toString(),
+          hypStmt ++ usedStmt ++ (b_new := b && b_new) ++ inhaleLeft ++ execInnerWand)
+
+        stateModule.restoreState(ops)
+        //TODO add wand
+        MaybeCommentBlock("Translating " + p.toString(),
+          packaging ++ MaybeCommentBlock("Code for body of " + p.toString(), exec(states,ops,body,b)) )
+
       case _ =>
         //no ghost operation
         val usedName = names.createUniqueIdentifier("Used")
         val (usedStmt,usedState) = stateModule.freshEmptyState(usedName)
         stateModule.restoreState(usedState)
-        usedStmt ++ exhaleExt(ops :: states, usedState,e,b)
+       usedStmt ++ exhaleExt(ops :: states, usedState,e,b)
     }
 
   }
@@ -166,7 +198,6 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
       case acc@sil.CondExp(c,e1,e2) => If(expModule.translateExp(c), exhaleExt(states,used,e1,b), exhaleExt(states,used,e1,b))
       case _ => exhaleExtExp(states,used,e,b)
     }
-
   }
 
   def exhaleExtExp(states: List[StateSnapshot], used:StateSnapshot, e: sil.Exp, b:LocalVar):Stmt = {
@@ -209,14 +240,14 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
         mainModule.env.undefine(SILtempLocal)
         mainModule.env.undefine(SILrcvLocal)
 
-        stmt
+        MaybeCommentBlock("Transfer of " + e.toString(), stmt)
       case _ => sys.error("This version only supports access predicates for packaging of wands")
     }
   }
 
   /**
    *
-   * @param e
+   * @param e Access Predicate to be transformed, generally this is the original predicate from the Silver AST
    * @param localPerm denotes permission in a local variable
 *    @param localRCV denotes receiver in a field access predicate
    * @return access predicate where the receiver of the location is changed for field accesses
@@ -324,5 +355,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
    * for each transfer (in contrast to "neededLocal" which ist declared as a constant)
    */
   case class TransferBoogieVars(transferAmount: LocalVar, boolVar: LocalVar)
+
+  case class PackageSetup(hypState: StateSnapshot, usedState: StateSnapshot, initStmt: Stmt, boolVar: LocalVar)
 }
 
