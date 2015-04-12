@@ -73,7 +73,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     (s, previousState)
   }
 
-  override def freshEmptyState(name: String): (Stmt, StateSnapshot) = {
+  override def freshEmptyState(name: String, init:Boolean = true): (Stmt, StateSnapshot) = {
     val previousState = new java.util.IdentityHashMap[StateComponent, Seq[Exp]]()
     val s = (for (c <- components) yield {
       val tmpExps = c.freshTempState(name)
@@ -90,7 +90,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
         *it shouldn't have an effect on the current state since it assumes changing the current state and then resetting
         *it doesn't change the end result */
       c.restoreState(tmpExps)
-      val initStmt = c.initState
+      val initStmt = if(init) { c.initState} else { Statements.EmptyStmt}
       c.restoreState(curExps)
       stmt ++ initStmt
     }).flatten
