@@ -11,8 +11,6 @@ import viper.carbon.boogie.Implicits._
 import viper.silver.verifier.{errors, reasons, PartialVerificationError}
 import viper.silver.{ast => sil}
 
-import scala.reflect.internal.util.NoPosition
-
 
 /**
  * Created by Gaurav on 06.03.2015.
@@ -109,8 +107,63 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
 
   def exec(states: List[StateSnapshot], ops: StateSnapshot, e:sil.Exp, b: LocalVar):Stmt = {
     e match {
-      case sil.Folding(acc,body) =>
-        sys.error("exec: folding not yet supported")
+      case fold@sil.Folding(acc,body) =>
+        val opsMask = permModule.currentMask
+        val opsHeap = heapModule.currentHeap
+
+        val UsedStateSetup(usedState, initStmt, boolUsed) = createAndSetState(Some(b))
+        initStmt ++
+          { //get permissions for unfold and then unfold
+             val sil.PredicateAccessPredicate(loc,perm) = acc
+
+            /* for each argument create a variable and evaluate the argument in the used state */
+             val varsAndExprEval: Seq[(sil.LocalVar, Exp)] = (for (arg <- loc.args) yield {
+              val decl = mainModule.env.makeUniquelyNamed(sil.LocalVarDecl("arg", arg.typ)(arg.pos, arg.info))
+              (decl.localVar, expModule.translateExp(arg))
+            })
+
+            /*assign the variables to the corresponding evaluated arguments */
+            val assignStmt = varsAndExprEval.map(var_exp => mainModule.env.define(var_exp._1) := var_exp._2)
+
+            /*transform the predicate such that the arguments are now the variables */
+            val predAccTransformed = sil.PredicateAccessPredicate(
+              sil.PredicateAccess(varsAndExprEval.map(var_exp => var_exp._1), loc.predicateName)
+                (loc.pos, loc.info), perm)(acc.pos, acc.info)
+
+            stateModule.restoreState(usedState)
+
+            val permForBody = exhaleExt(ops :: states, usedState, loc.predicateBody(verifier.program).get, boolUsed)
+            val foldStmt = If(boolUsed, funcPredModule.translateFold(sil.Fold(predAccTransformed)(fold.pos, fold.info)),
+              Statements.EmptyStmt)
+            for (decl_exp <- varsAndExprEval) yield {
+              mainModule.env.undefine(decl_exp._1)
+            }
+            assignStmt ++ permForBody ++ foldStmt
+          } ++ {
+            //exec in sum state
+            val usedHeap = heapModule.currentHeap
+            val usedMask = permModule.currentMask
+
+            /*create a state Result which is the "sum" of the ops and used states, i.e.:
+             *1) at each heap location o.f the permission of the Result state is the sum of the permissions
+             * for o.f in the ops and Used state
+             * 2) if ops has some positive nonzero amount of permission for heap location o.f then the heap values for
+             * o.f in ops and Result are the same
+             * 3) point 2) also holds for the used state in place of the ops state
+             *
+             * Note: the boolean is the conjunction of the booleans of ops and used (since all facts of each
+             * state is transferred)
+              */
+            val UsedStateSetup(resultState, initStmtResult, boolRes) =
+              createAndSetState(Some(b&&boolUsed),"Result",true,false)
+
+            val sumStates = (boolRes := boolRes && permModule.sumMask(opsMask,usedMask))
+            val equateKnownValues = (boolRes := boolRes && heapModule.identicalOnKnownLocations(opsHeap, opsMask) &&
+              heapModule.identicalOnKnownLocations(usedHeap, usedMask))
+
+           initStmtResult ++sumStates ++ equateKnownValues ++ exec(states, resultState,body,boolRes)
+
+          }
       case sil.Unfolding(acc,body) =>
         sys.error("exec: unfolding not yet supported")
       case sil.Applying(wand, body) =>
@@ -130,10 +183,8 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
 
       case _ =>
         //no ghost operation
-        val usedName = names.createUniqueIdentifier("Used")
-        val (usedStmt,usedState) = stateModule.freshEmptyState(usedName)
-        stateModule.restoreState(usedState)
-       usedStmt ++ exhaleExt(ops :: states, usedState,e,b)
+        val UsedStateSetup(usedState, initStmt, boolVar) = createAndSetState(Some(b))
+        initStmt ++ exhaleExt(ops :: states, usedState,e,b)
     }
 
   }
