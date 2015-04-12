@@ -80,4 +80,19 @@ trait PermModule extends Module {
    */
   def currentPermission(loc: sil.LocationAccess): Exp
 
+  /**these methods are for experimental purposes, not yet finalized **/
+  /*def beginSumMask : Stmt
+
+  def sumMask : Exp
+
+  def endSumMask: Stmt*/
+/*
+  def setSummandMask1
+  def setSummandMask2
+  def sumMask(assmsToSmt: Exp => Stmt):Stmt
+  */
+
+  def sumMask(summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp
+
+
 }

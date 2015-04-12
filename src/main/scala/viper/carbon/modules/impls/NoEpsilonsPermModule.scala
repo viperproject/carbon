@@ -91,6 +91,11 @@ class NoEpsilonsPermModule(val verifier: Verifier)
   private val hasDirectPermName = Identifier("HasDirectPerm")
   private val predicateMaskFieldName = Identifier("PredicateMaskField")
 
+  private val resultMask = LocalVarDecl(Identifier("ResultMask"),maskType)
+  private val summandMask1 = LocalVarDecl(Identifier("SummandMask1"),maskType)
+  private val summandMask2 = LocalVarDecl(Identifier("SummandMask2"),maskType)
+  private val sumMasks = Identifier("sumMask")
+
   override def preamble = {
     val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
     val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
@@ -152,7 +157,22 @@ class NoEpsilonsPermModule(val verifier: Verifier)
           Trigger(funcApp),
           funcApp <==> permissionPositive(permission)
         ))
-    }
+    } ++ {
+        val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
+        val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
+        val args = Seq(resultMask,summandMask1,summandMask2)
+        val funcApp = FuncApp(sumMasks, args map (_.l), Bool)
+        val permResult = currentPermission(resultMask.l, obj.l, field.l)
+        val permSummand1 = currentPermission(summandMask1.l,obj.l,field.l)
+        val permSummand2 = currentPermission(summandMask2.l,obj.l,field.l)
+        Func(sumMasks,args,Bool) ++
+          Axiom(Forall(
+            args++Seq(obj,field),
+            Trigger(Seq(funcApp,permResult)) ++ Trigger(Seq(funcApp,permSummand1)) ++
+              Trigger(Seq(funcApp,permSummand2)),
+            permResult === (permSummand1 + permSummand2)
+          ))
+      }
   }
 
   def permType = NamedType(permTypeName)
@@ -183,7 +203,6 @@ class NoEpsilonsPermModule(val verifier: Verifier)
   override def restoreState(s: Seq[Exp]) {
     mask = s(0)
   }
-
   /**
    * Can a location on a given receiver be read?
    */
@@ -212,6 +231,9 @@ class NoEpsilonsPermModule(val verifier: Verifier)
       case _ => if(zeroOK) permission >= RealLit(0) else permission > RealLit(0)
     }
   }
+
+  def sumMask(summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp =
+    FuncApp(sumMasks, currentMask++summandMask1++summandMask2,Bool)
 
   override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {

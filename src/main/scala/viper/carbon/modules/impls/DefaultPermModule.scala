@@ -275,6 +275,10 @@ class DefaultPermModule(val verifier: Verifier)
     }
   }
 
+  def sumMask(summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp =
+    sys.error("This module doesn't support sumMask")
+
+
   override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
       case sil.AccessPredicate(loc, p) =>
