@@ -399,4 +399,9 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
       case _ => Nil
     }
   }
+
+  override def currentHeap = Seq(heap)
+
+  override def identicalOnKnownLocations(otherHeap:Seq[Exp],otherMask:Seq[Exp]):Exp =
+    FuncApp(identicalOnKnownLocsName,otherHeap ++ heap ++ otherMask, Bool)
 }
