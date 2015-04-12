@@ -7,7 +7,6 @@ import viper.carbon.modules.components.{TransferComponent, DefinednessComponent}
 import viper.carbon.verifier.Verifier
 import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
-import viper.carbon.boogie.Namespace
 
 import viper.silver.verifier.{errors, reasons, PartialVerificationError}
 import viper.silver.{ast => sil}
@@ -148,39 +147,55 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
    * Postcondition: state is set to the "Used" state generated in the function
    */
   private def packageInit(wand:sil.MagicWand, boolVar: Option[LocalVar]):PackageSetup = {
+    val UsedStateSetup(usedState,initStmt,b) = createAndSetState(boolVar,"Used",false)
+
+    //inhale left hand side to initialize hypothetical state
+    val hypName = names.createUniqueIdentifier("Hyp")
+    val (hypStmt, hypState) = stateModule.freshEmptyState(hypName,true)
+    stateModule.restoreState(hypState)
+
+    val inhaleLeft = MaybeComment("Inhaling left hand side of current wand into hypothetical state",
+      If(b, expModule.checkDefinednessOfSpecAndInhale(wand.left,mainError) , Statements.EmptyStmt ))
+
+    stateModule.restoreState(usedState)
+
+    PackageSetup(hypState,usedState,hypStmt++initStmt++inhaleLeft, b)
+  }
+
+  /**
+   *
+   * @param initBool boolean value to which the newly generated boolean variable should be initialized to
+   * @param usedString string to incorporate into unique name for string
+   * @param setToNew the state is set to the generated state iff this is set to true
+   * @param init if this is set to true then the stmt in UsedStateSetup will initialize the states (for example
+   *             masks to ZeroMask), otherwise the states contain no information
+   * @return  Structure which can be used at the beginning of many operations involved in the package
+   */
+  private def createAndSetState(initBool:Option[Exp],usedString:String = "Used",setToNew:Boolean=true,
+                                init:Boolean=true):UsedStateSetup = {
     /**create a new boolean variable under which all assumptions belonging to the package are made
       *(which makes sure that the assumptions won't be part of the main state after the package)
       *
       */
-
     var boolStmt:Stmt = null
 
     val b = LocalVar(Identifier(names.createUniqueIdentifier("b"))(transferNamespace), Bool)
 
-    boolVar match {
-      case Some(b_old) => boolStmt = (b := b_old)
+    initBool match {
+      case Some(boolExpr) => boolStmt = (b := boolExpr)
       case _ => boolStmt = Nil
     }
 
-    //hypothetical state for left hand side of wand
-    val hypName = names.createUniqueIdentifier("Hypo")
-    val (hypStmt,hypState) = stateModule.freshEmptyState(hypName)
-
     //state which is used to check if the wand holds
-    val usedName = names.createUniqueIdentifier("Used")
-    val (usedStmt, usedState) = stateModule.freshEmptyState(usedName)
+    val usedName = names.createUniqueIdentifier(usedString)
+    val (usedStmt, usedState) = stateModule.freshEmptyState(usedName,init)
 
     /**DEFINE STATES END **/
+    if(setToNew) {
+      stateModule.restoreState(usedState)
+    }
 
-    //inhale left hand side to initialize hypothetical state
-    stateModule.restoreState(hypState)
-
-    val inhaleLeft = MaybeComment("Inhaling left hand side of current wand into hypothetical state",
-      If(b, stmtModule.translateStmt(sil.Inhale(wand.left)(wand.pos,wand.info)) , Statements.EmptyStmt ))
-
-    stateModule.restoreState(usedState)
-
-    PackageSetup(hypState,usedState,hypStmt++usedStmt++boolStmt++inhaleLeft, b)
+    UsedStateSetup(usedState,usedStmt++boolStmt, b)
   }
 
   /*generates code that transfers permissions from states to used such that e can be satisfied
@@ -357,9 +372,12 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
   case class TransferBoogieVars(transferAmount: LocalVar, boolVar: LocalVar)
 
   /*
-   *PackageSetup is used to store all the relevant blocks needed to start a package. It is used mainly such that
-   * the main package and nested packages can share code.
+   * is used to store relevant blocks needed to start an exec or package
    */
   case class PackageSetup(hypState: StateSnapshot, usedState: StateSnapshot, initStmt: Stmt, boolVar: LocalVar)
+
+  case class UsedStateSetup(usedState: StateSnapshot, initStmt: Stmt, boolVar: LocalVar)
+
+
 }
 
