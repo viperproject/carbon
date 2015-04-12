@@ -290,12 +290,14 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
         val definedness = MaybeCommentBlock("checking if access predicate defined in used state",
           expModule.checkDefinedness(p, mainError))
 
-
         val rcvStmt: Stmt =
           p match {
-            case fa: sil.FieldAccessPredicate => rcvLocal := (expModule.translateExp(fa.loc.rcv))
+            case fa: sil.FieldAccessPredicate =>
+              rcvLocal := (expModule.translateExp(fa.loc.rcv))
             case _ => Nil
           }
+
+        val goal = (initNeededLocal := permModule.currentPermission(loc)+permAmount)
 
         val transferRest = transferAcc(states,used, transformAccessPred(p,SILtempLocal, SILrcvLocal),TransferBoogieVars(tempLocal,b))
         val stmt = definedness ++ rcvStmt ++ (initNeededLocal := permAmount) ++
@@ -318,7 +320,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
    *         the receiver of the location is changed for field accesses to the local variable which in Boogie
    *         stores the receiver evaluated in the current used state
    */
-  def transformAccessPred(e: sil.AccessPredicate, localPerm: sil.LocalVar, localRCV:sil.LocalVar):sil.AccessPredicate = {
+  private def transformAccessPred(e: sil.AccessPredicate, localPerm: sil.LocalVar, localRCV:sil.LocalVar):sil.AccessPredicate = {
     e match {
       case p@sil.FieldAccessPredicate(loc,perm) =>
         val newLocation = sil.FieldAccess(localRCV, loc.field)(p.pos,p.info)
@@ -330,7 +332,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
   /*
    * Precondition: current state is set to the used state
     */
-  def transferAcc(states: List[StateSnapshot], used:StateSnapshot, e: sil.AccessPredicate, vars: TransferBoogieVars):Stmt = {
+  private def transferAcc(states: List[StateSnapshot], used:StateSnapshot, e: sil.AccessPredicate, vars: TransferBoogieVars):Stmt = {
     val TransferBoogieVars(tempLocal, b) = vars
     states match {
     case (top :: xs) =>
