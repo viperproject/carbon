@@ -160,8 +160,9 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
             val sumStates = (boolRes := boolRes && permModule.sumMask(opsMask,usedMask))
             val equateKnownValues = (boolRes := boolRes && heapModule.identicalOnKnownLocations(opsHeap, opsMask) &&
               heapModule.identicalOnKnownLocations(usedHeap, usedMask))
+            val goodState = exchangeAssumesWithBoolean(stateModule.assumeGoodState,boolRes)
 
-           initStmtResult ++sumStates ++ equateKnownValues ++ exec(states, resultState,body,boolRes)
+           initStmtResult ++sumStates ++ equateKnownValues ++goodState ++ exec(states, resultState,body,boolRes)
 
           }
       case sil.Unfolding(acc,body) =>
@@ -198,20 +199,21 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
    * Postcondition: state is set to the "Used" state generated in the function
    */
   private def packageInit(wand:sil.MagicWand, boolVar: Option[LocalVar]):PackageSetup = {
-    val UsedStateSetup(usedState,initStmt,b) = createAndSetState(boolVar,"Used",false)
+    val UsedStateSetup(usedState, initStmt, b) = createAndSetState(boolVar, "Used", false)
 
     //inhale left hand side to initialize hypothetical state
     val hypName = names.createUniqueIdentifier("Hyp")
-    val (hypStmt, hypState) = stateModule.freshEmptyState(hypName,true)
+    val (hypStmt, hypState) = stateModule.freshEmptyState(hypName, true)
     stateModule.restoreState(hypState)
 
     val inhaleLeft = MaybeComment("Inhaling left hand side of current wand into hypothetical state",
-      If(b, expModule.checkDefinednessOfSpecAndInhale(wand.left,mainError) , Statements.EmptyStmt ))
+      If(b, expModule.checkDefinednessOfSpecAndInhale(wand.left, mainError), Statements.EmptyStmt))
 
     stateModule.restoreState(usedState)
 
-    PackageSetup(hypState,usedState,hypStmt++initStmt++inhaleLeft, b)
+    PackageSetup(hypState, usedState, hypStmt ++ initStmt ++ inhaleLeft, b)
   }
+
 
   /**
    *
@@ -288,7 +290,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
         val permAmount = permModule.translatePerm(perm) //store the permission to be transferred into a separate variable
         val positivePerm = Assert(neededLocal >= RealLit(0), mainError.dueTo(reasons.NegativePermission(e)))
         val definedness = MaybeCommentBlock("checking if access predicate defined in used state",
-          expModule.checkDefinedness(p, mainError))
+          If(b,expModule.checkDefinedness(p, mainError),Statements.EmptyStmt))
 
         val rcvStmt: Stmt =
           p match {
@@ -299,11 +301,11 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
 
         val accTransformed = transformAccessPred(p,SILtempLocal, SILrcvLocal)
 
-        val goal = (initNeededLocal := permModule.currentPermission(accTransformed.loc)+permAmount)
+        val initPermVars = (neededLocal := permAmount) ++
+          (initNeededLocal := permModule.currentPermission(accTransformed.loc)+neededLocal)
 
         val transferRest = transferAcc(states,used, accTransformed,TransferBoogieVars(tempLocal,b))
-        val stmt = definedness ++ rcvStmt ++ goal ++
-                  (neededLocal := permAmount) ++  positivePerm ++ transferRest
+        val stmt = definedness ++ rcvStmt ++ initPermVars ++  positivePerm ++ transferRest
 
         mainModule.env.undefine(SILtempLocal)
         mainModule.env.undefine(SILrcvLocal)
@@ -344,7 +346,11 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
 
         //check definedness of e in state x
         stateModule.restoreState(top)
-        val equateRHS = heapModule.translateLocationAccess(e.loc)
+        val equateStmt = e match {
+          case sil.FieldAccessPredicate => b := equateLHS === heapModule.translateLocationAccess(e.loc)
+          case _ => Statements.EmptyStmt
+        }
+
         val definednessTop:Stmt = (boolTransferTop := TrueLit()) ++
           (generateStmtCheck(components flatMap (_.transferValid(e)), boolTransferTop))
         val minStmt = If(neededLocal <= curpermLocal, tempLocal := neededLocal, tempLocal := curpermLocal)
@@ -367,7 +373,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
 
                   (neededLocal := neededLocal - tempLocal) ++
                   addToUsed ++
-                  (b := b && equateLHS === equateRHS) ++
+                    equateStmt ++
                   removeFromTop,
 
                   Nil),
