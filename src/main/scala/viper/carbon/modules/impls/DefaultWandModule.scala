@@ -297,10 +297,12 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
             case _ => Nil
           }
 
-        val goal = (initNeededLocal := permModule.currentPermission(loc)+permAmount)
+        val accTransformed = transformAccessPred(p,SILtempLocal, SILrcvLocal)
 
-        val transferRest = transferAcc(states,used, transformAccessPred(p,SILtempLocal, SILrcvLocal),TransferBoogieVars(tempLocal,b))
-        val stmt = definedness ++ rcvStmt ++ (initNeededLocal := permAmount) ++
+        val goal = (initNeededLocal := permModule.currentPermission(accTransformed.loc)+permAmount)
+
+        val transferRest = transferAcc(states,used, accTransformed,TransferBoogieVars(tempLocal,b))
+        val stmt = definedness ++ rcvStmt ++ goal ++
                   (neededLocal := permAmount) ++  positivePerm ++ transferRest
 
         mainModule.env.undefine(SILtempLocal)
