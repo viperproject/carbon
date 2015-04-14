@@ -100,8 +100,8 @@ object Optimizer {
         IntLit(left - right)
       case BinExp(IntLit(left), Mul, IntLit(right)) =>
         IntLit(left * right)
-      case BinExp(IntLit(left), Div, IntLit(right)) if right != 0 =>
-        RealLit(left.toDouble / right.toDouble)
+     /* case BinExp(IntLit(left), Div, IntLit(right)) if right != 0 =>
+        RealLit(left.toDouble / right.toDouble)*/
       case BinExp(IntLit(left), IntDiv, IntLit(right)) if right != 0 =>
         IntLit(left / right)
       case BinExp(IntLit(left), Mod, IntLit(right)) if right != 0 =>
