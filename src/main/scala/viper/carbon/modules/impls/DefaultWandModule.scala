@@ -116,28 +116,20 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
           { //get permissions for unfold and then unfold
              val sil.PredicateAccessPredicate(loc,perm) = acc
 
-            /* for each argument create a variable and evaluate the argument in the used state */
-             val varsAndExprEval: Seq[(sil.LocalVar, Exp)] = (for (arg <- loc.args) yield {
-              val decl = mainModule.env.makeUniquelyNamed(sil.LocalVarDecl("arg", arg.typ)(arg.pos, arg.info))
-              (decl.localVar, expModule.translateExp(arg))
-            })
-
-            /*assign the variables to the corresponding evaluated arguments */
-            val assignStmt = varsAndExprEval.map(var_exp => mainModule.env.define(var_exp._1) := var_exp._2)
-
-            /*transform the predicate such that the arguments are now the variables */
-            val predAccTransformed = sil.PredicateAccessPredicate(
-              sil.PredicateAccess(varsAndExprEval.map(var_exp => var_exp._1), loc.predicateName)
-                (loc.pos, loc.info), perm)(acc.pos, acc.info)
+            val (argsLocal, accTransformed, assignStmt) = evalArgsAccessPredicate(acc, None)
+            val predAccTransformed = accTransformed match {
+              case pap@sil.PredicateAccessPredicate(_,_) => pap
+              case _ =>  sys.error("evalArgsAccessPredicate returned FieldAccessPredicate for input PredicateAccessPredicate")
+            }
 
             stateModule.restoreState(usedState)
 
             val permForBody = exhaleExt(ops :: states, usedState, loc.predicateBody(verifier.program).get, boolUsed)
             val foldStmt = If(boolUsed, funcPredModule.translateFold(sil.Fold(predAccTransformed)(fold.pos, fold.info)),
               Statements.EmptyStmt)
-            for (decl_exp <- varsAndExprEval) yield {
-              mainModule.env.undefine(decl_exp._1)
-            }
+
+            argsLocal.foreach(localVar => mainModule.env.undefine(localVar))
+
             assignStmt ++ permForBody ++ foldStmt
           } ++ {
             //exec in sum state
@@ -284,52 +276,30 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
         val SILtempLocal = mainModule.env.makeUniquelyNamed(SILtempLocalDecl).localVar
         val tempLocal = mainModule.env.define(SILtempLocal) //bind Boogie to Silver variable
 
-        val SILrcvLocal = mainModule.env.makeUniquelyNamed(SILrcvLocalDecl).localVar
-        val rcvLocal = mainModule.env.define(SILrcvLocal) //bind Boogie to Silver variable
+        val (argLocals,accTransformed, assignStmt) : (Seq[sil.LocalVar],sil.AccessPredicate, Stmt) =
+          evalArgsAccessPredicate(p,Some(SILtempLocal))
 
         val permAmount = permModule.translatePerm(perm) //store the permission to be transferred into a separate variable
         val positivePerm = Assert(neededLocal >= RealLit(0), mainError.dueTo(reasons.NegativePermission(e)))
+        /*TODO
+        val notNull = for (local <- argLocals zip loc) yield {
+          Assert(local !== heapModule.translateNull, mainError.dueTo(reasons.))
+        }
+        */
         val definedness = MaybeCommentBlock("checking if access predicate defined in used state",
           If(b,expModule.checkDefinedness(p, mainError),Statements.EmptyStmt))
-
-        val rcvStmt: Stmt =
-          p match {
-            case fa: sil.FieldAccessPredicate =>
-              rcvLocal := (expModule.translateExp(fa.loc.rcv))
-            case _ => Nil
-          }
-
-        val accTransformed = transformAccessPred(p,SILtempLocal, SILrcvLocal)
 
         val initPermVars = (neededLocal := permAmount) ++
           (initNeededLocal := permModule.currentPermission(accTransformed.loc)+neededLocal)
 
         val transferRest = transferAcc(states,used, accTransformed,TransferBoogieVars(tempLocal,b))
-        val stmt = definedness ++ rcvStmt ++ initPermVars ++  positivePerm ++ transferRest
+        val stmt = definedness ++ assignStmt ++ initPermVars ++  positivePerm ++ transferRest
 
         mainModule.env.undefine(SILtempLocal)
-        mainModule.env.undefine(SILrcvLocal)
+        argLocals.foreach(v => mainModule.env.undefine(v))
 
         MaybeCommentBlock("Transfer of " + e.toString(), stmt)
       case _ => sys.error("This version only supports access predicates for packaging of wands")
-    }
-  }
-
-  /**
-   *
-   * @param e Access Predicate to be transformed, generally this is the original predicate from the Silver AST
-   * @param localPerm denotes permission in a local variable
-*    @param localRCV denotes receiver in a field access predicate
-   * @return access predicate where  permission is changed to the local variable given by localPerm
-   *         the receiver of the location is changed for field accesses to the local variable which in Boogie
-   *         stores the receiver evaluated in the current used state
-   */
-  private def transformAccessPred(e: sil.AccessPredicate, localPerm: sil.LocalVar, localRCV:sil.LocalVar):sil.AccessPredicate = {
-    e match {
-      case p@sil.FieldAccessPredicate(loc,perm) =>
-        val newLocation = sil.FieldAccess(localRCV, loc.field)(p.pos,p.info)
-        sil.FieldAccessPredicate(newLocation,localPerm)(p.pos,p.info)
-      case p@sil.PredicateAccessPredicate(loc,perm) => sil.PredicateAccessPredicate(loc,localPerm)(p.pos,p.info)
     }
   }
 
@@ -347,7 +317,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
         //check definedness of e in state x
         stateModule.restoreState(top)
         val equateStmt = e match {
-          case sil.FieldAccessPredicate => b := equateLHS === heapModule.translateLocationAccess(e.loc)
+          case sil.FieldAccessPredicate(field_loc,_) => b := equateLHS === heapModule.translateLocationAccess(field_loc)
           case _ => Statements.EmptyStmt
         }
 
@@ -391,6 +361,46 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
          * in case of bugs
          * */
     }
+  }
+
+  def evalArgsAccessPredicate(acc: sil.AccessPredicate, permLocal: Option[sil.LocalVar]):
+      (Seq[sil.LocalVar],sil.AccessPredicate,Stmt) = {
+
+    val newPerm = permLocal match {
+      case Some(p) => p
+      case None => acc.perm
+    }
+
+    acc match {
+      case sil.FieldAccessPredicate(loc,perm) =>
+        val SILrcvLocal = mainModule.env.makeUniquelyNamed(SILrcvLocalDecl).localVar
+        val rcvLocal = mainModule.env.define(SILrcvLocal) //bind Boogie to Silver variable
+        val assignStmt = rcvLocal := expModule.translateExp(loc.rcv)
+
+        val newLocation = sil.FieldAccess(SILrcvLocal, loc.field)(acc.pos,acc.info)
+        (Seq(SILrcvLocal), sil.FieldAccessPredicate(newLocation,newPerm)(acc.pos,acc.info),assignStmt)
+
+      case sil.PredicateAccessPredicate(loc,perm) =>
+        /* for each argument create a variable and evaluate the argument in the used state */
+        val varsAndExprEval: Seq[(sil.LocalVar, Stmt)] = (for (arg <- loc.args) yield {
+          val decl = mainModule.env.makeUniquelyNamed(sil.LocalVarDecl("arg", arg.typ)(arg.pos, arg.info))
+          val localVar = decl.localVar
+          (localVar, mainModule.env.define(localVar) := expModule.translateExp(arg))
+        })
+
+        val assignStmt = for ((_,stmt) <- varsAndExprEval) yield {
+          stmt
+        }
+
+        val localEvalArgs = varsAndExprEval.map( x => x._1)
+
+        /*transform the predicate such that the arguments are now the variables */
+        val predAccTransformed = sil.PredicateAccessPredicate(
+          sil.PredicateAccess(localEvalArgs, loc.predicateName)(loc.pos, loc.info), newPerm)(acc.pos, acc.info)
+
+        (localEvalArgs, predAccTransformed, assignStmt)
+    }
+
   }
 
    /*

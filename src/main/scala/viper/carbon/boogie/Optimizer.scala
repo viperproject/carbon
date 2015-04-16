@@ -100,6 +100,7 @@ object Optimizer {
         IntLit(left - right)
       case BinExp(IntLit(left), Mul, IntLit(right)) =>
         IntLit(left * right)
+     // This case was removed - the evaluation as doubles and translation of RealLit can introduce rounding/precision errors
      /* case BinExp(IntLit(left), Div, IntLit(right)) if right != 0 =>
         RealLit(left.toDouble / right.toDouble)*/
       case BinExp(IntLit(left), IntDiv, IntLit(right)) if right != 0 =>
