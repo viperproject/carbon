@@ -143,7 +143,7 @@ class NoEpsilonsPermModule(val verifier: Verifier)
           // permissions are non-negative
           perm >= RealLit(0) &&
           // permissions for fields are smaller than 1
-          (perm <= RealLit(1))
+          (heapModule.isPredicateField(field.l).not ==> perm <= RealLit(1) )
       ))
     } ++ {
       val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
