@@ -303,7 +303,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
       case acc@sil.AccessPredicate(_,_) => transferMain(states,used, e, b) //transfer(states, used, acc)
       case acc@sil.MagicWand(_,_) => sys.error("exhaleExtConnective: Magic Wands not yet supported ")
       case acc@sil.And(e1,e2) => exhaleExt(states, used, e1,b) :: exhaleExt(states,used,e2,b) :: Nil
-      case acc@sil.Implies(e1,e2) => If(expModule.translateExp(e1), exhaleExt(states,used,e1,b),Statements.EmptyStmt)
+      case acc@sil.Implies(e1,e2) => If(expModule.translateExp(e1), exhaleExt(states,used,e2,b),Statements.EmptyStmt)
       case acc@sil.CondExp(c,e1,e2) => If(expModule.translateExp(c), exhaleExt(states,used,e1,b), exhaleExt(states,used,e2,b))
       case _ => exhaleExtExp(states,used,e,b)
     }
@@ -311,9 +311,10 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
 
   def exhaleExtExp(states: List[StateSnapshot], used:StateSnapshot, e: sil.Exp, b:LocalVar):Stmt = {
     if(e.isPure) {
+      If(b,expModule.checkDefinedness(e,mainError),Statements.EmptyStmt) ++
       Assert(b ==> expModule.translateExp(e), mainError.dueTo(reasons.AssertionFalse(e)))
     } else {
-      Statements.EmptyStmt
+      sys.error("impure expression not caught in exhaleExt")
     }
   }
 
@@ -369,8 +370,8 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
         //check definedness of e in state x
         stateModule.restoreState(top)
         val equateStmt = e match {
-          case sil.FieldAccessPredicate(field_loc,_) => b := equateLHS === heapModule.translateLocationAccess(field_loc)
-          case _ => Statements.EmptyStmt
+          case sil.FieldAccessPredicate(field_loc,_) => b := b && equateLHS === heapModule.translateLocationAccess(field_loc)
+          case sil.PredicateAccessPredicate(pred_loc,_) => Statements.EmptyStmt
         }
 
         val definednessTop:Stmt = (boolTransferTop := TrueLit()) ++
@@ -415,7 +416,8 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
     }
   }
 
-  def evalArgsAccessPredicate(acc: sil.AccessPredicate, permLocal: Option[sil.LocalVar]):
+ def evalArgsAccessPredicate(acc: sil.AccessPredicate, permLocal: Option[sil.LocalVar],error: PartialVerificationError,
+                              b: Option[LocalVar]):
       (Seq[sil.LocalVar],sil.AccessPredicate,Stmt) = {
 
     val newPerm = permLocal match {
