@@ -112,11 +112,11 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
         val opsHeap = heapModule.currentHeap
 
         val UsedStateSetup(usedState, initStmt, boolUsed) = createAndSetState(Some(b))
-        initStmt ++
+        Comment("Translating " + fold.toString()) ++ initStmt ++
           { //get permissions for unfold and then unfold
              val sil.PredicateAccessPredicate(loc,perm) = acc
 
-            val (argsLocal, accTransformed, assignStmt) = evalArgsAccessPredicate(acc, None)
+            val (argsLocal, accTransformed, assignStmt) = evalArgsAccessPredicate(acc, None,mainError,None)
             val predAccTransformed = accTransformed match {
               case pap@sil.PredicateAccessPredicate(_,_) => pap
               case _ =>  sys.error("evalArgsAccessPredicate returned FieldAccessPredicate for input PredicateAccessPredicate")
@@ -132,11 +132,11 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
 
             assignStmt ++ permForBody ++ foldStmt
           } ++ {
-            //exec in sum state
-            val usedHeap = heapModule.currentHeap
-            val usedMask = permModule.currentMask
+          //exec in sum state
+          val usedHeap = heapModule.currentHeap
+          val usedMask = permModule.currentMask
 
-            /*create a state Result which is the "sum" of the ops and used states, i.e.:
+          /*create a state Result which is the "sum" of the ops and used states, i.e.:
              *1) at each heap location o.f the permission of the Result state is the sum of the permissions
              * for o.f in the ops and Used state
              * 2) if ops has some positive nonzero amount of permission for heap location o.f then the heap values for
@@ -146,15 +146,22 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
              * Note: the boolean is the conjunction of the booleans of ops and used (since all facts of each
              * state is transferred)
               */
-            val UsedStateSetup(resultState, initStmtResult, boolRes) =
-              createAndSetState(Some(b&&boolUsed),"Result",true,false)
+          val UsedStateSetup(resultState, initStmtResult, boolRes) =
+            createAndSetState(Some(b && boolUsed), "Result", true, false)
 
-            val sumStates = (boolRes := boolRes && permModule.sumMask(opsMask,usedMask))
-            val equateKnownValues = (boolRes := boolRes && heapModule.identicalOnKnownLocations(opsHeap, opsMask) &&
-              heapModule.identicalOnKnownLocations(usedHeap, usedMask))
-            val goodState = exchangeAssumesWithBoolean(stateModule.assumeGoodState,boolRes)
+          val sumStates = (boolRes := boolRes && permModule.sumMask(opsMask, usedMask))
+          val equateKnownValues = (boolRes := boolRes && heapModule.identicalOnKnownLocations(opsHeap, opsMask) &&
+            heapModule.identicalOnKnownLocations(usedHeap, usedMask))
+          val goodState = exchangeAssumesWithBoolean(stateModule.assumeGoodState, boolRes)
 
-           initStmtResult ++sumStates ++ equateKnownValues ++goodState ++ exec(states, resultState,body,boolRes)
+          CommentBlock("Creating state which is the sum of the two previously built up states",
+            initStmtResult ++ sumStates ++ equateKnownValues ++ goodState) ++
+            Comment("Translating exec of body of fold") ++
+            exec(states, resultState, body, boolRes)
+        }
+      case unfold@sil.Unfolding(acc,body) =>
+        val opsMask = permModule.currentMask
+        val opsHeap = heapModule.currentHeap
 
           }
       case sil.Unfolding(acc,body) =>
@@ -277,7 +284,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
         val tempLocal = mainModule.env.define(SILtempLocal) //bind Boogie to Silver variable
 
         val (argLocals,accTransformed, assignStmt) : (Seq[sil.LocalVar],sil.AccessPredicate, Stmt) =
-          evalArgsAccessPredicate(p,Some(SILtempLocal))
+          evalArgsAccessPredicate(p,Some(SILtempLocal),mainError,Some(b))
 
         val permAmount = permModule.translatePerm(perm) //store the permission to be transferred into a separate variable
         val positivePerm = Assert(neededLocal >= RealLit(0), mainError.dueTo(reasons.NegativePermission(e)))
@@ -378,11 +385,12 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
         val assignStmt = rcvLocal := expModule.translateExp(loc.rcv)
 
         val newLocation = sil.FieldAccess(SILrcvLocal, loc.field)(acc.pos,acc.info)
-        (Seq(SILrcvLocal), sil.FieldAccessPredicate(newLocation,newPerm)(acc.pos,acc.info),assignStmt)
+        val nullCheck:Stmt = Assert((b.get ==> heapModule.checkNonNullReceiver(newLocation)),error.dueTo(reasons.ReceiverNull(loc)))
+        (Seq(SILrcvLocal), sil.FieldAccessPredicate(newLocation,newPerm)(acc.pos,acc.info),assignStmt++nullCheck)
 
       case sil.PredicateAccessPredicate(loc,perm) =>
         /* for each argument create a variable and evaluate the argument in the used state */
-        val varsAndExprEval: Seq[(sil.LocalVar, Stmt)] = (for (arg <- loc.args) yield {
+          val varsAndExprEval: Seq[(sil.LocalVar, Stmt)] = (for (arg <- loc.args) yield {
           val decl = mainModule.env.makeUniquelyNamed(sil.LocalVarDecl("arg", arg.typ)(arg.pos, arg.info))
           val localVar = decl.localVar
           (localVar, mainModule.env.define(localVar) := expModule.translateExp(arg))
@@ -401,9 +409,19 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
         (localEvalArgs, predAccTransformed, assignStmt)
     }
 
-  }
+}
 
-   /*
+/*
+  def evalArgsAccessPredicate( e: Seq[sil.Exp],mainName:String): (Seq[(LocalVar,sil.LocalVar,sil.Exp)]) = {
+    for (arg <- e) yield {
+      val decl = mainModule.env.makeUniquelyNamed(sil.LocalVarDecl(mainName, arg.typ)(arg.pos, arg.info))
+      val localVar = decl.localVar
+      (mainModule.env.define(localVar), localVar, arg)
+    }
+  }
+*/
+
+  /*
     *transforms a statement such that it doesn't have any explicit assumptions anymore and all assumptions
     * are accumulated in a single variable, i.e.:
     *
