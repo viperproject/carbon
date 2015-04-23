@@ -130,7 +130,8 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
 
             argsLocal.foreach(localVar => mainModule.env.undefine(localVar))
 
-            assignStmt ++ permForBody ++ foldStmt
+            CommentBlock("Retrieving permissions to execute fold and then folding the predicate",
+              assignStmt ++ permForBody ++ foldStmt)
           } ++ {
           //exec in sum state
           val usedHeap = heapModule.currentHeap
@@ -163,9 +164,53 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
         val opsMask = permModule.currentMask
         val opsHeap = heapModule.currentHeap
 
-          }
-      case sil.Unfolding(acc,body) =>
-        sys.error("exec: unfolding not yet supported")
+        val UsedStateSetup(usedState, initStmt, boolUsed) = createAndSetState(Some(b))
+        Comment("Translating " + unfold.toString()) ++ initStmt ++
+          { //get permissions for unfold and then unfold
+          val sil.PredicateAccessPredicate(loc,perm) = acc
+
+            val (argsLocal, accTransformed, assignStmt) = evalArgsAccessPredicate(acc, None,mainError,None)
+            val predAccTransformed = accTransformed match {
+              case pap@sil.PredicateAccessPredicate(_,_) => pap
+              case _ =>  sys.error("evalArgsAccessPredicate returned FieldAccessPredicate for input PredicateAccessPredicate")
+            }
+
+            stateModule.restoreState(usedState)
+
+            val permForPred = exhaleExt(ops :: states, usedState, accTransformed, boolUsed)
+            val unfoldStmt = CommentBlock("unfolding " + acc.toString() ,
+              If(boolUsed, funcPredModule.translateUnfold(sil.Unfold(predAccTransformed)(unfold.pos, unfold.info)),
+              Statements.EmptyStmt) )
+
+            argsLocal.foreach(localVar => mainModule.env.undefine(localVar))
+            CommentBlock("Retrieving permissions to execute unfold and then unfolding the predicate",
+            assignStmt ++ permForPred ++ unfoldStmt)
+          } ++ {
+          //exec in sum state
+          val usedHeap = heapModule.currentHeap
+          val usedMask = permModule.currentMask
+
+          /*create a state Result which is the "sum" of the ops and used states, i.e.:
+           *1) at each heap location o.f the permission of the Result state is the sum of the permissions
+           * for o.f in the ops and Used state
+           * 2) if ops has some positive nonzero amount of permission for heap location o.f then the heap values for
+           * o.f in ops and Result are the same
+           * 3) point 2) also holds for the used state in place of the ops state
+           *
+           * Note: the boolean is the conjunction of the booleans of ops and used (since all facts of each
+           * state is transferred)
+            */
+          val UsedStateSetup(resultState, initStmtResult, boolRes) =
+            createAndSetState(Some(b && boolUsed), "Result", true, false)
+
+          val sumStates = (boolRes := boolRes && permModule.sumMask(opsMask, usedMask))
+          val equateKnownValues = (boolRes := boolRes && heapModule.identicalOnKnownLocations(opsHeap, opsMask) &&
+            heapModule.identicalOnKnownLocations(usedHeap, usedMask))
+          val goodState = exchangeAssumesWithBoolean(stateModule.assumeGoodState, boolRes)
+          CommentBlock("Creating state which is the sum of the two previously built up states",
+          initStmtResult ++ sumStates ++ equateKnownValues ++ goodState) ++
+          exec(states, resultState, body, boolRes)
+        }
       case sil.Applying(wand, body) =>
         sys.error("exec: applying not yet supported")
       case p@sil.Packaging(wand,body) =>
