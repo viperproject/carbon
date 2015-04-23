@@ -229,6 +229,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
       case _ =>
         //no ghost operation
         val UsedStateSetup(usedState, initStmt, boolVar) = createAndSetState(Some(b))
+        Comment("Translating exec of non-ghost operation" + e.toString())
         initStmt ++ exhaleExt(ops :: states, usedState,e,b)
     }
 
@@ -274,14 +275,14 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
       *(which makes sure that the assumptions won't be part of the main state after the package)
       *
       */
-    var boolStmt:Stmt = null
 
     val b = LocalVar(Identifier(names.createUniqueIdentifier("b"))(transferNamespace), Bool)
 
-    initBool match {
-      case Some(boolExpr) => boolStmt = (b := boolExpr)
-      case _ => boolStmt = Nil
-    }
+    val boolStmt =
+      initBool match {
+        case Some(boolExpr) => (b := boolExpr)
+        case _ => Statements.EmptyStmt
+      }
 
     //state which is used to check if the wand holds
     val usedName = names.createUniqueIdentifier(usedString)
@@ -299,6 +300,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
     * Precondition: current state is set to the used state
     * */
    def exhaleExt(states: List[StateSnapshot], used:StateSnapshot, e: sil.Exp, b:LocalVar):Stmt = {
+    Comment("exhale_ext of " + e.toString())
     e match {
       case acc@sil.AccessPredicate(_,_) => transferMain(states,used, e, b) //transfer(states, used, acc)
       case acc@sil.MagicWand(_,_) => sys.error("exhaleExtConnective: Magic Wands not yet supported ")
