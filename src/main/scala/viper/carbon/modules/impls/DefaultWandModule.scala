@@ -431,7 +431,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
         stateModule.restoreState(top)
         val equateStmt = e match {
           case sil.FieldAccessPredicate(field_loc,_) => b := b && equateLHS === heapModule.translateLocationAccess(field_loc)
-          case sil.PredicateAccessPredicate(pred_loc,_) => Statements.EmptyStmt
+          case sil.PredicateAccessPredicate(pred_loc,_) => b := b && equateLHS === heapModule.translateLocationAccess(pred_loc)
         }
 
         val definednessTop:Stmt = (boolTransferTop := TrueLit()) ++
