@@ -143,7 +143,7 @@ class NoEpsilonsPermModule(val verifier: Verifier)
           // permissions are non-negative
           perm >= RealLit(0) &&
           // permissions for fields are smaller than 1
-          (heapModule.isPredicateField(field.l).not ==> perm <= RealLit(1) )
+          ((heapModule.isPredicateField(field.l).not && heapModule.isWandField(field.l).not) ==> perm <= RealLit(1) )
       ))
     } ++ {
       val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
@@ -281,6 +281,11 @@ class NoEpsilonsPermModule(val verifier: Verifier)
               }) ++
               (if (!isUsingOldState) curPerm := permSub(curPerm, permVar) else Nil)
         })
+      case w@sil.MagicWand(left,right) =>
+        val wandRep = wandModule.getWandRepresentation(w)
+        val curPerm = currentPermission(translateNull, wandRep)
+        Assert(permLe(fullPerm, curPerm), error.dueTo(reasons.MagicWandChunkNotFound(w))) ++
+          (curPerm := permSub(curPerm, fullPerm))
       case _ => Nil
     }
   }
@@ -299,7 +304,10 @@ class NoEpsilonsPermModule(val verifier: Verifier)
         val curPerm = currentPermission(loc)
         val permVal = translatePerm(p)
         curPerm := permSub(curPerm,permVal)
-      case _ => Nil
+      case w@sil.MagicWand(left,right) =>
+        val wandRep = wandModule.getWandRepresentation(w)
+        val curPerm = currentPermission(translateNull, wandRep)
+        curPerm := permSub(curPerm, fullPerm)
     }
   }
 
@@ -361,6 +369,10 @@ class NoEpsilonsPermModule(val verifier: Verifier)
           assmsToStmt(permissionPositive(permVar, Some(perm), true)) ++
           assmsToStmt(checkNonNullReceiver(loc)) ++
           (if (!isUsingOldState) curPerm := permAdd(curPerm, permVar) else Nil)
+      case w@sil.MagicWand(left,right) =>
+        val wandRep = wandModule.getWandRepresentation(w)
+        val curPerm = currentPermission(translateNull, wandRep)
+        curPerm := permAdd(curPerm, fullPerm)
       case _ => Nil
     }
   }

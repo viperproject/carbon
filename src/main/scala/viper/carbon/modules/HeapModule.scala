@@ -52,6 +52,20 @@ trait HeapModule extends Module with StateComponent {
   def predicateVersionFieldTypeOf(p: sil.Predicate): Type
 
   /**
+   *
+   */
+
+  /**
+   * The type used for wands.
+   */
+  def wandFieldType(wandName: String): Type
+
+  /**
+   * new type introduced for a wand
+   */
+  def wandBasicType(wandName: String):Type
+
+  /**
    * Definitions for a field.
    */
   def translateField(f: sil.Field): Seq[Decl]
@@ -99,6 +113,11 @@ trait HeapModule extends Module with StateComponent {
    * Is the given field a predicate field?
    */
   def isPredicateField(f: Exp): Exp
+
+  /**
+   * Is the given field a wand field?
+   */
+  def isWandField(f: Exp): Exp
 
   /**
    * Generate a trigger for a given predicate.

@@ -53,6 +53,8 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
     NamedType(fieldTypeName, Seq(TypeVar("A"), pmaskType))
   override def predicateMaskFieldTypeOf(p: sil.Predicate): Type =
     NamedType(fieldTypeName, Seq(predicateMetaTypeOf(p), pmaskType))
+  override def wandBasicType(wand: String): Type = NamedType("WandType_" + wand)
+  override def wandFieldType(wand: String) : Type = NamedType(fieldTypeName, Seq(wandBasicType(wand),Int))
   private val heapTyp = NamedType("HeapType")
   private val heapName = Identifier("Heap")
   private val exhaleHeapName = Identifier("ExhaleHeap")
@@ -65,6 +67,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
   private val allocName = Identifier("$allocated")(fieldNamespace)
   private val identicalOnKnownLocsName = Identifier("IdenticalOnKnownLocations")
   private val isPredicateFieldName = Identifier("IsPredicateField")
+  private val isWandFieldName = Identifier("IsWandField")
   override def refType = NamedType("Ref")
 
   override def preamble = {
@@ -94,6 +97,9 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
         Seq(LocalVarDecl(heapName, heapTyp), LocalVarDecl(exhaleHeapName, heapTyp)) ++ staticMask,
         Bool) ++
       Func(isPredicateFieldName,
+        Seq(LocalVarDecl(Identifier("f"), fieldType)),
+        Bool) ++
+      Func(isWandFieldName,
         Seq(LocalVarDecl(Identifier("f"), fieldType)),
         Bool) ++ {
       val h = LocalVarDecl(heapName, heapTyp)
@@ -150,6 +156,10 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
 
   override def isPredicateField(f: Exp): Exp = {
     FuncApp(isPredicateFieldName, Seq(f), Bool)
+  }
+
+  override def isWandField(f: Exp) : Exp = {
+    FuncApp(isWandFieldName, Seq(f), Bool)
   }
 
   override def translateField(f: sil.Field) = {

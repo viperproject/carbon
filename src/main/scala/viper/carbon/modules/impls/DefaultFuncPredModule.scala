@@ -137,7 +137,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     exhaleModule.register(this)
   }
 
-  override def translateFunction(f: sil.Function): Seq[Decl] = {
+    override def translateFunction(f: sil.Function): Seq[Decl] = {
     env = Environment(verifier, f)
     val res = MaybeCommentedDecl(s"Translation of function ${f.name}",
       MaybeCommentedDecl("Uninterpreted function definitions", functionDefinitions(f), size = 1) ++

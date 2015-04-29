@@ -19,6 +19,8 @@ trait WandModule extends Module with TransferComponent with ComponentRegistry[Tr
 
   def transferRemove(e:sil.Exp, cond:Exp): Stmt
 
+  def getWandRepresentation(w: sil.MagicWand):Exp
+
   //  def translateApply(p: sil.Apply):Stmt
 
 }

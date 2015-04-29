@@ -7,9 +7,12 @@ import viper.carbon.modules.components.{TransferComponent, DefinednessComponent}
 import viper.carbon.verifier.Verifier
 import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
+import viper.silver.ast.MagicWand
 
 import viper.silver.verifier.{errors, reasons, PartialVerificationError}
 import viper.silver.{ast => sil}
+
+import scala.collection.mutable.ListBuffer
 
 
 /**
@@ -23,7 +26,9 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
   import permModule._
 
   val transferNamespace = verifier.freshNamespace("transfer")
-
+  val wandNamespace = verifier.freshNamespace("wands")
+//wands stored
+  var wandShapes: ListBuffer[(sil.MagicWand,Func,Type)] = new ListBuffer[(sil.MagicWand,Func,Type)]();
 /** CONSTANTS FOR TRANSFER START**/
 
 /* denotes amount of permission to add/remove during a specific transfer,
@@ -69,6 +74,21 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
     register(this)
   }
 
+  override def preamble = {
+    (for ((wand,fun@Func(name,args,typ),wandType) <- wandShapes.result()) yield {
+      val vars = args.map(decl => decl.l)
+      val f0 = FuncApp(name,vars,typ)
+      val typeDecl:Seq[TypeDecl] = wandType match {
+        case named: NamedType => TypeDecl(named)
+        case _ => Nil
+      }
+      typeDecl ++
+      fun ++
+      Axiom(MaybeForall(args, Trigger(f0),heapModule.isWandField(f0))) ++
+      Axiom(MaybeForall(args, Trigger(f0),heapModule.isPredicateField(f0).not))
+    }).flatten
+  }
+
   override def transferRemove(e:sil.Exp, cond:Exp): Stmt = {
     Nil
   }
@@ -81,14 +101,50 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
     Nil
   }
 
+  /*
+   * method returns the boogie predicate which corresponds to the magic wand shape of the given wand
+   * if the shape hasn't yet been recorded yet then it will be stored
+   */
+  def getWandRepresentation(wand: sil.MagicWand):Exp = {
+    val ghostFreeWand = wand.withoutGhostOperations
+
+    val shape = wandShapes.find(wand_pred => ghostFreeWand.structurallyMatches(wand_pred._1, mainModule.verifier.program))
+
+    //get all the expressions which form the "holes" of the shape,
+    val arguments = wand.subexpressionsToEvaluate(mainModule.verifier.program)
+
+    val instantiatedShape = shape match {
+        case None =>
+          val wandName = names.createUniqueIdentifier("wand")
+          val wandType = heapModule.wandFieldType(wandName)
+
+          //for each expression which is a "hole" in the shape we create a local variable declaration which will be used
+          //for the function corresponding to the wand shape
+          var i = 0
+          val argsWand = (for (arg <- arguments) yield {
+            i = i + 1
+            LocalVarDecl(Identifier("arg" + i)(wandNamespace), typeModule.translateType(arg.typ), None)
+          })
+          val wandFun = Func(Identifier(wandName)(wandNamespace), argsWand, wandType)
+          val res = (ghostFreeWand, wandFun,heapModule.wandBasicType(wandName))
+
+          //add the new shape
+          wandShapes += res
+          FuncApp(Identifier(wandName)(wandNamespace), arguments.map(arg => expModule.translateExp(arg)), wandType)
+        case Some( (_ , Func(id, args, typ),_ ) ) =>
+          FuncApp(id, arguments.map(arg => expModule.translateExp(arg)), typ)
+      }
+    instantiatedShape
+  }
+
   override def translatePackage(p: sil.Package,error: PartialVerificationError):Stmt = {
     p match {
       case pa@sil.Package(wand) =>
         wand match {
           case w@sil.MagicWand(left,right) =>
             mainError = error //set the default error to be used by all operations
-            /**DEFINE STATES **/
 
+            val addWand = inhaleModule.inhale(w)
             val currentState = stateModule.getCopyState
 
             val PackageSetup(hypState, usedState, initStmt, boolVar) = packageInit(wand, None)
@@ -97,7 +153,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
 
             stateModule.restoreState(currentState)
 
-            stmt
+            stmt ++ addWand
 
           //TODO: add wand to current state
           case _ => sys.error("Package only defined for wands.")
@@ -214,6 +270,8 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
       case sil.Applying(wand, body) =>
         sys.error("exec: applying not yet supported")
       case p@sil.Packaging(wand,body) =>
+        val addWand = inhaleModule.inhale(wand)
+
         val PackageSetup(hypState, usedState, initStmt, b_new) = packageInit(wand, Some(b))
 
         val execInnerWand = exec(hypState :: ops :: states, usedState, wand.right, b_new)
@@ -222,9 +280,9 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
           initStmt ++ execInnerWand)
 
         stateModule.restoreState(ops)
-        //TODO add wand
+
         MaybeCommentBlock("Translating " + p.toString(),
-          packaging ++ MaybeCommentBlock("Code for body " + body.toString() + " of " + p.toString(), exec(states,ops,body,b)) )
+          packaging ++ addWand ++ MaybeCommentBlock("Code for body " + body.toString() + " of " + p.toString(), exec(states,ops,body,b)) )
 
       case _ =>
         //no ghost operation

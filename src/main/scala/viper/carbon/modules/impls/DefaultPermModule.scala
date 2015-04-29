@@ -6,6 +6,8 @@
 
 package viper.carbon.modules.impls
 
+import java.text.DateFormat
+
 import viper.carbon.modules._
 import viper.carbon.modules.components._
 import viper.silver.{ast => sil}
@@ -408,6 +410,10 @@ class DefaultPermModule(val verifier: Verifier)
           assmsToStmt(permissionPositive(permVar, Some(perm), true)) ++
           assmsToStmt(checkNonNullReceiver(loc)) ++
           (if (!isUsingOldState) curPerm := permAdd(curPerm, permVar) else Nil)
+      case w@sil.MagicWand(left,right) =>
+        val wandRep = wandModule.getWandRepresentation(w)
+        val curPerm = currentPermission(translateNull, wandRep)
+        curPerm := permAdd(curPerm, fullPerm)
       case _ => Nil
     }
   }
