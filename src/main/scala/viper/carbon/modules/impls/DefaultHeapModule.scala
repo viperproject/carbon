@@ -252,6 +252,10 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
     }
   }
 
+  override def translateLocationAccess(rcv: Exp, loc:Exp):Exp = {
+    MapSelect(heap, Seq(rcv, loc))
+  }
+
   override def translateLocation(l: sil.LocationAccess): Exp = {
     l match {
       case sil.PredicateAccess(args, predName) =>

@@ -80,6 +80,8 @@ trait HeapModule extends Module with StateComponent {
    */
   def translateLocationAccess(f: sil.LocationAccess): Exp
 
+  def translateLocationAccess(rcv: Exp, loc:Exp):Exp
+
   def translateLocation(f: sil.LocationAccess): Exp
   def translateLocation(pred: sil.Predicate, args: Seq[Exp]): Exp
 
@@ -97,6 +99,10 @@ trait HeapModule extends Module with StateComponent {
         verifier.expModule.translateExp(rcv) !== translateNull
       case _ => TrueLit()
     }
+  }
+
+  def checkNonNullReceiver(rcv: Exp):Exp = {
+    rcv !== translateNull
   }
 
   /**

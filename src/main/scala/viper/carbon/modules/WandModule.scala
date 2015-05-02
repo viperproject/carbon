@@ -10,14 +10,8 @@ import viper.silver.{ast => sil}
 import viper.carbon.boogie.{Exp, Stmt}
 
 
-trait WandModule extends Module with TransferComponent with ComponentRegistry[TransferComponent] {
+trait WandModule extends Module with ComponentRegistry[TransferComponent] {
   def translatePackage(p: sil.Package, error: PartialVerificationError):Stmt
-
-  def transferValid(e:sil.Exp):Seq[(Stmt,Exp)]
-
-  def transferAdd(e:sil.Exp, cond: Exp): Stmt
-
-  def transferRemove(e:sil.Exp, cond:Exp): Stmt
 
   def getWandRepresentation(w: sil.MagicWand):Exp
 
