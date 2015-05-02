@@ -28,7 +28,9 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
   val transferNamespace = verifier.freshNamespace("transfer")
   val wandNamespace = verifier.freshNamespace("wands")
 //wands stored
-  var wandShapes: ListBuffer[(sil.MagicWand,Func,Type)] = new ListBuffer[(sil.MagicWand,Func,Type)]();
+  type WandShape = Func
+  var wandToShapes: java.util.HashMap[sil.MagicWand, WandShape] = new java.util.HashMap[sil.MagicWand, WandShape]
+  var wandShapes: ListBuffer[(sil.MagicWand,WandShape, Type)] = new ListBuffer[(sil.MagicWand, WandShape,Type)]();
 /** CONSTANTS FOR TRANSFER START**/
 
 /* denotes amount of permission to add/remove during a specific transfer,
@@ -106,35 +108,50 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
    * if the shape hasn't yet been recorded yet then it will be stored
    */
   def getWandRepresentation(wand: sil.MagicWand):Exp = {
-    val ghostFreeWand = wand.withoutGhostOperations
-
-    val shape = wandShapes.find(wand_pred => ghostFreeWand.structurallyMatches(wand_pred._1, mainModule.verifier.program))
+    //first check if the shape to this wand has already been computed earlier
+    val maybeShape = wandToShapes.get(wand)
 
     //get all the expressions which form the "holes" of the shape,
     val arguments = wand.subexpressionsToEvaluate(mainModule.verifier.program)
 
-    val instantiatedShape = shape match {
-        case None =>
-          val wandName = names.createUniqueIdentifier("wand")
-          val wandType = heapModule.wandFieldType(wandName)
+    val shape:WandShape =
+      if (maybeShape != null) {
+        maybeShape
+      } else {
+        //need to compute shape of wand
+        val ghostFreeWand = wand.withoutGhostOperations
+        //check if shape of wand corresponds to an already computed shape
+        val findShape = wandShapes.find(wand_pred =>
+          ghostFreeWand.structurallyMatches(wand_pred._1, mainModule.verifier.program))
+        val newShape = findShape match {
+          case None =>
+            //new shape was found
+            val wandName = names.createUniqueIdentifier("wand")
+            val wandType = heapModule.wandFieldType(wandName)
 
-          //for each expression which is a "hole" in the shape we create a local variable declaration which will be used
-          //for the function corresponding to the wand shape
-          var i = 0
-          val argsWand = (for (arg <- arguments) yield {
-            i = i + 1
-            LocalVarDecl(Identifier("arg" + i)(wandNamespace), typeModule.translateType(arg.typ), None)
-          })
-          val wandFun = Func(Identifier(wandName)(wandNamespace), argsWand, wandType)
-          val res = (ghostFreeWand, wandFun,heapModule.wandBasicType(wandName))
-
-          //add the new shape
-          wandShapes += res
-          FuncApp(Identifier(wandName)(wandNamespace), arguments.map(arg => expModule.translateExp(arg)), wandType)
-        case Some( (_ , Func(id, args, typ),_ ) ) =>
-          FuncApp(id, arguments.map(arg => expModule.translateExp(arg)), typ)
+            //for each expression which is a "hole" in the shape we create a local variable declaration which will be used
+            //for the function corresponding to the wand shape
+            var i = 0
+            val argsWand = (for (arg <- arguments) yield {
+              i = i + 1
+              LocalVarDecl(Identifier("arg" + i)(wandNamespace), typeModule.translateType(arg.typ), None)
+            })
+            val wandFun = Func(Identifier(wandName)(wandNamespace), argsWand, wandType)
+            val res = (ghostFreeWand, wandFun, heapModule.wandBasicType(wandName))
+            //add new shape
+            wandShapes += res
+            wandFun
+          case Some((_, wandFun, _)) =>
+            //computed shape already corresponded to an earlier computed shape
+            wandFun
+        }
+        wandToShapes.put(wand, newShape)
+        newShape
       }
-    instantiatedShape
+
+    shape match {
+      case Func(name, args,typ) => FuncApp(name, arguments.map(arg => expModule.translateExp(arg)), typ)
+    }
   }
 
   override def translatePackage(p: sil.Package,error: PartialVerificationError):Stmt = {
