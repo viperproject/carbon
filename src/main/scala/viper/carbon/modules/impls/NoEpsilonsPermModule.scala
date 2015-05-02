@@ -285,7 +285,7 @@ class NoEpsilonsPermModule(val verifier: Verifier)
         val wandRep = wandModule.getWandRepresentation(w)
         val curPerm = currentPermission(translateNull, wandRep)
         Assert(permLe(fullPerm, curPerm), error.dueTo(reasons.MagicWandChunkNotFound(w))) ++
-          (curPerm := permSub(curPerm, fullPerm))
+        (if (!isUsingOldState) curPerm := permSub(curPerm, fullPerm) else Nil)
       case _ => Nil
     }
   }
@@ -372,7 +372,7 @@ class NoEpsilonsPermModule(val verifier: Verifier)
       case w@sil.MagicWand(left,right) =>
         val wandRep = wandModule.getWandRepresentation(w)
         val curPerm = currentPermission(translateNull, wandRep)
-        curPerm := permAdd(curPerm, fullPerm)
+        (if (!isUsingOldState) curPerm := permAdd(curPerm, fullPerm) else Nil)
       case _ => Nil
     }
   }
