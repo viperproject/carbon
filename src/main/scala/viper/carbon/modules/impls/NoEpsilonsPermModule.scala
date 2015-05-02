@@ -294,29 +294,14 @@ class NoEpsilonsPermModule(val verifier: Verifier)
  * Gaurav (03.04.15): this basically is a simplified exhale so some code is duplicated,
  * I haven't yet found a nice way of avoiding the code duplication
  */
-  override def transferRemove(e:sil.Exp, cond:Exp): Stmt = {
-    e match {
-      case sil.AccessPredicate(loc,p) =>
-        if(p.isInstanceOf[WildcardPerm]) {
-          sys.error("This module doesn't support the transfer of wildcard permissions.")
-        }
+  override def transferRemove(e:TransferableEntity, cond:Exp): Stmt = {
         val permVar = LocalVar(Identifier("perm"), permType)
-        val curPerm = currentPermission(loc)
-        val permVal = translatePerm(p)
-        curPerm := permSub(curPerm,permVal)
-      case w@sil.MagicWand(left,right) =>
-        val wandRep = wandModule.getWandRepresentation(w)
-        val curPerm = currentPermission(translateNull, wandRep)
-        curPerm := permSub(curPerm, fullPerm)
-    }
+        val curPerm = currentPermission(e.rcv,e.loc)
+        curPerm := permSub(curPerm,e.transferAmount)
   }
 
-  override def transferValid(e:sil.Exp):Seq[(Stmt,Exp)] = {
-    e match {
-      case sil.AccessPredicate(loc,p) =>
-        Nil
-      case _ => Nil
-    }
+  override def transferValid(e:TransferableEntity):Seq[(Stmt,Exp)] = {
+   Nil
   }
 
 
@@ -377,8 +362,11 @@ class NoEpsilonsPermModule(val verifier: Verifier)
     }
   }
 
-  override def transferAdd(e:sil.Exp, cond:Exp): Stmt = {
-    inhaleAux(e, exp => cond := cond && exp)
+  override def transferAdd(e:TransferableEntity, cond:Exp): Stmt = {
+    val curPerm = currentPermission(e.rcv,e.loc)
+    (cond := cond && permissionPositive(e.transferAmount, None,true)) ++
+      (cond := cond && checkNonNullReceiver(e.rcv)) ++
+      (if (!isUsingOldState) curPerm := permAdd(curPerm, e.transferAmount) else Nil)
   }
 
   override def currentPermission(loc: sil.LocationAccess): MapSelect = {
@@ -390,7 +378,7 @@ class NoEpsilonsPermModule(val verifier: Verifier)
     }
   }
 
-  def currentPermission(rcv: Exp, location: Exp): MapSelect = {
+  override def currentPermission(rcv: Exp, location: Exp): MapSelect = {
     currentPermission(mask, rcv, location)
   }
   def currentPermission(mask: Exp, rcv: Exp, location: Exp): MapSelect = {
