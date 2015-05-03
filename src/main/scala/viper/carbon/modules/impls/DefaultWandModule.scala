@@ -100,14 +100,12 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
     val ghostFreeWand = wand.withoutGhostOperations
 
     //get all the expressions which form the "holes" of the shape,
-    val arguments = wand.subexpressionsToEvaluate(mainModule.verifier.program)
+    val arguments = ghostFreeWand.subexpressionsToEvaluate(mainModule.verifier.program)
 
     val shape:WandShape =
       if (maybeShape != null) {
         maybeShape
       } else {
-        //need to compute shape of wand
-        val ghostFreeWand = wand.withoutGhostOperations
         //check if shape of wand corresponds to an already computed shape
         val findShape = wandShapes.find(wand_pred =>
           ghostFreeWand.structurallyMatches(wand_pred._1, mainModule.verifier.program))
