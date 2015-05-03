@@ -179,7 +179,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
       // checkDefinedness(wand, errors.MagicWandNotWellformed(wand))
         translatePackage(pa,errors.PackageFailed(pa))
       case a@sil.Apply(wand) =>
-        sys.error("Apply statement not yet implemented")
+        translateApply(a, errors.ApplyFailed(a))
       case _: sil.Seqn =>
         Nil
     }

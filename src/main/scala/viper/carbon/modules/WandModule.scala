@@ -15,6 +15,6 @@ trait WandModule extends Module with ComponentRegistry[TransferComponent] {
 
   def getWandRepresentation(w: sil.MagicWand):Exp
 
-  //  def translateApply(p: sil.Apply):Stmt
+  def translateApply(p: sil.Apply, error: PartialVerificationError):Stmt
 
 }

@@ -96,6 +96,9 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
     //first check if the shape to this wand has already been computed earlier
     val maybeShape = wandToShapes.get(wand)
 
+    //need to compute shape of wand
+    val ghostFreeWand = wand.withoutGhostOperations
+
     //get all the expressions which form the "holes" of the shape,
     val arguments = wand.subexpressionsToEvaluate(mainModule.verifier.program)
 
@@ -270,7 +273,45 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
           exec(states, resultState, body, boolRes)
         }
       case sil.Applying(wand, body) =>
-        sys.error("exec: applying not yet supported")
+        wand match {
+          case w@sil.MagicWand(left,right) =>
+            val opsMask = permModule.currentMask
+            val opsHeap = heapModule.currentHeap
+
+            val UsedStateSetup(usedState, initStmt, boolUsed) = createAndSetState(Some(b))
+            initStmt ++
+            {
+             exhaleExt(ops :: states, usedState, left, boolUsed) ++
+               exhaleExt(ops :: states, usedState, wand, boolUsed) ++
+               If(boolUsed, applyWand(w, mainError), Statements.EmptyStmt)
+            } ++ {
+            //exec in sum state
+            val usedHeap = heapModule.currentHeap
+            val usedMask = permModule.currentMask
+
+            /*create a state Result which is the "sum" of the ops and used states, i.e.:
+             *1) at each heap location o.f the permission of the Result state is the sum of the permissions
+             * for o.f in the ops and Used state
+             * 2) if ops has some positive nonzero amount of permission for heap location o.f then the heap values for
+             * o.f in ops and Result are the same
+             * 3) point 2) also holds for the used state in place of the ops state
+             *
+             * Note: the boolean is the conjunction of the booleans of ops and used (since all facts of each
+             * state is transferred)
+              */
+            val UsedStateSetup(resultState, initStmtResult, boolRes) =
+              createAndSetState(Some(b && boolUsed), "Result", true, false)
+
+            val sumStates = (boolRes := boolRes && permModule.sumMask(opsMask, usedMask))
+            val equateKnownValues = (boolRes := boolRes && heapModule.identicalOnKnownLocations(opsHeap, opsMask) &&
+              heapModule.identicalOnKnownLocations(usedHeap, usedMask))
+            val goodState = exchangeAssumesWithBoolean(stateModule.assumeGoodState, boolRes)
+            CommentBlock("Creating state which is the sum of the two previously built up states",
+              initStmtResult ++ sumStates ++ equateKnownValues ++ goodState) ++
+              exec(states, resultState, body, boolRes)
+          }
+          case _ => sys.error("Applying ghost operation only supported for magic wands")
+        }
       case p@sil.Packaging(wand,body) =>
         val addWand = inhaleModule.inhale(wand)
 
@@ -475,6 +516,25 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
          * in case of bugs
          * */
     }
+  }
+
+  override def translateApply(app: sil.Apply, error: PartialVerificationError):Stmt = {
+    app.exp match {
+       case w@sil.MagicWand(left,right) => applyWand(w,error)
+       case _ => Nil
+    }
+  }
+
+  def applyWand(w: sil.MagicWand, error: PartialVerificationError):Stmt = {
+    /** we first exhale without havocing heap locations to avoid the incompleteness issue which would otherwise
+      * occur when the left and right hand side mention common heap locations.
+      */
+      exhaleModule.exhale((w, error), false) ++
+      exhaleModule.exhale((w.left, error), false) ++
+      inhaleModule.inhale(w.right) ++
+      heapModule.beginExhale ++ heapModule.endExhale
+      //using beginExhale, endExhale works now, but isn't intuitive, maybe should duplicate code to avoid this breaking
+     //in the future when beginExhale and endExhale's implementations are changed
   }
 
  private def evalArgsAccessPredicate(acc: sil.AccessPredicate, permLocal: Option[sil.LocalVar],error: PartialVerificationError,
