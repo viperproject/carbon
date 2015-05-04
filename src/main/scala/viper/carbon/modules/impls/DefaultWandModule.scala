@@ -588,7 +588,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
      case fa@sil.FieldAccessPredicate(loc, perm) =>
        val assignStmt = rcvLocal := expModule.translateExp(loc.rcv)
        val evalLoc = heapModule.translateLocation(loc)
-       (TransferableAccessPred(rcvLocal, evalLoc, permTransfer,fa), assignStmt)
+       (TransferableFieldAccessPred(rcvLocal, evalLoc, permTransfer,fa), assignStmt)
 
      case p@sil.PredicateAccessPredicate(loc, perm) =>
        val localsStmt: Seq[(LocalVar, Stmt)] = (for (arg <- loc.args) yield {
@@ -600,7 +600,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
        val (locals, assignStmt) = localsStmt.unzip
        val predTransformed = heapModule.translateLocation(p.loc.loc(verifier.program), locals)
 
-       (TransferableAccessPred(heapModule.translateNull, predTransformed, permTransfer,p), assignStmt)
+       (TransferablePredAccessPred(heapModule.translateNull, predTransformed, permTransfer,p), assignStmt)
      case w:sil.MagicWand =>
        val wandRep = getWandRepresentation(w)
        //GP: maybe should store holes of wand first in local variables

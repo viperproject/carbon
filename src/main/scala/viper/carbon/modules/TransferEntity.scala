@@ -1,6 +1,6 @@
 package viper.carbon.modules
 
-import viper.carbon.boogie.{RealLit, Exp}
+import viper.carbon.boogie.{LocalVar, RealLit, Exp}
 import viper.silver.verifier.{PartialVerificationError, reasons, VerificationError}
 import viper.silver.{ast => sil}
 
@@ -20,11 +20,20 @@ object TransferableEntity {
   def unapply(te: TransferableEntity) = Some((te.rcv,te.loc,te.transferAmount))
 }
 
-case class TransferableAccessPred(rcv: Exp, loc:Exp, transferAmount: Exp,originalSILExp: sil.AccessPredicate) extends TransferableEntity {
+sealed trait TransferableAccessPred extends TransferableEntity {
   override def transferError(error: PartialVerificationError):VerificationError = {
     error.dueTo(reasons.InsufficientPermission(originalSILExp.loc))
   }
+  override def originalSILExp: sil.AccessPredicate
 }
+
+object TransferableAccessPred {
+  def unapply(tap: TransferableAccessPred) = Some((tap.rcv,tap.loc,tap.transferAmount, tap.originalSILExp))
+}
+
+case class TransferableFieldAccessPred(rcv: Exp, loc:Exp, transferAmount: Exp,originalSILExp: sil.AccessPredicate) extends TransferableAccessPred
+
+case class TransferablePredAccessPred(rcv: Exp, loc:Exp, transferAmount: Exp,originalSILExp: sil.AccessPredicate) extends TransferableAccessPred
 
 case class TransferableWand(rcv:Exp, loc: Exp, transferAmount: Exp,originalSILExp: sil.MagicWand) extends TransferableEntity {
   override def transferError(error: PartialVerificationError): VerificationError = {

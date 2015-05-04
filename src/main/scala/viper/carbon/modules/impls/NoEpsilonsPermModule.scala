@@ -365,7 +365,12 @@ class NoEpsilonsPermModule(val verifier: Verifier)
   override def transferAdd(e:TransferableEntity, cond:Exp): Stmt = {
     val curPerm = currentPermission(e.rcv,e.loc)
     (cond := cond && permissionPositive(e.transferAmount, None,true)) ++
-      (cond := cond && checkNonNullReceiver(e.rcv)) ++
+      {
+      e match {
+        case TransferableFieldAccessPred(rcv,_,_,_) => (cond := cond && checkNonNullReceiver(rcv))
+        case _ => Nil
+      }
+    } ++
       (if (!isUsingOldState) curPerm := permAdd(curPerm, e.transferAmount) else Nil)
   }
 
