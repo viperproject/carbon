@@ -2,7 +2,7 @@ package viper.carbon.modules.impls
 
 
 import org.scalatest.GivenWhenThen
-import viper.carbon.modules.{TransferableWand, TransferableAccessPred, TransferableEntity, WandModule}
+import viper.carbon.modules._
 import viper.carbon.modules.components.{TransferComponent, DefinednessComponent}
 import viper.carbon.verifier.Verifier
 import viper.carbon.boogie._
@@ -527,9 +527,11 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
     /** we first exhale without havocing heap locations to avoid the incompleteness issue which would otherwise
       * occur when the left and right hand side mention common heap locations.
       */
-      exhaleModule.exhale((w, error), false) ++
-      exhaleModule.exhale((w.left, error), false) ++
-      inhaleModule.inhale(w.right) ++
+      CommentBlock("check if wand is held and remove an instance",exhaleModule.exhale((w, error), false)) ++
+      stateModule.assumeGoodState ++
+      CommentBlock("check if LHS holds and remove permissions ", exhaleModule.exhale((w.left, error), false)) ++
+      stateModule.assumeGoodState ++
+      CommentBlock("inhale the RHS of the wand",inhaleModule.inhale(w.right)) ++
       heapModule.beginExhale ++ heapModule.endExhale
       //using beginExhale, endExhale works now, but isn't intuitive, maybe should duplicate code to avoid this breaking
      //in the future when beginExhale and endExhale's implementations are changed
