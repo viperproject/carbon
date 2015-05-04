@@ -165,7 +165,8 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
   override def translateField(f: sil.Field) = {
     val field = locationIdentifier(f)
     ConstDecl(field, NamedType(fieldTypeName, Seq(normalFieldType, translateType(f.typ))), unique = true) ++
-      Axiom(UnExp(Not, isPredicateField(Const(field))))
+      Axiom(UnExp(Not, isPredicateField(Const(field)))) ++
+      Axiom(UnExp(Not, isWandField(Const(field))))
   }
 
   override def predicateGhostFieldDecl(p: sil.Predicate): Seq[Decl] = {
