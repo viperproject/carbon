@@ -246,10 +246,13 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val funcApp = FuncApp(name, functionFrame(f.pres) ++ (args map (_.l)), Bool)
     val heap = heapModule.stateContributions
     val funcApp2 = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
+    val outerUnfoldings : Seq[Unfolding] = Functions.recursiveCallsAndSurroundingUnfoldings(f).map((pair) => pair._2.headOption).flatten
+    val predicateTriggers = outerUnfoldings.map{case Unfolding(PredicateAccessPredicate(predacc : PredicateAccess,perm),exp) => predicateTrigger(heap map (_.l), predacc)}
+
     func ++
       Axiom(Forall(
         stateModule.stateContributions ++ args,
-        Trigger(Seq(staticGoodState, transformLimited(funcApp2))),
+        Seq(Trigger(Seq(staticGoodState, transformLimited(funcApp2)))) ++ (if (predicateTriggers.isEmpty) Seq()  else Seq(Trigger(Seq(staticGoodState, triggerFuncApp(f.name,args map (_.l))) ++ predicateTriggers))),
         staticGoodState ==> (transformLimited(funcApp2) === funcApp)))
   }
 
@@ -389,9 +392,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private def foldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError): Stmt = {
     duringFold = true
     foldInfo = acc
-    val stmt = Assume(predicateTrigger(heapModule.currentState, acc.loc)) ++
-      exhale(Seq((acc.loc.predicateBody(verifier.program).get, error)), havocHeap = false) ++
-      inhale(acc)
+    val stmt = exhale(Seq((acc.loc.predicateBody(verifier.program).get, error)), havocHeap = false) ++
+      inhale(acc) ++ Assume(predicateTrigger(heapModule.currentState, acc.loc))
     foldInfo = null
     duringFold = false
     stmt
