@@ -123,7 +123,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
           Trigger(Seq(identicalFuncApp, lookup(h.l, nullLit, predicateMaskField(predField.l)), isPredicateField(predField.l))) ++
             Trigger(Seq(identicalFuncApp, lookup(eh.l, nullLit, predicateMaskField(predField.l)), isPredicateField(predField.l))) ++
             (verifier.program.predicates map (pred =>
-              Trigger(Seq(identicalFuncApp, predicateTrigger(pred, predField.l), isPredicateField(predField.l))))
+              Trigger(Seq(identicalFuncApp, predicateTriggerAnyState(pred, predField.l), isPredicateField(predField.l))))
               ),
           identicalFuncApp ==>
             (
@@ -136,7 +136,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
                   field.typ.freeTypeVars
                 )
               )
-        )), size = 1) ++
+        )), size = 1)  ++
         // preserve "allocated" knowledge, where already true
         MaybeCommentedDecl("All previously-allocated references are still allocated", Axiom(Forall(
           vars ++ Seq(obj),
@@ -173,7 +173,8 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
       Func(pmField, varDecls, pmT) ++
       Axiom(MaybeForall(varDecls, Trigger(f1), f1 === f2)) ++
       Axiom(MaybeForall(varDecls, Trigger(f0), isPredicateField(f0))) ++
-      Func(predicateTriggerIdentifer(p), Seq(LocalVarDecl(Identifier("pred"), predicateVersionFieldType())), Bool) ++
+      Func(predicateTriggerIdentifier(p), Seq(LocalVarDecl(heapName, heapTyp), LocalVarDecl(Identifier("pred"), predicateVersionFieldType())), Bool) ++
+      Func(predicateTriggerAnyStateIdentifier(p), Seq(LocalVarDecl(Identifier("pred"), predicateVersionFieldType())), Bool) ++
       {
         // axiom that two predicate identifiers can only be the same, if all arguments
         // are the same (e.g., we immediatly know that valid(1) != valid(2))
@@ -212,15 +213,22 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
         loc.args map translateExp, t)))
   }
 
-  private def predicateTriggerIdentifer(f: sil.Predicate): Identifier = {
+  private def predicateTriggerIdentifier(f: sil.Predicate): Identifier = {
     Identifier(f.name + "#trigger")(fieldNamespace)
   }
-  private def predicateTrigger(f: sil.Predicate, predicateField: Exp): Exp = {
-    FuncApp(predicateTriggerIdentifer(f), Seq(predicateField), Bool)
+  private def predicateTriggerAnyStateIdentifier(f: sil.Predicate): Identifier = {
+    Identifier(f.name + "#everUsed")(fieldNamespace)
   }
-  override def predicateTrigger(pred: sil.PredicateAccess): Exp = {
+  private def predicateTrigger(extras : Seq[Exp], predicate: sil.Predicate, predicateField: Exp): Exp = {
+    FuncApp(predicateTriggerIdentifier(predicate), extras ++ Seq(predicateField), Bool)
+  }
+  private def predicateTriggerAnyState( predicate: sil.Predicate, predicateField: Exp): Exp = {
+    FuncApp(predicateTriggerAnyStateIdentifier(predicate), Seq(predicateField), Bool)
+  }
+  override def predicateTrigger(extras : Seq[Exp], pred: sil.PredicateAccess, anyState : Boolean = false): Exp = {
     val predicate = verifier.program.findPredicate(pred.predicateName)
-    FuncApp(predicateTriggerIdentifer(predicate), Seq(translateLocation(pred)), Bool)
+    val location = translateLocation(pred)
+    if (anyState) predicateTriggerAnyState(predicate, location) else predicateTrigger(extras, predicate, location)
   }
 
   /** Returns a heap-lookup of the allocated field of an object. */

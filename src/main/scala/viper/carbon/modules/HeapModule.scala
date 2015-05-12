@@ -103,5 +103,5 @@ trait HeapModule extends Module with StateComponent {
   /**
    * Generate a trigger for a given predicate.
    */
-  def predicateTrigger(pred: sil.PredicateAccess): Exp
+  def predicateTrigger(extras: Seq[Exp], pred: sil.PredicateAccess, anyState: Boolean = false): Exp
 }
