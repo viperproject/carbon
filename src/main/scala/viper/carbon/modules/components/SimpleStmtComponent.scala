@@ -22,5 +22,5 @@ trait SimpleStmtComponent extends StmtComponent {
    */
   def simpleHandleStmt(s: sil.Stmt): Stmt
 
-  override def handleStmt(s: sil.Stmt) = (Statements.EmptyStmt, simpleHandleStmt(s))
+  override def handleStmt(s: sil.Stmt) : (Stmt,Stmt) = (simpleHandleStmt(s),Statements.EmptyStmt )
 }

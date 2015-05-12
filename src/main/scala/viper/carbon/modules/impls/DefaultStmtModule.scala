@@ -49,6 +49,12 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
     (exps map (exp => (if (exp.existsDefined[Unit]({case sil.Unfolding(_,_) => })) checkDefinedness(exp, exp_error(exp), false) else Nil:Stmt)))
   }
 
+  override def handleStmt(s: sil.Stmt) : (Stmt,Stmt) =
+    s match {
+      case s : sil.Fold => translateFold(s)
+      case _ => (Statements.EmptyStmt, simpleHandleStmt(s))
+    }
+
   override def simpleHandleStmt(stmt: sil.Stmt): Stmt = {
     stmt match {
       case assign@sil.LocalVarAssign(lhs, rhs) =>
@@ -58,8 +64,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
       case assign@sil.FieldAssign(lhs, rhs) =>
         checkDefinedness(lhs, errors.AssignmentFailed(assign)) ++ 
           checkDefinedness(rhs, errors.AssignmentFailed(assign))
-      case fold@sil.Fold(e) =>
-        translateFold(fold)
+  //    case fold@sil.Fold(e) => // handled in handleStmt above
       case unfold@sil.Unfold(e) =>
         translateUnfold(unfold)
       case inh@sil.Inhale(e) =>
@@ -206,7 +211,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
     }
 
     var stmts = Seqn(Nil)
-    for (c <- components) {
+    for (c <- components.reverse) { // reverse order, so that "first" component contributes first (outermost) code
       val (before, after) = c.handleStmt(stmt)
       stmts = before ++ stmts ++ after
     }

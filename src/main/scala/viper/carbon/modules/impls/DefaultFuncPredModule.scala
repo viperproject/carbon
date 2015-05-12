@@ -378,25 +378,30 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     res
   }
 
-  override def translateFold(fold: sil.Fold): Stmt = {
+  override def translateFold(fold: sil.Fold): (Stmt,Stmt) = {
     fold match {
-      case sil.Fold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(_, _), perm)) =>
-        checkDefinedness(acc, errors.FoldFailed(fold)) ++
-          checkDefinedness(perm, errors.FoldFailed(fold)) ++
-          foldPredicate(acc, errors.FoldFailed(fold))
+      case sil.Fold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(_, _), perm)) => {
+        {
+          val (foldFirst, foldLast) = foldPredicate(acc, errors.FoldFailed(fold))
+          (checkDefinedness(acc, errors.FoldFailed(fold)) ++
+            checkDefinedness(perm, errors.FoldFailed(fold)) ++
+            foldFirst, foldLast)
+        }
+      }
     }
   }
 
   private var duringFold = false
   private var foldInfo: sil.PredicateAccessPredicate = null
-  private def foldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError): Stmt = {
+  private def foldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError): (Stmt,Stmt) = {
     duringFold = true
     foldInfo = acc
     val stmt = exhale(Seq((acc.loc.predicateBody(verifier.program).get, error)), havocHeap = false) ++
-      inhale(acc) ++ Assume(predicateTrigger(heapModule.currentState, acc.loc))
+      inhale(acc)
+    val stmtLast =  Assume(predicateTrigger(heapModule.currentState, acc.loc))
     foldInfo = null
     duringFold = false
-    stmt
+    (stmt,stmtLast)
   }
 
   private var duringUnfold = false
