@@ -233,7 +233,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           If(translateExp(Expressions.purify(e1)), checkDefinednessImpl(e2, error, makeChecks = makeChecks), Statements.EmptyStmt) ::
           Nil
       case sil.Implies(e1, e2) =>
-        checkDefinednessImpl(e1, error, makeChecks = makeChecks) :: 
+        checkDefinednessImpl(e1, error, makeChecks = makeChecks) ::
           If(translateExp(e1), checkDefinednessImpl(e2, error, makeChecks = makeChecks), Statements.EmptyStmt) ::
           Nil
       case sil.CondExp(c, e1, e2) =>
@@ -244,6 +244,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         checkDefinednessImpl(e1, error, makeChecks = makeChecks) :: // short-circuiting evaluation:
           If(UnExp(Not, translateExp(e1)), checkDefinednessImpl(e2, error, makeChecks = makeChecks), Statements.EmptyStmt) ::
           Nil
+      case w@sil.MagicWand(lhs,rhs) =>
+        checkDefinednessWand(w,error, makeChecks = makeChecks)
       case _ =>
         def translate: Seqn = {
           val checks = components map (_.partialCheckDefinedness(e, error, makeChecks = makeChecks))
@@ -253,6 +255,15 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             checkDefinednessImpl(sub.asInstanceOf[sil.Exp], error, makeChecks = makeChecks)
           }
           val stmt3 = checks map (_._2())
+
+          e match {
+            case sil.MagicWand(lhs,rhs) =>
+              sys.error("wand subnodes:"+e.subnodes.toString() +
+                    "stmt:" + stmt.toString() +
+                    "stmt2:" + stmt2.toString() +
+                    "stmt3:" + stmt3.toString())
+            case _ => Nil
+          }
           stmt ++ stmt2 ++ stmt3 ++
             MaybeCommentBlock("Free assumptions", allFreeAssumptions(e))
         }
@@ -275,6 +286,25 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           handleQuantifiedLocals(e, res)
         }
     }
+  }
+
+  /**
+   * checks self-framedness of both sides of wand
+   * GP: maybe should "MagicWandNotWellFormed" error
+   */
+  private def checkDefinednessWand(e: sil.MagicWand, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
+   val curState = stateModule.getCopyState
+   val (initStmtLHS,defStateLHS): (Stmt,stateModule.StateSnapshot) = stateModule.freshEmptyState("WandDefLHS",true)
+    val (initStmtRHS, defStateRHS): (Stmt, stateModule.StateSnapshot) = stateModule.freshEmptyState("WandDefRHS",true)
+
+    stateModule.restoreState(defStateLHS)
+    val lhs = initStmtLHS ++  checkDefinednessOfSpecAndInhale(e.left,error)
+
+    stateModule.restoreState(defStateRHS)
+    val rhs= initStmtRHS ++ checkDefinednessOfSpecAndInhale(e.right, error)
+
+    stateModule.restoreState(curState)
+    NondetIf(lhs++rhs++Assume(FalseLit()))
   }
 
 
