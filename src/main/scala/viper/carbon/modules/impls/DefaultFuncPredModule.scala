@@ -154,15 +154,18 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   private def functionDefinitions(f: sil.Function): Seq[Decl] = {
     val typ = translateType(f.typ)
-    val args = heapModule.stateContributions ++ (f.formalArgs map translateLocalVarDecl)
+    val fargs = (f.formalArgs map translateLocalVarDecl)
+    val args = heapModule.stateContributions ++ fargs
     val name = Identifier(f.name)
     val func = Func(name, args, typ)
     val name2 = Identifier(f.name + limitedPostfix)
     val func2 = Func(name2, args, typ)
     val funcApp = FuncApp(name, args map (_.l), Bool)
     val funcApp2 = FuncApp(name2, args map (_.l), Bool)
+    val triggerFapp = triggerFuncApp(f.name , fargs map (_.l))
     func ++ func2 ++
-      Axiom(Forall(args, Trigger(funcApp), funcApp === funcApp2))
+      Axiom(Forall(args, Trigger(funcApp), funcApp === funcApp2 && triggerFapp)) ++
+      Axiom(Forall(args, Trigger(funcApp2), triggerFapp))
   }
 
   override def translateFuncApp(fa: sil.FuncApp) = {
@@ -187,10 +190,10 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val fapp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
     val body = transformLimited(translateExp(f.body.get),height)
     val outerUnfoldings : Seq[Unfolding] = Functions.recursiveCallsAndSurroundingUnfoldings(f).map((pair) => pair._2.headOption).flatten
-    val predicateTriggers = outerUnfoldings.map{case Unfolding(PredicateAccessPredicate(predacc : PredicateAccess,perm),exp) => predicateTrigger(predacc)}
+    val predicateTriggers = outerUnfoldings.map{case Unfolding(PredicateAccessPredicate(predacc : PredicateAccess,perm),exp) => predicateTrigger(heap map (_.l), predacc)}
     Axiom(Forall(
       stateModule.stateContributions ++ args,
-      Trigger((if (predicateTriggers.isEmpty) Seq(staticGoodState,fapp) else Seq(staticGoodState, transformLimited(fapp)) ++ predicateTriggers)),
+      Seq(Trigger(Seq(staticGoodState,fapp))) ++ (if (predicateTriggers.isEmpty) Seq()  else Seq(Trigger(Seq(staticGoodState, triggerFuncApp(f.name,args map (_.l))) ++ predicateTriggers))),
       (staticGoodState && assumeFunctionsAbove(height)) ==>
         (fapp === body)
     ))
@@ -231,8 +234,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     Func(Identifier(f.name + triggerFuncPostfix), f.formalArgs map translateLocalVarDecl, Bool)
   }
 
-  private def triggerFuncApp(f: sil.FuncApp): Exp = {
-    FuncApp(Identifier(f.funcname + triggerFuncPostfix), f.args map translateExp, Bool)
+  private def triggerFuncApp(name: String, args:Seq[Exp]): Exp = {
+    FuncApp(Identifier(name + triggerFuncPostfix), args, Bool)
   }
 
   private def framingAxiom(f: sil.Function): Seq[Decl] = {
@@ -243,10 +246,13 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val funcApp = FuncApp(name, functionFrame(f.pres) ++ (args map (_.l)), Bool)
     val heap = heapModule.stateContributions
     val funcApp2 = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
+    val outerUnfoldings : Seq[Unfolding] = Functions.recursiveCallsAndSurroundingUnfoldings(f).map((pair) => pair._2.headOption).flatten
+    val predicateTriggers = outerUnfoldings.map{case Unfolding(PredicateAccessPredicate(predacc : PredicateAccess,perm),exp) => predicateTrigger(heap map (_.l), predacc)}
+
     func ++
       Axiom(Forall(
         stateModule.stateContributions ++ args,
-        Trigger(Seq(staticGoodState, transformLimited(funcApp2))),
+        Seq(Trigger(Seq(staticGoodState, transformLimited(funcApp2)))) ++ (if (predicateTriggers.isEmpty) Seq()  else Seq(Trigger(Seq(staticGoodState, triggerFuncApp(f.name,args map (_.l))) ++ predicateTriggers))),
         staticGoodState ==> (transformLimited(funcApp2) === funcApp)))
   }
 
@@ -358,33 +364,44 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   // --------------------------------------------
 
   override def translatePredicate(p: sil.Predicate): Seq[Decl] = {
+
     env = Environment(verifier, p)
+    val args = p.formalArgs
+    val translatedArgs = p.formalArgs map translateLocalVarDecl
+    val predAcc = sil.PredicateAccess(args map (_.localVar),p)(p.pos,p.info)
+    val trigger = predicateTrigger(heapModule.stateContributions map (_.l), predAcc)
+    val anystate = predicateTrigger(Seq(), predAcc, true)
     val res = MaybeCommentedDecl(s"Translation of predicate ${p.name}",
-      predicateGhostFieldDecl(p))
+      predicateGhostFieldDecl(p)) ++
+    Axiom(Forall(heapModule.stateContributions ++ translatedArgs, Seq(Trigger(trigger)), anystate))
     env = null
     res
   }
 
-  override def translateFold(fold: sil.Fold): Stmt = {
+  override def translateFold(fold: sil.Fold): (Stmt,Stmt) = {
     fold match {
-      case sil.Fold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(_, _), perm)) =>
-        checkDefinedness(acc, errors.FoldFailed(fold)) ++
-          checkDefinedness(perm, errors.FoldFailed(fold)) ++
-          foldPredicate(acc, errors.FoldFailed(fold))
+      case sil.Fold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(_, _), perm)) => {
+        {
+          val (foldFirst, foldLast) = foldPredicate(acc, errors.FoldFailed(fold))
+          (checkDefinedness(acc, errors.FoldFailed(fold)) ++
+            checkDefinedness(perm, errors.FoldFailed(fold)) ++
+            foldFirst, foldLast)
+        }
+      }
     }
   }
 
   private var duringFold = false
   private var foldInfo: sil.PredicateAccessPredicate = null
-  private def foldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError): Stmt = {
+  private def foldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError): (Stmt,Stmt) = {
     duringFold = true
     foldInfo = acc
-    val stmt = Assume(predicateTrigger(acc.loc)) ++
-      exhale(Seq((acc.loc.predicateBody(verifier.program).get, error)), havocHeap = false) ++
+    val stmt = exhale(Seq((acc.loc.predicateBody(verifier.program).get, error)), havocHeap = false) ++
       inhale(acc)
+    val stmtLast =  Assume(predicateTrigger(heapModule.currentState, acc.loc))
     foldInfo = null
     duringFold = false
-    stmt
+    (stmt,stmtLast)
   }
 
   private var duringUnfold = false
@@ -405,7 +422,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     duringFold = false
     duringUnfold = true
     unfoldInfo = acc
-    val stmt = Assume(predicateTrigger(acc.loc)) ++
+    val stmt = Assume(predicateTrigger(heapModule.currentState, acc.loc)) ++
       exhale(Seq((acc, error)), havocHeap = false) ++
       inhale(acc.loc.predicateBody(verifier.program).get)
     unfoldInfo = oldUnfoldInfo
