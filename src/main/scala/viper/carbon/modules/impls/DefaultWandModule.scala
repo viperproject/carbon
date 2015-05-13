@@ -158,7 +158,6 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
 
             stmt ++ addWand
 
-          //TODO: add wand to current state
           case _ => sys.error("Package only defined for wands.")
         }
     }
@@ -240,29 +239,8 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
                If(boolUsed, applyWand(w, mainError), Statements.EmptyStmt)
             } ++ {
             //exec in sum state
-            val usedHeap = heapModule.currentHeap
-            val usedMask = permModule.currentMask
-
-            /*create a state Result which is the "sum" of the ops and used states, i.e.:
-             *1) at each heap location o.f the permission of the Result state is the sum of the permissions
-             * for o.f in the ops and Used state
-             * 2) if ops has some positive nonzero amount of permission for heap location o.f then the heap values for
-             * o.f in ops and Result are the same
-             * 3) point 2) also holds for the used state in place of the ops state
-             *
-             * Note: the boolean is the conjunction of the booleans of ops and used (since all facts of each
-             * state is transferred)
-              */
-            val UsedStateSetup(resultState, initStmtResult, boolRes) =
-              createAndSetState(Some(b && boolUsed), "Result", true, false)
-
-            val sumStates = (boolRes := boolRes && permModule.sumMask(opsMask, usedMask))
-            val equateKnownValues = (boolRes := boolRes && heapModule.identicalOnKnownLocations(opsHeap, opsMask) &&
-              heapModule.identicalOnKnownLocations(usedHeap, usedMask))
-            val goodState = exchangeAssumesWithBoolean(stateModule.assumeGoodState, boolRes)
-            CommentBlock("Creating state which is the sum of the two previously built up states",
-              initStmtResult ++ sumStates ++ equateKnownValues ++ goodState) ++
-              exec(states, resultState, body, boolRes)
+            val StateSetup(resultState, resultInitStmt, boolRes) =  createAndSetSumState(opsHeap,opsMask,b,boolUsed)
+            resultInitStmt ++ exec(states,resultState, body, boolRes)
           }
           case _ => sys.error("Applying ghost operation only supported for magic wands")
         }
