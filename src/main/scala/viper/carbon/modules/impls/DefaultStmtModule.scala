@@ -52,7 +52,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
   override def handleStmt(s: sil.Stmt) : (Stmt,Stmt) =
     s match {
       case s : sil.Fold => translateFold(s)
-      case _ => (Statements.EmptyStmt, simpleHandleStmt(s))
+      case _ => (simpleHandleStmt(s),Statements.EmptyStmt) // put code *first*
     }
 
   override def simpleHandleStmt(stmt: sil.Stmt): Stmt = {
@@ -64,7 +64,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
       case assign@sil.FieldAssign(lhs, rhs) =>
         checkDefinedness(lhs, errors.AssignmentFailed(assign)) ++ 
           checkDefinedness(rhs, errors.AssignmentFailed(assign))
-  //    case fold@sil.Fold(e) => // handled in handleStmt above
+      //case fold@sil.Fold(e) => Should be handled by handleStmt above
       case unfold@sil.Unfold(e) =>
         translateUnfold(unfold)
       case inh@sil.Inhale(e) =>
