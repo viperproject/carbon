@@ -481,8 +481,10 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
         val curPermTop = permModule.currentPermission(e.rcv, e.loc)
         val removeFromTop = heapModule.beginExhale ++
           (components flatMap (_.transferRemove(e,b))) ++
-           exchangeAssumesWithBoolean(heapModule.endExhale,b) ++
-           exchangeAssumesWithBoolean(stateModule.assumeGoodState, b)
+           (heapModule.endExhale) ++
+           stateModule.assumeGoodState
+      /*GP: need to formally prove that these two last statements are sound (since they are not
+       *explicitily accumulated in the boolean variable */
 
         stateModule.restoreState(used)
 
@@ -532,8 +534,9 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
       CommentBlock("check if LHS holds and remove permissions ", exhaleModule.exhale((w.left, error), false)) ++
       stateModule.assumeGoodState ++
       CommentBlock("inhale the RHS of the wand",inhaleModule.inhale(w.right)) ++
-      heapModule.beginExhale ++ heapModule.endExhale
-      //using beginExhale, endExhale works now, but isn't intuitive, maybe should duplicate code to avoid this breaking
+      heapModule.beginExhale ++ heapModule.endExhale ++
+      stateModule.assumeGoodState
+      //GP: using beginExhale, endExhale works now, but isn't intuitive, maybe should duplicate code to avoid this breaking
      //in the future when beginExhale and endExhale's implementations are changed
   }
 
