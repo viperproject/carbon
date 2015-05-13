@@ -169,21 +169,20 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
       case fold@sil.Folding(acc,body) =>
         val opsMask = permModule.currentMask
         val opsHeap = heapModule.currentHeap
+        val (argsLocal, accTransformed, assignStmt) = evalArgsAccessPredicate(acc, None,mainError,None)
 
-        val UsedStateSetup(usedState, initStmt, boolUsed) = createAndSetState(Some(b))
+        val predAccTransformed = accTransformed match {
+          case pap@sil.PredicateAccessPredicate(_,_) => pap
+          case _ =>  sys.error("evalArgsAccessPredicate returned FieldAccessPredicate for input PredicateAccessPredicate")
+        }
+
+        val predicateBody = predAccTransformed.loc.predicateBody(verifier.program).get
+
+        val StateSetup(usedState, initStmt, boolUsed) = createAndSetState(Some(b))
         Comment("Translating " + fold.toString()) ++ initStmt ++
           { //get permissions for unfold and then unfold
-             val sil.PredicateAccessPredicate(loc,perm) = acc
 
-            val (argsLocal, accTransformed, assignStmt) = evalArgsAccessPredicate(acc, None,mainError,None)
-            val predAccTransformed = accTransformed match {
-              case pap@sil.PredicateAccessPredicate(_,_) => pap
-              case _ =>  sys.error("evalArgsAccessPredicate returned FieldAccessPredicate for input PredicateAccessPredicate")
-            }
-
-            stateModule.restoreState(usedState)
-
-            val permForBody = exhaleExt(ops :: states, usedState, loc.predicateBody(verifier.program).get, boolUsed)
+            val permForBody = exhaleExt(ops :: states, usedState, predicateBody, boolUsed)
             val foldStmt = If(boolUsed, funcPredModule.translateFold(sil.Fold(predAccTransformed)(fold.pos, fold.info)),
               Statements.EmptyStmt)
 
@@ -193,50 +192,28 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
               assignStmt ++ permForBody ++ foldStmt)
           } ++ {
           //exec in sum state
-          val usedHeap = heapModule.currentHeap
-          val usedMask = permModule.currentMask
-
-          /*create a state Result which is the "sum" of the ops and used states, i.e.:
-             *1) at each heap location o.f the permission of the Result state is the sum of the permissions
-             * for o.f in the ops and Used state
-             * 2) if ops has some positive nonzero amount of permission for heap location o.f then the heap values for
-             * o.f in ops and Result are the same
-             * 3) point 2) also holds for the used state in place of the ops state
-             *
-             * Note: the boolean is the conjunction of the booleans of ops and used (since all facts of each
-             * state is transferred)
-              */
-          val UsedStateSetup(resultState, initStmtResult, boolRes) =
-            createAndSetState(Some(b && boolUsed), "Result", true, false)
-
-          val sumStates = (boolRes := boolRes && permModule.sumMask(opsMask, usedMask))
-          val equateKnownValues = (boolRes := boolRes && heapModule.identicalOnKnownLocations(opsHeap, opsMask) &&
-            heapModule.identicalOnKnownLocations(usedHeap, usedMask))
-          val goodState = exchangeAssumesWithBoolean(stateModule.assumeGoodState, boolRes)
-
-          CommentBlock("Creating state which is the sum of the two previously built up states",
-            initStmtResult ++ sumStates ++ equateKnownValues ++ goodState) ++
-            Comment("Translating exec of body of fold") ++
-            exec(states, resultState, body, boolRes)
+          val StateSetup(resultState, resultInitStmt, boolRes) =  createAndSetSumState(opsHeap,opsMask,b,boolUsed)
+          resultInitStmt ++ exec(states,resultState, body, boolRes)
         }
       case unfold@sil.Unfolding(acc,body) =>
         val opsMask = permModule.currentMask
         val opsHeap = heapModule.currentHeap
 
-        val UsedStateSetup(usedState, initStmt, boolUsed) = createAndSetState(Some(b))
+        //evaluate arguments of predicate in top state
+        val (argsLocal, accTransformed, assignStmt) = evalArgsAccessPredicate(acc, None,mainError,None)
+
+        val StateSetup(usedState, initStmt, boolUsed) = createAndSetState(Some(b))
         Comment("Translating " + unfold.toString()) ++ initStmt ++
           { //get permissions for unfold and then unfold
           val sil.PredicateAccessPredicate(loc,perm) = acc
 
-            val (argsLocal, accTransformed, assignStmt) = evalArgsAccessPredicate(acc, None,mainError,None)
             val predAccTransformed = accTransformed match {
               case pap@sil.PredicateAccessPredicate(_,_) => pap
               case _ =>  sys.error("evalArgsAccessPredicate returned FieldAccessPredicate for input PredicateAccessPredicate")
             }
 
-            stateModule.restoreState(usedState)
-
             val permForPred = exhaleExt(ops :: states, usedState, accTransformed, boolUsed)
+
             val unfoldStmt = CommentBlock("unfolding " + acc.toString() ,
               If(boolUsed, funcPredModule.translateUnfold(sil.Unfold(predAccTransformed)(unfold.pos, unfold.info)),
               Statements.EmptyStmt) )
@@ -246,29 +223,8 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
             assignStmt ++ permForPred ++ unfoldStmt)
           } ++ {
           //exec in sum state
-          val usedHeap = heapModule.currentHeap
-          val usedMask = permModule.currentMask
-
-          /*create a state Result which is the "sum" of the ops and used states, i.e.:
-           *1) at each heap location o.f the permission of the Result state is the sum of the permissions
-           * for o.f in the ops and Used state
-           * 2) if ops has some positive nonzero amount of permission for heap location o.f then the heap values for
-           * o.f in ops and Result are the same
-           * 3) point 2) also holds for the used state in place of the ops state
-           *
-           * Note: the boolean is the conjunction of the booleans of ops and used (since all facts of each
-           * state is transferred)
-            */
-          val UsedStateSetup(resultState, initStmtResult, boolRes) =
-            createAndSetState(Some(b && boolUsed), "Result", true, false)
-
-          val sumStates = (boolRes := boolRes && permModule.sumMask(opsMask, usedMask))
-          val equateKnownValues = (boolRes := boolRes && heapModule.identicalOnKnownLocations(opsHeap, opsMask) &&
-            heapModule.identicalOnKnownLocations(usedHeap, usedMask))
-          val goodState = exchangeAssumesWithBoolean(stateModule.assumeGoodState, boolRes)
-          CommentBlock("Creating state which is the sum of the two previously built up states",
-          initStmtResult ++ sumStates ++ equateKnownValues ++ goodState) ++
-          exec(states, resultState, body, boolRes)
+          val StateSetup(resultState, resultInitStmt, boolRes) =  createAndSetSumState(opsHeap,opsMask,b,boolUsed)
+          resultInitStmt ++ exec(states,resultState, body, boolRes)
         }
       case sil.Applying(wand, body) =>
         wand match {
@@ -276,7 +232,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
             val opsMask = permModule.currentMask
             val opsHeap = heapModule.currentHeap
 
-            val UsedStateSetup(usedState, initStmt, boolUsed) = createAndSetState(Some(b))
+            val StateSetup(usedState, initStmt, boolUsed) = createAndSetState(Some(b))
             initStmt ++
             {
              exhaleExt(ops :: states, usedState, left, boolUsed) ++
@@ -327,9 +283,9 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
 
       case _ =>
         //no ghost operation
-        val UsedStateSetup(usedState, initStmt, boolVar) = createAndSetState(Some(b))
+        val StateSetup(usedState, initStmt, boolVar) = createAndSetState(Some(b))
         Comment("Translating exec of non-ghost operation" + e.toString())
-        initStmt ++ exhaleExt(ops :: states, usedState,e,b)
+        initStmt ++ exhaleExt(ops :: states, usedState,e,boolVar)
     }
 
   }
@@ -343,7 +299,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
    * Postcondition: state is set to the "Used" state generated in the function
    */
   private def packageInit(wand:sil.MagicWand, boolVar: Option[LocalVar]):PackageSetup = {
-    val UsedStateSetup(usedState, initStmt, b) = createAndSetState(boolVar, "Used", false)
+    val StateSetup(usedState, initStmt, b) = createAndSetState(boolVar, "Used", false)
 
     //inhale left hand side to initialize hypothetical state
     val hypName = names.createUniqueIdentifier("Hyp")
@@ -361,7 +317,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
 
   /**
    *
-   * @param initBool boolean value to which the newly generated boolean variable should be initialized to
+   * @param initBool boolean expression to which the newly generated boolean variable should be initialized to
    * @param usedString string to incorporate into unique name for string
    * @param setToNew the state is set to the generated state iff this is set to true
    * @param init if this is set to true then the stmt in UsedStateSetup will initialize the states (for example
@@ -369,7 +325,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
    * @return  Structure which can be used at the beginning of many operations involved in the package
    */
   private def createAndSetState(initBool:Option[Exp],usedString:String = "Used",setToNew:Boolean=true,
-                                init:Boolean=true):UsedStateSetup = {
+                                init:Boolean=true):StateSetup = {
     /**create a new boolean variable under which all assumptions belonging to the package are made
       *(which makes sure that the assumptions won't be part of the main state after the package)
       *
@@ -383,16 +339,65 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
         case _ => Statements.EmptyStmt
       }
 
+
     //state which is used to check if the wand holds
     val usedName = names.createUniqueIdentifier(usedString)
     val (usedStmt, usedState) = stateModule.freshEmptyState(usedName,init)
 
+
+    val currentState =
+      if(!setToNew) {
+        stateModule.getCopyState
+      } else {
+        usedState
+      }
+
+    stateModule.restoreState(usedState)
+
+    val goodState = exchangeAssumesWithBoolean(stateModule.assumeGoodState, b)
+
     /**DEFINE STATES END **/
-    if(setToNew) {
-      stateModule.restoreState(usedState)
+    if(!setToNew) {
+      stateModule.restoreState(currentState)
     }
 
-    UsedStateSetup(usedState,usedStmt++boolStmt, b)
+    StateSetup(usedState,usedStmt++boolStmt++goodState, b)
+  }
+
+  /**
+   * only heap and mask of one summand state, while current state will be used as second summand
+   * @param heapOther heap representation of  summand state
+   * @param maskOther mask represenstation of  summand state
+   * @param boolOther bool containing facts for summand state
+   * @param boolCur bool containing facts for current state
+   * @return
+   */
+  private def createAndSetSumState(heapOther: Seq[Exp], maskOther: Seq[Exp],boolOther:Exp,boolCur:Exp):StateSetup = {
+    /*create a state Result which is the "sum" of the current  and Other states, i.e.:
+ *1) at each heap location o.f the permission of the Result state is the sum of the permissions
+ * for o.f in the current and Other state
+ * 2) if the current state has some positive nonzero amount of permission for heap location o.f then the heap values for
+ * o.f in the current state and Result state are the same
+ * 3) point 2) also holds for the Other state in place of the current state
+ *
+ * Note: the boolean for the Result state is initialized to the conjunction of the booleans of the current state
+   *  and the other state and used (since all facts of each state is transferred)
+  */
+    val curHeap = heapModule.currentHeap
+    val curMask = permModule.currentMask
+
+    val StateSetup(resultState, initStmtResult, boolRes) =
+      createAndSetState(Some(boolOther && boolCur), "Result", true, false)
+
+    val sumStates = (boolRes := boolRes && permModule.sumMask(maskOther, curMask))
+    val equateKnownValues = (boolRes := boolRes && heapModule.identicalOnKnownLocations(heapOther, maskOther) &&
+      heapModule.identicalOnKnownLocations(curHeap, curMask))
+    val goodState = exchangeAssumesWithBoolean(stateModule.assumeGoodState, boolRes)
+    val initStmt =CommentBlock("Creating state which is the sum of the two previously built up states",
+      initStmtResult ++ sumStates ++ equateKnownValues ++ goodState)
+
+    StateSetup(resultState, initStmt,boolRes)
+
   }
 
   /*generates code that transfers permissions from states to used such that e can be satisfied
@@ -657,7 +662,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
    */
   case class PackageSetup(hypState: StateSnapshot, usedState: StateSnapshot, initStmt: Stmt, boolVar: LocalVar)
 
-  case class UsedStateSetup(usedState: StateSnapshot, initStmt: Stmt, boolVar: LocalVar)
+  case class StateSetup(usedState: StateSnapshot, initStmt: Stmt, boolVar: LocalVar)
 
 
 }
