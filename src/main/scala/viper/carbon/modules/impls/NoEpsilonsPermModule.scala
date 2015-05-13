@@ -284,8 +284,9 @@ class NoEpsilonsPermModule(val verifier: Verifier)
       case w@sil.MagicWand(left,right) =>
         val wandRep = wandModule.getWandRepresentation(w)
         val curPerm = currentPermission(translateNull, wandRep)
-        Assert(permLe(fullPerm, curPerm), error.dueTo(reasons.MagicWandChunkNotFound(w))) ++
-        (if (!isUsingOldState) curPerm := permSub(curPerm, fullPerm) else Nil)
+        Comment("permLe")++ //using RealLit(1.0) instead of FullPerm due to permLe's implementation
+        Assert(permLe(RealLit(1.0), curPerm), error.dueTo(reasons.MagicWandChunkNotFound(w))) ++
+        (if (!isUsingOldState) curPerm := permSub(curPerm, RealLit(1.0)) else Nil)
       case _ => Nil
     }
   }
@@ -364,7 +365,7 @@ class NoEpsilonsPermModule(val verifier: Verifier)
 
   override def transferAdd(e:TransferableEntity, cond:Exp): Stmt = {
     val curPerm = currentPermission(e.rcv,e.loc)
-    (cond := cond && permissionPositive(e.transferAmount, None,true)) ++
+      (cond := cond && permissionPositive(e.transferAmount, None,true)) ++
       {
       e match {
         case TransferableFieldAccessPred(rcv,_,_,_) => (cond := cond && checkNonNullReceiver(rcv))
