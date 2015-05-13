@@ -375,9 +375,21 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   override def allFreeAssumptions(e: sil.Exp): Stmt = {
     def translate: Seqn = {
       val stmt = components map (_.freeAssumptions(e))
-      val stmt2 = for (sub <- e.subnodes if sub.isInstanceOf[sil.Exp]) yield {
-        allFreeAssumptions(sub.asInstanceOf[sil.Exp])
-      }
+      /**
+       * Generally if e' is a subexpression of e then whenever e is inhaled/exhaled then any assumption that  can be
+       * made for free if e' is inhaled/exhaled is also free.
+       * If e is a magic wand then this is not true since what is inhaled is just the wand as a complete entity,
+       * no assumptions can be made on the left and right hand side or their subexpressions as they contain assertions
+       * which are only exhaled/inhaled when the wand is applied.
+       */
+      val stmt2 =
+        e match {
+          case sil.MagicWand(_,_) => Nil
+          case _ =>
+            for (sub <- e.subnodes if sub.isInstanceOf[sil.Exp]) yield {
+              allFreeAssumptions(sub.asInstanceOf[sil.Exp])
+            }
+        }
       stmt ++ stmt2
     }
     if (e.isInstanceOf[sil.Old]) {
