@@ -74,11 +74,11 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   }
 
   override def freshEmptyState(name: String, init:Boolean = true): (Stmt, StateSnapshot) = {
-    val previousState = new java.util.IdentityHashMap[StateComponent, Seq[Exp]]()
+    val emptyState = new java.util.IdentityHashMap[StateComponent, Seq[Exp]]()
     val s = (for (c <- components) yield {
       val tmpExps = c.freshTempState(name)
       val curExps = curState.get(c)
-      previousState.put(c, tmpExps)
+      emptyState.put(c, tmpExps)
       val stmt: Stmt  =
         (tmpExps) map (x => x match {
           case v@LocalVar(_,_) => Havoc(v)
@@ -94,7 +94,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
       c.restoreState(curExps)
       stmt ++ initStmt
     }).flatten
-    (s, previousState)
+    (s, emptyState)
   }
 
       override def restoreState(snapshot: StateSnapshot) {
