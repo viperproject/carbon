@@ -422,16 +422,19 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
 
 
     val positivePerm = Assert(neededLocal >= RealLit(0), mainError.dueTo(reasons.NegativePermission(e)))
-    /*TODO
-    val notNull = for (local <- argLocals zip loc) yield {
-      Assert(local !== heapModule.translateNull, mainError.dueTo(reasons.))
-    }
-    */
+
+    val nullCheck =
+      transferEntity match {
+        case TransferableFieldAccessPred(rcv,loc,_,origAccessPred) =>
+          Assert(b ==> heapModule.checkNonNullReceiver(rcv),mainError.dueTo(reasons.ReceiverNull(origAccessPred.loc)))
+        case _ => Statements.EmptyStmt
+      }
+
     val definedness = MaybeCommentBlock("checking if access predicate defined in used state",
       If(b,expModule.checkDefinedness(e, mainError),Statements.EmptyStmt))
 
     val transferRest = transferAcc(states,used, transferEntity, b)
-    val stmt = definedness ++ initStmt ++ initPermVars ++  positivePerm ++ transferRest
+    val stmt = definedness++ initStmt ++ nullCheck ++ initPermVars ++  positivePerm ++ transferRest
 
 
     MaybeCommentBlock("Transfer of " + e.toString(), stmt)
