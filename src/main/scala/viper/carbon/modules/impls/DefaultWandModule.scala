@@ -447,20 +447,13 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
   private def transferAcc(states: List[StateSnapshot], used:StateSnapshot, e: TransferableEntity, b: LocalVar):Stmt = {
     states match {
     case (top :: xs) =>
-        val addToUsed = (components flatMap (_.transferAdd(e,b))) ++
-                      exchangeAssumesWithBoolean(stateModule.assumeGoodState, b)
+      //Compute all values needed from top state
+        stateModule.restoreState(top)
 
+        val topHeap = heapModule.currentHeap
         val equateLHS:Option[Exp] = e match {
           case TransferableAccessPred(rcv,loc,_,_) => Some(heapModule.translateLocationAccess(rcv,loc))
           case _ => None
-        }
-
-        //check definedness of e in state x
-        stateModule.restoreState(top)
-
-        val equateStmt:Stmt = e match {
-          case TransferableAccessPred(rcv,loc,_,_) => b := b && equateLHS.get === heapModule.translateLocationAccess(rcv,loc)
-          case _ => Nil
         }
 
         val definednessTop:Stmt = (boolTransferTop := TrueLit()) ++
@@ -474,9 +467,22 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
       /*GP: need to formally prove that these two last statements are sound (since they are not
        *explicitily accumulated in the boolean variable */
 
+      //computed all values needed from used state
         stateModule.restoreState(used)
 
+      val addToUsed = (components flatMap (_.transferAdd(e,b))) ++
+        exchangeAssumesWithBoolean(stateModule.assumeGoodState, b)
 
+      val equateStmt:Stmt = e match {
+        case TransferableFieldAccessPred(rcv,loc,_,_) => b := b && equateLHS.get === heapModule.translateLocationAccess(rcv,loc)
+        case TransferablePredAccessPred(rcv,loc,_,_) =>
+          val (tempMask, initTMaskStmt) = permModule.tempInitMask(rcv,loc)
+          initTMaskStmt ++
+            (b := b && heapModule.identicalOnKnownLocations(topHeap,tempMask))
+        case _ => Nil
+      }
+
+      //transfer from top to used state
         MaybeCommentBlock("transfer code for top state of stack",
           Comment("accumulate constraints which need to be satisfied for transfer to occur") ++ definednessTop ++
           Comment("actual code for the transfer from current state on stack") ++
@@ -493,7 +499,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
 
                 Nil
               )
-        ) ++ transferAcc(xs,used,e,b)
+        ) ++ transferAcc(xs,used,e,b) //recurse over rest of states
       case Nil =>
         val curPermUsed = permModule.currentPermission(e.rcv,e.loc)
         Assert(b ==> (neededLocal === boogieNoPerm && curPermUsed === initNeededLocal),
@@ -645,6 +651,9 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
    */
   case class PackageSetup(hypState: StateSnapshot, usedState: StateSnapshot, initStmt: Stmt, boolVar: LocalVar)
 
+/*
+ * is used to store relevant blocks needed to use a newly created state
+ */
   case class StateSetup(usedState: StateSnapshot, initStmt: Stmt, boolVar: LocalVar)
 
 
