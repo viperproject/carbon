@@ -288,6 +288,10 @@ class QuantifiedPermModule(val verifier: Verifier)
     }
   }
 
+  override def tempInitMask(rcv: Exp, loc:Exp):(Seq[Exp], Stmt) = {
+    sys.error("This module doesn't support tempInitMask")
+  }
+
   def currentPermission(loc: sil.LocationAccess): MapSelect = {
     loc match {
       case sil.FieldAccess(rcv, field) =>
