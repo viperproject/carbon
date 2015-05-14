@@ -182,8 +182,10 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
           { //get permissions for unfold and then unfold
 
             val permForBody = exhaleExt(ops :: states, usedState, predicateBody, boolUsed)
-            val foldStmt = If(boolUsed, funcPredModule.translateFold(sil.Fold(predAccTransformed)(fold.pos, fold.info)),
-              Statements.EmptyStmt)
+            //TODO GP: make sure this is the correct usage of the return values of translateFold
+            val (foldPredFirst,foldPredLast) =
+              funcPredModule.translateFold(sil.Fold(predAccTransformed)(fold.pos, fold.info))
+            val foldStmt = If(boolUsed, foldPredFirst++foldPredLast, Statements.EmptyStmt)
 
             argsLocal.foreach(localVar => mainModule.env.undefine(localVar))
 
