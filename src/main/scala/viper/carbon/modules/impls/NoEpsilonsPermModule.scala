@@ -95,6 +95,7 @@ class NoEpsilonsPermModule(val verifier: Verifier)
   private val summandMask1 = LocalVarDecl(Identifier("SummandMask1"),maskType)
   private val summandMask2 = LocalVarDecl(Identifier("SummandMask2"),maskType)
   private val sumMasks = Identifier("sumMask")
+  private val tempMask = LocalVar(Identifier("TempMask"),maskType)
 
   override def preamble = {
     val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
@@ -373,6 +374,12 @@ class NoEpsilonsPermModule(val verifier: Verifier)
       }
     } ++
       (if (!isUsingOldState) curPerm := permAdd(curPerm, e.transferAmount) else Nil)
+  }
+
+  override def tempInitMask(rcv: Exp, loc:Exp):(Seq[Exp], Stmt) = {
+    val curPerm = currentPermission(tempMask,rcv,loc)
+    val setMaskStmt = (tempMask := zeroMask) ++ (curPerm := fullPerm)
+    (tempMask, setMaskStmt)
   }
 
   override def currentPermission(loc: sil.LocationAccess): MapSelect = {

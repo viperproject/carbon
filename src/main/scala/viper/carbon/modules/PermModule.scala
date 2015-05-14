@@ -96,5 +96,11 @@ trait PermModule extends Module {
 
   def sumMask(summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp
 
+    /** returns a mask and the returned statement ensures that the mask  has non-zero permission at rcv.loc and zero
+      * permission at all other location
+      * this should only be used temporarily, i.e. if there are two calls to this then the previous tempMask returned
+      * will be overwritten in the Boogie code
+      */
+  def tempInitMask(rcv: Exp, loc:Exp):(Seq[Exp], Stmt)
 
 }
