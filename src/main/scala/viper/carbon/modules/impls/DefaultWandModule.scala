@@ -179,7 +179,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
 
         val predicateBody = predAccTransformed.loc.predicateBody(verifier.program).get
 
-        val StateSetup(usedState, initStmt) = createAndSetState(Some(ops.boolVar))
+        val StateSetup(usedState, initStmt) = createAndSetState(None)
         Comment("Translating " + fold.toString()) ++ initStmt ++
           { //get permissions for unfold and then unfold
 
@@ -205,7 +205,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
         //evaluate arguments of predicate in top state
         val (argsLocal, accTransformed, assignStmt) = evalArgsAccessPredicate(acc, None,mainError,None)
 
-        val StateSetup(usedState, initStmt) = createAndSetState(Some(ops.boolVar))
+        val StateSetup(usedState, initStmt) = createAndSetState(None)
         Comment("Translating " + unfold.toString()) ++ initStmt ++
           { //get permissions for unfold and then unfold
           val sil.PredicateAccessPredicate(loc,perm) = acc
@@ -235,7 +235,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
             val opsMask = permModule.currentMask
             val opsHeap = heapModule.currentHeap
 
-            val StateSetup(usedState, initStmt) = createAndSetState(Some(ops.boolVar))
+            val StateSetup(usedState, initStmt) = createAndSetState(None)
             initStmt ++
             {
              exhaleExt(ops :: states, usedState, left) ++
@@ -251,7 +251,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
       case p@sil.Packaging(wand,body) =>
         val addWand = inhaleModule.inhale(wand)
 
-        val PackageSetup(hypState, usedState, initStmt) = packageInit(wand, Some(ops.boolVar))
+        val PackageSetup(hypState, usedState, initStmt) = packageInit(wand, None)
 
         val execInnerWand = exec(hypState :: ops :: states, usedState, wand.right)
 
@@ -265,7 +265,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
 
       case _ =>
         //no ghost operation
-        val StateSetup(usedState, initStmt) = createAndSetState(Some(ops.boolVar))
+        val StateSetup(usedState, initStmt) = createAndSetState(None)
         Comment("Translating exec of non-ghost operation" + e.toString())
         initStmt ++ exhaleExt(ops :: states, usedState,e)
     }
