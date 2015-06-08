@@ -72,7 +72,13 @@ class DefaultSeqModule(val verifier: Verifier) extends SeqModule with Definednes
       case sil.SeqContains(elem, seq) =>
         FuncApp(Identifier("Seq#Contains"), List(t(seq), t(elem)), typ)
       case sil.SeqUpdate(seq, idx, elem) =>
-        FuncApp(Identifier("Seq#Update"), List(t(seq), t(idx), t(elem)), typ)
+      {
+        // translate as (s[..i] ++ ([i] ++ s[i+1..])) (NOTE: this assumes i is in the range, which is not yet checked)
+        val s = t(seq)
+        val i = t(idx)
+        val v = t(elem)
+        FuncApp(Identifier("Seq#Append"),List(FuncApp(Identifier("Seq#Take"), List(s,i),typ),FuncApp(Identifier("Seq#Append"),List(FuncApp(Identifier("Seq#Singleton"), v, typ),FuncApp(Identifier("Seq#Drop"), List(s,BinExp(i,Add,IntLit(1))),typ)),typ)),typ)
+      }
       case sil.SeqLength(seq) =>
         FuncApp(Identifier("Seq#Length"), t(seq), typ)
       case sil.EqCmp(left, right) =>
