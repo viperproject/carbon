@@ -140,11 +140,10 @@ class NoEpsilonsPermModule(val verifier: Verifier)
       val perm = currentPermission(obj.l, field.l)
       Axiom(Forall(stateContributions ++ obj ++ field,
         Trigger(Seq(staticGoodMask, perm)),
-        staticGoodMask ==>
-          // permissions are non-negative
-          perm >= RealLit(0) &&
-          // permissions for fields are smaller than 1
-          ((heapModule.isPredicateField(field.l).not && heapModule.isWandField(field.l).not) ==> perm <= RealLit(1) )
+        // permissions are non-negative
+        (staticGoodMask ==> perm >= RealLit(0)) &&
+        // permissions for fields which aren't predicates or wands are smaller than 1
+          ((staticGoodMask && heapModule.isPredicateField(field.l).not && heapModule.isWandField(field.l).not) ==> perm <= RealLit(1) )
       ))
     } ++ {
       val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
@@ -366,13 +365,15 @@ class NoEpsilonsPermModule(val verifier: Verifier)
 
   override def transferAdd(e:TransferableEntity, cond:Exp): Stmt = {
     val curPerm = currentPermission(e.rcv,e.loc)
+    /* GP: probably redundant in current transfer as these assumputions are implied
+
       (cond := cond && permissionPositive(e.transferAmount, None,true)) ++
       {
       e match {
         case TransferableFieldAccessPred(rcv,_,_,_) => (cond := cond && checkNonNullReceiver(rcv))
         case _ => Nil
       }
-    } ++
+    } ++ */
       (if (!isUsingOldState) curPerm := permAdd(curPerm, e.transferAmount) else Nil)
   }
 
