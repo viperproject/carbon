@@ -35,7 +35,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   implicit val fpNamespace = verifier.freshNamespace("funcpred")
 
-  lazy val heights = Functions.heights(verifier.program)
+  private var heights: Map[viper.silver.ast.Function, Int] = null
   private val assumeFunctionsAboveName = Identifier("AssumeFunctionsAbove")
   private val assumeFunctionsAbove: Const = Const(assumeFunctionsAboveName)
   private val specialRefName = Identifier("special_ref")
@@ -135,6 +135,10 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     expModule.register(this)
     inhaleModule.register(this)
     exhaleModule.register(this)
+  }
+
+  override def reset() = {
+    heights = Functions.heights(verifier.program)
   }
 
   override def translateFunction(f: sil.Function): Seq[Decl] = {

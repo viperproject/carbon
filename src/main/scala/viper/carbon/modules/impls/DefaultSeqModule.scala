@@ -94,4 +94,12 @@ class DefaultSeqModule(val verifier: Verifier) extends SeqModule with Definednes
     used = true
     NamedType("Seq", translateType(seqType.elementType))
   }
+
+  /**
+   * Reset the state of this module so that it can be used for new program. This method is called
+   * after verifier gets a new program.
+   */
+  override def reset(): Unit = {
+    used = false
+  }
 }

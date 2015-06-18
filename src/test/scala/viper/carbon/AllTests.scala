@@ -30,5 +30,5 @@ class AllTests extends SilSuite {
     fe
   }
 
-  override def verifiers: Seq[Verifier] = Vector(CarbonVerifier())
+  lazy val verifiers = List(CarbonVerifier())
 }

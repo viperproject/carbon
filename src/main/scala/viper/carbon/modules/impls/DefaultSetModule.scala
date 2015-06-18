@@ -134,4 +134,12 @@ class DefaultSetModule(val verifier: Verifier) extends SetModule with Definednes
     used = true
     NamedType("MultiSet", translateType(setType.elementType))
   }
+
+  /**
+   * Reset the state of this module so that it can be used for new program. This method is called
+   * after verifier gets a new program.
+   */
+  override def reset(): Unit = {
+    used = false
+  }
 }

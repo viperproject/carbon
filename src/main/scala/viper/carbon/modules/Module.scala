@@ -31,6 +31,12 @@ trait Module {
   def initialize() {}
 
   /**
+   * Reset the state of this module so that it can be used for new program. This method is called
+   * after verifier gets a new program.
+   */
+  def reset() {}
+
+  /**
    * The Boogie code that this module will insert into the preamble (optional).
    *
    * The convention is that the verifier will first translate the full SIL program, and only after the

@@ -407,4 +407,12 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
       case _ => Nil
     }
   }
+
+  /**
+   * Reset the state of this module so that it can be used for new program. This method is called
+   * after verifier gets a new program.
+   */
+  override def reset(): Unit = {
+    allowHeapDeref = false
+  }
 }
