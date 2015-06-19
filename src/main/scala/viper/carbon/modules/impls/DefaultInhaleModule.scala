@@ -24,7 +24,7 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule {
 
   def name = "Inhale module"
 
-  override def initialize() {
+  override def start() {
     register(this)
   }
 

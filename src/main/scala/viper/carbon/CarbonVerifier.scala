@@ -10,6 +10,7 @@ import boogie.Namespace
 import modules.impls._
 import viper._
 import viper.silver.ast.{Program,Method}
+import viper.silver.components.StatefulComponent
 import viper.silver.utility.Paths
 import viper.silver.verifier.Dependency
 import verifier.{BoogieInterface, Verifier, BoogieDependency}
@@ -54,7 +55,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
 
   // initialize all modules
   allModules foreach (m => {
-    m.initialize()
+    m.start()
   })
 
   /** The default location for Boogie (the environment variable ${BOOGIE_EXE}). */
@@ -118,9 +119,10 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
     _program = program
 
     // reset all modules
-    allModules foreach (m => {
-      m.reset()
-    })
+    allModules foreach {
+      case m: StatefulComponent => m.reset()
+      case _ =>
+    }
 
     _translated = mainModule.translate(program)
 

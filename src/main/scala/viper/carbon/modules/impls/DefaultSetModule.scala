@@ -7,6 +7,7 @@
 package viper.carbon.modules.impls
 
 import viper.carbon.modules.SetModule
+import viper.silver.components.StatefulComponent
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.Verifier
@@ -18,7 +19,10 @@ import viper.carbon.modules.components.DefinednessComponent
  * The default implementation of [[viper.carbon.modules.SetModule]].
 
  */
-class DefaultSetModule(val verifier: Verifier) extends SetModule with DefinednessComponent {
+class DefaultSetModule(val verifier: Verifier)
+    extends SetModule
+    with DefinednessComponent
+    with StatefulComponent {
 
   import verifier._
   import typeModule._

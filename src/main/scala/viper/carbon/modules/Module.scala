@@ -6,6 +6,7 @@
 
 package viper.carbon.modules
 
+import viper.silver.components.LifetimeComponent
 import viper.silver.{ast => sil}
 import viper.carbon.boogie.{LocalVar, Exp, Decl}
 import viper.carbon.verifier.Verifier
@@ -14,7 +15,7 @@ import viper.carbon.verifier.Verifier
  * Common trait for modules.
 
  */
-trait Module {
+trait Module extends LifetimeComponent {
   /** The verifier to interact with other modules. */
   def verifier: Verifier
 
@@ -28,13 +29,12 @@ trait Module {
    * where this method is called, all modules in Verifier have been set, but the other modules
    * might not have been fully initialized (by calling this method).
    */
-  def initialize() {}
+  def start() {}
 
   /**
-   * Reset the state of this module so that it can be used for new program. This method is called
-   * after verifier gets a new program.
+   * Currently not used.
    */
-  def reset() {}
+  def stop() {}
 
   /**
    * The Boogie code that this module will insert into the preamble (optional).

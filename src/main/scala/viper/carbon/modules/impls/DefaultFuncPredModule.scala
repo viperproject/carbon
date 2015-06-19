@@ -8,6 +8,7 @@ package viper.carbon.modules.impls
 
 import viper.carbon.modules._
 import viper.silver.ast.{PredicateAccess, PredicateAccessPredicate, Unfolding}
+import viper.silver.components.StatefulComponent
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.{Environment, Verifier}
@@ -20,7 +21,7 @@ import viper.silver.verifier.{NullPartialVerificationError, errors, PartialVerif
  * The default implementation of a [[viper.carbon.modules.FuncPredModule]].
  */
 class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule
-with DefinednessComponent with ExhaleComponent with InhaleComponent {
+with DefinednessComponent with ExhaleComponent with InhaleComponent with StatefulComponent {
   def name = "Function and predicate module"
 
   import verifier._
@@ -131,7 +132,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       }, size = 1)
   }
 
-  override def initialize() {
+  override def start() {
     expModule.register(this)
     inhaleModule.register(this)
     exhaleModule.register(this)

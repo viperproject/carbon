@@ -32,7 +32,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   import funcPredModule._
   import exhaleModule._
 
-  override def initialize() {
+  override def start() {
     register(this)
   }
 

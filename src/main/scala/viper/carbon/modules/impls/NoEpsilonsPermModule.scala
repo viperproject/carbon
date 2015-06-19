@@ -56,7 +56,7 @@ class NoEpsilonsPermModule(val verifier: Verifier)
 
   def name = "Permission module"
 
-  override def initialize() {
+  override def start() {
     stateModule.register(this)
     exhaleModule.register(this)
     inhaleModule.register(this)

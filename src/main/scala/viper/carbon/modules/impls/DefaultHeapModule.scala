@@ -8,6 +8,7 @@ package viper.carbon.modules.impls
 
 import viper.carbon.modules._
 import viper.carbon.modules.components.{InhaleComponent, ExhaleComponent, SimpleStmtComponent, DefinednessComponent}
+import viper.silver.components.StatefulComponent
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
@@ -17,7 +18,12 @@ import viper.carbon.verifier.Verifier
 /**
  * The default implementation of a [[viper.carbon.modules.HeapModule]].
  */
-class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleStmtComponent with DefinednessComponent with InhaleComponent {
+class DefaultHeapModule(val verifier: Verifier)
+    extends HeapModule
+    with SimpleStmtComponent
+    with DefinednessComponent
+    with InhaleComponent
+    with StatefulComponent {
 
   import verifier._
   import typeModule._
@@ -31,7 +37,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
   // a fresh namespace for every axiom
   def axiomNamespace = verifier.freshNamespace("heap.axiom")
 
-  override def initialize() {
+  override def start() {
     stateModule.register(this)
     stmtModule.register(this, before = Seq(verifier.permModule,verifier.stmtModule))
     expModule.register(this)

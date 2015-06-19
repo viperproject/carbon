@@ -56,7 +56,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   def name = "Permission module (with quantified permission support)"
 
-  override def initialize() {
+  override def start() {
     stateModule.register(this)
     exhaleModule.register(this)
     inhaleModule.register(this)
