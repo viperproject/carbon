@@ -447,7 +447,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
       }
 
     val definedness = MaybeCommentBlock("checking if access predicate defined in used state",
-      If(allStateAssms,expModule.checkDefinedness(e, mainError),Statements.EmptyStmt))
+      If(allStateAssms&&used.boolVar,expModule.checkDefinedness(e, mainError),Statements.EmptyStmt))
 
     val transferRest = transferAcc(states,used, transferEntity,allStateAssms)
     val stmt = definedness++ initStmt ++ nullCheck ++ initPermVars ++  positivePerm ++ transferRest
