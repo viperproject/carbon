@@ -170,7 +170,7 @@ class NoEpsilonsPermModule(val verifier: Verifier)
             args++Seq(obj,field),
             Trigger(Seq(funcApp,permResult)) ++ Trigger(Seq(funcApp,permSummand1)) ++
               Trigger(Seq(funcApp,permSummand2)),
-            permResult === (permSummand1 + permSummand2)
+            funcApp ==> (permResult === (permSummand1 + permSummand2))
           ))
       }
   }
