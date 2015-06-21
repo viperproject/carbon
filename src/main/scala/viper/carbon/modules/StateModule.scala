@@ -30,6 +30,12 @@ trait StateModule extends Module with ComponentRegistry[StateComponent] {
   def staticGoodState: Exp
 
   /**
+   * Returns invocation of the 'is good state' function with the arguments from
+   * `currentStateContributions`.
+   */
+  def currentGoodState: Exp
+
+  /**
    * The statements necessary to initialize the part of the state belonging to this module.
    */
   def initState: Stmt
