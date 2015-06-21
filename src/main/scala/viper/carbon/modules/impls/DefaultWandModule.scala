@@ -465,6 +465,7 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
       case (top :: xs) =>
         //Compute all values needed from top state
         stateModule.restoreState(top.state)
+        val isOriginalState: Boolean = xs.isEmpty
 
         val topHeap = heapModule.currentHeap
         val equateLHS:Option[Exp] = e match {
@@ -482,8 +483,17 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
         val curPermTop = permModule.currentPermission(e.rcv, e.loc)
         val removeFromTop = heapModule.beginExhale ++
           (components flatMap (_.transferRemove(e,used.boolVar))) ++
-          heapModule.endExhale ++
-          (stateModule.assumeGoodState)
+          ( //if original state then don't need to guard assumptions
+            if(isOriginalState) {
+              heapModule.endExhale ++
+                stateModule.assumeGoodState
+            } else {
+              exchangeAssumesWithBoolean(heapModule.endExhale, top.boolVar) ++
+                (top.boolVar := top.boolVar && stateModule.currentGoodState)
+              /* exchangeAssumesWithBooleanImpl(heapModule.endExhale, top.boolVar) ++
+               Assume(top.boolVar ==> stateModule.currentGoodState) */
+            } )
+
         /*GP: need to formally prove that these two last statements are sound (since they are not
          *explicitily accumulated in the boolean variable */
 
