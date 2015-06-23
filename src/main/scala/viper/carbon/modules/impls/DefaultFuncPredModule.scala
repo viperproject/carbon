@@ -140,6 +140,13 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent with Statefu
 
   override def reset() = {
     heights = Functions.heights(verifier.program)
+    tmpStateId = -1
+    duringFold = false
+    foldInfo = null
+    duringUnfold = false
+    unfoldInfo = null
+    exhaleTmpStateId = -1
+    extraUnfolding = false
   }
 
   override def translateFunction(f: sil.Function): Seq[Decl] = {
