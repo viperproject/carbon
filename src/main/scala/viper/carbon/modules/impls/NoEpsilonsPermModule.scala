@@ -133,9 +133,9 @@ class NoEpsilonsPermModule(val verifier: Verifier)
         Axiom(Forall(stateContributions ++ obj ++ field,
           Trigger(Seq(staticGoodMask, perm)),
           // permissions are non-negative
-          (staticGoodMask ==> perm >= RealLit(0)) &&
+          (staticGoodMask ==> perm >= RealLit(0) &&
             // permissions for fields which aren't predicates are smaller than 1
-            ((staticGoodMask && heapModule.isPredicateField(field.l).not) ==> perm <= RealLit(1) )
+            ((heapModule.isPredicateField(field.l).not) ==> perm <= RealLit(1) ))
         ))
     } ++ {
       val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
