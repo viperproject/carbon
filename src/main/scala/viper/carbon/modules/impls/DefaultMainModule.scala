@@ -58,7 +58,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
       case sil.Program(domains, fields, functions, predicates, methods) =>
         // translate all members
         val translateFields =
-          MaybeCommentedDecl("Translation of all fields", fields flatMap translateField)
+          MaybeCommentedDecl("Translation of all fields", (fields flatMap translateField).toList)
         val members = (domains flatMap translateDomainDecl) ++
           translateFields ++
           (functions flatMap translateFunction) ++
