@@ -8,6 +8,7 @@ package viper.carbon.modules.impls
 
 import viper.carbon.modules._
 import viper.carbon.modules.components.{InhaleComponent, ExhaleComponent, SimpleStmtComponent, DefinednessComponent}
+import viper.silver.ast.utility.Expressions
 import viper.silver.components.StatefulComponent
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
@@ -30,6 +31,7 @@ class DefaultHeapModule(val verifier: Verifier)
   import expModule._
   import stateModule._
   import permModule._
+  import mainModule._
 
   def name = "Heap module"
   implicit val heapNamespace = verifier.freshNamespace("heap")
@@ -64,6 +66,8 @@ class DefaultHeapModule(val verifier: Verifier)
   private val exhaleHeapName = Identifier("ExhaleHeap")
   private val exhaleHeap = LocalVar(exhaleHeapName, heapTyp)
   private var heap: Exp = GlobalVar(heapName, heapTyp)
+  private val qpHeapName = Identifier("QPHeap")
+  private val qpHeap = LocalVar(qpHeapName, heapTyp)
   private val nullName = Identifier("null")
   private val nullLit = Const(nullName)
   private val freshObjectName = Identifier("freshObj")
@@ -211,7 +215,11 @@ class DefaultHeapModule(val verifier: Verifier)
     Identifier(f.name + "#sm")(fieldNamespace)
   }
 
-  private def predicateMask(loc: sil.PredicateAccess) = {
+  private def predicateMask(loc: sil.PredicateAccess):Exp = {
+    predicateMask(loc, heap)
+  }
+
+  private def predicateMask(loc: sil.PredicateAccess, heap: Exp) = {
     val predicate = verifier.program.findPredicate(loc.predicateName)
     val t = predicateMaskFieldTypeOf(predicate)
     MapSelect(heap, Seq(nullLit,
@@ -316,7 +324,37 @@ class DefaultHeapModule(val verifier: Verifier)
    * Adds the permissions from an expression to a permission mask.
    */
   private def addPermissionToPMask(loc: sil.PredicateAccess): Stmt = {
-    addPermissionToPMaskHelper(loc.predicateBody(verifier.program).get, predicateMask(loc))
+    val predBody = loc.predicateBody(verifier.program).get
+    predBody match {
+      case sil.QuantifiedPermissionSupporter.ForallRefPerm(v,cond,recv,fld,perms,forall,fieldAccess) =>
+        // alpha renaming, to avoid clashes in context
+        val vFresh = env.makeUniquelyNamed(v);
+        env.define(vFresh.localVar);
+
+        def renaming[E <: sil.Exp] = (e:E) => Expressions.instantiateVariables(e, v.localVar,  vFresh.localVar)
+
+        val (renamingCond,renamingFieldAccess) = (renaming(cond),renaming(fieldAccess))
+        val translatedCond = translateExp(renamingCond)
+
+        val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
+        val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
+        val pmask = predicateMask(loc,heap)
+        val pmaskQP = predicateMask(loc,qpHeap)
+        Havoc(qpHeap) ++
+          MaybeComment("register all known folded permissions guarded by predicate " + loc.predicateName,
+            Assume(Forall(translateLocalVarDecl(vFresh),Seq(),translatedCond ==> (translateLocationAccess(renamingFieldAccess, pmaskQP) === TrueLit()) ))) ++
+          Assume(Forall(translateLocalVarDecl(vFresh),Seq(),translatedCond.not ==>
+            (translateLocationAccess(renamingFieldAccess, pmaskQP) === translateLocationAccess(renamingFieldAccess, pmask) ))) ++
+          MaybeComment("all heap locations which aren't the predicate mask of " + loc.predicateName + " stay the same",Assume(Forall(
+          Seq(obj, field),
+          Trigger(lookup(heap, obj.l, field.l)) ++
+            Trigger(lookup(qpHeap, obj.l, field.l)),
+          (predicateMaskField(translateLocation(loc)) !== field.l) ==> (lookup(heap, obj.l, field.l) === lookup(qpHeap, obj.l, field.l)))
+        )) ++
+          (heap := qpHeap)
+      case _ =>
+        addPermissionToPMaskHelper(predBody, predicateMask(loc,heap))
+    }
   }
   private def addPermissionToPMaskHelper(e: sil.Exp, pmask: Exp): Stmt = {
     e match {
