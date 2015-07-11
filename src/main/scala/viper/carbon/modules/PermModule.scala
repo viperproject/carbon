@@ -7,6 +7,7 @@
 package viper.carbon.modules
 
 import viper.carbon.boogie._
+import viper.carbon.modules.components.StateComponent
 import viper.silver.{ast => sil}
 
 /**
@@ -14,7 +15,7 @@ import viper.silver.{ast => sil}
  * permission.
 
  */
-trait PermModule extends Module {
+trait PermModule extends Module with StateComponent {
 
   /**
    * The type used to represent permissions.

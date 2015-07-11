@@ -45,7 +45,7 @@ import scala.collection.mutable.ListBuffer
  */
 class QuantifiedPermModule(val verifier: Verifier)
   extends PermModule
-  with StateComponent
+//TODO  with StateComponent
   with InhaleComponent
   with ExhaleComponent
   with SimpleStmtComponent
