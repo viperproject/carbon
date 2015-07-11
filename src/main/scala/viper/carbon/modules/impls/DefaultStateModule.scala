@@ -54,6 +54,11 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     FuncApp(Identifier(isGoodState), stateContributions map (v => LocalVar(v.name, v.typ)), Bool)
   }
 
+  def currentGoodState: Exp = {
+    FuncApp(Identifier(isGoodState), currentStateContributions, Bool)
+  }
+
+
   override type StateSnapshot = java.util.IdentityHashMap[StateComponent, Seq[Exp]]
 
   private var curOldState: StateSnapshot = null
