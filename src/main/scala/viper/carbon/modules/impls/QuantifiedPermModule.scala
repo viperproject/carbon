@@ -308,7 +308,7 @@ class QuantifiedPermModule(val verifier: Verifier)
           error.dueTo(reasons.InsufficientPermission(fieldAccess)))
 
         //assumptions for locations that gain permission
-        val condTrueLocations = (condInv ==> (permInv > RealLit(0)&& (obj.l !== translateNull) &&
+        val condTrueLocations = (condInv ==> (
           (if (!isUsingOldState) {
             (  currentPermission(qpMask,obj.l,translatedLocation) === curPerm - permInv )
           } else {
