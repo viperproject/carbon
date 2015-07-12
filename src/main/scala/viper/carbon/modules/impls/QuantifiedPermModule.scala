@@ -327,7 +327,7 @@ class QuantifiedPermModule(val verifier: Verifier)
           (currentPermission(obj.l,field.l) === currentPermission(qpMask,obj.l,field.l))) )
 
 
-        var ts = Seq() //triggers TODO
+        var ts = Seq(Trigger(currentPermission(qpMask,obj.l,translatedLocation)),Trigger(curPerm)) //triggers TODO
 
         val injectiveAssertion = Assert(isInjective(qpComp), error.dueTo(reasons.ReceiverNotInjective(fieldAccess)))
 
@@ -335,9 +335,8 @@ class QuantifiedPermModule(val verifier: Verifier)
           notNull ++
           permPositive ++
           enoughPerm ++
-          injectiveAssertion ++
-          Assume(invAssm1) ++
-          Assume(invAssm2) ++
+          CommentBlock("check if receiver " + recv.toString() + " is injective",injectiveAssertion) ++
+          CommentBlock("assumptions for inverse of receiver " + recv.toString(), Assume(invAssm1)++Assume(invAssm2)) ++
           Assume(Forall(obj,ts, condTrueLocations&&condFalseLocations )) ++
           independentLocations ++
           (mask := qpMask)
@@ -386,6 +385,8 @@ class QuantifiedPermModule(val verifier: Verifier)
 
         val (invAssm1, invAssm2) = inverseAssumptions(invFun, qpComp,QPComponents(obj,condInv, rcvInv, permInv))
 
+        val nonNullAssm = Assume(Forall(obj,Seq(),condInv ==> (obj.l !== translateNull)))
+
         //assumptions for locations that gain permission
         val condTrueLocations = (condInv ==> (permInv > RealLit(0)&& (obj.l !== translateNull) &&
           (if (!isUsingOldState) {
@@ -406,15 +407,15 @@ class QuantifiedPermModule(val verifier: Verifier)
           (currentPermission(obj.l,field.l) === currentPermission(qpMask,obj.l,field.l))) )
 
 
-        var ts = Seq() //triggers TODO
+        var ts = Seq(Trigger(currentPermission(qpMask,obj.l,translatedLocation)),Trigger(curPerm)) //triggers TODO
 
         val injectiveAssumption = Assume(isInjective(qpComp))
 
 
         val res = Havoc(qpMask) ++
-          Assume(invAssm1) ++
-          Assume(invAssm2) ++
-          injectiveAssumption ++
+          CommentBlock("assumptions for inverse of receiver " + recv.toString(), Assume(invAssm1)++Assume(invAssm2)) ++
+          CommentBlock("assume receiver " + recv.toString() + " is injective" , injectiveAssumption) ++
+          CommentBlock("assume receiver " + recv.toString() + " not null",nonNullAssm)++
           Assume(Forall(obj,ts, condTrueLocations&&condFalseLocations )) ++
           independentLocations ++
           (mask := qpMask)
