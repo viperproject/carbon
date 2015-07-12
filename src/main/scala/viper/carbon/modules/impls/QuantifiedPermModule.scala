@@ -643,7 +643,13 @@ class QuantifiedPermModule(val verifier: Verifier)
     val QPComponents(v, cond, recv, perm) = qpcompStandard
     val QPComponents(vInv, condInv, recvInv, permInv) = qpcompInverse
 
-    val assm1 = (Forall(Seq(v), Seq(Trigger(recv)), cond ==> (FuncApp(invFun.name, Seq(recv), invFun.typ) === v.l )))
+    val tr1 =
+      if(recv.isInstanceOf[LocalVar]) {
+        Seq()
+      } else {
+        Seq(Trigger(recv))
+      }
+    val assm1 = (Forall(Seq(v), tr1, cond ==> (FuncApp(invFun.name, Seq(recv), invFun.typ) === v.l )))
 
     val assm2 = Forall(Seq(vInv), Seq(Trigger(FuncApp(invFun.name, Seq(vInv.l), invFun.typ))), condInv ==> (recvInv === vInv.l) )
 
