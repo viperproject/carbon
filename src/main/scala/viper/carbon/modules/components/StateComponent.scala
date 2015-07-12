@@ -22,13 +22,22 @@ trait StateComponent extends Component {
   def initState: Stmt
 
   /**
-   * The name and type of the contribution of this components to the state.
+   * The name and type of the static contribution of this component to the state. The returned value should remain the
+   * same even if the state is changed.
    */
-  def stateContributions: Seq[LocalVarDecl]
+  def staticStateContributions: Seq[LocalVarDecl]
+
+
+  /**
+   * The name and type of the current contribution of this component to the state. The numbers of elements in the list and
+   * the types must correspond to the ones given in `staticStateContributions`.
+   */
+  def currentStateContributions: Seq[LocalVarDecl]
+
 
   /**
    * The current values for this components state contributions.  The number of elements
-   * in the list and the types must correspond to the ones given in `stateContributions`.
+   * in the list and the types must correspond to the ones given in `staticStateContributions`.
    */
   def currentState: Seq[Exp]
 

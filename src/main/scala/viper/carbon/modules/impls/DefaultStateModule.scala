@@ -22,11 +22,11 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   implicit val stateNamespace = verifier.freshNamespace("state")
 
   override def assumeGoodState = {
-    Assume(FuncApp(Identifier(isGoodState), currentStateContributions, Bool))
+    Assume(FuncApp(Identifier(isGoodState), currentStateContributionValues, Bool))
   }
 
   override def preamble = {
-    Func(Identifier(isGoodState), stateContributions, Bool)
+    Func(Identifier(isGoodState), staticStateContributions, Bool)
   }
 
   def initState: Stmt = {
@@ -47,15 +47,16 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
       exps map (e => Assume(e === Old(e))): Stmt
     }
   }
-  def stateContributions: Seq[LocalVarDecl] = components flatMap (_.stateContributions)
-  def currentStateContributions: Seq[Exp] = components flatMap (_.currentState)
+  def staticStateContributions: Seq[LocalVarDecl] = components flatMap (_.staticStateContributions)
+  def currentStateContributions: Seq[LocalVarDecl] = components flatMap (_.currentStateContributions)
+  def currentStateContributionValues: Seq[Exp] = components flatMap (_.currentState)
 
   def staticGoodState: Exp = {
-    FuncApp(Identifier(isGoodState), stateContributions map (v => LocalVar(v.name, v.typ)), Bool)
+    FuncApp(Identifier(isGoodState), staticStateContributions map (v => LocalVar(v.name, v.typ)), Bool)
   }
 
   def currentGoodState: Exp = {
-    FuncApp(Identifier(isGoodState), currentStateContributions, Bool)
+    FuncApp(Identifier(isGoodState), currentStateContributionValues, Bool)
   }
 
 

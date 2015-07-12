@@ -63,6 +63,7 @@ class DefaultHeapModule(val verifier: Verifier)
     NamedType(fieldTypeName, Seq(predicateMetaTypeOf(p), pmaskType))
   private val heapTyp = NamedType("HeapType")
   private val heapName = Identifier("Heap")
+  private var currentHeapName = heapName
   private val exhaleHeapName = Identifier("ExhaleHeap")
   private val exhaleHeap = LocalVar(exhaleHeapName, heapTyp)
   private var heap: Exp = GlobalVar(heapName, heapTyp)
@@ -97,7 +98,7 @@ class DefaultHeapModule(val verifier: Verifier)
       Axiom(Forall(
         obj ++
           refField ++
-          stateModule.stateContributions,
+          stateModule.staticStateContributions,
         Trigger(Seq(staticGoodState, obj_refField)),
         validReference(obj_refField))) ++
       Func(identicalOnKnownLocsName,
@@ -402,7 +403,8 @@ class DefaultHeapModule(val verifier: Verifier)
     Assume(Old(heap) === heap)
   }
 
-  def stateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(heapName, heapTyp))
+  def staticStateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(heapName, heapTyp))
+  def currentStateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(currentHeapName, heapTyp))
   def currentState: Seq[Exp] = Seq(heap)
 
   override def freshTempState(name: String): Seq[Exp] = {
@@ -411,6 +413,12 @@ class DefaultHeapModule(val verifier: Verifier)
 
   override def restoreState(s: Seq[Exp]) {
     heap = s(0)
+    currentHeapName =
+      s(0) match {
+        case LocalVar(id,typ) => id
+        case GlobalVar(id,typ) => id
+        case _ => sys.error("wrong state representation for heap module")
+      }
   }
 
   // AS: this is a trick to avoid well-definedness checks for the outermost heap dereference in an AccessPredicate node (since it describes the location to which permission is provided).

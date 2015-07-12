@@ -72,6 +72,7 @@ class NoEpsilonsPermModule(val verifier: Verifier)
   private val pmaskTypeName = "PMaskType"
   override val pmaskType = NamedType(pmaskTypeName)
   private val maskName = Identifier("Mask")
+  private var currentMaskName = maskName
   private var mask: Exp = GlobalVar(maskName, maskType)
   private val zeroMaskName = Identifier("ZeroMask")
   private val zeroMask = Const(zeroMaskName)
@@ -126,11 +127,11 @@ class NoEpsilonsPermModule(val verifier: Verifier)
       Func(permConstructName, Seq(LocalVarDecl(Identifier("a"), Real), LocalVarDecl(Identifier("b"), Real)), permType) :: Nil ++
       // good mask
       Func(goodMaskName, LocalVarDecl(maskName, maskType), Bool) ++
-      Axiom(Forall(stateModule.stateContributions,
+      Axiom(Forall(stateModule.staticStateContributions,
         Trigger(Seq(staticGoodState)),
         staticGoodState ==> staticGoodMask)) ++ {
       val perm = currentPermission(obj.l, field.l)
-        Axiom(Forall(stateContributions ++ obj ++ field,
+        Axiom(Forall(staticStateContributions ++ obj ++ field,
           Trigger(Seq(staticGoodMask, perm)),
           staticGoodMask ==>
             // permissions are non-negative
@@ -155,7 +156,8 @@ class NoEpsilonsPermModule(val verifier: Verifier)
 
   def permType = NamedType(permTypeName)
 
-  def stateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(maskName, maskType))
+  def staticStateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(maskName, maskType))
+  def currentStateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(currentMaskName, maskType))
   def currentState: Seq[Exp] = Seq(mask)
   def initState: Stmt = {
     (mask := zeroMask)
@@ -180,6 +182,12 @@ class NoEpsilonsPermModule(val verifier: Verifier)
 
   override def restoreState(s: Seq[Exp]) {
     mask = s(0)
+    currentMaskName =
+      s(0) match {
+        case LocalVar(id,typ) =>  id
+        case GlobalVar(id,typ) =>  id
+        case _ => sys.error("wrong state representation for perm module")
+      }
   }
 
   /**
