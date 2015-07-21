@@ -111,7 +111,7 @@ class DefaultSetModule(val verifier: Verifier)
         else FuncApp(Identifier("Set#Difference"), List(t(left), t(right)), typ)
       case sil.AnySetContains(left, right) =>
         if (isMultiset(right))
-          BinExp(MapSelect(t(right),Seq(t(left))),GtCmp,IntLit(0))
+          MapSelect(t(right),Seq(t(left)))
          // FuncApp(Identifier("MultiSet#Subset"), List(FuncApp(Identifier("MultiSet#Singleton"), List(t(left)), typ), t(right)), Bool)
         else
           MapSelect(t(right),Seq(t(left)))
