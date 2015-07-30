@@ -181,7 +181,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent with Statefu
   }
 
   override def translateFuncApp(fa: sil.FuncApp) = {
-    translateFuncApp(fa.funcname, heapModule.currentState ++ (fa.args map translateExp), fa.typ)
+    translateFuncApp(fa.funcname, currentStateExps ++ (fa.args map translateExp), fa.typ)
   }
   def translateFuncApp(fname : String, args: Seq[Exp], typ: sil.Type) = {
     FuncApp(Identifier(fname), args, translateType(typ))
@@ -360,7 +360,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent with Statefu
         }
         def after() = {
           tmpStateId -= 1
-          stateModule.restoreState(state)
+          stateModule.replaceState(state)
           Nil
         }
         (before, after)
@@ -410,7 +410,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent with Statefu
     foldInfo = acc
     val stmt = exhale(Seq((acc.loc.predicateBody(verifier.program).get, error)), havocHeap = false) ++
       inhale(acc)
-    val stmtLast =  Assume(predicateTrigger(heapModule.currentState, acc.loc))
+    val stmtLast =  Assume(predicateTrigger(heapModule.currentStateExps, acc.loc))
     foldInfo = null
     duringFold = false
     (stmt,stmtLast)
@@ -434,7 +434,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent with Statefu
     duringFold = false
     duringUnfold = true
     unfoldInfo = acc
-    val stmt = Assume(predicateTrigger(heapModule.currentState, acc.loc)) ++
+    val stmt = Assume(predicateTrigger(heapModule.currentStateExps, acc.loc)) ++
       exhale(Seq((acc, error)), havocHeap = false) ++
       inhale(acc.loc.predicateBody(verifier.program).get)
     unfoldInfo = oldUnfoldInfo
@@ -500,7 +500,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent with Statefu
           val r = stmt ++ unfoldPredicate(pap, NullPartialVerificationError)
           extraUnfolding = true
           exhaleTmpStateId -= 1
-          stateModule.restoreState(state)
+          stateModule.replaceState(state)
           r
         } else Nil
         CommentBlock("Extra unfolding of predicate",

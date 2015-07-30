@@ -31,6 +31,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   import inhaleModule._
   import funcPredModule._
   import exhaleModule._
+  import stateModule.StateSnapshot
 
   override def start() {
     register(this)
@@ -58,9 +59,10 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       case sil.Unfolding(acc, exp) =>
         translateExp(exp)
       case sil.Old(exp) =>
-        stateModule.useOldState()
+        val prevState = stateModule.state
+        stateModule.replaceState(stateModule.oldState)
         val res = translateExp(exp)
-        stateModule.useRegularState()
+        stateModule.replaceState(prevState)
         res
       case sil.Let(lvardecl,exp,body) =>
         val translatedExp = translateExp(exp) // expression to bind "v" to
@@ -265,9 +267,10 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           res        
         } else {
           val res = if (e.isInstanceOf[sil.Old]) {
-            stateModule.useOldState()
+            val prevState = stateModule.state
+            stateModule.replaceState(stateModule.oldState)
             val res = translate
-            stateModule.useRegularState()
+            stateModule.replaceState(prevState)
             res
           } else {
             translate
@@ -351,9 +354,10 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       stmt ++ stmt2
     }
     if (e.isInstanceOf[sil.Old]) {
-      stateModule.useOldState()
+      val prevState = stateModule.state
+      stateModule.replaceState(stateModule.oldState)
       val res = translate
-      stateModule.useRegularState()
+      stateModule.replaceState(prevState)
       res
     } else {
       translate
