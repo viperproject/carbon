@@ -7,6 +7,7 @@
 package viper.carbon.modules.impls
 
 import viper.carbon.modules._
+import viper.carbon.utility.InhaleExhaleConverter.{toInhale, toExhale}
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
@@ -101,13 +102,38 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
             val initOld = MaybeCommentBlock("Initializing the old state", stateModule.initOldState)
             val paramAssumptions = m.formalArgs map (a => allAssumptionsAboutValue(a.typ, translateLocalVarDecl(a), true))
             val localAssumptions = m.locals map (a => allAssumptionsAboutValue(a.typ, translateLocalVarDecl(a), true))
+
+            val onlyExhalePres: Seq[Stmt] = pres map (e => {
+                checkDefinednessOfSpecAndInhale(toExhale(e), errors.ContractNotWellformed(e))
+              })
+            val onlyInhalePres: Seq[Stmt] = pres map (e => {
+              checkDefinednessOfSpecAndInhale(toInhale(e), errors.ContractNotWellformed(e))
+            })
             val inhalePre = MaybeCommentBlock("Checked inhaling of precondition",
-              pres map (e => checkDefinednessOfSpecAndInhale(e, errors.ContractNotWellformed(e))))
-            val checkPost: Stmt = if (posts.nonEmpty) NondetIf(
-              MaybeComment("Checked inhaling of postcondition to check definedness",
-                posts map (e => checkDefinednessOfSpecAndInhale(e, errors.ContractNotWellformed(e)))) ++
-                MaybeComment("Stop execution", Assume(FalseLit())), Nil)
+              MaybeCommentBlock("Do welldefinedness check of the exhale part.",
+                NondetIf(onlyExhalePres ++ Assume(FalseLit()))) ++
+              MaybeCommentBlock("Normally inhale the inhale part.",
+                onlyInhalePres)
+            )
+
+            val onlyInhalePosts: Seq[Stmt] = posts map (e => {
+              checkDefinednessOfSpecAndInhale(toInhale(e), errors.ContractNotWellformed(e))
+            })
+            val onlyExhalePosts: Seq[Stmt] = posts map (e => {
+              checkDefinednessOfSpecAndInhale(toExhale(e), errors.ContractNotWellformed(e))
+            })
+            val checkPost: Stmt = if (posts.nonEmpty)
+              NondetIf(
+                MaybeComment("Checked inhaling of postcondition to check definedness",
+                  MaybeCommentBlock("Do welldefinedness check of the inhale part.",
+                    NondetIf(onlyInhalePosts ++ Assume(FalseLit()))) ++
+                  MaybeCommentBlock("Normally inhale the exhale part.",
+                    onlyExhalePosts)
+                ) ++
+                MaybeComment("Stop execution", Assume(FalseLit()))
+              )
             else Nil
+
             val postsWithErrors = posts map (p => (p, errors.PostconditionViolated(p, m)))
             val exhalePost = MaybeCommentBlock("Exhaling postcondition", exhale(postsWithErrors))
             val body: Stmt = translateStmt(b)

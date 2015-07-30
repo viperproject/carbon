@@ -7,6 +7,7 @@
 package viper.carbon.modules.impls
 
 import viper.carbon.modules.StmtModule
+import viper.carbon.utility.InhaleExhaleConverter.{toExhale, toInhale}
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.Verifier
@@ -68,23 +69,23 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
       case unfold@sil.Unfold(e) =>
         translateUnfold(unfold)
       case inh@sil.Inhale(e) =>
-        checkDefinednessOfSpecAndInhale(e, errors.InhaleFailed(inh))
-        //checkDefinedness(e, errors.InhaleFailed(inh)) ++
-        //  inhale(e)
+        checkDefinednessOfSpecAndInhale(toInhale(e), errors.InhaleFailed(inh))
       case exh@sil.Exhale(e) =>
-        checkDefinedness(e, errors.ExhaleFailed(exh)) ++
-          exhale((e, errors.ExhaleFailed(exh)))
+        val transformedExp = toExhale(e)
+        checkDefinedness(transformedExp, errors.ExhaleFailed(exh)) ++
+          exhale((transformedExp, errors.ExhaleFailed(exh)))
       case a@sil.Assert(e) =>
-        if (e.isPure) {
+        val transformedExp = toExhale(e)
+        if (transformedExp.isPure) {
           // if e is pure, then assert and exhale are the same
-          checkDefinedness(e, errors.AssertFailed(a)) ++
-            exhale((e, errors.AssertFailed(a)))
+          checkDefinedness(transformedExp, errors.AssertFailed(a)) ++
+            exhale((transformedExp, errors.AssertFailed(a)))
         } else {
           // we create a temporary state to ignore the side-effects
           val (backup, snapshot) = freshTempState("Assert")
-          val exhaleStmt = exhale((e, errors.AssertFailed(a)))
+          val exhaleStmt = exhale((transformedExp, errors.AssertFailed(a)))
           replaceState(snapshot)
-          checkDefinedness(e, errors.AssertFailed(a)) :: backup :: exhaleStmt :: Nil
+          checkDefinedness(transformedExp, errors.AssertFailed(a)) :: backup :: exhaleStmt :: Nil
         }
       case mc@sil.MethodCall(methodName, args, targets) =>
         val method = verifier.program.findMethod(methodName)
