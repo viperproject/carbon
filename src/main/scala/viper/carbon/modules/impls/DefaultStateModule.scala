@@ -30,84 +30,101 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   }
 
   def initState: Stmt = {
-    curState = new java.util.IdentityHashMap[StateComponent, Seq[Exp]]()
-    for (c <- components) {
-      curState.put(c, c.currentState)
-    }
+    curState = new StateComponentMapping()
+    // note: it is important that these are set before calling e.g. initState
+    usingOldState = false
+    treatOldAsCurrent = false
+
     // initialize the state of all components and assume that afterwards the
     // whole state is good
-    (components map (_.initState)) :+
+  val stmt =  (components map (_.initState)) :+
       assumeGoodState
+    // note: this code should come afterwards, to allow the components to reset their state variables
+    for (c <- components) {
+      curState.put(c, c.currentStateVars)
+    }
+    stmt
+  }
+  def resetState: Stmt = {
+    usingOldState = false
+    treatOldAsCurrent = false
+    curState = new StateComponentMapping()
+    // initialize the state of all components and assume that afterwards the
+    // whole state is good
+    val stmt = (components map (_.resetState)) :+
+      assumeGoodState
+    // note: this code should come afterwards, to allow the components to reset their state variables
+    for (c <- components) {
+      curState.put(c, c.currentStateVars)
+    }
+    stmt
   }
   def initOldState: Stmt = {
-    curOldState = new java.util.IdentityHashMap[StateComponent, Seq[Exp]]()
+    curOldState = new StateComponentMapping()
     for (c <- components) yield {
       val exps = curState.get(c)
-      curOldState.put(c, exps map (e => Old(e)))
+      curOldState.put(c, exps) // Logic: whenever we *get* on the old state, we should wrap in "Old"
       exps map (e => Assume(e === Old(e))): Stmt
     }
   }
   def stateContributions: Seq[LocalVarDecl] = components flatMap (_.stateContributions)
-  def currentStateContributions: Seq[Exp] = components flatMap (_.currentState)
+  def currentStateContributions: Seq[Exp] = components flatMap (_.currentStateExps)
 
   def staticGoodState: Exp = {
     FuncApp(Identifier(isGoodState), stateContributions map (v => LocalVar(v.name, v.typ)), Bool)
   }
 
-  override type StateSnapshot = java.util.IdentityHashMap[StateComponent, Seq[Exp]]
+  // Note: For "old" state, these variables should be wrapped in "Old(.)" before use
+  type StateComponentMapping = java.util.IdentityHashMap[StateComponent, Seq[Var]]
+  override type StateSnapshot = (StateComponentMapping,Boolean,Boolean)
 
-  private var curOldState: StateSnapshot = null
-  private var curState: StateSnapshot = null
+  private var curOldState: StateComponentMapping = null
+  private var curState: StateComponentMapping = null
 
   override def freshTempState(name: String): (Stmt, StateSnapshot) = {
-    val previousState = new java.util.IdentityHashMap[StateComponent, Seq[Exp]]()
-    val s = (for (c <- components) yield {
+    val previousState = new StateSnapshot(new StateComponentMapping(),usingOldState,treatOldAsCurrent)
+
+    val s = for (c <- components) yield {
       val tmpExps = c.freshTempState(name)
-      val curExps = curState.get(c)
+      val curExps = c.currentStateExps // note: this will wrap them in "Old" as necessary for correct initialisation
       val stmt: Stmt = (tmpExps zip curExps) map (x => (x._1 := x._2))
-      previousState.put(c, curExps)
+      previousState._1.put(c, c.currentStateVars)
       curState.put(c, tmpExps)
       c.restoreState(tmpExps)
+
       stmt
-    })
+    }
+    treatOldAsCurrent = usingOldState
+    usingOldState = false // we have now set up a temporary state in terms of "old" - this could happen when an unfolding expression is inside an "old"
     (s, previousState)
   }
 
-  override def restoreState(snapshot: StateSnapshot) {
-    curState = snapshot
+  override def replaceState(snapshot: StateSnapshot) {
+    curState = snapshot._1
     for (c <- components) {
-      c.restoreState(snapshot.get(c))
+      c.restoreState(snapshot._1.get(c))
     }
+    usingOldState = snapshot._2
+    treatOldAsCurrent = snapshot._3
   }
 
+  // initialisation in principle not needed - one should call initState
   var usingOldState = false
-  override def useOldState() {
-    usingOldState = true
-    for (c <- components) {
-      c.restoreState(curOldState.get(c))
-    }
-  }
+  var treatOldAsCurrent = false
 
-  override def useRegularState() {
-    usingOldState = false
-    for (c <- components) {
-      c.restoreState(curState.get(c))
-    }
-  }
-
-  override def isUsingOldState: Boolean = {
+  override def stateModuleIsUsingOldState: Boolean = {
     usingOldState
   }
 
   override def oldState: StateSnapshot = {
-    curOldState
+    if (treatOldAsCurrent) state else (curOldState,true,false) // boolean values here seem sensible, but they probably shouldn't be used anyway
   }
 
-  override def restoreOldState(snapshot: StateSnapshot) {
-    curOldState = snapshot
+  override def replaceOldState(snapshot: StateSnapshot) {
+    curOldState = snapshot._1
   }
 
   override def state: StateSnapshot = {
-    curState
+    (curState,usingOldState,treatOldAsCurrent)
   }
 }
