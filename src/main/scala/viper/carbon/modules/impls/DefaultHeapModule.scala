@@ -417,7 +417,8 @@ class DefaultHeapModule(val verifier: Verifier)
       s(0) match {
         case LocalVar(id,typ) => id
         case GlobalVar(id,typ) => id
-        case _ => sys.error("wrong state representation for heap module")
+        case Old(_) => currentHeapName
+        case _ => sys.error("wrong state representation for heap module: " + s(0).toString() + " " + s(0).getClass().toString())
       }
   }
 

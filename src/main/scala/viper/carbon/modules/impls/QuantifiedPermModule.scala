@@ -201,6 +201,7 @@ class QuantifiedPermModule(val verifier: Verifier)
       s(0) match {
       case LocalVar(id,typ) =>  id
       case GlobalVar(id,typ) =>  id
+      case Old(_) => currentMaskName
       case _ => sys.error("wrong state representation for perm module")
     }
   }
