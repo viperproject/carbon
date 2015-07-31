@@ -10,6 +10,7 @@ import viper.carbon.modules._
 import viper.carbon.utility.InhaleExhaleConverter.{toInhale, toExhale}
 import viper.silver.ast.{PredicateAccess, PredicateAccessPredicate, Unfolding}
 import viper.silver.components.StatefulComponent
+import viper.silver.verifier.errors.FunctionNotWellformed
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.{Environment, Verifier}
@@ -311,12 +312,12 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent with Statefu
       stateModule.initState ++ (f.formalArgs map (a => allAssumptionsAboutValue(a.typ,mainModule.translateLocalVarDecl(a),true))) ++ assumeAllFunctionDefinitions)
     val initOld = MaybeCommentBlock("Initializing the old state", stateModule.initOldState)
 
-    val onlyExhalePres: Seq[Stmt] = f.pres map (e => {
-      checkDefinednessOfSpecAndInhale(toExhale(e), errors.FunctionNotWellformed(f))
-    })
-    val onlyInhalePres: Seq[Stmt] = f.pres map (e => {
-      checkDefinednessOfSpecAndInhale(toInhale(e), errors.FunctionNotWellformed(f))
-    })
+    val onlyExhalePres: Seq[Stmt] = checkDefinednessOfExhaleSpecAndInhale(
+      f.pres,
+      (e) => {errors.FunctionNotWellformed(f)})
+    val onlyInhalePres: Seq[Stmt] = checkDefinednessOfInhaleSpecAndInhale(
+      f.pres,
+      (e) => {errors.FunctionNotWellformed(f)})
     val checkPre = MaybeCommentBlock("Inhaling precondition (with checking)",
       MaybeCommentBlock("Do welldefinedness check of the exhale part.",
         NondetIf(onlyExhalePres ++ Assume(FalseLit()))) ++

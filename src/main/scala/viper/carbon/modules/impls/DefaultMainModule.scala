@@ -103,12 +103,12 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
             val paramAssumptions = m.formalArgs map (a => allAssumptionsAboutValue(a.typ, translateLocalVarDecl(a), true))
             val localAssumptions = m.locals map (a => allAssumptionsAboutValue(a.typ, translateLocalVarDecl(a), true))
 
-            val onlyExhalePres: Seq[Stmt] = pres map (e => {
-                checkDefinednessOfSpecAndInhale(toExhale(e), errors.ContractNotWellformed(e))
-              })
-            val onlyInhalePres: Seq[Stmt] = pres map (e => {
-              checkDefinednessOfSpecAndInhale(toInhale(e), errors.ContractNotWellformed(e))
-            })
+            val onlyExhalePres: Seq[Stmt] = checkDefinednessOfExhaleSpecAndInhale(
+              pres,
+              {errors.ContractNotWellformed(_)})
+            val onlyInhalePres: Seq[Stmt] = checkDefinednessOfInhaleSpecAndInhale(
+              pres,
+              {errors.ContractNotWellformed(_)})
             val inhalePre = MaybeCommentBlock("Checked inhaling of precondition",
               MaybeCommentBlock("Do welldefinedness check of the exhale part.",
                 NondetIf(onlyExhalePres ++ Assume(FalseLit()))) ++
@@ -116,12 +116,12 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
                 onlyInhalePres)
             )
 
-            val onlyInhalePosts: Seq[Stmt] = posts map (e => {
-              checkDefinednessOfSpecAndInhale(toInhale(e), errors.ContractNotWellformed(e))
-            })
-            val onlyExhalePosts: Seq[Stmt] = posts map (e => {
-              checkDefinednessOfSpecAndInhale(toExhale(e), errors.ContractNotWellformed(e))
-            })
+            val onlyInhalePosts: Seq[Stmt] = checkDefinednessOfInhaleSpecAndInhale(
+              posts,
+              {errors.ContractNotWellformed(_)})
+            val onlyExhalePosts: Seq[Stmt] = checkDefinednessOfExhaleSpecAndInhale(
+              posts,
+              {errors.ContractNotWellformed(_)})
             val checkPost: Stmt = if (posts.nonEmpty)
               NondetIf(
                 MaybeComment("Checked inhaling of postcondition to check definedness",
