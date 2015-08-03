@@ -158,7 +158,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
   }
 
   private def translateMethodDeclPre(pres: Seq[sil.Exp]): Stmt = {
-    val inhalePre = if (containsInhaleExhale(pres)) {
+    if (containsInhaleExhale(pres)) {
       // Precondition contains InhaleExhale expression.
       // Need to check inhale and exhale parts separately.
       val onlyExhalePres: Seq[Stmt] = checkDefinednessOfExhaleSpecAndInhale(
@@ -183,7 +183,6 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
       })
       MaybeCommentBlock("Checked inhaling of precondition", inhalePres)
     }
-    inhalePre
   }
 
   override def allAssumptionsAboutValue(typ:sil.Type, arg: LocalVarDecl, isParameter:Boolean): Stmt = {
