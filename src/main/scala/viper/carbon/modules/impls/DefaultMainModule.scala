@@ -102,62 +102,11 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
             val initOld = MaybeCommentBlock("Initializing the old state", stateModule.initOldState)
             val paramAssumptions = m.formalArgs map (a => allAssumptionsAboutValue(a.typ, translateLocalVarDecl(a), true))
             val localAssumptions = m.locals map (a => allAssumptionsAboutValue(a.typ, translateLocalVarDecl(a), true))
-
-            val inhalePre = if (containsInhaleExhale(pres)) {
-              // Precondition contains InhaleExhale expression.
-              // Need to check inhale and exhale parts separately.
-              val onlyExhalePres: Seq[Stmt] = checkDefinednessOfExhaleSpecAndInhale(
-                pres,
-                {errors.ContractNotWellformed(_)})
-              val onlyInhalePres: Seq[Stmt] = checkDefinednessOfInhaleSpecAndInhale(
-                pres,
-                {errors.ContractNotWellformed(_)})
-              MaybeCommentBlock("Checked inhaling of precondition",
-                MaybeCommentBlock("Do welldefinedness check of the exhale part.",
-                  NondetIf(onlyExhalePres ++ Assume(FalseLit()))) ++
-                  MaybeCommentBlock("Normally inhale the inhale part.",
-                    onlyInhalePres)
-              )
-            }
-            else {
-              val inhalePres: Seq[Stmt] = checkDefinednessOfInhaleSpecAndInhale(
-                pres,
-                {errors.ContractNotWellformed(_)})
-              MaybeCommentBlock("Checked inhaling of precondition", inhalePres)
-            }
-
+            val inhalePre = translateMethodDeclPre(pres)
             val checkPost: Stmt = if (posts.nonEmpty) {
-              if (containsInhaleExhale(posts)) {
-                // Postcondition contains InhaleExhale expression.
-                // Need to check inhale and exhale parts separately.
-                val onlyInhalePosts: Seq[Stmt] = checkDefinednessOfInhaleSpecAndInhale(
-                  posts,
-                  {errors.ContractNotWellformed(_)})
-                val onlyExhalePosts: Seq[Stmt] = checkDefinednessOfExhaleSpecAndInhale(
-                  posts,
-                  {errors.ContractNotWellformed(_)})
-                NondetIf(
-                  MaybeComment("Checked inhaling of postcondition to check definedness",
-                    MaybeCommentBlock("Do welldefinedness check of the inhale part.",
-                      NondetIf(onlyInhalePosts ++ Assume(FalseLit()))) ++
-                      MaybeCommentBlock("Normally inhale the exhale part.",
-                        onlyExhalePosts)
-                  ) ++
-                    MaybeComment("Stop execution", Assume(FalseLit()))
-                )
-              }
-              else {
-                val onlyExhalePosts: Seq[Stmt] = checkDefinednessOfExhaleSpecAndInhale(
-                  posts,
-                  {errors.ContractNotWellformed(_)})
-                NondetIf(
-                  MaybeComment("Checked inhaling of postcondition to check definedness", onlyExhalePosts) ++
-                  MaybeComment("Stop execution", Assume(FalseLit()))
-                )
-              }
+              translateMethodDeclCheckPosts(posts)
             }
             else Nil
-
             val postsWithErrors = posts map (p => (p, errors.PostconditionViolated(p, m)))
             val exhalePost = MaybeCommentBlock("Exhaling postcondition", exhale(postsWithErrors))
             val body: Stmt = translateStmt(b)
@@ -172,6 +121,69 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
     }
     env = null
     res
+  }
+
+  private def translateMethodDeclCheckPosts(posts: Seq[sil.Exp]): Stmt = {
+    if (containsInhaleExhale(posts)) {
+      // Postcondition contains InhaleExhale expression.
+      // Need to check inhale and exhale parts separately.
+      val onlyInhalePosts: Seq[Stmt] = checkDefinednessOfInhaleSpecAndInhale(
+      posts, {
+        errors.ContractNotWellformed(_)
+      })
+      val onlyExhalePosts: Seq[Stmt] = checkDefinednessOfExhaleSpecAndInhale(
+      posts, {
+        errors.ContractNotWellformed(_)
+      })
+      NondetIf(
+        MaybeComment("Checked inhaling of postcondition to check definedness",
+          MaybeCommentBlock("Do welldefinedness check of the inhale part.",
+            NondetIf(onlyInhalePosts ++ Assume(FalseLit()))) ++
+            MaybeCommentBlock("Normally inhale the exhale part.",
+              onlyExhalePosts)
+        ) ++
+          MaybeComment("Stop execution", Assume(FalseLit()))
+      )
+    }
+    else {
+      val onlyExhalePosts: Seq[Stmt] = checkDefinednessOfExhaleSpecAndInhale(
+      posts, {
+        errors.ContractNotWellformed(_)
+      })
+      NondetIf(
+        MaybeComment("Checked inhaling of postcondition to check definedness", onlyExhalePosts) ++
+          MaybeComment("Stop execution", Assume(FalseLit()))
+      )
+    }
+  }
+
+  private def translateMethodDeclPre(pres: Seq[sil.Exp]): Stmt = {
+    val inhalePre = if (containsInhaleExhale(pres)) {
+      // Precondition contains InhaleExhale expression.
+      // Need to check inhale and exhale parts separately.
+      val onlyExhalePres: Seq[Stmt] = checkDefinednessOfExhaleSpecAndInhale(
+      pres, {
+        errors.ContractNotWellformed(_)
+      })
+      val onlyInhalePres: Seq[Stmt] = checkDefinednessOfInhaleSpecAndInhale(
+      pres, {
+        errors.ContractNotWellformed(_)
+      })
+      MaybeCommentBlock("Checked inhaling of precondition",
+        MaybeCommentBlock("Do welldefinedness check of the exhale part.",
+          NondetIf(onlyExhalePres ++ Assume(FalseLit()))) ++
+          MaybeCommentBlock("Normally inhale the inhale part.",
+            onlyInhalePres)
+      )
+    }
+    else {
+      val inhalePres: Seq[Stmt] = checkDefinednessOfInhaleSpecAndInhale(
+      pres, {
+        errors.ContractNotWellformed(_)
+      })
+      MaybeCommentBlock("Checked inhaling of precondition", inhalePres)
+    }
+    inhalePre
   }
 
   override def allAssumptionsAboutValue(typ:sil.Type, arg: LocalVarDecl, isParameter:Boolean): Stmt = {
