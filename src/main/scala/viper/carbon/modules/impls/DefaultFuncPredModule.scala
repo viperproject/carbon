@@ -314,10 +314,10 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent with Statefu
 
     val onlyExhalePres: Seq[Stmt] = checkDefinednessOfExhaleSpecAndInhale(
       f.pres,
-      (e) => {errors.FunctionNotWellformed(f)})
+      (e) => {errors.ContractNotWellformed(e)})
     val onlyInhalePres: Seq[Stmt] = checkDefinednessOfInhaleSpecAndInhale(
       f.pres,
-      (e) => {errors.FunctionNotWellformed(f)})
+      (e) => {errors.ContractNotWellformed(e)})
     val checkPre = MaybeCommentBlock("Inhaling precondition (with checking)",
       MaybeCommentBlock("Do welldefinedness check of the exhale part.",
         NondetIf(onlyExhalePres ++ Assume(FalseLit()))) ++
@@ -334,10 +334,10 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent with Statefu
 
     val checkPost = if (f.isAbstract) {
       val onlyInhalePosts: Seq[Stmt] = f.posts map (e => {
-        checkDefinedness(toInhale(e), errors.FunctionNotWellformed(f))
+        checkDefinedness(toInhale(e), errors.ContractNotWellformed(e))
       })
       val onlyExhalePosts: Seq[Stmt] = f.posts map (e => {
-        checkDefinedness(toExhale(e), errors.FunctionNotWellformed(f))
+        checkDefinedness(toExhale(e), errors.ContractNotWellformed(e))
       })
       MaybeCommentBlock("Checking definedness of postcondition (no body)",
         MaybeCommentBlock("Do welldefinedness check of the inhale part.",
@@ -350,12 +350,12 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent with Statefu
       val onlyInhalePosts: Seq[Stmt] = f.posts map (e => {
         checkDefinedness(
           toInhale(e),
-          errors.FunctionNotWellformed(f))
+          errors.ContractNotWellformed(e))
       })
       val onlyExhalePosts: Seq[Stmt] = f.posts map (e => {
         checkDefinednessOfSpecAndExhale(
           toExhale(e),
-          errors.FunctionNotWellformed(f),
+          errors.ContractNotWellformed(e),
           errors.PostconditionViolated(e, f))
       })
       MaybeCommentBlock("Exhaling postcondition (with checking)",
