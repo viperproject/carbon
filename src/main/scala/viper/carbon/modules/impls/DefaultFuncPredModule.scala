@@ -7,7 +7,7 @@
 package viper.carbon.modules.impls
 
 import viper.carbon.modules._
-import viper.carbon.utility.InhaleExhaleConverter.{toInhale, toExhale}
+import viper.carbon.utility.InhaleExhaleConverter.{toInhale, toExhale, containsInhaleExhale}
 import viper.silver.ast.{PredicateAccess, PredicateAccessPredicate, Unfolding}
 import viper.silver.components.StatefulComponent
 import viper.silver.verifier.errors.FunctionNotWellformed
@@ -312,18 +312,28 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent with Statefu
       stateModule.initState ++ (f.formalArgs map (a => allAssumptionsAboutValue(a.typ,mainModule.translateLocalVarDecl(a),true))) ++ assumeAllFunctionDefinitions)
     val initOld = MaybeCommentBlock("Initializing the old state", stateModule.initOldState)
 
-    val onlyExhalePres: Seq[Stmt] = checkDefinednessOfExhaleSpecAndInhale(
-      f.pres,
-      (e) => {errors.ContractNotWellformed(e)})
-    val onlyInhalePres: Seq[Stmt] = checkDefinednessOfInhaleSpecAndInhale(
-      f.pres,
-      (e) => {errors.ContractNotWellformed(e)})
-    val checkPre = MaybeCommentBlock("Inhaling precondition (with checking)",
-      MaybeCommentBlock("Do welldefinedness check of the exhale part.",
-        NondetIf(onlyExhalePres ++ Assume(FalseLit()))) ++
-      MaybeCommentBlock("Normally inhale the inhale part.",
-        onlyInhalePres)
-    )
+    val checkPre = if (containsInhaleExhale(f.pres)) {
+      // Precondition contains InhaleExhale expression.
+      // Need to check inhale and exhale parts separately.
+      val onlyExhalePres: Seq[Stmt] = checkDefinednessOfExhaleSpecAndInhale(
+        f.pres,
+        (e) => {errors.ContractNotWellformed(e)})
+      val onlyInhalePres: Seq[Stmt] = checkDefinednessOfInhaleSpecAndInhale(
+        f.pres,
+        (e) => {errors.ContractNotWellformed(e)})
+      MaybeCommentBlock("Inhaling precondition (with checking)",
+        MaybeCommentBlock("Do welldefinedness check of the exhale part.",
+          NondetIf(onlyExhalePres ++ Assume(FalseLit()))) ++
+          MaybeCommentBlock("Normally inhale the inhale part.",
+            onlyInhalePres)
+      )
+    }
+    else {
+      val pres: Seq[Stmt] = checkDefinednessOfInhaleSpecAndInhale(
+        f.pres,
+        (e) => {errors.ContractNotWellformed(e)})
+      MaybeCommentBlock("Inhaling precondition (with checking)", pres)
+    }
 
     val checkExp = if (f.isAbstract) MaybeCommentBlock("(no definition for abstract function)",Nil) else
       MaybeCommentBlock("Check definedness of function body",
@@ -333,37 +343,60 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent with Statefu
       translateResult(res) := translateExp(f.body.get))
 
     val checkPost = if (f.isAbstract) {
-      val onlyInhalePosts: Seq[Stmt] = f.posts map (e => {
-        checkDefinedness(toInhale(e), errors.ContractNotWellformed(e))
-      })
-      val onlyExhalePosts: Seq[Stmt] = f.posts map (e => {
-        checkDefinedness(toExhale(e), errors.ContractNotWellformed(e))
-      })
-      MaybeCommentBlock("Checking definedness of postcondition (no body)",
-        MaybeCommentBlock("Do welldefinedness check of the inhale part.",
-          NondetIf(onlyInhalePosts ++ Assume(FalseLit()))) ++
-        MaybeCommentBlock("Normally inhale the exhale part.",
-          onlyExhalePosts)
-      )
+      if (containsInhaleExhale(f.posts)) {
+        // Postcondition contains InhaleExhale expression.
+        // Need to check inhale and exhale parts separately.
+        val onlyInhalePosts: Seq[Stmt] = f.posts map (e => {
+          checkDefinedness(toInhale(e), errors.ContractNotWellformed(e))
+        })
+        val onlyExhalePosts: Seq[Stmt] = f.posts map (e => {
+          checkDefinedness(toExhale(e), errors.ContractNotWellformed(e))
+        })
+        MaybeCommentBlock("Checking definedness of postcondition (no body)",
+          MaybeCommentBlock("Do welldefinedness check of the inhale part.",
+            NondetIf(onlyInhalePosts ++ Assume(FalseLit()))) ++
+            MaybeCommentBlock("Normally inhale the exhale part.",
+              onlyExhalePosts)
+        )
+      }
+      else {
+        val posts: Seq[Stmt] = f.posts map (e => {
+          checkDefinedness(e, errors.ContractNotWellformed(e))
+        })
+        MaybeCommentBlock("Checking definedness of postcondition (no body)", posts)
+      }
     }
     else {
-      val onlyInhalePosts: Seq[Stmt] = f.posts map (e => {
-        checkDefinedness(
-          toInhale(e),
-          errors.ContractNotWellformed(e))
-      })
-      val onlyExhalePosts: Seq[Stmt] = f.posts map (e => {
-        checkDefinednessOfSpecAndExhale(
-          toExhale(e),
-          errors.ContractNotWellformed(e),
-          errors.PostconditionViolated(e, f))
-      })
-      MaybeCommentBlock("Exhaling postcondition (with checking)",
-        MaybeCommentBlock("Do welldefinedness check of the inhale part.",
-          NondetIf(onlyInhalePosts ++ Assume(FalseLit()))) ++
-        MaybeCommentBlock("Normally inhale the exhale part.",
-          onlyExhalePosts)
-      )
+      if (containsInhaleExhale(f.posts)) {
+        // Postcondition contains InhaleExhale expression.
+        // Need to check inhale and exhale parts separately.
+        val onlyInhalePosts: Seq[Stmt] = f.posts map (e => {
+          checkDefinedness(
+            toInhale(e),
+            errors.ContractNotWellformed(e))
+        })
+        val onlyExhalePosts: Seq[Stmt] = f.posts map (e => {
+          checkDefinednessOfSpecAndExhale(
+            toExhale(e),
+            errors.ContractNotWellformed(e),
+            errors.PostconditionViolated(e, f))
+        })
+        MaybeCommentBlock("Exhaling postcondition (with checking)",
+          MaybeCommentBlock("Do welldefinedness check of the inhale part.",
+            NondetIf(onlyInhalePosts ++ Assume(FalseLit()))) ++
+            MaybeCommentBlock("Normally inhale the exhale part.",
+              onlyExhalePosts)
+        )
+      }
+      else {
+        val posts: Seq[Stmt] = f.posts map (e => {
+          checkDefinednessOfSpecAndExhale(
+            e,
+            errors.ContractNotWellformed(e),
+            errors.PostconditionViolated(e, f))
+        })
+        MaybeCommentBlock("Exhaling postcondition (with checking)", posts)
+      }
     }
 
     val body = Seq(init, initOld, checkPre, checkExp, exp, checkPost)

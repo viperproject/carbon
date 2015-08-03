@@ -22,4 +22,18 @@ object InhaleExhaleConverter {
     })((_) => true)
   }
 
+  def containsInhaleExhale(exp: Exp): Boolean = {
+    exp.find {
+      case e: InhaleExhaleExp => true
+      case _ => false
+    } match {
+      case Some(node) => true
+      case None => false
+    }
+  }
+
+  def containsInhaleExhale(exps: Seq[Exp]): Boolean = {
+    exps.exists(containsInhaleExhale(_))
+  }
+
 }
