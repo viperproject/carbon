@@ -7,7 +7,7 @@
 package viper.carbon.modules
 
 import viper.silver.{ast => sil}
-import viper.carbon.utility.InhaleExhaleConverter.{toInhale, toExhale}
+import viper.silver.ast.utility.Expressions.{whenExhaling, whenInhaling}
 import viper.carbon.boogie.{Stmt, LocalVar, Exp}
 import viper.carbon.modules.components.{ComponentRegistry, DefinednessComponent}
 import viper.silver.verifier.PartialVerificationError
@@ -46,7 +46,7 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
   def checkDefinednessOfExhaleSpecAndInhale(expressions: Seq[sil.Exp],
                                             errorConstructor: (sil.Exp) => PartialVerificationError): Seq[Stmt] = {
     expressions map (e => {
-      checkDefinednessOfSpecAndInhale(toExhale(e), errorConstructor(e))
+      checkDefinednessOfSpecAndInhale(whenExhaling(e), errorConstructor(e))
     })
   }
 
@@ -56,7 +56,7 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
   def checkDefinednessOfInhaleSpecAndInhale(expressions: Seq[sil.Exp],
                                             errorConstructor: (sil.Exp) => PartialVerificationError): Seq[Stmt] = {
     expressions map (e => {
-      checkDefinednessOfSpecAndInhale(toInhale(e), errorConstructor(e))
+      checkDefinednessOfSpecAndInhale(whenInhaling(e), errorConstructor(e))
     })
   }
 

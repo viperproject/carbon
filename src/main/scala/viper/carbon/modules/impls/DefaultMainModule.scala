@@ -7,7 +7,7 @@
 package viper.carbon.modules.impls
 
 import viper.carbon.modules._
-import viper.carbon.utility.InhaleExhaleConverter.{containsInhaleExhale}
+import viper.silver.ast.utility.Expressions
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
@@ -124,7 +124,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
   }
 
   private def translateMethodDeclCheckPosts(posts: Seq[sil.Exp]): Stmt = {
-    if (containsInhaleExhale(posts)) {
+    if (Expressions.contains[sil.InhaleExhaleExp](posts)) {
       // Postcondition contains InhaleExhale expression.
       // Need to check inhale and exhale parts separately.
       val onlyInhalePosts: Seq[Stmt] = checkDefinednessOfInhaleSpecAndInhale(
@@ -158,7 +158,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
   }
 
   private def translateMethodDeclPre(pres: Seq[sil.Exp]): Stmt = {
-    if (containsInhaleExhale(pres)) {
+    if (Expressions.contains[sil.InhaleExhaleExp](pres)) {
       // Precondition contains InhaleExhale expression.
       // Need to check inhale and exhale parts separately.
       val onlyExhalePres: Seq[Stmt] = checkDefinednessOfExhaleSpecAndInhale(

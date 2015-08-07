@@ -7,7 +7,7 @@
 package viper.carbon.modules.impls
 
 import viper.carbon.modules._
-import viper.carbon.utility.InhaleExhaleConverter.{toInhale, toExhale, containsInhaleExhale}
+import viper.silver.ast.utility.Expressions.{whenExhaling, whenInhaling, contains}
 import viper.silver.ast.{PredicateAccess, PredicateAccessPredicate, Unfolding}
 import viper.silver.components.StatefulComponent
 import viper.silver.verifier.errors.FunctionNotWellformed
@@ -234,7 +234,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent with Statefu
     val fapp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
     val res = translateResult(sil.Result()(f.typ))
     for (post <- f.posts) yield {
-      val bPost = translateExp(toInhale(post)) transform {
+      val bPost = translateExp(whenInhaling(post)) transform {
         case e if e == res => Some(fapp)
       }
       Axiom(Forall(
@@ -324,23 +324,23 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent with Statefu
   }
 
   private def checkFunctionPostconditionDefinedness(f: sil.Function): Stmt with Product with Serializable = {
-    if (containsInhaleExhale(f.posts)) {
+    if (contains[sil.InhaleExhaleExp](f.posts)) {
       // Postcondition contains InhaleExhale expression.
       // Need to check inhale and exhale parts separately.
       val onlyInhalePosts: Seq[Stmt] = f.posts map (e => {
-        checkDefinedness(toInhale(e), errors.ContractNotWellformed(e))
+        checkDefinedness(whenInhaling(e), errors.ContractNotWellformed(e))
       })
       val onlyExhalePosts: Seq[Stmt] = if (f.isAbstract) {
         f.posts map (e => {
           checkDefinedness(
-            toExhale(e),
+            whenExhaling(e),
             errors.ContractNotWellformed(e))
         })
       }
       else {
         f.posts map (e => {
           checkDefinednessOfSpecAndExhale(
-            toExhale(e),
+            whenExhaling(e),
             errors.ContractNotWellformed(e),
             errors.PostconditionViolated(e, f))
         })
@@ -382,7 +382,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent with Statefu
   }
 
   private def checkFunctionPreconditionDefinedness(f: sil.Function): Stmt with Product with Serializable = {
-    if (containsInhaleExhale(f.pres)) {
+    if (contains[sil.InhaleExhaleExp](f.pres)) {
       // Precondition contains InhaleExhale expression.
       // Need to check inhale and exhale parts separately.
       val onlyExhalePres: Seq[Stmt] = checkDefinednessOfExhaleSpecAndInhale(

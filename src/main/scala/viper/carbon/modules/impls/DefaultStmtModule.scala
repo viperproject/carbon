@@ -7,7 +7,7 @@
 package viper.carbon.modules.impls
 
 import viper.carbon.modules.StmtModule
-import viper.carbon.utility.InhaleExhaleConverter.{toExhale, toInhale}
+import viper.silver.ast.utility.Expressions.{whenExhaling, whenInhaling}
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.Verifier
@@ -69,13 +69,13 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
       case unfold@sil.Unfold(e) =>
         translateUnfold(unfold)
       case inh@sil.Inhale(e) =>
-        checkDefinednessOfSpecAndInhale(toInhale(e), errors.InhaleFailed(inh))
+        checkDefinednessOfSpecAndInhale(whenInhaling(e), errors.InhaleFailed(inh))
       case exh@sil.Exhale(e) =>
-        val transformedExp = toExhale(e)
+        val transformedExp = whenExhaling(e)
         checkDefinedness(transformedExp, errors.ExhaleFailed(exh)) ++
           exhale((transformedExp, errors.ExhaleFailed(exh)))
       case a@sil.Assert(e) =>
-        val transformedExp = toExhale(e)
+        val transformedExp = whenExhaling(e)
         if (transformedExp.isPure) {
           // if e is pure, then assert and exhale are the same
           checkDefinedness(transformedExp, errors.AssertFailed(a)) ++
