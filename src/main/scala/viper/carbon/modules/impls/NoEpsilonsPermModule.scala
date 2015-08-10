@@ -530,12 +530,11 @@ class NoEpsilonsPermModule(val verifier: Verifier)
     def isFixedPerm(e: sil.Exp): Boolean = {
       require(e isSubtype sil.Perm)
       e match {
-        case x: sil.LocalVar => false // we have to be conservative - anything could have been assigned here
         case sil.NoPerm() => true
         case sil.FullPerm() => true
         case sil.WildcardPerm() => false
         case sil.EpsilonPerm() =>  sys.error("epsilon permissions are not supported by this permission module")
-        case sil.CurrentPerm(loc) => true
+        //case sil.CurrentPerm(loc) => true
         case sil.FractionalPerm(left, right) => true
         case sil.PermAdd(left, right) =>
           isFixedPerm(left) && isFixedPerm(right)
@@ -549,8 +548,8 @@ class NoEpsilonsPermModule(val verifier: Verifier)
           isFixedPerm(b)
         case sil.CondExp(cond, thn, els) =>
           isFixedPerm(thn) && isFixedPerm(els) // note: this doesn't take account of condition (due to being a syntactic check) - in theory could be overly-restrictive
-        case _: sil.FuncLikeApp => true
-        case _ => sys.error(s"not a permission expression: $e")
+        //case _: sil.FuncLikeApp => true
+        case _ => false // conservative for local variables, field dereferences etc.
       }
     }
 
