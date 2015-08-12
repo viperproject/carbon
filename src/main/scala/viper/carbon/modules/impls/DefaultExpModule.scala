@@ -232,7 +232,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
     e match {
       case sil.And(e1, e2) =>
         checkDefinednessImpl(e1, error, makeChecks = makeChecks) ::
-          If(translateExp(Expressions.purify(e1)), checkDefinednessImpl(e2, error, makeChecks = makeChecks), Statements.EmptyStmt) ::
+          If(translateExp(Expressions.asBooleanExp(e1)), checkDefinednessImpl(e2, error, makeChecks = makeChecks), Statements.EmptyStmt) ::
           Nil
       case sil.Implies(e1, e2) =>
         checkDefinednessImpl(e1, error, makeChecks = makeChecks) :: 
