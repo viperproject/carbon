@@ -20,7 +20,8 @@ import scala.collection.mutable.ListBuffer
  */
 
 
-class DefaultWandModule(val verifier: Verifier) extends WandModule {
+class
+DefaultWandModule(val verifier: Verifier) extends WandModule {
   import verifier._
   import stateModule._
   import permModule._
@@ -194,10 +195,9 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
           { //get permissions for unfold and then unfold
             val usedOpsAllStatesAssms: Exp = usedState.boolVar&&ops.boolVar&&allStateAssms
             val permForBody = exhaleExt(ops :: states, usedState, predicateBody, usedOpsAllStatesAssms)
-            //TODO GP: make sure this is the correct usage of the return values of translateFold
-            val (foldPredFirst,foldPredLast) =
-              funcPredModule.translateFold(sil.Fold(predAccTransformed)(fold.pos, fold.info))
-            val foldStmt = If(usedOpsAllStatesAssms, foldPredFirst++foldPredLast, Statements.EmptyStmt)
+
+            val foldTranslate = stmtModule.translateStmt(sil.Fold(predAccTransformed)(fold.pos, fold.info))
+            val foldStmt = If(usedOpsAllStatesAssms, foldTranslate, Statements.EmptyStmt)
 
             argsLocal.foreach(localVar => mainModule.env.undefine(localVar))
 
@@ -228,10 +228,10 @@ class DefaultWandModule(val verifier: Verifier) extends WandModule {
             }
 
             val permForPred = exhaleExt(ops :: states, usedState, accTransformed, usedOpsAllStatesAssms)
+            val unfoldTranslate = stmtModule.translateStmt(sil.Unfold(predAccTransformed)(unfold.pos, unfold.info))
 
             val unfoldStmt = CommentBlock("unfolding " + acc.toString() ,
-              If(usedOpsAllStatesAssms, funcPredModule.translateUnfold(sil.Unfold(predAccTransformed)(unfold.pos, unfold.info)),
-                Statements.EmptyStmt) )
+              If(usedOpsAllStatesAssms, unfoldTranslate, Statements.EmptyStmt) )
 
             argsLocal.foreach(localVar => mainModule.env.undefine(localVar))
             CommentBlock("Retrieving permissions to execute unfold and then unfolding the predicate",
