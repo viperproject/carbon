@@ -84,12 +84,14 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   override def freshTempState(name: String): (Stmt, StateSnapshot) = {
     val previousState = new StateSnapshot(new StateComponentMapping(),usingOldState,treatOldAsCurrent)
 
+    curState = new StateComponentMapping() // essentially, the code below "clones" what curState should represent anyway. But, if we omit this line, we inadvertently alias the previous hash map.
+
     val s = for (c <- components) yield {
       val tmpExps = c.freshTempState(name)
       val curExps = c.currentStateExps // note: this will wrap them in "Old" as necessary for correct initialisation
       val stmt: Stmt = (tmpExps zip curExps) map (x => (x._1 := x._2))
-      previousState._1.put(c, c.currentStateVars)
-      curState.put(c, tmpExps)
+      previousState._1.put(c, c.currentStateVars) // reconstruct information from previous state (this is logically similar to a clone of what curState used to represent)
+      curState.put(c, tmpExps) // repopulate current state
       c.restoreState(tmpExps)
 
       stmt
