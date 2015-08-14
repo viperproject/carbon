@@ -31,7 +31,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
 
   def initState: Stmt = {
     curState = new StateComponentMapping()
-    // note: it is important that these are set before calling e.g. initState
+    // note: it is important that these are set before calling e.g. initState on components
     usingOldState = false
     treatOldAsCurrent = false
 

@@ -124,14 +124,18 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
   }
 
   private def translateMethodDeclCheckPosts(posts: Seq[sil.Exp]): Stmt = {
+
+    val (stmt, state) = stateModule.freshTempState("Post")
+
+    val reset = stateModule.resetState
+
+    // note that the order here matters - onlyExhalePosts should be computed with respect ot the reset state
     val onlyExhalePosts: Seq[Stmt] = checkDefinednessOfExhaleSpecAndInhale(
     posts, {
       errors.ContractNotWellformed(_)
     })
 
-    val (stmt, state) = stateModule.freshTempState("Post")
-
-    val stmts = stmt ++ (
+    val stmts = stmt ++ reset ++ (
     if (Expressions.contains[sil.InhaleExhaleExp](posts)) {
       // Postcondition contains InhaleExhale expression.
       // Need to check inhale and exhale parts separately.

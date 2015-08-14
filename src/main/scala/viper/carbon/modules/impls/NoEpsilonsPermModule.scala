@@ -164,9 +164,11 @@ class NoEpsilonsPermModule(val verifier: Verifier)
 
   def initState: Stmt = {
     mask := originalMask
+    resetState
+  }
+  def resetState = {
     (maskVar := zeroMask)
   }
-  def resetState = initState
   def initOldState: Stmt = {
     val mVar = maskVar
     Assume(Old(mVar) === mVar)

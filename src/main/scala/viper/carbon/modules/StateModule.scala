@@ -36,6 +36,7 @@ trait StateModule extends Module with ComponentRegistry[StateComponent] {
 
   /**
    * The statements necessary to reset the part of the state belonging to this module.
+   * Note that this should modify the *current* state (i.e. reassign all Boogie state in use), not create a fresh state
    */
   def resetState: Stmt
 

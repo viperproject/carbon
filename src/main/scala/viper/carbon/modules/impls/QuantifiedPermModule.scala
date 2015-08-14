@@ -164,9 +164,11 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   def initState: Stmt = {
     mask := originalMask
-    maskVar := zeroMask
+    resetState
   }
-  def resetState = initState
+  def resetState = {
+    (maskVar := zeroMask)
+  }
   def initOldState: Stmt = {
     val mVar = maskVar
     Assume(Old(mVar) === mVar)
