@@ -124,6 +124,14 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
   }
 
   private def translateMethodDeclCheckPosts(posts: Seq[sil.Exp]): Stmt = {
+    val onlyExhalePosts: Seq[Stmt] = checkDefinednessOfExhaleSpecAndInhale(
+    posts, {
+      errors.ContractNotWellformed(_)
+    })
+
+    val (stmt, state) = stateModule.freshTempState("Post")
+
+    val stmts = stmt ++ (
     if (Expressions.contains[sil.InhaleExhaleExp](posts)) {
       // Postcondition contains InhaleExhale expression.
       // Need to check inhale and exhale parts separately.
@@ -131,10 +139,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
       posts, {
         errors.ContractNotWellformed(_)
       })
-      val onlyExhalePosts: Seq[Stmt] = checkDefinednessOfExhaleSpecAndInhale(
-      posts, {
-        errors.ContractNotWellformed(_)
-      })
+
       NondetIf(
         MaybeComment("Checked inhaling of postcondition to check definedness",
           MaybeCommentBlock("Do welldefinedness check of the inhale part.",
@@ -146,15 +151,15 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
       )
     }
     else {
-      val onlyExhalePosts: Seq[Stmt] = checkDefinednessOfExhaleSpecAndInhale(
-      posts, {
-        errors.ContractNotWellformed(_)
-      })
       NondetIf(
         MaybeComment("Checked inhaling of postcondition to check definedness", onlyExhalePosts) ++
           MaybeComment("Stop execution", Assume(FalseLit()))
       )
-    }
+    })
+
+    stateModule.replaceState(state)
+
+    stmts
   }
 
   private def translateMethodDeclPre(pres: Seq[sil.Exp]): Stmt = {
