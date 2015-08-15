@@ -136,8 +136,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent with Statefu
 
   override def start() {
     expModule.register(this)
-    inhaleModule.register(this)
-    exhaleModule.register(this)
+    inhaleModule.register(this, before = Seq(verifier.inhaleModule)) // this is because of inhaleExp definition, which tries to add extra information from executing the unfolding first
+    exhaleModule.register(this, before = Seq(verifier.exhaleModule)) // this is because of inhaleExp definition, which tries to add extra information from executing the unfolding first
   }
 
   override def reset() = {
@@ -146,6 +146,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent with Statefu
     duringFold = false
     foldInfo = null
     duringUnfold = false
+    duringUnfoldingExtraUnfold = false
     unfoldInfo = null
     exhaleTmpStateId = -1
     extraUnfolding = false
@@ -502,6 +503,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent with Statefu
   }
 
   private var duringUnfold = false
+  private var duringUnfoldingExtraUnfold = false // are we executing an extra unfold, to reflect the meaning of inhaling or exhaling an unfolding expression?
   private var unfoldInfo: sil.PredicateAccessPredicate = null
   override def translateUnfold(unfold: sil.Unfold): Stmt = {
     unfold match {
@@ -530,6 +532,19 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent with Statefu
 
   override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
+      case sil.Unfolding(acc, _) => if (duringUnfoldingExtraUnfold) Nil else // execute the unfolding, since this may gain information
+      {
+        duringUnfoldingExtraUnfold = true
+        tmpStateId += 1
+        val tmpStateName = if (tmpStateId == 0) "Unfolding" else s"Unfolding$tmpStateId"
+        val (stmt, state) = stateModule.freshTempState(tmpStateName)
+        val stmts = stmt ++ unfoldPredicate(acc, NullPartialVerificationError)
+        tmpStateId -= 1
+        stateModule.replaceState(state)
+        duringUnfoldingExtraUnfold = false
+
+        CommentBlock("Execute unfolding (for extra information)",stmts)
+      }
       case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(_, _), perm) if duringUnfold && currentPhaseId == 0 =>
         val oldVersion = LocalVar(Identifier("oldVersion"), Int)
         val newVersion = LocalVar(Identifier("newVersion"), Int)
@@ -574,8 +589,20 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent with Statefu
   var extraUnfolding = false
   override def inhaleExp(e: sil.Exp): Stmt = {
     e match {
-      case sil.Unfolding(acc, exp) =>
-        Nil
+      case sil.Unfolding(acc, _) => if (duringUnfoldingExtraUnfold) Nil else // execute the unfolding, since this may gain information
+      {
+        duringUnfoldingExtraUnfold = true
+        tmpStateId += 1
+        val tmpStateName = if (tmpStateId == 0) "Unfolding" else s"Unfolding$tmpStateId"
+        val (stmt, state) = stateModule.freshTempState(tmpStateName)
+        val stmts = stmt ++ unfoldPredicate(acc, NullPartialVerificationError)
+        tmpStateId -= 1
+        stateModule.replaceState(state)
+        duringUnfoldingExtraUnfold = false
+
+        CommentBlock("Execute unfolding (for extra information)",stmts)
+      }
+
       case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(_, _), perm) =>
         val res: Stmt = if (extraUnfolding) {
           exhaleTmpStateId += 1
