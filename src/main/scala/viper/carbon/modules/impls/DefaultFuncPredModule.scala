@@ -9,6 +9,7 @@ package viper.carbon.modules.impls
 import viper.carbon.modules._
 import viper.silver.ast.utility.Expressions.{whenExhaling, whenInhaling, contains}
 import viper.silver.ast.{PredicateAccess, PredicateAccessPredicate, Unfolding}
+import viper.silver.ast.{FuncApp => silverFuncApp}
 import viper.silver.components.StatefulComponent
 import viper.silver.verifier.errors.FunctionNotWellformed
 import viper.silver.{ast => sil}
@@ -204,8 +205,17 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent with Statefu
     val args = f.formalArgs map translateLocalVarDecl
     val fapp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
     val body = transformLimited(translateExp(f.body.get),height)
-    val outerUnfoldings : Seq[Unfolding] = Functions.recursiveCallsAndSurroundingUnfoldings(f).map((pair) => pair._2.headOption).flatten
-    val predicateTriggers = outerUnfoldings.map{case Unfolding(PredicateAccessPredicate(predacc : PredicateAccess,perm),exp) => predicateTrigger(heap map (_.l), predacc)}
+
+    // The idea here is that we can generate additional triggers for the function definition, which allow its definition to be triggered in any state in which the corresponding *predicate* has been folded or unfolded, in the following scenarios:
+    // (a) if the function is recursive, and if the predicate is unfolded around the recursive call in the function body
+    // (b) if the function is not recursive, and the predicate is mentioned in its precondition
+    // In either case, the function must have been mentioned *somewhere* in the program (not necessarily the state in which its definition is triggered) with the corresponding combination of function arguments.
+    val recursiveCallsAndUnfoldings : Seq[(silverFuncApp,Seq[Unfolding])] = Functions.recursiveCallsAndSurroundingUnfoldings(f)
+    val outerUnfoldings : Seq[Unfolding] = recursiveCallsAndUnfoldings.map((pair) => pair._2.headOption).flatten
+    val predicateTriggers : Seq[Exp] = if (recursiveCallsAndUnfoldings.isEmpty) // then any predicate in the precondition will do (at the moment, regardless of position - seems OK since there is no recursion)
+      (f.pres map (p => p.shallowCollect{case pacc : PredicateAccess => pacc})).flatten map (p => predicateTrigger(heap map (_.l), p))
+    else outerUnfoldings.map{case Unfolding(PredicateAccessPredicate(predacc : PredicateAccess,perm),exp) => predicateTrigger(heap map (_.l), predacc)}
+
     Axiom(Forall(
       stateModule.stateContributions ++ args,
       Seq(Trigger(Seq(staticGoodState,fapp))) ++ (if (predicateTriggers.isEmpty) Seq()  else Seq(Trigger(Seq(staticGoodState, triggerFuncApp(f.name,args map (_.l))) ++ predicateTriggers))),
