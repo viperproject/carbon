@@ -7,6 +7,7 @@ import viper.carbon.modules.components.{TransferComponent, DefinednessComponent}
 import viper.carbon.verifier.Verifier
 import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
+import viper.silver.ast.utility.Expressions
 import viper.silver.ast.{FullPerm, MagicWand}
 
 import viper.silver.verifier.{errors, reasons, PartialVerificationError}
@@ -278,6 +279,22 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
         MaybeCommentBlock("Translating " + p.toString(),
           packaging ++ addWand ++ MaybeCommentBlock("Code for body " + body.toString() + " of " + p.toString(), exec(states,ops,body,allStateAssms)) )
 
+      case sil.Let(letVarDecl, exp, body) =>
+        val StateRep(_,bOps) = ops
+        val translatedExp = expModule.translateExp(exp) // expression to bind "v" to, evaluated in ops state
+        val v = mainModule.env.makeUniquelyNamed(letVarDecl) // choose a fresh "v" binder
+        mainModule.env.define(v.localVar)
+        val instantiatedExp = Expressions.instantiateVariables(body,Seq(letVarDecl),Seq(v.localVar)) //instantiate bound variable
+
+        val stmt =
+          (bOps := bOps && (mainModule.env.get(v.localVar) === translatedExp) ) ++
+          //GP: maybe it may make more sense to use an assignment here instead of adding the equality as an assumption, but since right now we use all assumptions
+          //of states on the state + state ops to assert expressions, it should work
+          exec(states,ops,instantiatedExp,allStateAssms)
+
+        mainModule.env.undefine(v.localVar)
+
+        stmt
       case _ =>
         //no ghost operation
         val StateSetup(usedState, initStmt) = createAndSetState(None)
