@@ -101,7 +101,6 @@ class QuantifiedPermModule(val verifier: Verifier)
   private val inverseFunName = "invRecv" //prefix of function name for inverse functions used for inhale/exhale of qp
   private var inverseFuncs: ListBuffer[Func] = new ListBuffer[Func](); //list of inverse functions used for inhale/exhale qp
 
-  private val qpTriggerMaskName = Identifier("triggerMask")
 
   override def preamble = {
     val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
@@ -165,7 +164,7 @@ class QuantifiedPermModule(val verifier: Verifier)
     } ++ {
       MaybeCommentedDecl("Functions used as inverse of receiver expressions in quantified permissions during inhale and exhale",
         inverseFuncs)
-    }
+    } 
   }
 
   def permType = NamedType(permTypeName)
@@ -350,8 +349,7 @@ class QuantifiedPermModule(val verifier: Verifier)
           (currentPermission(obj.l,field.l) === currentPermission(qpMask,obj.l,field.l))) )
 
 
-        var ts = Seq(Trigger(currentPermission(qpMask,obj.l,translatedLocation)),Trigger(curPerm)) //triggers TODO
-
+        val ts = Seq(Trigger(curPerm),Trigger(currentPermission(qpMask,obj.l,translatedLocation)),Trigger(invFunApp))
         val injectiveAssertion = Assert(isInjective(qpComp), error.dueTo(reasons.ReceiverNotInjective(fieldAccess)))
 
         val res = Havoc(qpMask) ++
@@ -418,8 +416,12 @@ class QuantifiedPermModule(val verifier: Verifier)
 
         val (invAssm1, invAssm2) = inverseAssumptions(invFun, qpComp,QPComponents(obj,condInv, rcvInv, permInv))
 
+        val nullAndPermAssm =
+          Assume(Forall(Seq(translateLocalVarDecl(vFresh)),Seq(),translatedCond ==>
+              (permissionPositive(translatedPerms, Some(renamedPerms)) && (translatedRecv !== translateNull)) ))
+
         //assumptions for locations that gain permission
-        val condTrueLocations = (condInv ==> (permissionPositive(permInv, Some(renamedPerms)) && (obj.l !== translateNull) &&
+        val condTrueLocations = (condInv ==> (
           (if (!isUsingOldState) {
             (  currentPermission(qpMask,obj.l,translatedLocation) === curPerm + permInv )
           } else {
@@ -438,7 +440,8 @@ class QuantifiedPermModule(val verifier: Verifier)
           (currentPermission(obj.l,field.l) === currentPermission(qpMask,obj.l,field.l))) )
 
 
-        var ts = Seq() //triggers TODO
+        val ts = Seq(Trigger(curPerm),Trigger(currentPermission(qpMask,obj.l,translatedLocation)),Trigger(invFunApp)) //triggers TODO
+
 
         val injectiveAssumption = Assume(isInjective(qpComp))
 
@@ -447,6 +450,7 @@ class QuantifiedPermModule(val verifier: Verifier)
           stmts ++
           Assume(invAssm1) ++
           Assume(invAssm2) ++
+          nullAndPermAssm ++
           injectiveAssumption ++
           Assume(Forall(obj,ts, condTrueLocations&&condFalseLocations )) ++
           independentLocations ++
