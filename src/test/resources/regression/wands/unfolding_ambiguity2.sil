@@ -7,9 +7,9 @@ method t01(x:Ref) {
 }
 
 method t02(x:Ref) {
-/*there's an ambiguity here, it may more sense to interpret the unfolding as a ghost operation since one may want the pure part in the body of the unfolding ghost expression to be right hand side
+/*there's an ambiguity here, it may make more sense to interpret the unfolding as a ghost operation since one may want the pure part in the body of the unfolding ghost expression to be the right hand side of the wand
 
-if this is interpreted just as an unfolding ghost expression then the wand is not well-formed */
+if the unfolding is interpreted just as an unfolding expression then the wand is not well-formed */
 
   package acc(P(x)) --* unfolding P(x) in true
 
