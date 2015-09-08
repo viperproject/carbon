@@ -14,4 +14,4 @@ Set-up
 
 Instructions for how to get started with the Viper tools:
 
-+   `Linux <https://bitbucket.org/viperproject/viper-linux-dev/>`_
++   `Developing on Linux <https://bitbucket.org/viperproject/viper-linux-dev/>`_
