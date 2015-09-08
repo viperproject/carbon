@@ -9,9 +9,9 @@ verification language. Carbon is developed as part of the
 `Programming Methodology <http://www.pm.inf.ethz.ch/>`_ group
 at ETH Zurich.
 
-Quick Start
-===========
+Set-up
+======
 
-Instructions how to get started with Viper:
+Instructions for how to get started with the Viper tools:
 
 +   `Linux <https://bitbucket.org/vakaras/viper-dev/>`_
