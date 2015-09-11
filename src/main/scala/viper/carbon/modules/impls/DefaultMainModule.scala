@@ -7,6 +7,7 @@
 package viper.carbon.modules.impls
 
 import viper.carbon.modules._
+import viper.silver.ast.utility.Expressions
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
@@ -58,7 +59,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
       case sil.Program(domains, fields, functions, predicates, methods) =>
         // translate all members
         val translateFields =
-          MaybeCommentedDecl("Translation of all fields", fields flatMap translateField)
+          MaybeCommentedDecl("Translation of all fields", (fields flatMap translateField).toList)
         val members = (domains flatMap translateDomainDecl) ++
           translateFields ++
           (functions flatMap translateFunction) ++
@@ -98,15 +99,13 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
             val ins: Seq[LocalVarDecl] = formalArgs map translateLocalVarDecl
             val outs: Seq[LocalVarDecl] = formalReturns map translateLocalVarDecl
             val init = MaybeCommentBlock("Initializing the state", stateModule.initState ++ assumeAllFunctionDefinitions)
-            val initOld = stateModule.initOldState
+            val initOld = MaybeCommentBlock("Initializing the old state", stateModule.initOldState)
             val paramAssumptions = m.formalArgs map (a => allAssumptionsAboutValue(a.typ, translateLocalVarDecl(a), true))
             val localAssumptions = m.locals map (a => allAssumptionsAboutValue(a.typ, translateLocalVarDecl(a), true))
-            val inhalePre = MaybeCommentBlock("Checked inhaling of precondition",
-              pres map (e => checkDefinednessOfSpecAndInhale(e, errors.ContractNotWellformed(e))))
-            val checkPost: Stmt = if (posts.nonEmpty) NondetIf(
-              MaybeComment("Checked inhaling of postcondition to check definedness",
-                posts map (e => checkDefinednessOfSpecAndInhale(e, errors.ContractNotWellformed(e)))) ++
-                MaybeComment("Stop execution", Assume(FalseLit())), Nil)
+            val inhalePre = translateMethodDeclPre(pres)
+            val checkPost: Stmt = if (posts.nonEmpty) {
+              translateMethodDeclCheckPosts(posts)
+            }
             else Nil
             val postsWithErrors = posts map (p => (p, errors.PostconditionViolated(p, m)))
             val exhalePost = MaybeCommentBlock("Exhaling postcondition", exhale(postsWithErrors))
@@ -122,6 +121,77 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule {
     }
     env = null
     res
+  }
+
+  private def translateMethodDeclCheckPosts(posts: Seq[sil.Exp]): Stmt = {
+
+    val (stmt, state) = stateModule.freshTempState("Post")
+
+    val reset = stateModule.resetState
+
+    // note that the order here matters - onlyExhalePosts should be computed with respect ot the reset state
+    val onlyExhalePosts: Seq[Stmt] = checkDefinednessOfExhaleSpecAndInhale(
+    posts, {
+      errors.ContractNotWellformed(_)
+    })
+
+    val stmts = stmt ++ reset ++ (
+    if (Expressions.contains[sil.InhaleExhaleExp](posts)) {
+      // Postcondition contains InhaleExhale expression.
+      // Need to check inhale and exhale parts separately.
+      val onlyInhalePosts: Seq[Stmt] = checkDefinednessOfInhaleSpecAndInhale(
+      posts, {
+        errors.ContractNotWellformed(_)
+      })
+
+      NondetIf(
+        MaybeComment("Checked inhaling of postcondition to check definedness",
+          MaybeCommentBlock("Do welldefinedness check of the inhale part.",
+            NondetIf(onlyInhalePosts ++ Assume(FalseLit()))) ++
+            MaybeCommentBlock("Normally inhale the exhale part.",
+              onlyExhalePosts)
+        ) ++
+          MaybeComment("Stop execution", Assume(FalseLit()))
+      )
+    }
+    else {
+      NondetIf(
+        MaybeComment("Checked inhaling of postcondition to check definedness", onlyExhalePosts) ++
+          MaybeComment("Stop execution", Assume(FalseLit()))
+      )
+    })
+
+    stateModule.replaceState(state)
+
+    stmts
+  }
+
+  private def translateMethodDeclPre(pres: Seq[sil.Exp]): Stmt = {
+    if (Expressions.contains[sil.InhaleExhaleExp](pres)) {
+      // Precondition contains InhaleExhale expression.
+      // Need to check inhale and exhale parts separately.
+      val onlyExhalePres: Seq[Stmt] = checkDefinednessOfExhaleSpecAndInhale(
+      pres, {
+        errors.ContractNotWellformed(_)
+      })
+      val onlyInhalePres: Seq[Stmt] = checkDefinednessOfInhaleSpecAndInhale(
+      pres, {
+        errors.ContractNotWellformed(_)
+      })
+      MaybeCommentBlock("Checked inhaling of precondition",
+        MaybeCommentBlock("Do welldefinedness check of the exhale part.",
+          NondetIf(onlyExhalePres ++ Assume(FalseLit()))) ++
+          MaybeCommentBlock("Normally inhale the inhale part.",
+            onlyInhalePres)
+      )
+    }
+    else {
+      val inhalePres: Seq[Stmt] = checkDefinednessOfInhaleSpecAndInhale(
+      pres, {
+        errors.ContractNotWellformed(_)
+      })
+      MaybeCommentBlock("Checked inhaling of precondition", inhalePres)
+    }
   }
 
   override def allAssumptionsAboutValue(typ:sil.Type, arg: LocalVarDecl, isParameter:Boolean): Stmt = {

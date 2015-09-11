@@ -41,6 +41,12 @@ trait StateModule extends Module with ComponentRegistry[StateComponent] {
   def initState: Stmt
 
   /**
+   * The statements necessary to reset the part of the state belonging to this module.
+   * Note that this should modify the *current* state (i.e. reassign all Boogie state in use), not create a fresh state
+   */
+  def resetState: Stmt
+
+  /**
    * The statements necessary to initialize old(state).
    */
   def initOldState: Stmt
@@ -61,6 +67,7 @@ trait StateModule extends Module with ComponentRegistry[StateComponent] {
   /**
    * Backup the current state and return enough information such that it can
    * be restored again at a later point.
+   *
    */
   def freshTempState(name: String): (Stmt, StateSnapshot)
 
@@ -69,13 +76,15 @@ trait StateModule extends Module with ComponentRegistry[StateComponent] {
    * if init is true then the Stmt returned will contain the initialization according to the state
    * components
    * Note: the current state is not affected by this in contrast to "freshTempState"
+   *
+   * ALEX: to get rid of!
    */
   def freshEmptyState(name: String,init:Boolean): (Stmt, StateSnapshot)
 
   /**
    * Restore the state to a given snapshot.
    */
-  def restoreState(snapshot: StateSnapshot)
+  def replaceState(snapshot: StateSnapshot)
 
   /**
    * Get the current old state.
@@ -83,9 +92,9 @@ trait StateModule extends Module with ComponentRegistry[StateComponent] {
   def oldState: StateSnapshot
 
   /**
-   * Restore the old state to a given snapshot.
+   * Replace the old state with a given snapshot.
    */
-  def restoreOldState(snapshot: StateSnapshot)
+  def replaceOldState(snapshot: StateSnapshot)
 
   /**
    * Get the current state.
@@ -101,17 +110,7 @@ trait StateModule extends Module with ComponentRegistry[StateComponent] {
   def getCopyState:StateSnapshot
 
   /**
-   * Change the state for all state components to the old state.
+   * Are we currently using an 'old' state? Implies that we should wrap relevant state components in "Old"
    */
-  def useOldState()
-
-  /**
-   * Change the state for all state components to the regular (non-old) state.
-   */
-  def useRegularState()
-
-  /**
-   * Are we currently using the 'old' state?
-   */
-  def isUsingOldState: Boolean
+  def stateModuleIsUsingOldState: Boolean
 }

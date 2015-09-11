@@ -8,6 +8,7 @@ package viper.carbon.modules.impls
 
 import viper.carbon.modules._
 import viper.carbon.modules.components.{InhaleComponent, ExhaleComponent, SimpleStmtComponent, DefinednessComponent}
+import viper.silver.components.StatefulComponent
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
@@ -17,7 +18,12 @@ import viper.carbon.verifier.Verifier
 /**
  * The default implementation of a [[viper.carbon.modules.HeapModule]].
  */
-class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleStmtComponent with DefinednessComponent with InhaleComponent {
+class DefaultHeapModule(val verifier: Verifier)
+    extends HeapModule
+    with SimpleStmtComponent
+    with DefinednessComponent
+    with InhaleComponent
+    with StatefulComponent {
 
   import verifier._
   import typeModule._
@@ -31,7 +37,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
   // a fresh namespace for every axiom
   def axiomNamespace = verifier.freshNamespace("heap.axiom")
 
-  override def initialize() {
+  override def start() {
     stateModule.register(this)
     stmtModule.register(this, before = Seq(verifier.permModule,verifier.stmtModule))
     expModule.register(this)
@@ -59,7 +65,10 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
   private val heapName = Identifier("Heap")
   private val exhaleHeapName = Identifier("ExhaleHeap")
   private val exhaleHeap = LocalVar(exhaleHeapName, heapTyp)
-  private var heap: Exp = GlobalVar(heapName, heapTyp)
+  private val originalHeap = GlobalVar(heapName, heapTyp)
+  private var heap: Var = originalHeap
+  private def heapVar: Var = {assert (!usingOldState); heap}
+  private def heapExp: Exp = (if (usingOldState) Old(heap) else heap)
   private val nullName = Identifier("null")
   private val nullLit = Const(nullName)
   private val freshObjectName = Identifier("freshObj")
@@ -219,7 +228,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
   private def predicateMask(loc: sil.PredicateAccess) = {
     val predicate = verifier.program.findPredicate(loc.predicateName)
     val t = predicateMaskFieldTypeOf(predicate)
-    MapSelect(heap, Seq(nullLit,
+    MapSelect(heapExp, Seq(nullLit,
       FuncApp(predicateMaskIdentifer(predicate),
         loc.args map translateExp, t)))
   }
@@ -244,13 +253,13 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
 
   /** Returns a heap-lookup of the allocated field of an object. */
   /** (should only be used for known-non-null references) */
-  private def alloc(o: Exp) = lookup(heap, o, Const(allocName))
+  private def alloc(o: Exp) = lookup(heapExp, o, Const(allocName))
 
   /** Returns a heap-lookup for o.f in a given heap h. */
   private def lookup(h: Exp, o: Exp, f: Exp) = MapSelect(h, Seq(o, f))
 
   override def translateLocationAccess(f: sil.LocationAccess): Exp = {
-    translateLocationAccess(f, heap)
+    translateLocationAccess(f, heapExp)
   }
   private def translateLocationAccess(f: sil.LocationAccess, heap: Exp): Exp = {
     f match {
@@ -315,7 +324,7 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
 
   override def freeAssumptions(e: sil.Exp): Stmt = {
     e match {
-      case sil.Unfolding(sil.PredicateAccessPredicate(loc, perm), exp) if !isUsingOldState =>
+      case sil.Unfolding(sil.PredicateAccessPredicate(loc, perm), exp) if !usingOldState =>
         addPermissionToPMask(loc)
       case _ => Nil
     }
@@ -367,22 +376,31 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
   override def translateNull: Exp = nullLit
 
   def initState: Stmt = {
+    heap = originalHeap
     Nil
   }
+  def resetState: Stmt = {
+    Havoc(heapVar)
+  }
   def initOldState: Stmt = {
-    Assume(Old(heap) === heap)
+    val hVar = heapVar
+    Assume(Old(hVar) === hVar)
   }
 
   def stateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(heapName, heapTyp))
-  def currentState: Seq[Exp] = Seq(heap)
+  def currentStateVars: Seq[Var] = Seq(heap)
+  def currentStateExps: Seq[Exp] = Seq(heapExp)
 
-  override def freshTempState(name: String): Seq[Exp] = {
+
+  override def freshTempState(name: String): Seq[Var] = {
     Seq(LocalVar(Identifier(s"${name}Heap"), heapTyp))
   }
 
-  override def restoreState(s: Seq[Exp]) {
-    heap = s(0)
+  override def restoreState(s: Seq[Var]) {
+    heap = s(0) // note: this should be accessed via heapVar or heapExp as appropriate (whether a variable is essential or not)
   }
+
+  override def usingOldState = stateModuleIsUsingOldState
 
   // AS: this is a trick to avoid well-definedness checks for the outermost heap dereference in an AccessPredicate node (since it describes the location to which permission is provided).
   // The trick is somewhat fragile, in that it relies on the ordering of the calls to this method.
@@ -410,8 +428,8 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
   }
 
   override def endExhale: Stmt = {
-    if (!isUsingOldState) Assume(FuncApp(identicalOnKnownLocsName, Seq(heap, exhaleHeap) ++ currentMask, Bool)) ++
-      (heap := exhaleHeap)
+    if (!usingOldState) Assume(FuncApp(identicalOnKnownLocsName, Seq(heapExp, exhaleHeap) ++ currentMask, Bool)) ++
+      (heapVar := exhaleHeap)
     else Nil
   }
 
@@ -421,6 +439,14 @@ class DefaultHeapModule(val verifier: Verifier) extends HeapModule with SimpleSt
         addPermissionToPMask(loc)
       case _ => Nil
     }
+  }
+
+  /**
+   * Reset the state of this module so that it can be used for new program. This method is called
+   * after verifier gets a new program.
+   */
+  override def reset(): Unit = {
+    allowHeapDeref = false
   }
 
   override def currentHeap = Seq(heap)

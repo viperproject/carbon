@@ -56,7 +56,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   def name = "Permission module (with quantified permission support)"
 
-  override def initialize() {
+  override def start() {
     stateModule.register(this)
     exhaleModule.register(this)
     inhaleModule.register(this)
@@ -72,7 +72,10 @@ class QuantifiedPermModule(val verifier: Verifier)
   private val pmaskTypeName = "PMaskType"
   override val pmaskType = NamedType(pmaskTypeName)
   private val maskName = Identifier("Mask")
-  private var mask: Exp = GlobalVar(maskName, maskType)
+  private val originalMask = GlobalVar(maskName, maskType)
+  private var mask: Var = originalMask // When reading, don't use this directly: use either maskVar or maskExp as needed
+  private def maskVar : Var = {assert (!usingOldState); mask}
+  private def maskExp : Exp = (if (usingOldState) Old(mask) else mask)
   private val zeroMaskName = Identifier("ZeroMask")
   private val zeroMask = Const(zeroMaskName)
   private val zeroPMaskName = Identifier("ZeroPMask")
@@ -156,13 +159,22 @@ class QuantifiedPermModule(val verifier: Verifier)
   def permType = NamedType(permTypeName)
 
   def stateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(maskName, maskType))
-  def currentState: Seq[Exp] = Seq(mask)
+  def currentStateVars: Seq[Var] = Seq(mask)
+  def currentStateExps: Seq[Exp] = Seq(maskExp)
+
   def initState: Stmt = {
-    (mask := zeroMask)
+    mask := originalMask
+    resetState
+  }
+  def resetState = {
+    (maskVar := zeroMask)
   }
   def initOldState: Stmt = {
-    Assume(Old(mask) === mask)
+    val mVar = maskVar
+    Assume(Old(mVar) === mVar)
   }
+
+  override def usingOldState = stateModuleIsUsingOldState
 
   override def predicateMaskField(pred: Exp): Exp = {
     FuncApp(predicateMaskFieldName, Seq(pred), pmaskType)
@@ -174,11 +186,11 @@ class QuantifiedPermModule(val verifier: Verifier)
   private def permSub(a: Exp, b: Exp): Exp = a - b
   private def permDiv(a: Exp, b: Exp): Exp = a / b
 
-  override def freshTempState(name: String): Seq[Exp] = {
+  override def freshTempState(name: String): Seq[Var] = {
     Seq(LocalVar(Identifier(s"${name}Mask"), maskType))
   }
 
-  override def restoreState(s: Seq[Exp]) {
+  override def restoreState(s: Seq[Var]) {
     mask = s(0)
   }
 
@@ -186,8 +198,8 @@ class QuantifiedPermModule(val verifier: Verifier)
    * Can a location on a given receiver be read?
    */
   private def hasDirectPerm(mask: Exp, obj: Exp, loc: Exp): Exp =
-    FuncApp(hasDirectPermName, Seq(mask, obj, loc), Bool)
-  private def hasDirectPerm(obj: Exp, loc: Exp): Exp = hasDirectPerm(mask, obj, loc)
+    FuncApp(hasDirectPermName, Seq(maskExp, obj, loc), Bool)
+  private def hasDirectPerm(obj: Exp, loc: Exp): Exp = hasDirectPerm(maskExp, obj, loc)
   override def hasDirectPerm(la: sil.LocationAccess): Exp = {
     la match {
       case sil.FieldAccess(rcv, field) =>
@@ -258,7 +270,7 @@ class QuantifiedPermModule(val verifier: Verifier)
                 If(permVar !== noPerm,
                   Assert(permLe(permVar, curPerm), error.dueTo(reasons.InsufficientPermission(loc))), Nil)
               }) ++
-              (if (!isUsingOldState) curPerm := permSub(curPerm, permVar) else Nil)
+              (if (!usingOldState) curPerm := permSub(curPerm, permVar) else Nil)
           })
       case _ => Nil
     }
@@ -280,7 +292,7 @@ class QuantifiedPermModule(val verifier: Verifier)
           (permVar := permVal) ++
           Assume(permissionPositive(permVar, Some(perm), true)) ++
           Assume(checkNonNullReceiver(loc)) ++
-          (if (!isUsingOldState) curPerm := permAdd(curPerm, permVar) else Nil)
+          (if (!usingOldState) curPerm := permAdd(curPerm, permVar) else Nil)
       case sil.QuantifiedPermissionSupporter.ForallRefPerm(v,cond,recv,fld,perms,forall,fieldAccess) =>
         val v1 = env.makeUniquelyNamed(v); env.define(v1.localVar);
         Nil
@@ -301,13 +313,13 @@ class QuantifiedPermModule(val verifier: Verifier)
     }
   }
   def currentPermission(rcv: Exp, location: Exp): MapSelect = {
-    currentPermission(mask, rcv, location)
+    currentPermission(maskExp, rcv, location)
   }
   def currentPermission(mask: Exp, rcv: Exp, location: Exp): MapSelect = {
     MapSelect(mask, Seq(rcv, location))
   }
 
-  override def currentMask = Seq(mask)
+  override def currentMask = Seq(maskVar)
   override def staticMask = Seq(LocalVarDecl(maskName, maskType))
   override def staticPermissionPositive(rcv: Exp, loc: Exp) = {
     hasDirectPerm(staticMask(0).l, rcv, loc)

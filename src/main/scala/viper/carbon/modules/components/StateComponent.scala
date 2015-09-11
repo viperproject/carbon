@@ -6,7 +6,7 @@
 
 package viper.carbon.modules.components
 
-import viper.carbon.boogie.{Exp, LocalVarDecl, Stmt}
+import viper.carbon.boogie._
 
 /**
  * The [[viper.carbon.modules.StateModule]] allows to register state components that
@@ -22,6 +22,11 @@ trait StateComponent extends Component {
   def initState: Stmt
 
   /**
+   * The statements necessary to reset the part of the state belonging to this module.
+   */
+  def resetState: Stmt
+
+  /**
    * The name and type of the contribution of this components to the state.
    */
   def stateContributions: Seq[LocalVarDecl]
@@ -29,16 +34,31 @@ trait StateComponent extends Component {
   /**
    * The current values for this components state contributions.  The number of elements
    * in the list and the types must correspond to the ones given in `stateContributions`.
+   *
+   * NOTE: these variables may need wrapping in Old(.) when used, as according to usingOldState etc. To do this wrapping internally, call instead currentStateExps below
    */
-  def currentState: Seq[Exp]
+  def currentStateVars: Seq[Var]
+
+  /**
+   * The current values for this components state contributions, adjusted for "old".  The number of elements
+   * in the list and the types must correspond to the ones given in `stateContributions`.
+   */
+  def currentStateExps: Seq[Exp]
 
   /**
    * Set up a fresh temporary state and returns that new state.
    */
-  def freshTempState(name: String): Seq[Exp]
+  def freshTempState(name: String): Seq[Var]
 
   /**
    * Throw away the current state and go back to a snapshot.
    */
-  def restoreState(previousState: Seq[Exp])
+  def restoreState(previousState: Seq[Var])
+
+  /**
+   * Are we currently using an "old" state? Note: this is mainly as documentation that the states passed to other methods above will need wrapping in "olD2 when *used*, if we are currently using an old state. This method would typically be implemented by querying the corresponding StateModule
+   *
+   * Note in particular that variable passed in via "replaceState" above will typically need wrapping in old(.) if this is set to true
+   */
+  def usingOldState: Boolean
 }

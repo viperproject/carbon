@@ -7,6 +7,7 @@
 package viper.carbon.modules.impls
 
 import viper.carbon.modules.SeqModule
+import viper.silver.components.StatefulComponent
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.Verifier
@@ -17,7 +18,10 @@ import viper.carbon.modules.components.DefinednessComponent
 /**
  * The default implementation of [[viper.carbon.modules.SeqModule]].
  */
-class DefaultSeqModule(val verifier: Verifier) extends SeqModule with DefinednessComponent {
+class DefaultSeqModule(val verifier: Verifier)
+    extends SeqModule
+    with DefinednessComponent
+    with StatefulComponent {
 
   import verifier._
   import typeModule._
@@ -71,8 +75,15 @@ class DefaultSeqModule(val verifier: Verifier) extends SeqModule with Definednes
         FuncApp(Identifier("Seq#Drop"), List(t(seq), t(n)), typ)
       case sil.SeqContains(elem, seq) =>
         FuncApp(Identifier("Seq#Contains"), List(t(seq), t(elem)), typ)
-      case sil.SeqUpdate(seq, idx, elem) =>
-        FuncApp(Identifier("Seq#Update"), List(t(seq), t(idx), t(elem)), typ)
+      case sexp@sil.SeqUpdate(seq, idx, elem) =>
+      {
+        // translate as (s[..i] ++ ([i] ++ s[i+1..])) (NOTE: this assumes i is in the range, which is not yet checked)
+        t(sexp.desugaredAssumingIndexInRange)
+       // val s = t(seq)
+       // val i = t(idx)
+       // val v = t(elem)
+       // FuncApp(Identifier("Seq#Append"),List(FuncApp(Identifier("Seq#Take"), List(s,i),typ),FuncApp(Identifier("Seq#Append"),List(FuncApp(Identifier("Seq#Singleton"), v, typ),FuncApp(Identifier("Seq#Drop"), List(s,BinExp(i,Add,IntLit(1))),typ)),typ)),typ)
+      }
       case sil.SeqLength(seq) =>
         FuncApp(Identifier("Seq#Length"), t(seq), typ)
       case sil.EqCmp(left, right) =>
@@ -86,5 +97,13 @@ class DefaultSeqModule(val verifier: Verifier) extends SeqModule with Definednes
   override def translateSeqType(seqType: sil.SeqType): Type = {
     used = true
     NamedType("Seq", translateType(seqType.elementType))
+  }
+
+  /**
+   * Reset the state of this module so that it can be used for new program. This method is called
+   * after verifier gets a new program.
+   */
+  override def reset(): Unit = {
+    used = false
   }
 }

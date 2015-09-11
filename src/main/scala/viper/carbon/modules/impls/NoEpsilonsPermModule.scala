@@ -57,7 +57,7 @@ class NoEpsilonsPermModule(val verifier: Verifier)
 
   def name = "Permission module"
 
-  override def initialize() {
+  override def start() {
     stateModule.register(this)
     exhaleModule.register(this)
     inhaleModule.register(this)
@@ -74,7 +74,10 @@ class NoEpsilonsPermModule(val verifier: Verifier)
   private val pmaskTypeName = "PMaskType"
   override val pmaskType = NamedType(pmaskTypeName)
   private val maskName = Identifier("Mask")
-  private var mask: Exp = GlobalVar(maskName, maskType)
+  private val originalMask = GlobalVar(maskName, maskType)
+  private var mask: Var = originalMask // When reading, don't use this directly: use either maskVar or maskExp as needed
+  private def maskVar : Var = {assert (!usingOldState); mask}
+  private def maskExp : Exp = (if (usingOldState) Old(mask) else mask)
   private val zeroMaskName = Identifier("ZeroMask")
   private val zeroMask = Const(zeroMaskName)
   private val zeroPMaskName = Identifier("ZeroPMask")
@@ -138,13 +141,13 @@ class NoEpsilonsPermModule(val verifier: Verifier)
         Trigger(Seq(staticGoodState)),
         staticGoodState ==> staticGoodMask)) ++ {
       val perm = currentPermission(obj.l, field.l)
-      Axiom(Forall(stateContributions ++ obj ++ field,
-        Trigger(Seq(staticGoodMask, perm)),
+        Axiom(Forall(stateContributions ++ obj ++ field,
+          Trigger(Seq(staticGoodMask, perm)),
         // permissions are non-negative
         (staticGoodMask ==> perm >= RealLit(0)) &&
         // permissions for fields which aren't predicates or wands are smaller than 1
           ((staticGoodMask && heapModule.isPredicateField(field.l).not && heapModule.isWandField(field.l).not) ==> perm <= RealLit(1) )
-      ))
+        ))
     } ++ {
       val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
       val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
@@ -178,13 +181,22 @@ class NoEpsilonsPermModule(val verifier: Verifier)
   def permType = NamedType(permTypeName)
 
   def stateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(maskName, maskType))
-  def currentState: Seq[Exp] = Seq(mask)
+  def currentStateVars: Seq[Var] = Seq(mask)
+  def currentStateExps: Seq[Exp] = Seq(maskExp)
+
   def initState: Stmt = {
-    (mask := zeroMask)
+    mask := originalMask
+    resetState
+  }
+  def resetState = {
+    (maskVar := zeroMask)
   }
   def initOldState: Stmt = {
-    Assume(Old(mask) === mask)
+    val mVar = maskVar
+    Assume(Old(mVar) === mVar)
   }
+
+  override def usingOldState = stateModuleIsUsingOldState
 
   override def predicateMaskField(pred: Exp): Exp = {
     FuncApp(predicateMaskFieldName, Seq(pred), pmaskType)
@@ -208,7 +220,7 @@ class NoEpsilonsPermModule(val verifier: Verifier)
    */
   private def hasDirectPerm(mask: Exp, obj: Exp, loc: Exp): Exp =
     FuncApp(hasDirectPermName, Seq(mask, obj, loc), Bool)
-  private def hasDirectPerm(obj: Exp, loc: Exp): Exp = hasDirectPerm(mask, obj, loc)
+  private def hasDirectPerm(obj: Exp, loc: Exp): Exp = hasDirectPerm(maskExp, obj, loc)
   override def hasDirectPerm(la: sil.LocationAccess): Exp = {
     la match {
       case sil.FieldAccess(rcv, field) =>
@@ -279,7 +291,7 @@ class NoEpsilonsPermModule(val verifier: Verifier)
                 If(permVar !== noPerm,
                 Assert(permLe(permVar, curPerm), error.dueTo(reasons.InsufficientPermission(loc))), Nil)
               }) ++
-              (if (!isUsingOldState) curPerm := permSub(curPerm, permVar) else Nil)
+              (if (!usingOldState) curPerm := permSub(curPerm, permVar) else Nil)
         })
       case w@sil.MagicWand(left,right) =>
         val wandRep = wandModule.getWandRepresentation(w)
@@ -324,7 +336,7 @@ class NoEpsilonsPermModule(val verifier: Verifier)
           (permVar := permVal) ++
           Assume(permissionPositive(permVar, Some(perm), true)) ++
           Assume(checkNonNullReceiver(loc)) ++
-          (if (!isUsingOldState) curPerm := permAdd(curPerm, permVar) else Nil)
+          (if (!usingOldState) curPerm := permAdd(curPerm, permVar) else Nil)
       case _ => Nil
     }
   }*/
@@ -391,15 +403,14 @@ class NoEpsilonsPermModule(val verifier: Verifier)
         currentPermission(translateNull, translateLocation(loc))
     }
   }
-
-  override def currentPermission(rcv: Exp, location: Exp): MapSelect = {
-    currentPermission(mask, rcv, location)
+  def currentPermission(rcv: Exp, location: Exp): MapSelect = {
+    currentPermission(maskExp, rcv, location)
   }
   def currentPermission(mask: Exp, rcv: Exp, location: Exp): MapSelect = {
     MapSelect(mask, Seq(rcv, location))
   }
 
-  override def currentMask = Seq(mask)
+  override def currentMask = Seq(maskExp)
   override def staticMask = Seq(LocalVarDecl(maskName, maskType))
   override def staticPermissionPositive(rcv: Exp, loc: Exp) = {
     hasDirectPerm(staticMask(0).l, rcv, loc)
@@ -622,12 +633,11 @@ class NoEpsilonsPermModule(val verifier: Verifier)
     def isFixedPerm(e: sil.Exp): Boolean = {
       require(e isSubtype sil.Perm)
       e match {
-        case x: sil.LocalVar => false // we have to be conservative - anything could have been assigned here
         case sil.NoPerm() => true
         case sil.FullPerm() => true
         case sil.WildcardPerm() => false
         case sil.EpsilonPerm() =>  sys.error("epsilon permissions are not supported by this permission module")
-        case sil.CurrentPerm(loc) => true
+        //case sil.CurrentPerm(loc) => true
         case sil.FractionalPerm(left, right) => true
         case sil.PermAdd(left, right) =>
           isFixedPerm(left) && isFixedPerm(right)
@@ -641,8 +651,8 @@ class NoEpsilonsPermModule(val verifier: Verifier)
           isFixedPerm(b)
         case sil.CondExp(cond, thn, els) =>
           isFixedPerm(thn) && isFixedPerm(els) // note: this doesn't take account of condition (due to being a syntactic check) - in theory could be overly-restrictive
-        case _: sil.FuncLikeApp => true
-        case _ => sys.error(s"not a permission expression: $e")
+        //case _: sil.FuncLikeApp => true
+        case _ => false // conservative for local variables, field dereferences etc.
       }
     }
 

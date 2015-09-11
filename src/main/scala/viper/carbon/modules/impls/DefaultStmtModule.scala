@@ -7,6 +7,7 @@
 package viper.carbon.modules.impls
 
 import viper.carbon.modules.StmtModule
+import viper.silver.ast.utility.Expressions.{whenExhaling, whenInhaling}
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.Verifier
@@ -30,7 +31,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
   import funcPredModule._
   import wandModule._
 
-  override def initialize() {
+  override def start() {
     // this is the main translation, so it should come at the beginning
     register(this, before = verifier.allModules)
   }
@@ -65,27 +66,27 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
       case assign@sil.FieldAssign(lhs, rhs) =>
         checkDefinedness(lhs, errors.AssignmentFailed(assign)) ++ 
           checkDefinedness(rhs, errors.AssignmentFailed(assign))
-      //case fold@sil.Fold(e) => Should be handled by handleStmt above
+      case fold@sil.Fold(e) => sys.error("Internal error: translation of fold statement cannot be handled by simpleHandleStmt code; found:" + fold.toString())
       case unfold@sil.Unfold(e) =>
         translateUnfold(unfold)
       case inh@sil.Inhale(e) =>
-        checkDefinednessOfSpecAndInhale(e, errors.InhaleFailed(inh))
-        //checkDefinedness(e, errors.InhaleFailed(inh)) ++
-        //  inhale(e)
+        checkDefinednessOfSpecAndInhale(whenInhaling(e), errors.InhaleFailed(inh))
       case exh@sil.Exhale(e) =>
-        checkDefinedness(e, errors.ExhaleFailed(exh)) ++
-          exhale((e, errors.ExhaleFailed(exh)))
+        val transformedExp = whenExhaling(e)
+        checkDefinedness(transformedExp, errors.ExhaleFailed(exh)) ++
+          exhale((transformedExp, errors.ExhaleFailed(exh)))
       case a@sil.Assert(e) =>
-        if (e.isPure) {
+        val transformedExp = whenExhaling(e)
+        if (transformedExp.isPure) {
           // if e is pure, then assert and exhale are the same
-          checkDefinedness(e, errors.AssertFailed(a)) ++
-            exhale((e, errors.AssertFailed(a)))
+          checkDefinedness(transformedExp, errors.AssertFailed(a)) ++
+            exhale((transformedExp, errors.AssertFailed(a)))
         } else {
           // we create a temporary state to ignore the side-effects
           val (backup, snapshot) = freshTempState("Assert")
-          val exhaleStmt = exhale((e, errors.AssertFailed(a)))
-          restoreState(snapshot)
-          checkDefinedness(e, errors.AssertFailed(a)) :: backup :: exhaleStmt :: Nil
+          val exhaleStmt = exhale((transformedExp, errors.AssertFailed(a)))
+          replaceState(snapshot)
+          checkDefinedness(transformedExp, errors.AssertFailed(a)) :: backup :: exhaleStmt :: Nil
         }
       case mc@sil.MethodCall(methodName, args, targets) =>
         val method = verifier.program.findMethod(methodName)
@@ -93,7 +94,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
         val (preCallStateStmt, state) = stateModule.freshTempState("PreCall")
         val preCallState = stateModule.state
         val oldState = stateModule.oldState
-        stateModule.restoreState(state)
+        stateModule.replaceState(state)
         val toUndefine = collection.mutable.ListBuffer[sil.LocalVar]()
         val actualArgs = (args.zipWithIndex) map (a => {
           val (actual, i) = a
@@ -122,9 +123,9 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           (actualArgs map (_._2)) ++
           Havoc((targets map translateExp).asInstanceOf[Seq[Var]]) ++
           MaybeCommentBlock("Exhaling precondition", executeUnfoldings(pres, (pre => errors.Internal(pre))) ++ exhale(pres map (e => (e, errors.PreconditionInCallFalse(mc))))) ++ {
-          stateModule.restoreOldState(preCallState)
+          stateModule.replaceOldState(preCallState)
           val res = MaybeCommentBlock("Inhaling postcondition", inhale(posts) ++ executeUnfoldings(posts, (post => errors.Internal(post))))
-          stateModule.restoreOldState(oldState)
+          stateModule.replaceOldState(oldState)
           toUndefine map mainModule.env.undefine
           res
         }
@@ -154,7 +155,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
               MaybeCommentBlock("Translate loop body", translateStmt(body)) ++
               MaybeComment("Exhale invariant", executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotPreserved(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e))))) ++
               MaybeComment("Terminate execution", Assume(FalseLit()))
-            stateModule.restoreState(prevState)
+            stateModule.replaceState(prevState)
             locals map (v => mainModule.env.undefine(v.localVar)) // remove local variables from environment - this should be revisited when scopes are properly implemented
             stmts
           }

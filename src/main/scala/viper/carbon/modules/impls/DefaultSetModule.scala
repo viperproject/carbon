@@ -7,6 +7,7 @@
 package viper.carbon.modules.impls
 
 import viper.carbon.modules.SetModule
+import viper.silver.components.StatefulComponent
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.Verifier
@@ -18,7 +19,10 @@ import viper.carbon.modules.components.DefinednessComponent
  * The default implementation of [[viper.carbon.modules.SetModule]].
 
  */
-class DefaultSetModule(val verifier: Verifier) extends SetModule with DefinednessComponent {
+class DefaultSetModule(val verifier: Verifier)
+    extends SetModule
+    with DefinednessComponent
+    with StatefulComponent {
 
   import verifier._
   import typeModule._
@@ -107,7 +111,7 @@ class DefaultSetModule(val verifier: Verifier) extends SetModule with Definednes
         else FuncApp(Identifier("Set#Difference"), List(t(left), t(right)), typ)
       case sil.AnySetContains(left, right) =>
         if (isMultiset(right))
-          BinExp(MapSelect(t(right),Seq(t(left))),GtCmp,IntLit(0))
+          MapSelect(t(right),Seq(t(left)))
          // FuncApp(Identifier("MultiSet#Subset"), List(FuncApp(Identifier("MultiSet#Singleton"), List(t(left)), typ), t(right)), Bool)
         else
           MapSelect(t(right),Seq(t(left)))
@@ -133,5 +137,13 @@ class DefaultSetModule(val verifier: Verifier) extends SetModule with Definednes
   override def translateMultisetType(setType: sil.MultisetType): Type = {
     used = true
     NamedType("MultiSet", translateType(setType.elementType))
+  }
+
+  /**
+   * Reset the state of this module so that it can be used for new program. This method is called
+   * after verifier gets a new program.
+   */
+  override def reset(): Unit = {
+    used = false
   }
 }

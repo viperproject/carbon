@@ -17,7 +17,7 @@ import viper.silver.verifier.PartialVerificationError
 trait InhaleComponent extends Component {
 
   /**
-   * Exhale a single expression.
+   * Inhale a single expression.
    */
   def inhaleExp(exp: sil.Exp): Stmt
 }

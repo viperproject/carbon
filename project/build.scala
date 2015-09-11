@@ -9,9 +9,9 @@ object CarbonBuild extends Build {
     ++ Seq(
           organization := "viper",
           version := "1.0-SNAPSHOT",
-          scalaVersion := "2.10.1",
+          scalaVersion := "2.11.7",
           scalacOptions in Compile ++= Seq("-deprecation", "-unchecked", "-feature"),
-          libraryDependencies += "org.rogach" %% "scallop" % "0.9.4",
+          libraryDependencies += "org.rogach" %% "scallop" % "0.9.5",
           libraryDependencies += "org.jgrapht" % "jgrapht-core" % "0.9.0"
        )
   )
@@ -46,6 +46,6 @@ object CarbonBuild extends Build {
 
   object dependencies {
     lazy val sil = "viper" %% "silver" %  "0.1-SNAPSHOT" % "compile->compile;test->test"
-    lazy val silSrc = RootProject(new java.io.File("../wand-silver-guarav"))
+    lazy val silSrc = RootProject(new java.io.File("../silver"))
   }
 }

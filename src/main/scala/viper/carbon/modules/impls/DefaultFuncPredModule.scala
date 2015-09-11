@@ -7,7 +7,11 @@
 package viper.carbon.modules.impls
 
 import viper.carbon.modules._
+import viper.silver.ast.utility.Expressions.{whenExhaling, whenInhaling, contains}
 import viper.silver.ast.{PredicateAccess, PredicateAccessPredicate, Unfolding}
+import viper.silver.ast.{FuncApp => silverFuncApp}
+import viper.silver.components.StatefulComponent
+import viper.silver.verifier.errors.FunctionNotWellformed
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.{Environment, Verifier}
@@ -20,7 +24,7 @@ import viper.silver.verifier.{NullPartialVerificationError, errors, PartialVerif
  * The default implementation of a [[viper.carbon.modules.FuncPredModule]].
  */
 class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule
-with DefinednessComponent with ExhaleComponent with InhaleComponent {
+with DefinednessComponent with ExhaleComponent with InhaleComponent with StatefulComponent {
   def name = "Function and predicate module"
 
   import verifier._
@@ -35,7 +39,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   implicit val fpNamespace = verifier.freshNamespace("funcpred")
 
-  lazy val heights = Functions.heights(verifier.program)
+  private var heights: Map[viper.silver.ast.Function, Int] = null
   private val assumeFunctionsAboveName = Identifier("AssumeFunctionsAbove")
   private val assumeFunctionsAbove: Const = Const(assumeFunctionsAboveName)
   private val specialRefName = Identifier("special_ref")
@@ -131,10 +135,22 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       }, size = 1)
   }
 
-  override def initialize() {
+  override def start() {
     expModule.register(this)
-    inhaleModule.register(this)
-    exhaleModule.register(this)
+    inhaleModule.register(this, before = Seq(verifier.inhaleModule)) // this is because of inhaleExp definition, which tries to add extra information from executing the unfolding first
+    exhaleModule.register(this, before = Seq(verifier.exhaleModule)) // this is because of inhaleExp definition, which tries to add extra information from executing the unfolding first
+  }
+
+  override def reset() = {
+    heights = Functions.heights(verifier.program)
+    tmpStateId = -1
+    duringFold = false
+    foldInfo = null
+    duringUnfold = false
+    duringUnfoldingExtraUnfold = false
+    unfoldInfo = null
+    exhaleTmpStateId = -1
+    extraUnfolding = false
   }
 
     override def translateFunction(f: sil.Function): Seq[Decl] = {
@@ -169,7 +185,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   }
 
   override def translateFuncApp(fa: sil.FuncApp) = {
-    translateFuncApp(fa.funcname, heapModule.currentState ++ (fa.args map translateExp), fa.typ)
+    translateFuncApp(fa.funcname, currentStateExps ++ (fa.args map translateExp), fa.typ)
   }
   def translateFuncApp(fname : String, args: Seq[Exp], typ: sil.Type) = {
     FuncApp(Identifier(fname), args, translateType(typ))
@@ -189,8 +205,17 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val args = f.formalArgs map translateLocalVarDecl
     val fapp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
     val body = transformLimited(translateExp(f.body.get),height)
-    val outerUnfoldings : Seq[Unfolding] = Functions.recursiveCallsAndSurroundingUnfoldings(f).map((pair) => pair._2.headOption).flatten
-    val predicateTriggers = outerUnfoldings.map{case Unfolding(PredicateAccessPredicate(predacc : PredicateAccess,perm),exp) => predicateTrigger(heap map (_.l), predacc)}
+
+    // The idea here is that we can generate additional triggers for the function definition, which allow its definition to be triggered in any state in which the corresponding *predicate* has been folded or unfolded, in the following scenarios:
+    // (a) if the function is recursive, and if the predicate is unfolded around the recursive call in the function body
+    // (b) if the function is not recursive, and the predicate is mentioned in its precondition
+    // In either case, the function must have been mentioned *somewhere* in the program (not necessarily the state in which its definition is triggered) with the corresponding combination of function arguments.
+    val recursiveCallsAndUnfoldings : Seq[(silverFuncApp,Seq[Unfolding])] = Functions.recursiveCallsAndSurroundingUnfoldings(f)
+    val outerUnfoldings : Seq[Unfolding] = recursiveCallsAndUnfoldings.map((pair) => pair._2.headOption).flatten
+    val predicateTriggers : Seq[Exp] = if (recursiveCallsAndUnfoldings.isEmpty) // then any predicate in the precondition will do (at the moment, regardless of position - seems OK since there is no recursion)
+      (f.pres map (p => p.shallowCollect{case pacc : PredicateAccess => pacc})).flatten map (p => predicateTrigger(heap map (_.l), p))
+    else outerUnfoldings.map{case Unfolding(PredicateAccessPredicate(predacc : PredicateAccess,perm),exp) => predicateTrigger(heap map (_.l), predacc)}
+
     Axiom(Forall(
       stateModule.stateContributions ++ args,
       Seq(Trigger(Seq(staticGoodState,fapp))) ++ (if (predicateTriggers.isEmpty) Seq()  else Seq(Trigger(Seq(staticGoodState, triggerFuncApp(f.name,args map (_.l))) ++ predicateTriggers))),
@@ -220,7 +245,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val fapp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
     val res = translateResult(sil.Result()(f.typ))
     for (post <- f.posts) yield {
-      val bPost = translateExp(post) transform {
+      val bPost = translateExp(whenInhaling(post)) transform {
         case e if e == res => Some(fapp)
       }
       Axiom(Forall(
@@ -297,22 +322,105 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val init = MaybeCommentBlock("Initializing the state",
       stateModule.initState ++ (f.formalArgs map (a => allAssumptionsAboutValue(a.typ,mainModule.translateLocalVarDecl(a),true))) ++ assumeAllFunctionDefinitions)
     val initOld = MaybeCommentBlock("Initializing the old state", stateModule.initOldState)
-    val checkPre = MaybeCommentBlock("Inhaling precondition (with checking)",
-      f.pres map (e => checkDefinednessOfSpecAndInhale(e, errors.FunctionNotWellformed(f))))
-      val checkExp = if (f.isAbstract) MaybeCommentBlock("(no definition for abstract function)",Nil) else
-        MaybeCommentBlock("Check definedness of function body",
-        expModule.checkDefinedness(f.body.get, errors.FunctionNotWellformed(f)))
-      val exp = if (f.isAbstract) MaybeCommentBlock("(no definition for abstract function)",Nil) else
-        MaybeCommentBlock("Translate function body",
-        translateResult(res) := translateExp(f.body.get))
-    val checkPost = if (f.isAbstract)
-      MaybeCommentBlock("Checking definedness of postcondition (no body)",
-      f.posts map (e => checkDefinedness(e, errors.ContractNotWellformed(e))))
-    else
-      MaybeCommentBlock("Exhaling postcondition (with checking)",
-      f.posts map (e => checkDefinednessOfSpecAndExhale(e, errors.ContractNotWellformed(e), errors.PostconditionViolated(e, f))))
+    val checkPre = checkFunctionPreconditionDefinedness(f)
+    val checkExp = if (f.isAbstract) MaybeCommentBlock("(no definition for abstract function)",Nil) else
+      MaybeCommentBlock("Check definedness of function body",
+      expModule.checkDefinedness(f.body.get, errors.FunctionNotWellformed(f)))
+    val exp = if (f.isAbstract) MaybeCommentBlock("(no definition for abstract function)",Nil) else
+      MaybeCommentBlock("Translate function body",
+      translateResult(res) := translateExp(f.body.get))
+    val checkPost = checkFunctionPostconditionDefinedness(f)
     val body = Seq(init, initOld, checkPre, checkExp, exp, checkPost)
     Procedure(Identifier(f.name + "#definedness"), args, translateResultDecl(res), body)
+  }
+
+  private def checkFunctionPostconditionDefinedness(f: sil.Function): Stmt with Product with Serializable = {
+    if (contains[sil.InhaleExhaleExp](f.posts)) {
+      // Postcondition contains InhaleExhale expression.
+      // Need to check inhale and exhale parts separately.
+      val onlyInhalePosts: Seq[Stmt] = f.posts map (e => {
+        checkDefinedness(whenInhaling(e), errors.ContractNotWellformed(e))
+      })
+      val onlyExhalePosts: Seq[Stmt] = if (f.isAbstract) {
+        f.posts map (e => {
+          checkDefinedness(
+            whenExhaling(e),
+            errors.ContractNotWellformed(e))
+        })
+      }
+      else {
+        f.posts map (e => {
+          checkDefinednessOfSpecAndExhale(
+            whenExhaling(e),
+            errors.ContractNotWellformed(e),
+            errors.PostconditionViolated(e, f))
+        })
+      }
+      val inhaleCheck = MaybeCommentBlock(
+        "Do welldefinedness check of the inhale part.",
+        NondetIf(onlyInhalePosts ++ Assume(FalseLit())))
+      if (f.isAbstract) {
+        MaybeCommentBlock("Checking definedness of postcondition (no body)",
+          inhaleCheck ++
+          MaybeCommentBlock("Do welldefinedness check of the inhale part.",
+            onlyExhalePosts))
+      }
+      else {
+        MaybeCommentBlock("Exhaling postcondition (with checking)",
+          inhaleCheck ++
+          MaybeCommentBlock("Normally inhale the exhale part.",
+            onlyExhalePosts))
+      }
+    }
+    else {
+      // Postcondition does not contain InhaleExhale expression.
+      if (f.isAbstract) {
+        val posts: Seq[Stmt] = f.posts map (e => {
+          checkDefinedness(e, errors.ContractNotWellformed(e))
+        })
+        MaybeCommentBlock("Checking definedness of postcondition (no body)", posts)
+      }
+      else {
+        val posts: Seq[Stmt] = f.posts map (e => {
+          checkDefinednessOfSpecAndExhale(
+            e,
+            errors.ContractNotWellformed(e),
+            errors.PostconditionViolated(e, f))
+        })
+        MaybeCommentBlock("Exhaling postcondition (with checking)", posts)
+      }
+    }
+  }
+
+  private def checkFunctionPreconditionDefinedness(f: sil.Function): Stmt with Product with Serializable = {
+    if (contains[sil.InhaleExhaleExp](f.pres)) {
+      // Precondition contains InhaleExhale expression.
+      // Need to check inhale and exhale parts separately.
+      val onlyExhalePres: Seq[Stmt] = checkDefinednessOfExhaleSpecAndInhale(
+        f.pres,
+        (e) => {
+          errors.ContractNotWellformed(e)
+        })
+      val onlyInhalePres: Seq[Stmt] = checkDefinednessOfInhaleSpecAndInhale(
+        f.pres,
+        (e) => {
+          errors.ContractNotWellformed(e)
+        })
+      MaybeCommentBlock("Inhaling precondition (with checking)",
+        MaybeCommentBlock("Do welldefinedness check of the exhale part.",
+          NondetIf(onlyExhalePres ++ Assume(FalseLit()))) ++
+          MaybeCommentBlock("Normally inhale the inhale part.",
+            onlyInhalePres)
+      )
+    }
+    else {
+      val pres: Seq[Stmt] = checkDefinednessOfInhaleSpecAndInhale(
+        f.pres,
+        (e) => {
+          errors.ContractNotWellformed(e)
+        })
+      MaybeCommentBlock("Inhaling precondition (with checking)", pres)
+    }
   }
 
   private def translateResultDecl(r: sil.Result) = LocalVarDecl(resultName, translateType(r.typ))
@@ -348,7 +456,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         }
         def after() = {
           tmpStateId -= 1
-          stateModule.restoreState(state)
+          stateModule.replaceState(state)
           Nil
         }
         (before, after)
@@ -398,13 +506,14 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     foldInfo = acc
     val stmt = exhale(Seq((acc.loc.predicateBody(verifier.program).get, error)), havocHeap = false) ++
       inhale(acc)
-    val stmtLast =  Assume(predicateTrigger(heapModule.currentState, acc.loc))
+    val stmtLast =  Assume(predicateTrigger(heapModule.currentStateExps, acc.loc))
     foldInfo = null
     duringFold = false
     (stmt,stmtLast)
   }
 
   private var duringUnfold = false
+  private var duringUnfoldingExtraUnfold = false // are we executing an extra unfold, to reflect the meaning of inhaling or exhaling an unfolding expression?
   private var unfoldInfo: sil.PredicateAccessPredicate = null
   override def translateUnfold(unfold: sil.Unfold): Stmt = {
     unfold match {
@@ -422,7 +531,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     duringFold = false
     duringUnfold = true
     unfoldInfo = acc
-    val stmt = Assume(predicateTrigger(heapModule.currentState, acc.loc)) ++
+    val stmt = Assume(predicateTrigger(heapModule.currentStateExps, acc.loc)) ++
       exhale(Seq((acc, error)), havocHeap = false) ++
       inhale(acc.loc.predicateBody(verifier.program).get)
     unfoldInfo = oldUnfoldInfo
@@ -433,6 +542,19 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
+      case sil.Unfolding(acc, _) => if (duringUnfoldingExtraUnfold) Nil else // execute the unfolding, since this may gain information
+      {
+        duringUnfoldingExtraUnfold = true
+        tmpStateId += 1
+        val tmpStateName = if (tmpStateId == 0) "Unfolding" else s"Unfolding$tmpStateId"
+        val (stmt, state) = stateModule.freshTempState(tmpStateName)
+        val stmts = stmt ++ unfoldPredicate(acc, NullPartialVerificationError)
+        tmpStateId -= 1
+        stateModule.replaceState(state)
+        duringUnfoldingExtraUnfold = false
+
+        CommentBlock("Execute unfolding (for extra information)",stmts)
+      }
       case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(_, _), perm) if duringUnfold && currentPhaseId == 0 =>
         val oldVersion = LocalVar(Identifier("oldVersion"), Int)
         val newVersion = LocalVar(Identifier("newVersion"), Int)
@@ -477,8 +599,20 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   var extraUnfolding = false
   override def inhaleExp(e: sil.Exp): Stmt = {
     e match {
-      case sil.Unfolding(acc, exp) =>
-        Nil
+      case sil.Unfolding(acc, _) => if (duringUnfoldingExtraUnfold) Nil else // execute the unfolding, since this may gain information
+      {
+        duringUnfoldingExtraUnfold = true
+        tmpStateId += 1
+        val tmpStateName = if (tmpStateId == 0) "Unfolding" else s"Unfolding$tmpStateId"
+        val (stmt, state) = stateModule.freshTempState(tmpStateName)
+        val stmts = stmt ++ unfoldPredicate(acc, NullPartialVerificationError)
+        tmpStateId -= 1
+        stateModule.replaceState(state)
+        duringUnfoldingExtraUnfold = false
+
+        CommentBlock("Execute unfolding (for extra information)",stmts)
+      }
+
       case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(_, _), perm) =>
         val res: Stmt = if (extraUnfolding) {
           exhaleTmpStateId += 1
@@ -488,7 +622,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           val r = stmt ++ unfoldPredicate(pap, NullPartialVerificationError)
           extraUnfolding = true
           exhaleTmpStateId -= 1
-          stateModule.restoreState(state)
+          stateModule.replaceState(state)
           r
         } else Nil
         CommentBlock("Extra unfolding of predicate",
