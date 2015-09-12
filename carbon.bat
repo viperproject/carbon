@@ -7,6 +7,7 @@ if not exist carbon_classpath.txt (
 	rem Read all lines of the sbt runtime classpath output and parse it against the regex supplied to findstr.
 	rem The regex looks for lines not starting with '[' and ending in '.jar' as the classpath usually does
 	rem (and log lines don't, since they are prefixed with [LOGLEVEL]).
+	echo Generating missing carbon_classpath.txt file from sbt classpath
 	for /f "tokens=*" %%i in ('sbt "export runtime:dependencyClasspath" ^| findstr "[^\[].*\.jar$"') do (
 		echo |set /p=%%i > carbon_classpath.txt
 	)
