@@ -208,11 +208,11 @@ class NoEpsilonsPermModule(val verifier: Verifier)
   private def permSub(a: Exp, b: Exp): Exp = a - b
   private def permDiv(a: Exp, b: Exp): Exp = a / b
 
-  override def freshTempState(name: String): Seq[Exp] = {
+  override def freshTempState(name: String): Seq[Var] = {
     Seq(LocalVar(Identifier(s"${name}Mask"), maskType))
   }
 
-  override def restoreState(s: Seq[Exp]) {
+  override def restoreState(s: Seq[Var]) {
     mask = s(0)
   }
   /**
@@ -298,7 +298,7 @@ class NoEpsilonsPermModule(val verifier: Verifier)
         val curPerm = currentPermission(translateNull, wandRep)
         Comment("permLe")++ //using RealLit(1.0) instead of FullPerm due to permLe's implementation
         Assert(permLe(RealLit(1.0), curPerm), error.dueTo(reasons.MagicWandChunkNotFound(w))) ++
-        (if (!isUsingOldState) curPerm := permSub(curPerm, RealLit(1.0)) else Nil)
+        (if (!usingOldState) curPerm := permSub(curPerm, RealLit(1.0)) else Nil)
       case _ => Nil
     }
   }
@@ -366,11 +366,11 @@ class NoEpsilonsPermModule(val verifier: Verifier)
           (permVar := permVal) ++
           assmsToStmt(permissionPositive(permVar, Some(perm), true)) ++
           assmsToStmt(checkNonNullReceiver(loc)) ++
-          (if (!isUsingOldState) curPerm := permAdd(curPerm, permVar) else Nil)
+          (if (!usingOldState) curPerm := permAdd(curPerm, permVar) else Nil)
       case w@sil.MagicWand(left,right) =>
         val wandRep = wandModule.getWandRepresentation(w)
         val curPerm = currentPermission(translateNull, wandRep)
-        (if (!isUsingOldState) curPerm := permAdd(curPerm, fullPerm) else Nil)
+        (if (!usingOldState) curPerm := permAdd(curPerm, fullPerm) else Nil)
       case _ => Nil
     }
   }
@@ -386,7 +386,7 @@ class NoEpsilonsPermModule(val verifier: Verifier)
         case _ => Nil
       }
     } ++ */
-      (if (!isUsingOldState) curPerm := permAdd(curPerm, e.transferAmount) else Nil)
+      (if (!usingOldState) curPerm := permAdd(curPerm, e.transferAmount) else Nil)
   }
 
   override def tempInitMask(rcv: Exp, loc:Exp):(Seq[Exp], Stmt) = {

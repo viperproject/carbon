@@ -296,17 +296,18 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
    * GP: maybe should "MagicWandNotWellFormed" error
    */
   private def checkDefinednessWand(e: sil.MagicWand, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
-   val curState = stateModule.getCopyState
-   val (initStmtLHS,defStateLHS): (Stmt,stateModule.StateSnapshot) = stateModule.freshEmptyState("WandDefLHS",true)
-    val (initStmtRHS, defStateRHS): (Stmt, stateModule.StateSnapshot) = stateModule.freshEmptyState("WandDefRHS",true)
+   val (initStmtLHS,curState): (Stmt,stateModule.StateSnapshot) = stateModule.freshEmptyState("WandDefLHS",true)
+    val defStateLHS = stateModule.state
+    val (initStmtRHS, _): (Stmt, stateModule.StateSnapshot) = stateModule.freshEmptyState("WandDefRHS",true)
+    val defStateRHS = stateModule.state
 
-    stateModule.restoreState(defStateLHS)
+    stateModule.replaceState(defStateLHS)
     val lhs = initStmtLHS ++  checkDefinednessOfSpecAndInhale(e.left,error)
 
-    stateModule.restoreState(defStateRHS)
+    stateModule.replaceState(defStateRHS)
     val rhs= initStmtRHS ++ checkDefinednessOfSpecAndInhale(e.right, error)
 
-    stateModule.restoreState(curState)
+    stateModule.replaceState(curState)
     NondetIf(lhs++rhs++Assume(FalseLit()))
   }
 

@@ -150,7 +150,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
             mainError = error //set the default error to be used by all operations
 
             val addWand = inhaleModule.inhale(w)
-            val currentState = stateModule.getCopyState
+            val currentState = stateModule.state
 
             val PackageSetup(hypState, usedState, initStmt) = packageInit(wand, None)
 
@@ -158,7 +158,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
             val stmt = initStmt++(curStateBool := TrueLit()) ++
               exec(hypState :: StateRep(currentState, curStateBool) :: Nil, usedState, right, hypState.boolVar)
 
-            stateModule.restoreState(currentState)
+            stateModule.replaceState(currentState)
 
             stmt ++ addWand
 
@@ -274,7 +274,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
         val packaging =  MaybeCommentBlock("Code for the packaging of wand" + wand.toString() +" in" + p.toString(),
           initStmt ++ execInnerWand)
 
-        stateModule.restoreState(ops.state)
+        stateModule.replaceState(ops.state)
 
         MaybeCommentBlock("Translating " + p.toString(),
           packaging ++ addWand ++ MaybeCommentBlock("Code for body " + body.toString() + " of " + p.toString(), exec(states,ops,body,allStateAssms)) )
@@ -321,7 +321,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
     val inhaleLeft = MaybeComment("Inhaling left hand side of current wand into hypothetical state",
       If(hypState.boolVar, expModule.checkDefinednessOfSpecAndInhale(wand.left, mainError), Statements.EmptyStmt))
 
-    stateModule.restoreState(usedState.state)
+    stateModule.replaceState(usedState.state)
 
     PackageSetup(hypState, usedState, hypStmt ++ initStmt ++ inhaleLeft)
   }
@@ -329,7 +329,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
 
   /**
    *
-   * @param initBool boolean expression to which the newly generated boolean variable should be initialized to
+   * @param initBool boolean expression w which the newly generated boolean variable should be initialized
    * @param usedString string to incorporate into unique name for string
    * @param setToNew the state is set to the generated state iff this is set to true
    * @param init if this is set to true then the stmt in UsedStateSetup will initialize the states (for example
@@ -354,23 +354,15 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
 
     //state which is used to check if the wand holds
     val usedName = names.createUniqueIdentifier(usedString)
-    val (usedStmt, usedState) = stateModule.freshEmptyState(usedName,init)
 
-
-    val currentState =
-      if(!setToNew) {
-        stateModule.getCopyState
-      } else {
-        usedState
-      }
-
-    stateModule.restoreState(usedState)
+    val (usedStmt, currentState) = stateModule.freshEmptyState(usedName,init)
+    val usedState = stateModule.state
 
     val goodState = exchangeAssumesWithBoolean(stateModule.assumeGoodState, b)
 
     /**DEFINE STATES END **/
     if(!setToNew) {
-      stateModule.restoreState(currentState)
+      stateModule.replaceState(currentState)
     }
 
     StateSetup(StateRep(usedState,b),usedStmt++boolStmt++goodState)
@@ -481,7 +473,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
     states match {
       case (top :: xs) =>
         //Compute all values needed from top state
-        stateModule.restoreState(top.state)
+        stateModule.replaceState(top.state)
         val isOriginalState: Boolean = xs.isEmpty
 
         val topHeap = heapModule.currentHeap
@@ -515,7 +507,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
          *explicitily accumulated in the boolean variable */
 
         //computed all values needed from used state
-        stateModule.restoreState(used.state)
+        stateModule.replaceState(used.state)
 
         val addToUsed = (components flatMap (_.transferAdd(e,used.boolVar))) ++
           (used.boolVar := used.boolVar&&stateModule.currentGoodState)

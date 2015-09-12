@@ -17,6 +17,7 @@ import viper.carbon.modules.components.StateComponent
  */
 class DefaultStateModule(val verifier: Verifier) extends StateModule {
   def name = "State module"
+
   private val isGoodState = "state"
 
   implicit val stateNamespace = verifier.freshNamespace("state")
@@ -37,7 +38,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
 
     // initialize the state of all components and assume that afterwards the
     // whole state is good
-  val stmt =  (components map (_.initState)) :+
+    val stmt = (components map (_.initState)) :+
       assumeGoodState
     // note: this code should come afterwards, to allow the components to reset their state variables
     for (c <- components) {
@@ -45,6 +46,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     }
     stmt
   }
+
   def resetState: Stmt = {
     usingOldState = false
     treatOldAsCurrent = false
@@ -59,6 +61,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     }
     stmt
   }
+
   def initOldState: Stmt = {
     curOldState = new StateComponentMapping()
     for (c <- components) yield {
@@ -67,7 +70,9 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
       exps map (e => Assume(e === Old(e))): Stmt
     }
   }
+
   def stateContributions: Seq[LocalVarDecl] = components flatMap (_.stateContributions)
+
   def currentStateContributions: Seq[Exp] = components flatMap (_.currentStateExps)
 
   def staticGoodState: Exp = {
@@ -77,19 +82,18 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   def currentGoodState: Exp = {
     FuncApp(Identifier(isGoodState), currentStateContributions, Bool)
   }
-  
-  
+
+
   // Note: For "old" state, these variables should be wrapped in "Old(.)" before use
   type StateComponentMapping = java.util.IdentityHashMap[StateComponent, Seq[Var]]
-  override type StateSnapshot = (StateComponentMapping,Boolean,Boolean)
-
+  override type StateSnapshot = (StateComponentMapping, Boolean, Boolean)
 
 
   private var curOldState: StateComponentMapping = null
   private var curState: StateComponentMapping = null
 
   override def freshTempState(name: String): (Stmt, StateSnapshot) = {
-    val previousState = new StateSnapshot(new StateComponentMapping(),usingOldState,treatOldAsCurrent)
+    val previousState = new StateSnapshot(new StateComponentMapping(), usingOldState, treatOldAsCurrent)
 
     curState = new StateComponentMapping() // essentially, the code below "clones" what curState should represent anyway. But, if we omit this line, we inadvertently alias the previous hash map.
 
@@ -108,29 +112,36 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     (s, previousState)
   }
 
-  override def freshEmptyState(name: String, init:Boolean = true): (Stmt, StateSnapshot) = {
-    val emptyState = new java.util.IdentityHashMap[StateComponent, Seq[Exp]]()
-    val s = (for (c <- components) yield {
-      val tmpExps = c.freshTempState(name)
-      val curExps = curState.get(c)
-      emptyState.put(c, tmpExps)
-      val stmt: Stmt  =
-        (tmpExps) map (x => x match {
-          case v@LocalVar(_,_) => Havoc(v)
-          //Gaurav: should this be implemented by the components themselves?
-          case _ => Statements.EmptyStmt
-        })
-      /*Gaurav 05.04.15: kind of a "hack" since init is only defined on the current state, hence here I temporarily
-        *change the current state but then reset it, which goes against the initial intent of freshEmptyState that
-        *it shouldn't have an effect on the current state since it assumes changing the current state and then resetting
-        *it doesn't change the end result */
-      c.restoreState(tmpExps)
-      val initStmt = if(init) { c.initState} else { Statements.EmptyStmt}
-      c.restoreState(curExps)
-      stmt ++ initStmt
-    }).flatten
-    (s, emptyState)
+  def freshEmptyState(name: String, init: Boolean = true): (Stmt, StateSnapshot) =
+  {
+    val (stmt,snapshot) = freshTempState(name)
+
+    (stmt ++ resetState ++ (if(init) initState else Nil), snapshot)
   }
+//
+//  {
+//    val emptyState = new java.util.IdentityHashMap[StateComponent, Seq[Exp]]()
+//    val s = (for (c <- components) yield {
+//      val tmpExps = c.freshTempState(name)
+//      val curExps = curState.get(c)
+//      emptyState.put(c, tmpExps)
+//      val stmt: Stmt  =
+//        (tmpExps) map (x => x match {
+//          case v@LocalVar(_,_) => Havoc(v)
+//          //Gaurav: should this be implemented by the components themselves?
+//          case _ => Statements.EmptyStmt
+//        })
+//      /*Gaurav 05.04.15: kind of a "hack" since init is only defined on the current state, hence here I temporarily
+//        *change the current state but then reset it, which goes against the initial intent of freshEmptyState that
+//        *it shouldn't have an effect on the current state since it assumes changing the current state and then resetting
+//        *it doesn't change the end result */
+//      c.restoreState(tmpExps)
+//      val initStmt = if(init) { c.initState} else { Statements.EmptyStmt}
+//      c.restoreState(curExps)
+//      stmt ++ initStmt
+//    }).flatten
+//    (s, emptyState)
+//  }
 
   override def replaceState(snapshot: StateSnapshot) {
     curState = snapshot._1
@@ -162,10 +173,10 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   }
 
   override def getCopyState:StateSnapshot = {
-    val currentCopy = new java.util.IdentityHashMap[StateComponent, Seq[Exp]]()
+    val currentCopy = new StateComponentMapping()
     val s = for (c <- components) yield {
-                currentCopy.put(c, curState.get(c))
+                currentCopy.put(c, c.currentStateVars)
             }
-    currentCopy
+    (currentCopy, usingOldState, treatOldAsCurrent)
   }
 }
