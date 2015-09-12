@@ -5,3 +5,4 @@ project/project
 project/target
 target
 bin/**
+carbon_classpath.txt

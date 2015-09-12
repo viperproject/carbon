@@ -1,46 +1,24 @@
 @echo off
-SetLocal EnableDelayedExpansion
 
-set ROOT_DIR=%~dp0
 set JAVA_EXE=java
 
-if "%IVY_HOME%"=="" (
-	REM Environment variable IVY_HOME not pre-defined; checks on classpath below will catch a false definition here
-	set IVY_HOME=%USERPROFILE%\.ivy2
-)
-set SBT_HOME=%USERPROFILE%\.sbt
-
-set SCALA_VERSION=2.10.4
-set SCALA_VRS=2.10
-
-set __CP.SCALA_LIB="%SBT_HOME%\boot\scala-%SCALA_VERSION%\lib\scala-library.jar"
-set __CP.SCALA_LIB2="%SBT_HOME%\boot\scala-%SCALA_VERSION%\lib\scala-reflect.jar"
-set __CP.KIAMA_LIB="%IVY_HOME%\cache\com.googlecode.kiama\kiama_%SCALA_VRS%\jars\kiama_%SCALA_VRS%-1.5.1.jar"
-set __CP.SCALOP_LIB="%IVY_HOME%\cache\org.rogach\scallop_%SCALA_VRS%\jars\scallop_%SCALA_VRS%-0.9.4.jar"
-set __CP.JGRAPH_LIB="%IVY_HOME%\cache\org.jgrapht\jgrapht-core\jars\jgrapht-core-0.9.0.jar"
-set __CP.CARBON="%ROOT_DIR%target\scala-%SCALA_VRS%\classes"
-set __CP.SILVER="%ROOT_DIR%..\wand-silver-guarav\target\scala-%SCALA_VRS%\classes"
-
-set CP=
-for /f "tokens=2* delims=.=" %%A in ('set __CP.') do (
-	if not exist %%B (
-		echo %%B does not exist.
-		goto :exit_with_error
-	) else (
-		set CP=!CP!;%%B
+:: Only call sbt if the classpath file is missing.
+if not exist carbon_classpath.txt (
+	rem Read all lines of the sbt runtime classpath output and parse it against the regex supplied to findstr.
+	rem The regex looks for lines not starting with '[' and ending in '.jar' as the classpath usually does
+	rem (and log lines don't, since they are prefixed with [LOGLEVEL]).
+	echo Generating missing carbon_classpath.txt file from sbt classpath
+	for /f "tokens=*" %%i in ('sbt "export runtime:dependencyClasspath" ^| findstr "[^\[].*\.jar$"') do (
+		echo |set /p=%%i > carbon_classpath.txt
 	)
 )
 
+:: Read classpath file in rather cumbersome way to avoid the 1024 character buffer limit.
+:: Note: this solutions breaks, once the classpath is longer than 8192 characters!
+for /f "delims=" %%x in (carbon_classpath.txt) do set CP=%%x
+
 set CARBON_MAIN=viper.carbon.Carbon
-
-set CARBON_OPTS=%CARBON_OPTS% %*
-
-::-Xss16M 
-set CMD=%JAVA_EXE% -Xss30M -cp %CP% %CARBON_MAIN% %CARBON_OPTS%
+set CARBON_OPTS= %*
+set CMD=%JAVA_EXE% -Xss30M -cp "%CP%" %CARBON_MAIN% %CARBON_OPTS%
 
 call %CMD%
-
-exit /B 0
-
-:exit_with_error
-exit /B 1
