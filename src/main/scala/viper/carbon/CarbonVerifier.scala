@@ -138,7 +138,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
       }) ++
         (config.boogieOpt.get match {
           case Some(l) =>
-            List(l + " ")
+            l.split(" ")
           case None =>
             Nil
         })
