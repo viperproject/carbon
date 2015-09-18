@@ -12,6 +12,7 @@ import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
 import viper.carbon.modules.components.StateComponent
 
+
 /**
  * The default implementation of a [[viper.carbon.modules.StateModule]].
  */
@@ -28,6 +29,14 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
 
   override def preamble = {
     Func(Identifier(isGoodState), stateContributions, Bool)
+  }
+
+  override def reset : Unit = {
+    curOldState = null
+    curState = null
+    //usingOldState = false
+    //treatOldAsCurrent = false
+    resetState
   }
 
   def initState: Stmt = {
@@ -92,7 +101,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   private var curOldState: StateComponentMapping = null
   private var curState: StateComponentMapping = null
 
-  override def freshTempState(name: String): (Stmt, StateSnapshot) = {
+  override def freshTempState(name: String, discardCurrent: Boolean = false, initialise: Boolean = false): (Stmt, StateSnapshot) = {
     val previousState = new StateSnapshot(new StateComponentMapping(), usingOldState, treatOldAsCurrent)
 
     curState = new StateComponentMapping() // essentially, the code below "clones" what curState should represent anyway. But, if we omit this line, we inadvertently alias the previous hash map.
@@ -100,23 +109,24 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     val s = for (c <- components) yield {
       val tmpExps = c.freshTempState(name)
       val curExps = c.currentStateExps // note: this will wrap them in "Old" as necessary for correct initialisation
-      val stmt: Stmt = (tmpExps zip curExps) map (x => (x._1 := x._2))
+      val stmt: Stmt = if (discardCurrent) Nil else (tmpExps zip curExps) map (x => (x._1 := x._2))
       previousState._1.put(c, c.currentStateVars) // reconstruct information from previous state (this is logically similar to a clone of what curState used to represent)
       curState.put(c, tmpExps) // repopulate current state
       c.restoreState(tmpExps)
 
-      stmt
+      (if (initialise) c.resetState else stmt)
     }
     treatOldAsCurrent = usingOldState
     usingOldState = false // we have now set up a temporary state in terms of "old" - this could happen when an unfolding expression is inside an "old"
     (s, previousState)
   }
 
-  def freshEmptyState(name: String, init: Boolean = true): (Stmt, StateSnapshot) =
+  def freshEmptyState(name: String, init: Boolean = false): (Stmt, StateSnapshot) =
   {
-    val (stmt,snapshot) = freshTempState(name)
+    freshTempState(name, true, init)
+   // val (stmt,snapshot) = freshTempState(name)
 
-    (stmt ++ resetState ++ (if(init) initState else Nil), snapshot)
+   // (stmt ++ resetState ++ (if(init) initState else Nil), snapshot)
   }
 //
 //  {

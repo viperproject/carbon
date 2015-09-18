@@ -6,7 +6,7 @@
 
 package viper.carbon.modules.impls
 
-import viper.carbon.modules.DomainModule
+import viper.carbon.modules.{StatelessComponent, DomainModule}
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.{Environment, Verifier}
@@ -15,7 +15,7 @@ import viper.carbon.boogie.Implicits._
 /**
  * The default implementation of [[viper.carbon.modules.DomainModule]].
  */
-class DefaultDomainModule(val verifier: Verifier) extends DomainModule {
+class DefaultDomainModule(val verifier: Verifier) extends DomainModule with StatelessComponent {
 
   import verifier._
   import typeModule._

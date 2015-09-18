@@ -6,7 +6,7 @@
 
 package viper.carbon.modules.impls
 
-import viper.carbon.modules.TypeModule
+import viper.carbon.modules.{StatelessComponent, TypeModule}
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.Verifier
@@ -14,7 +14,7 @@ import viper.carbon.verifier.Verifier
 /**
  * The default implementation of a [[viper.carbon.modules.TypeModule]].
  */
-class DefaultTypeModule(val verifier: Verifier) extends TypeModule {
+class DefaultTypeModule(val verifier: Verifier) extends TypeModule with StatelessComponent {
 
   import verifier._
   import heapModule._

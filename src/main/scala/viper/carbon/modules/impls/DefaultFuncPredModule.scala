@@ -24,7 +24,7 @@ import viper.silver.verifier.{NullPartialVerificationError, errors, PartialVerif
  * The default implementation of a [[viper.carbon.modules.FuncPredModule]].
  */
 class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule
-with DefinednessComponent with ExhaleComponent with InhaleComponent with StatefulComponent {
+with DefinednessComponent with ExhaleComponent with InhaleComponent {
   def name = "Function and predicate module"
 
   import verifier._

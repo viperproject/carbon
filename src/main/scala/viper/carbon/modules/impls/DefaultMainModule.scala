@@ -23,7 +23,7 @@ import viper.carbon.verifier.Verifier
 /**
  * The default implementation of a [[viper.carbon.modules.MainModule]].
  */
-class DefaultMainModule(val verifier: Verifier) extends MainModule {
+class DefaultMainModule(val verifier: Verifier) extends MainModule with StatelessComponent {
 
   import verifier._
   import typeModule._

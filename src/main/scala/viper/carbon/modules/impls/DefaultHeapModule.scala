@@ -22,8 +22,7 @@ class DefaultHeapModule(val verifier: Verifier)
     extends HeapModule
     with SimpleStmtComponent
     with DefinednessComponent
-    with InhaleComponent
-    with StatefulComponent {
+    with InhaleComponent {
 
   import verifier._
   import typeModule._
@@ -445,8 +444,9 @@ class DefaultHeapModule(val verifier: Verifier)
    * Reset the state of this module so that it can be used for new program. This method is called
    * after verifier gets a new program.
    */
-  override def reset(): Unit = {
+  override def reset = {
     allowHeapDeref = false
+    heap = originalHeap
   }
 
   override def currentHeap = Seq(heap)

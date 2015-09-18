@@ -21,9 +21,7 @@ import viper.carbon.modules.components.DefinednessComponent
  */
 class DefaultSetModule(val verifier: Verifier)
     extends SetModule
-    with DefinednessComponent
-    with StatefulComponent {
-
+    with DefinednessComponent {
   import verifier._
   import typeModule._
   import expModule._

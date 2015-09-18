@@ -20,8 +20,7 @@ import viper.carbon.modules.components.DefinednessComponent
  */
 class DefaultSeqModule(val verifier: Verifier)
     extends SeqModule
-    with DefinednessComponent
-    with StatefulComponent {
+    with DefinednessComponent {
 
   import verifier._
   import typeModule._

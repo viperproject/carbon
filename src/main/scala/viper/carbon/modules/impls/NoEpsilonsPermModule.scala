@@ -185,7 +185,7 @@ class NoEpsilonsPermModule(val verifier: Verifier)
   def currentStateExps: Seq[Exp] = Seq(maskExp)
 
   def initState: Stmt = {
-    mask := originalMask
+    mask := originalMask // ALEX: not sure if this is right - should this assignment happen?
     resetState
   }
   def resetState = {
@@ -194,6 +194,10 @@ class NoEpsilonsPermModule(val verifier: Verifier)
   def initOldState: Stmt = {
     val mVar = maskVar
     Assume(Old(mVar) === mVar)
+  }
+
+  def reset = {
+    mask = originalMask
   }
 
   override def usingOldState = stateModuleIsUsingOldState

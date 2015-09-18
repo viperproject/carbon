@@ -9,7 +9,6 @@ import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
 import viper.silver.ast.utility.Expressions
 import viper.silver.ast.{FullPerm, MagicWand}
-
 import viper.silver.verifier.{errors, reasons, PartialVerificationError}
 import viper.silver.{ast => sil}
 
@@ -72,6 +71,13 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
 
 
   def name = "Wand Module"
+
+  override def reset() = {
+    wandToShapes = new java.util.HashMap[sil.MagicWand, WandShape]
+    wandShapes = new ListBuffer[(sil.MagicWand, WandShape,Type)]()
+
+    mainError  = null
+  }
 
 
   override def preamble = {

@@ -6,7 +6,7 @@
 
 package viper.carbon.modules.impls
 
-import viper.carbon.modules.ExpModule
+import viper.carbon.modules.{StatelessComponent, ExpModule}
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.Verifier
@@ -19,7 +19,7 @@ import viper.silver.ast.utility.Expressions
 /**
  * The default implementation of [[viper.carbon.modules.ExpModule]].
  */
-class DefaultExpModule(val verifier: Verifier) extends ExpModule with DefinednessComponent {
+class DefaultExpModule(val verifier: Verifier) extends ExpModule with DefinednessComponent with StatelessComponent {
 
   import verifier._
   import heapModule._

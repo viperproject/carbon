@@ -6,7 +6,7 @@
 
 package viper.carbon.modules.impls
 
-import viper.carbon.modules.StmtModule
+import viper.carbon.modules.{StatelessComponent, StmtModule}
 import viper.silver.ast.utility.Expressions.{whenExhaling, whenInhaling}
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
@@ -14,7 +14,6 @@ import viper.carbon.verifier.Verifier
 import Implicits._
 import viper.silver.verifier.errors
 import viper.silver.verifier.PartialVerificationError
-import viper.carbon.modules.components.SimpleStmtComponent
 import viper.silver.ast.utility.Expressions
 
 /**
