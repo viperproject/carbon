@@ -164,7 +164,7 @@ object Nodes {
           case Old(e) => Old(func(e))
           case CondExp(cond, thn, els) => CondExp(func(cond), func(thn), func(els))
           case Exists(v, e) => Exists(v, func(e))
-          case Forall(v, triggers, e, tv) => Forall(v, triggers, func(e), tv)
+          case Forall(v, triggers, e, tv) => Forall(v, (triggers map (_ match {case Trigger(es) => Trigger(es map func)})), func(e), tv)
           case BinExp(left, binop, right) => BinExp(func(left), binop, func(right))
           case UnExp(unop, e) => UnExp(unop, func(e))
           case f@FuncApp(ff, args, typ) => {
