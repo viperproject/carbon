@@ -87,6 +87,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         val renamedVars : Seq[sil.LocalVarDecl] = vars map (v => { val v1 = env.makeUniquelyNamed(v); env.define(v1.localVar); v1 } );
         val renaming = (e:sil.Exp) => Expressions.instantiateVariables(e,(vars map (_.localVar)), renamedVars map (_.localVar) )
         val ts = triggers map (t => Trigger(t.exps map {e => verifier.funcPredModule.toTriggers(translateExp(renaming(e)))}))
+
         val res = Forall(renamedVars map translateLocalVarDecl, ts, translateExp(renaming(exp)))
         renamedVars map (v => env.undefine(v.localVar))
         res
