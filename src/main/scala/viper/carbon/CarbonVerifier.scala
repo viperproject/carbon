@@ -25,6 +25,9 @@ import java.io.{FileOutputStream, BufferedOutputStream, File}
  * Debug information can either be set using the constructor argument or the setter.
  */
 case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) extends Verifier with viper.silver.verifier.Verifier with BoogieInterface {
+
+  def this() = this(Nil)
+
   var env = null
 
   private var _config: CarbonConfig = _
