@@ -99,7 +99,7 @@ object SequenceAxiomatization {
       |    (n <= Seq#Length(s) ==> Seq#Length(Seq#Take(s,n)) == n) &&
       |    (Seq#Length(s) < n ==> Seq#Length(Seq#Take(s,n)) == Seq#Length(s)));
       |// ** AS: 2nd of 3 axioms which get instantiated very often in certain problems involving take/drop/append
-      |axiom (forall<T> s: Seq T, n: int, j: int :: { Seq#Index(Seq#Take(s,n), j) } // {:weight 25} // AS: dropped weight
+      |axiom (forall<T> s: Seq T, n: int, j: int :: { Seq#Index(Seq#Take(s,n), j) }{ Seq#Index(s, j), Seq#Take(s,n) } // {:weight 25} // AS: dropped weight, added alternative trigger
       |  0 <= j && j < n && j < Seq#Length(s) ==>
       |    Seq#Index(Seq#Take(s,n), j) == Seq#Index(s, j));
       |
@@ -112,6 +112,10 @@ object SequenceAxiomatization {
       |axiom (forall<T> s: Seq T, n: int, j: int :: { Seq#Index(Seq#Drop(s,n), j) } // {:weight 25} // AS: dropped weight
       |  0 <= n && 0 <= j && j < Seq#Length(s)-n ==>
       |    Seq#Index(Seq#Drop(s,n), j) == Seq#Index(s, j+n));
+      |
+      |axiom (forall<T> s: Seq T, n: int, k: int :: { Seq#Drop(s,n), Seq#Index(s,k) } // AS: alternative triggering for above axiom
+      |  0 <= n && n <= k && k < Seq#Length(s) ==>
+      |    Seq#Index(Seq#Drop(s,n), k-n) == Seq#Index(s, k));
       |
       |// ** AS: We dropped the weak trigger on this axiom. One option is to strengthen the triggers:
       |//axiom (forall<T> s, t: Seq T ::
@@ -156,7 +160,7 @@ object SequenceAxiomatization {
       |        0 <= m && 0 <= n && m+n <= Seq#Length(s) ==>
       |        Seq#Drop(Seq#Drop(s, m), n) == Seq#Drop(s, m+n));
       |
-      |// extra stuff not in current Dafny Prelude
+      |// extra stuff not in current Dafny Prelude -- see also Drop-Index axiom above
       |
       |axiom (forall<T> x, y: T ::
       |  { Seq#Contains(Seq#Singleton(x),y) }

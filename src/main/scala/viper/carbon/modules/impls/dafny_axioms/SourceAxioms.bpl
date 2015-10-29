@@ -301,11 +301,11 @@ axiom (forall<T> s: Seq T, n: int, j: int :: { Seq#Index(Seq#Drop(s,n), j) } // 
     Seq#Index(Seq#Drop(s,n), j) == Seq#Index(s, j+n));
 
 // ** AS: We dropped the weak trigger on this axiom. One option is to strengthen the triggers:
-axiom (forall<T> s, t: Seq T ::
- // { Seq#Append(s, t) }
-  {Seq#Take(Seq#Append(s, t), Seq#Length(s))}{Seq#Drop(Seq#Append(s, t), Seq#Length(s))}
-  Seq#Take(Seq#Append(s, t), Seq#Length(s)) == s &&
-  Seq#Drop(Seq#Append(s, t), Seq#Length(s)) == t);
+//axiom (forall<T> s, t: Seq T ::
+ //// { Seq#Append(s, t) }
+//  {Seq#Take(Seq#Append(s, t), Seq#Length(s))}{Seq#Drop(Seq#Append(s, t), Seq#Length(s))}
+//  Seq#Take(Seq#Append(s, t), Seq#Length(s)) == s &&
+//  Seq#Drop(Seq#Append(s, t), Seq#Length(s)) == t);
 
 // ** AS: another option is to split the axiom (for some reason, this seems in some cases to perform slightly less well (but this could be random):
 //axiom (forall<T> s, t: Seq T ::
