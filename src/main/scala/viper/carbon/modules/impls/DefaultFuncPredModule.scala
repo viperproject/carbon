@@ -234,6 +234,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent with Statefu
         // change all function applications to use the limited form, and still go through all arguments
         Some(FuncApp(Identifier(recf.name + limitedPostfix), recargs map (_.transform(transformer)), t))
       }
+      case fa@Forall(vs,ts,e,tvs) => Some(Forall(vs,ts,e.transform(transformer),tvs)) // avoid recursing into the triggers of nested foralls (which will typically get translated via another call to this anyway)
     }
     exp transform transformer
   }
@@ -243,14 +244,25 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent with Statefu
     val heap = heapModule.stateContributions
     val args = f.formalArgs map translateLocalVarDecl
     val fapp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
+    val limitedFapp = transformLimited(fapp)
     val res = translateResult(sil.Result()(f.typ))
     for (post <- f.posts) yield {
-      val bPost = translateExp(whenInhaling(post)) transform {
-        case e if e == res => Some(fapp)
+      val translatedPost = translateExp(whenInhaling(post))
+     // Console.out.println("in: "+translatedPost)
+      val resultToPrimedFapp : PartialFunction[Exp,Option[Exp]] = {
+        case e: LocalVar if e == res => Some(limitedFapp)
       }
+      def resultToFapp : PartialFunction[Exp,Option[Exp]] = {
+        case e: LocalVar if e == res => Some(fapp)
+        case Forall(vs,ts,e,tvs) =>
+          Some(Forall(vs,ts map (_ match {case Trigger(trig) => Trigger(trig map (_ transform resultToPrimedFapp)) } ),
+            (e transform resultToFapp),tvs))
+      }
+      val bPost = translatedPost transform resultToFapp
+     // Console.out.println("out:"+bPost)
       Axiom(Forall(
         stateModule.stateContributions ++ args,
-        Trigger(Seq(staticGoodState, transformLimited(fapp))),
+        Trigger(Seq(staticGoodState, limitedFapp)),
         (staticGoodState && assumeFunctionsAbove(height)) ==> transformLimited(bPost)))
     }
   }
