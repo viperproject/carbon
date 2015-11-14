@@ -74,4 +74,6 @@ trait PermModule extends Module {
   def zeroPMask: Exp
 
   def hasDirectPerm(la: sil.LocationAccess): Exp
+
+  def permissionLookup(la: sil.LocationAccess) : Exp
 }

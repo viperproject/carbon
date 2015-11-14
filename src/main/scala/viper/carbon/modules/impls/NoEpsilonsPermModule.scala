@@ -309,6 +309,10 @@ class NoEpsilonsPermModule(val verifier: Verifier)
     MapSelect(mask, Seq(rcv, location))
   }
 
+  override def permissionLookup(la: sil.LocationAccess) : Exp = {
+    currentPermission(la)
+  }
+
   override def currentMask = Seq(maskExp)
   override def staticMask = Seq(LocalVarDecl(maskName, maskType))
   override def staticPermissionPositive(rcv: Exp, loc: Exp) = {
