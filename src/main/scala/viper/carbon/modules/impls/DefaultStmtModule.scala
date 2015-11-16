@@ -186,7 +186,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
   }
 
   override def translateStmt(stmt: sil.Stmt): Stmt = {
-    var comment = "Translating statement: " + stmt.toString
+    var comment = "Translating statement: " + stmt.toString.replace("\n", "\n  // ")
     stmt match {
       case sil.Seqn(ss) =>
         // return to avoid adding a comment, and to avoid the extra 'assumeGoodState'
