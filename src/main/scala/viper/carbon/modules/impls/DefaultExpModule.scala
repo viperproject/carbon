@@ -13,7 +13,7 @@ import viper.carbon.verifier.Verifier
 import viper.silver.verifier.{reasons, PartialVerificationError}
 import viper.carbon.boogie.Implicits._
 import viper.carbon.modules.components.DefinednessComponent
-import viper.silver.ast.{LocationAccess, QuantifiedExp}
+import viper.silver.ast.QuantifiedExp
 import viper.silver.ast.utility.Expressions
 
 /**
@@ -90,26 +90,6 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
 
         val res = Forall(renamedVars map translateLocalVarDecl, ts, translateExp(renaming(exp)))
         renamedVars map (v => env.undefine(v.localVar))
-        res
-      }
-      case sil.ForallReferences(variable, locations, body) => {
-        // alpha renaming, to avoid clashes in context
-        val renamedVar : sil.LocalVarDecl = { val v1 = env.makeUniquelyNamed(variable); env.define(v1.localVar); v1 }
-        val renaming = (e:sil.Exp) => Expressions.instantiateVariables(e,Seq(variable.localVar), Seq(renamedVar.localVar) )
-       // val ts = triggers map (t => Trigger(t.exps map {e => verifier.funcPredModule.toTriggers(translateExp(renaming(e)))} // no triggers yet?
-        val perLocFilter : sil.Location => (Exp,Trigger) = loc => {
-         val locAccess : LocationAccess = loc match {
-           case f: sil.Field => sil.FieldAccess(renamedVar.localVar, f)(loc.pos, loc.info)
-           case p: sil.Predicate => sil.PredicateAccess(Seq(renamedVar.localVar), p)(loc.pos, loc.info)
-         }
-         (hasDirectPerm(locAccess),Trigger(permissionLookup(locAccess)))
-       }
-        val filter = locations.foldLeft[(Exp,Seq[Trigger])](BoolLit(false),Seq())((soFar,loc) => soFar match { case (exp,triggers) =>
-          perLocFilter(loc) match { case (newExp, newTrigger) => (BinExp(exp,Or,newExp),triggers ++ Seq(newTrigger)) }})
-
-        val res = Forall(translateLocalVarDecl(renamedVar), filter._2, // no triggers yet :(
-        BinExp(filter._1,Implies,translateExp(renaming(body))))
-        env.undefine(renamedVar.localVar)
         res
       }
       case sil.WildcardPerm() =>
@@ -280,20 +260,10 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             MaybeCommentBlock("Free assumptions", allFreeAssumptions(e))
         }
 
-        if (e.isInstanceOf[sil.QuantifiedExp] || e.isInstanceOf[sil.ForallReferences]) {
-          val bound_vars : Seq[sil.LocalVarDecl] = if (e.isInstanceOf[sil.QuantifiedExp]) e.asInstanceOf[sil.QuantifiedExp].variables else e.asInstanceOf[sil.ForallReferences].variable
+        if (e.isInstanceOf[sil.QuantifiedExp]) {
+          val bound_vars = e.asInstanceOf[sil.QuantifiedExp].variables
 	  bound_vars map (v => env.define(v.localVar))
-	  val res = if(e.isInstanceOf[sil.ForallReferences]) {
-      val eAsForallRef = e.asInstanceOf[sil.ForallReferences]
-      val bound_var = eAsForallRef.variable
-      val perLocFilter : sil.Location => LocationAccess = loc => loc match {
-          case f: sil.Field => sil.FieldAccess(bound_var.localVar, f)(loc.pos, loc.info)
-          case p: sil.Predicate => sil.PredicateAccess(Seq(bound_var.localVar), p)(loc.pos, loc.info)
-        }
-      val filter : Exp = eAsForallRef.accessList.foldLeft[Exp](BoolLit(false))((soFar,loc) => BinExp(soFar,Or,hasDirectPerm(perLocFilter(loc))))
-
-      handleQuantifiedLocals(bound_vars, If(filter, translate, Nil))
-    }else handleQuantifiedLocals(bound_vars,translate)
+	  val res = handleQuantifiedLocals(e,translate)	  
 	  bound_vars map (v => env.undefine(v.localVar))
           res        
         } else {
@@ -306,16 +276,19 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           } else {
             translate
           }
-          res //handleQuantifiedLocals(e, res)
+          handleQuantifiedLocals(e, res)
         }
     }
   }
 
 
-  def handleQuantifiedLocals(vars: Seq[sil.LocalVarDecl], res: Stmt): Stmt = {
+  def handleQuantifiedLocals(e: sil.Exp, res: Stmt): Stmt = {
     // introduce local variables for the variables in quantifications. we do this by first check
     // definedness without worrying about missing variable declarations, and then replace all of them
     // with fresh variables.
+    e match {
+      case QuantifiedExp(vars, exp) =>
+        {            
           val namespace = verifier.freshNamespace("exp.quantifier")
           val newVars = vars map (x => (translateLocalVar(x.localVar),
           // we use a fresh namespace to make sure we get fresh variables
@@ -330,6 +303,9 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
                   LocalVar(xb, x.typ)
               }
           })()
+        }
+      case _ => res
+    }
   }
 
   override def checkDefinednessOfSpecAndInhale(e: sil.Exp, error: PartialVerificationError): Stmt = {
