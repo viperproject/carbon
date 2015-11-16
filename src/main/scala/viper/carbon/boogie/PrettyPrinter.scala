@@ -281,7 +281,7 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
           case Forall(vars, triggers, _body, tv) =>
             show(Forall(vars, triggers, _body, tv++t))
           case _ =>
-            parens("forall" <+> showTypeVars(t) <> "::" <+> show(exp))
+            parens("forall" <+> showTypeVars(t) <> "::" <+> show(exp)) // NOTE: no triggers selected! This should be changed, but requires trigger generation code on the level of the Boogie AST.
         }
     }
     body
@@ -315,6 +315,8 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
          */
         value("%.9f".formatLocal(java.util.Locale.US, d))
       case RealConv(exp) => "real" <> parens(show(exp))
+      case Forall(vars, triggers, exp, tv) if triggers.length > 1 =>
+        show(triggers.tail.foldLeft[Exp](Forall(vars, Seq(triggers.head), exp, tv))((soFar,nextTrig) => BinExp(soFar,And,Forall(vars, Seq(nextTrig), exp, tv))))
       case Forall(vars, triggers, exp, Nil) =>
         parens("forall" <+>
           commasep(vars) <+>
