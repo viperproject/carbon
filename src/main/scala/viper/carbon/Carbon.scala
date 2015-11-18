@@ -7,6 +7,7 @@
 package viper.carbon
 
 import viper.silver.frontend.{SilFrontend, SilFrontendConfig}
+import viper.silver.verifier.{Success => SilSuccess, Failure => SilFailure}
 
 /**
  * The main object for Carbon containing the execution start-point.
@@ -14,6 +15,11 @@ import viper.silver.frontend.{SilFrontend, SilFrontendConfig}
 object Carbon extends CarbonFrontend {
   def main(args: Array[String]) {
     execute(args)
+
+    sys.exit(result match {
+      case SilSuccess => 0
+      case SilFailure(errors) => 1
+    })
   }
 }
 
