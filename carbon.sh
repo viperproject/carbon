@@ -8,6 +8,9 @@
 #
 # Ensure that the file 'Boogie.exe' in the Boogie folder is executable.
 # Note that the 'z3.exe' file must be located inside the Boogie folder.
+#
+# Alternatively you could also just set the BOOGIE_EXE and Z3_EXE to point o
+# the executable files
 
 
 BOOGIE_EXE="${BOOGIE_EXE:-$BOOGIE_HOME/Boogie.exe}"
