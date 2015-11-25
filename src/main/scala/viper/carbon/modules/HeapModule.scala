@@ -8,13 +8,13 @@ package viper.carbon.modules
 
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
-import viper.carbon.modules.components.StateComponent
+import viper.carbon.modules.components.CarbonStateComponent
 
 /**
  * A module for translating heap expressions (access, updating) and determining
  * the heap encoding.
  */
-trait HeapModule extends Module with StateComponent {
+trait HeapModule extends Module with CarbonStateComponent {
 
   /**
    * The type used for references.

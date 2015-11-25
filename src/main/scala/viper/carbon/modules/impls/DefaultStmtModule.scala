@@ -145,7 +145,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           MaybeCommentBlock("Check the loop body", NondetIf({
             locals map (v => mainModule.env.define(v.localVar)) // add local variables to environment - this should be revisited when scopes are properly implemented
             val (freshStateStmt, prevState) = stateModule.freshTempState("loop")
-            val stmts = MaybeComment("Reset state", freshStateStmt ++ stateModule.initState) ++
+            val stmts = MaybeComment("Reset state", freshStateStmt ++ stateModule.initBoogieState) ++
               MaybeComment("Inhale invariant", inhale(w.invs) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv)))) ++
               Comment("Check and assume guard") ++
               checkDefinedness(cond, errors.WhileFailed(w)) ++

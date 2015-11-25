@@ -10,7 +10,7 @@ import viper.carbon.modules._
 import viper.carbon.verifier.Verifier
 import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
-import viper.carbon.modules.components.StateComponent
+import viper.carbon.modules.components.CarbonStateComponent
 
 /**
  * The default implementation of a [[viper.carbon.modules.StateModule]].
@@ -29,7 +29,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     Func(Identifier(isGoodState), stateContributions, Bool)
   }
 
-  def initState: Stmt = {
+  def initBoogieState: Stmt = {
     curState = new StateComponentMapping()
     // note: it is important that these are set before calling e.g. initState on components
     usingOldState = false
@@ -37,7 +37,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
 
     // initialize the state of all components and assume that afterwards the
     // whole state is good
-  val stmt =  (components map (_.initState)) :+
+  val stmt =  (components map (_.initBoogieState)) :+
       assumeGoodState
     // note: this code should come afterwards, to allow the components to reset their state variables
     for (c <- components) {
@@ -45,13 +45,14 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     }
     stmt
   }
-  def resetState: Stmt = {
+  def resetBoogieState: Stmt = {
     usingOldState = false
     treatOldAsCurrent = false
     curState = new StateComponentMapping()
+
     // initialize the state of all components and assume that afterwards the
     // whole state is good
-    val stmt = (components map (_.resetState)) :+
+    val stmt = (components map (_.resetBoogieState)) :+
       assumeGoodState
     // note: this code should come afterwards, to allow the components to reset their state variables
     for (c <- components) {
@@ -75,7 +76,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   }
 
   // Note: For "old" state, these variables should be wrapped in "Old(.)" before use
-  type StateComponentMapping = java.util.IdentityHashMap[StateComponent, Seq[Var]]
+  type StateComponentMapping = java.util.IdentityHashMap[CarbonStateComponent, Seq[Var]]
   override type StateSnapshot = (StateComponentMapping,Boolean,Boolean)
 
   private var curOldState: StateComponentMapping = null

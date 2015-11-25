@@ -360,11 +360,11 @@ class DefaultHeapModule(val verifier: Verifier)
 
   override def translateNull: Exp = nullLit
 
-  def initState: Stmt = {
+  def initBoogieState: Stmt = {
     heap = originalHeap
     Nil
   }
-  def resetState: Stmt = {
+  def resetBoogieState: Stmt = {
     Havoc(heapVar)
   }
   def initOldState: Stmt = {

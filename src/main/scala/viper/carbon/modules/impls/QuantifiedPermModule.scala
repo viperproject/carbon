@@ -42,7 +42,7 @@ import viper.carbon.verifier.Verifier
  */
 class QuantifiedPermModule(val verifier: Verifier)
   extends PermModule
-  with StateComponent
+  with CarbonStateComponent
   with InhaleComponent
   with ExhaleComponent
   with SimpleStmtComponent
@@ -162,11 +162,11 @@ class QuantifiedPermModule(val verifier: Verifier)
   def currentStateVars: Seq[Var] = Seq(mask)
   def currentStateExps: Seq[Exp] = Seq(maskExp)
 
-  def initState: Stmt = {
+  def initBoogieState: Stmt = {
     mask := originalMask
-    resetState
+    resetBoogieState
   }
-  def resetState = {
+  def resetBoogieState = {
     (maskVar := zeroMask)
   }
   def initOldState: Stmt = {
