@@ -6,17 +6,18 @@
 
 package viper.carbon.modules
 
-import components.{StateComponent, ComponentRegistry}
+import components.{CarbonStateComponent, ComponentRegistry}
+import viper.silver.components.StatefulComponent
 import viper.silver.{ast => sil}
 import viper.carbon.boogie.{LocalVarDecl, Exp, Stmt}
 
 /**
  * A module for dealing with the state of a program during execution.  Allows other modules
- * to register [[viper.carbon.modules.components.StateComponent]]s that contribute to the
+ * to register [[viper.carbon.modules.components.CarbonStateComponent]]s that contribute to the
  * state.
 
  */
-trait StateModule extends Module with ComponentRegistry[StateComponent] {
+trait StateModule extends Module with ComponentRegistry[CarbonStateComponent] with StatefulComponent {
 
   /**
    * Returns an assumption that the current state is 'good', or well-formed.
@@ -30,15 +31,18 @@ trait StateModule extends Module with ComponentRegistry[StateComponent] {
   def staticGoodState: Exp
 
   /**
-   * The statements necessary to initialize the part of the state belonging to this module.
+   * The statements necessary to initialize the Boogie state of all CarbonStateComponent modules.
+   * This will also set the variable names used in the current state to the initial ones.
    */
-  def initState: Stmt
+  def initBoogieState: Stmt
 
   /**
-   * The statements necessary to reset the part of the state belonging to this module.
+   * The statements necessary to reset the Boogie state of all CarbonStateComponent modules.
    * Note that this should modify the *current* state (i.e. reassign all Boogie state in use), not create a fresh state
    */
-  def resetState: Stmt
+  def resetBoogieState: Stmt
+
+  def reset() = {initBoogieState; initOldState} // make the call to reset all Boogie state (e.g. variable names) - the latter call is probably not necessary, since it always gets called before relevant, but the former can affect the translation of many features (e.g. axioms)
 
   /**
    * The statements necessary to initialize old(state).
