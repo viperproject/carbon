@@ -332,7 +332,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent with Statefu
     val args = f.formalArgs map translateLocalVarDecl
     val res = sil.Result()(f.typ)
     val init = MaybeCommentBlock("Initializing the state",
-      stateModule.initState ++ (f.formalArgs map (a => allAssumptionsAboutValue(a.typ,mainModule.translateLocalVarDecl(a),true))) ++ assumeAllFunctionDefinitions)
+      stateModule.initBoogieState ++ (f.formalArgs map (a => allAssumptionsAboutValue(a.typ,mainModule.translateLocalVarDecl(a),true))) ++ assumeAllFunctionDefinitions)
     val initOld = MaybeCommentBlock("Initializing the old state", stateModule.initOldState)
     val checkPre = checkFunctionPreconditionDefinedness(f)
     val checkExp = if (f.isAbstract) MaybeCommentBlock("(no definition for abstract function)",Nil) else
@@ -516,7 +516,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent with Statefu
   private def foldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError): (Stmt,Stmt) = {
     duringFold = true
     foldInfo = acc
-    val stmt = exhale(Seq((acc.loc.predicateBody(verifier.program).get, error)), havocHeap = false) ++
+    val stmt = exhale(Seq((Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program).get,acc.perm), error)), havocHeap = false) ++
       inhale(acc)
     val stmtLast =  Assume(predicateTrigger(heapModule.currentStateExps, acc.loc))
     foldInfo = null
@@ -545,7 +545,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent with Statefu
     unfoldInfo = acc
     val stmt = Assume(predicateTrigger(heapModule.currentStateExps, acc.loc)) ++
       exhale(Seq((acc, error)), havocHeap = false) ++
-      inhale(acc.loc.predicateBody(verifier.program).get)
+      inhale(Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program).get,acc.perm))
     unfoldInfo = oldUnfoldInfo
     duringUnfold = oldDuringUnfold
     duringFold = oldDuringFold

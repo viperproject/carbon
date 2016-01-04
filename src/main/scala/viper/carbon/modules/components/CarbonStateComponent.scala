@@ -14,17 +14,17 @@ import viper.carbon.boogie._
  * we use 'state' to refer to the program state during execution.
 
  */
-trait StateComponent extends Component {
+trait CarbonStateComponent extends Component {
 
   /**
    * The statements necessary to initialize the part of the state belonging to this module.
    */
-  def initState: Stmt
+  def initBoogieState: Stmt
 
   /**
    * The statements necessary to reset the part of the state belonging to this module.
    */
-  def resetState: Stmt
+  def resetBoogieState: Stmt
 
   /**
    * The name and type of the contribution of this components to the state.
