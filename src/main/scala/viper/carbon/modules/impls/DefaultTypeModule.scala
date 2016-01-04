@@ -40,7 +40,7 @@ class DefaultTypeModule(val verifier: Verifier) extends TypeModule {
         translateSetType(t)
       case t@sil.MultisetType(elemType) =>
         translateMultisetType(t)
-      case sil.Pred =>
+      case sil.InternalType =>
         sys.error("this is an internal type, not expected here")
       case sil.TypeVar(name) =>
         TypeVar(name)
