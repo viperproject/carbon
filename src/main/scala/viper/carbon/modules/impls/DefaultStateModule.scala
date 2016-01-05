@@ -12,6 +12,8 @@ import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
 import viper.carbon.modules.components.CarbonStateComponent
 
+import scala.collection.mutable
+
 /**
  * The default implementation of a [[viper.carbon.modules.StateModule]].
  */
@@ -81,6 +83,12 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
 
   private var curOldState: StateComponentMapping = null
   private var curState: StateComponentMapping = null
+
+  private lazy val stateRepository = new mutable.HashMap[String, StateSnapshot]()
+
+  override def stateRepositoryPut(name:String, snapshot: StateSnapshot) = stateRepository.put(name,snapshot)
+
+  override def stateRepositoryGet(name:String) : Option[StateSnapshot] = stateRepository.get(name)
 
   override def freshTempState(name: String): (Stmt, StateSnapshot) = {
     val previousState = new StateSnapshot(new StateComponentMapping(),usingOldState,treatOldAsCurrent)

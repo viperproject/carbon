@@ -64,6 +64,12 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         val res = translateExp(exp)
         stateModule.replaceState(prevState)
         res
+      case sil.LabelledOld(exp, oldLabel) =>
+        val prevState = stateModule.state
+        stateModule.replaceState(stateModule.stateRepositoryGet(oldLabel).get)
+        val res = translateExp(exp)
+        stateModule.replaceState(prevState)
+        res
       case sil.Let(lvardecl,exp,body) =>
         val translatedExp = translateExp(exp) // expression to bind "v" to
         val v = env.makeUniquelyNamed(lvardecl) // choose a fresh "v" binder
@@ -92,7 +98,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         renamedVars map (v => env.undefine(v.localVar))
         res
       }
-      case sil.ForallReferences(variable, locations, body) => {
+      case sil.ForPerm(variable, locations, body) => {
         // alpha renaming, to avoid clashes in context
         val renamedVar : sil.LocalVarDecl = { val v1 = env.makeUniquelyNamed(variable); env.define(v1.localVar); v1 }
         val renaming = (e:sil.Exp) => Expressions.instantiateVariables(e,Seq(variable.localVar), Seq(renamedVar.localVar) )
@@ -280,11 +286,11 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             MaybeCommentBlock("Free assumptions", allFreeAssumptions(e))
         }
 
-        if (e.isInstanceOf[sil.QuantifiedExp] || e.isInstanceOf[sil.ForallReferences]) {
-          val bound_vars : Seq[sil.LocalVarDecl] = if (e.isInstanceOf[sil.QuantifiedExp]) e.asInstanceOf[sil.QuantifiedExp].variables else e.asInstanceOf[sil.ForallReferences].variable
+        if (e.isInstanceOf[sil.QuantifiedExp]) {
+          val bound_vars  = e.asInstanceOf[sil.QuantifiedExp].variables
 	  bound_vars map (v => env.define(v.localVar))
-	  val res = if(e.isInstanceOf[sil.ForallReferences]) {
-      val eAsForallRef = e.asInstanceOf[sil.ForallReferences]
+	  val res = if(e.isInstanceOf[sil.ForPerm]) {
+      val eAsForallRef = e.asInstanceOf[sil.ForPerm]
       val bound_var = eAsForallRef.variable
       val perLocFilter : sil.Location => LocationAccess = loc => loc match {
           case f: sil.Field => sil.FieldAccess(bound_var.localVar, f)(loc.pos, loc.info)
@@ -296,17 +302,21 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
     }else handleQuantifiedLocals(bound_vars,translate)
 	  bound_vars map (v => env.undefine(v.localVar))
           res        
-        } else {
-          val res = if (e.isInstanceOf[sil.Old]) {
+        } else e match {
+          case sil.Old(_) =>
             val prevState = stateModule.state
             stateModule.replaceState(stateModule.oldState)
             val res = translate
             stateModule.replaceState(prevState)
             res
-          } else {
-            translate
-          }
-          res //handleQuantifiedLocals(e, res)
+          case sil.LabelledOld(_,oldLabel) =>
+            val prevState = stateModule.state
+            stateModule.replaceState(stateModule.stateRepositoryGet(oldLabel).get)
+            val res = translate
+            stateModule.replaceState(prevState)
+            res
+          case _ =>
+          translate
         }
     }
   }

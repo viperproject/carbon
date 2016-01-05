@@ -50,12 +50,12 @@ trait StateModule extends Module with ComponentRegistry[CarbonStateComponent] wi
   def initOldState: Stmt
 
   /**
-   * The name and type of the contribution of this components to the state.
+   * The name and type of the contribution of all registered components to the state.
    */
   def stateContributions: Seq[LocalVarDecl]
 
   /**
-   * The current values for this components state contributions.  The number of elements
+   * The current values for all registered components' state contributions.  The number of elements
    * in the list and the types must correspond to the ones given in `stateContributions`.
    */
   def currentStateContributions: Seq[Exp]
@@ -95,4 +95,17 @@ trait StateModule extends Module with ComponentRegistry[CarbonStateComponent] wi
    * Are we currently using an 'old' state? Implies that we should wrap relevant state components in "Old"
    */
   def stateModuleIsUsingOldState: Boolean
+
+  /**
+   * * Store a StateSnapshot in a retrievable map, with the given name as key
+   * @param name the key to associate with this StateSnapshot
+   * @param snapshot the StateSnapshot to store
+   */
+  def stateRepositoryPut(name:String, snapshot: StateSnapshot)
+
+  /*
+   * Analogous get operation to the put above.
+   */
+  def stateRepositoryGet(name:String) : Option[StateSnapshot]
 }
+

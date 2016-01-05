@@ -174,8 +174,12 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           If(translateExp(cond),
             translateStmt(thn),
             translateStmt(els))
-      case sil.Label(name) =>
-        Label(Lbl(Identifier(name)(lblNamespace)))
+      case sil.Label(name) => {
+        val (stmt, currentState) = stateModule.freshTempState("Label" + name)
+        stateModule.stateRepositoryPut(name, stateModule.state)
+        stateModule.replaceState(currentState)
+        stmt ++ Label(Lbl(Identifier(name)(lblNamespace)))
+      }
       case sil.Goto(target) =>
         Goto(Lbl(Identifier(target)(lblNamespace)))
       case sil.NewStmt(target,fields) =>
