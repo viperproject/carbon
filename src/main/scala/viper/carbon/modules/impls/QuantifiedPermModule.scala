@@ -163,7 +163,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   def currentStateExps: Seq[Exp] = Seq(maskExp)
 
   def initBoogieState: Stmt = {
-    mask := originalMask
+    mask := originalMask // ALEX: not sure if this is right - should this assignment happen?
     resetBoogieState
   }
   def resetBoogieState = {
@@ -172,6 +172,10 @@ class QuantifiedPermModule(val verifier: Verifier)
   def initOldState: Stmt = {
     val mVar = maskVar
     Assume(Old(mVar) === mVar)
+  }
+
+  override def reset = {
+    mask = originalMask
   }
 
   override def usingOldState = stateModuleIsUsingOldState
@@ -222,6 +226,9 @@ class QuantifiedPermModule(val verifier: Verifier)
       case _ => if(zeroOK) permission >= RealLit(0) else permission > RealLit(0)
     }
   }
+
+  def sumMask(summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp =
+    sys.error("This module doesn't support sumMask")
 
   override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
@@ -295,6 +302,10 @@ class QuantifiedPermModule(val verifier: Verifier)
         Nil
       case _ => Nil
     }
+  }
+
+  override def tempInitMask(rcv: Exp, loc:Exp):(Seq[Exp], Stmt) = {
+    sys.error("This module doesn't support tempInitMask")
   }
 
   def currentPermission(loc: sil.LocationAccess): MapSelect = {

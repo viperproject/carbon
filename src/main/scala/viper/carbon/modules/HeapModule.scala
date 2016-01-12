@@ -52,6 +52,20 @@ trait HeapModule extends Module with CarbonStateComponent {
   def predicateVersionFieldTypeOf(p: sil.Predicate): Type
 
   /**
+   *
+   */
+
+  /**
+   * The type used for wands.
+   */
+  def wandFieldType(wandName: String): Type
+
+  /**
+   * new type introduced for a wand
+   */
+  def wandBasicType(wandName: String):Type
+
+  /**
    * Definitions for a field.
    */
   def translateField(f: sil.Field): Seq[Decl]
@@ -65,6 +79,8 @@ trait HeapModule extends Module with CarbonStateComponent {
    * Translation of a field read.
    */
   def translateLocationAccess(f: sil.LocationAccess): Exp
+
+  def translateLocationAccess(rcv: Exp, loc:Exp):Exp
 
   def translateLocation(f: sil.LocationAccess): Exp
   def translateLocation(pred: sil.Predicate, args: Seq[Exp]): Exp
@@ -85,6 +101,10 @@ trait HeapModule extends Module with CarbonStateComponent {
     }
   }
 
+  def checkNonNullReceiver(rcv: Exp):Exp = {
+    rcv !== translateNull
+  }
+
   /**
    * Begin of exhale.
    */
@@ -101,7 +121,16 @@ trait HeapModule extends Module with CarbonStateComponent {
   def isPredicateField(f: Exp): Exp
 
   /**
+   * Is the given field a wand field?
+   */
+  def isWandField(f: Exp): Exp
+
+  /**
    * Generate a trigger for a given predicate.
    */
   def predicateTrigger(extras: Seq[Exp], pred: sil.PredicateAccess, anyState: Boolean = false): Exp
+
+  def currentHeap:Seq[Exp]
+
+  def identicalOnKnownLocations(heap:Seq[Exp],mask:Seq[Exp]):Exp
 }

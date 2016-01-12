@@ -6,7 +6,7 @@
 
 package viper.carbon.modules
 
-import viper.silver.components.LifetimeComponent
+import viper.silver.components.{StatefulComponent, LifetimeComponent}
 import viper.silver.{ast => sil}
 import viper.carbon.boogie.{LocalVar, Exp, Decl}
 import viper.carbon.verifier.Verifier
@@ -15,7 +15,7 @@ import viper.carbon.verifier.Verifier
  * Common trait for modules.
 
  */
-trait Module extends LifetimeComponent {
+trait Module extends LifetimeComponent with StatefulComponent {
   /** The verifier to interact with other modules. */
   def verifier: Verifier
 
@@ -52,4 +52,12 @@ trait Module extends LifetimeComponent {
   def validValue(typ: sil.Type, variable: LocalVar, isParameter: Boolean): Option[Exp] = None
 
   override def toString = name
+}
+
+
+/**
+ * Trait to extend in modules which promise *not* to require a reset method
+ */
+trait StatelessComponent {
+  final def reset = { }
 }

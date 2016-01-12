@@ -22,8 +22,7 @@ class DefaultHeapModule(val verifier: Verifier)
     extends HeapModule
     with SimpleStmtComponent
     with DefinednessComponent
-    with InhaleComponent
-    with StatefulComponent {
+    with InhaleComponent {
 
   import verifier._
   import typeModule._
@@ -59,6 +58,8 @@ class DefaultHeapModule(val verifier: Verifier)
     NamedType(fieldTypeName, Seq(TypeVar("A"), pmaskType))
   override def predicateMaskFieldTypeOf(p: sil.Predicate): Type =
     NamedType(fieldTypeName, Seq(predicateMetaTypeOf(p), pmaskType))
+  override def wandBasicType(wand: String): Type = NamedType("WandType_" + wand)
+  override def wandFieldType(wand: String) : Type = NamedType(fieldTypeName, Seq(wandBasicType(wand),Int))
   private val heapTyp = NamedType("HeapType")
   private val heapName = Identifier("Heap")
   private val exhaleHeapName = Identifier("ExhaleHeap")
@@ -74,6 +75,7 @@ class DefaultHeapModule(val verifier: Verifier)
   private val allocName = Identifier("$allocated")(fieldNamespace)
   private val identicalOnKnownLocsName = Identifier("IdenticalOnKnownLocations")
   private val isPredicateFieldName = Identifier("IsPredicateField")
+  private val isWandFieldName = Identifier("IsWandField")
   override def refType = NamedType("Ref")
 
   override def preamble = {
@@ -103,6 +105,9 @@ class DefaultHeapModule(val verifier: Verifier)
         Seq(LocalVarDecl(heapName, heapTyp), LocalVarDecl(exhaleHeapName, heapTyp)) ++ staticMask,
         Bool) ++
       Func(isPredicateFieldName,
+        Seq(LocalVarDecl(Identifier("f"), fieldType)),
+        Bool) ++
+      Func(isWandFieldName,
         Seq(LocalVarDecl(Identifier("f"), fieldType)),
         Bool) ++ {
       val h = LocalVarDecl(heapName, heapTyp)
@@ -161,10 +166,15 @@ class DefaultHeapModule(val verifier: Verifier)
     FuncApp(isPredicateFieldName, Seq(f), Bool)
   }
 
+  override def isWandField(f: Exp) : Exp = {
+    FuncApp(isWandFieldName, Seq(f), Bool)
+  }
+
   override def translateField(f: sil.Field) = {
     val field = locationIdentifier(f)
     ConstDecl(field, NamedType(fieldTypeName, Seq(normalFieldType, translateType(f.typ))), unique = true) ++
-      Axiom(UnExp(Not, isPredicateField(Const(field))))
+      Axiom(UnExp(Not, isPredicateField(Const(field)))) ++
+      Axiom(UnExp(Not, isWandField(Const(field))))
   }
 
   override def predicateGhostFieldDecl(p: sil.Predicate): Seq[Decl] = {
@@ -257,6 +267,10 @@ class DefaultHeapModule(val verifier: Verifier)
       case sil.PredicateAccess(_, _) =>
         MapSelect(heap, Seq(nullLit, translateLocation(f)))
     }
+  }
+
+  override def translateLocationAccess(rcv: Exp, loc:Exp):Exp = {
+    MapSelect(heap, Seq(rcv, loc))
   }
 
   override def translateLocation(l: sil.LocationAccess): Exp = {
@@ -430,7 +444,13 @@ class DefaultHeapModule(val verifier: Verifier)
    * Reset the state of this module so that it can be used for new program. This method is called
    * after verifier gets a new program.
    */
-  override def reset(): Unit = {
+  override def reset = {
     allowHeapDeref = false
+    heap = originalHeap
   }
+
+  override def currentHeap = Seq(heap)
+
+  override def identicalOnKnownLocations(otherHeap:Seq[Exp],otherMask:Seq[Exp]):Exp =
+    FuncApp(identicalOnKnownLocsName,otherHeap ++ heap ++ otherMask, Bool)
 }

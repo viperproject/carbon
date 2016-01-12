@@ -6,7 +6,7 @@
 
 package viper.carbon.modules.impls
 
-import viper.carbon.modules.ExpModule
+import viper.carbon.modules.{StatelessComponent, ExpModule}
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.Verifier
@@ -19,7 +19,7 @@ import viper.silver.ast.utility.Expressions
 /**
  * The default implementation of [[viper.carbon.modules.ExpModule]].
  */
-class DefaultExpModule(val verifier: Verifier) extends ExpModule with DefinednessComponent {
+class DefaultExpModule(val verifier: Verifier) extends ExpModule with DefinednessComponent with StatelessComponent {
 
   import verifier._
   import heapModule._
@@ -262,7 +262,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           If(translateExp(Expressions.asBooleanExp(e1)), checkDefinednessImpl(e2, error, makeChecks = makeChecks), Statements.EmptyStmt) ::
           Nil
       case sil.Implies(e1, e2) =>
-        checkDefinednessImpl(e1, error, makeChecks = makeChecks) :: 
+        checkDefinednessImpl(e1, error, makeChecks = makeChecks) ::
           If(translateExp(e1), checkDefinednessImpl(e2, error, makeChecks = makeChecks), Statements.EmptyStmt) ::
           Nil
       case sil.CondExp(c, e1, e2) =>
@@ -273,6 +273,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         checkDefinednessImpl(e1, error, makeChecks = makeChecks) :: // short-circuiting evaluation:
           If(UnExp(Not, translateExp(e1)), checkDefinednessImpl(e2, error, makeChecks = makeChecks), Statements.EmptyStmt) ::
           Nil
+      case w@sil.MagicWand(lhs,rhs) =>
+        checkDefinednessWand(w,error, makeChecks = makeChecks)
       case _ =>
         def translate: Seqn = {
           val checks = components map (_.partialCheckDefinedness(e, error, makeChecks = makeChecks))
@@ -282,6 +284,15 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             checkDefinednessImpl(sub.asInstanceOf[sil.Exp], error, makeChecks = makeChecks)
           }
           val stmt3 = checks map (_._2())
+
+          e match {
+            case sil.MagicWand(lhs,rhs) =>
+              sys.error("wand subnodes:"+e.subnodes.toString() +
+                    "stmt:" + stmt.toString() +
+                    "stmt2:" + stmt2.toString() +
+                    "stmt3:" + stmt3.toString())
+            case _ => Nil
+          }
           stmt ++ stmt2 ++ stmt3 ++
             MaybeCommentBlock("Free assumptions", allFreeAssumptions(e))
         }
@@ -319,6 +330,26 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           translate
         }
     }
+  }
+
+  /**
+   * checks self-framedness of both sides of wand
+   * GP: maybe should "MagicWandNotWellFormed" error
+   */
+  private def checkDefinednessWand(e: sil.MagicWand, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
+   val (initStmtLHS,curState): (Stmt,stateModule.StateSnapshot) = stateModule.freshEmptyState("WandDefLHS",true)
+    val defStateLHS = stateModule.state
+    val (initStmtRHS, _): (Stmt, stateModule.StateSnapshot) = stateModule.freshEmptyState("WandDefRHS",true)
+    val defStateRHS = stateModule.state
+
+    stateModule.replaceState(defStateLHS)
+    val lhs = initStmtLHS ++  checkDefinednessOfSpecAndInhale(e.left,error)
+
+    stateModule.replaceState(defStateRHS)
+    val rhs= initStmtRHS ++ checkDefinednessOfSpecAndInhale(e.right, error)
+
+    stateModule.replaceState(curState)
+    NondetIf(lhs++rhs++Assume(FalseLit()))
   }
 
 
@@ -383,9 +414,21 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   override def allFreeAssumptions(e: sil.Exp): Stmt = {
     def translate: Seqn = {
       val stmt = components map (_.freeAssumptions(e))
-      val stmt2 = for (sub <- e.subnodes if sub.isInstanceOf[sil.Exp]) yield {
-        allFreeAssumptions(sub.asInstanceOf[sil.Exp])
-      }
+      /**
+       * Generally if e' is a subexpression of e then whenever e is inhaled/exhaled then any assumption that  can be
+       * made for free if e' is inhaled/exhaled is also free.
+       * If e is a magic wand then this is not true since what is inhaled is just the wand as a complete entity,
+       * no assumptions can be made on the left and right hand side or their subexpressions as they contain assertions
+       * which are only exhaled/inhaled when the wand is applied.
+       */
+      val stmt2 =
+        e match {
+          case sil.MagicWand(_,_) => Nil
+          case _ =>
+            for (sub <- e.subnodes if sub.isInstanceOf[sil.Exp]) yield {
+              allFreeAssumptions(sub.asInstanceOf[sil.Exp])
+            }
+        }
       stmt ++ stmt2
     }
     if (e.isInstanceOf[sil.Old]) {

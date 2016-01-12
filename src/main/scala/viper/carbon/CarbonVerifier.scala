@@ -55,6 +55,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
   val domainModule = new DefaultDomainModule(this)
   val seqModule = new DefaultSeqModule(this)
   val setModule = new DefaultSetModule(this)
+  val wandModule = new DefaultWandModule(this)
 
   // initialize all modules
   allModules foreach (m => {
@@ -122,10 +123,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
     _program = program
 
     // reset all modules
-    allModules foreach {
-      case m: StatefulComponent => m.reset()
-      case _ =>
-    }
+    allModules map (m => m.reset())
 
     _translated = mainModule.translate(program)
 

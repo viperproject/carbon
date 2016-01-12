@@ -76,4 +76,34 @@ trait PermModule extends Module {
   def hasDirectPerm(la: sil.LocationAccess): Exp
 
   def permissionLookup(la: sil.LocationAccess) : Exp
+/** FIXME: duplicate method, here */
+  
+      /**
+   * The expression for the current permission at a location.
+   */
+  def currentPermission(loc: sil.LocationAccess): Exp
+
+  def currentPermission(rcv:Exp, loc:Exp):Exp 
+
+  /**these methods are for experimental purposes, not yet finalized **/
+  /*def beginSumMask : Stmt
+
+  def sumMask : Exp
+
+  def endSumMask: Stmt*/
+/*
+  def setSummandMask1
+  def setSummandMask2
+  def sumMask(assmsToSmt: Exp => Stmt):Stmt
+  */
+
+  def sumMask(summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp
+
+    /** returns a mask and the returned statement ensures that the mask  has non-zero permission at rcv.loc and zero
+      * permission at all other location
+      * this should only be used temporarily, i.e. if there are two calls to this then the previous tempMask returned
+      * will be overwritten in the Boogie code
+      */
+  def tempInitMask(rcv: Exp, loc:Exp):(Seq[Exp], Stmt)
+
 }

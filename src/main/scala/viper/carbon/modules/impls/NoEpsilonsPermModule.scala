@@ -46,6 +46,7 @@ class NoEpsilonsPermModule(val verifier: Verifier)
   with CarbonStateComponent
   with InhaleComponent
   with ExhaleComponent
+  with TransferComponent
   with SimpleStmtComponent
   with DefinednessComponent {
 
@@ -62,6 +63,7 @@ class NoEpsilonsPermModule(val verifier: Verifier)
     inhaleModule.register(this)
     stmtModule.register(this)
     expModule.register(this)
+    wandModule.register(this)
   }
 
   implicit val namespace = verifier.freshNamespace("perm")
@@ -91,6 +93,12 @@ class NoEpsilonsPermModule(val verifier: Verifier)
   private val goodMaskName = Identifier("GoodMask")
   private val hasDirectPermName = Identifier("HasDirectPerm")
   private val predicateMaskFieldName = Identifier("PredicateMaskField")
+
+  private val resultMask = LocalVarDecl(Identifier("ResultMask"),maskType)
+  private val summandMask1 = LocalVarDecl(Identifier("SummandMask1"),maskType)
+  private val summandMask2 = LocalVarDecl(Identifier("SummandMask2"),maskType)
+  private val sumMasks = Identifier("sumMask")
+  private val tempMask = LocalVar(Identifier("TempMask"),maskType)
 
   override def preamble = {
     val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
@@ -135,11 +143,10 @@ class NoEpsilonsPermModule(val verifier: Verifier)
       val perm = currentPermission(obj.l, field.l)
         Axiom(Forall(stateContributions ++ obj ++ field,
           Trigger(Seq(staticGoodMask, perm)),
-          staticGoodMask ==>
-            // permissions are non-negative
-            (perm >= RealLit(0) &&
-             //and permissions for fields which aren't predicates are smaller than 1
-            (heapModule.isPredicateField(field.l).not ==> (perm <= RealLit(1)) ) )
+        // permissions are non-negative
+        (staticGoodMask ==> perm >= RealLit(0)) &&
+        // permissions for fields which aren't predicates or wands are smaller than 1
+          ((staticGoodMask && heapModule.isPredicateField(field.l).not && heapModule.isWandField(field.l).not) ==> perm <= RealLit(1) )
         ))
     } ++ {
       val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
@@ -153,7 +160,22 @@ class NoEpsilonsPermModule(val verifier: Verifier)
           Trigger(funcApp),
           funcApp <==> permissionPositive(permission)
         ))
-    }
+    } ++ {
+        val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
+        val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
+        val args = Seq(resultMask,summandMask1,summandMask2)
+        val funcApp = FuncApp(sumMasks, args map (_.l), Bool)
+        val permResult = currentPermission(resultMask.l, obj.l, field.l)
+        val permSummand1 = currentPermission(summandMask1.l,obj.l,field.l)
+        val permSummand2 = currentPermission(summandMask2.l,obj.l,field.l)
+        Func(sumMasks,args,Bool) ++
+          Axiom(Forall(
+            args++Seq(obj,field),
+            Trigger(Seq(funcApp,permResult)) ++ Trigger(Seq(funcApp,permSummand1)) ++
+              Trigger(Seq(funcApp,permSummand2)),
+            funcApp ==> (permResult === (permSummand1 + permSummand2))
+          ))
+      }
   }
 
   def permType = NamedType(permTypeName)
@@ -174,6 +196,10 @@ class NoEpsilonsPermModule(val verifier: Verifier)
     Assume(Old(mVar) === mVar)
   }
 
+  def reset = {
+    mask = originalMask
+  }
+
   override def usingOldState = stateModuleIsUsingOldState
 
   override def predicateMaskField(pred: Exp): Exp = {
@@ -191,9 +217,8 @@ class NoEpsilonsPermModule(val verifier: Verifier)
   }
 
   override def restoreState(s: Seq[Var]) {
-    mask = s(0) // note: should be read instead via maskVar or maskExp as appropriate (depending on whether a variable is required or not)
+    mask = s(0)
   }
-
   /**
    * Can a location on a given receiver be read?
    */
@@ -222,6 +247,9 @@ class NoEpsilonsPermModule(val verifier: Verifier)
       case _ => if(zeroOK) permission >= RealLit(0) else permission > RealLit(0)
     }
   }
+
+  def sumMask(summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp =
+    FuncApp(sumMasks, currentMask++summandMask1++summandMask2,Bool)
 
   override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
@@ -270,10 +298,33 @@ class NoEpsilonsPermModule(val verifier: Verifier)
               }) ++
               (if (!usingOldState) curPerm := permSub(curPerm, permVar) else Nil)
         })
+      case w@sil.MagicWand(left,right) =>
+        val wandRep = wandModule.getWandRepresentation(w)
+        val curPerm = currentPermission(translateNull, wandRep)
+        Comment("permLe")++ //using RealLit(1.0) instead of FullPerm due to permLe's implementation
+        Assert(permLe(RealLit(1.0), curPerm), error.dueTo(reasons.MagicWandChunkNotFound(w))) ++
+        (if (!usingOldState) curPerm := permSub(curPerm, RealLit(1.0)) else Nil)
       case _ => Nil
     }
   }
 
+  /*
+ * Gaurav (03.04.15): this basically is a simplified exhale so some code is duplicated,
+ * I haven't yet found a nice way of avoiding the code duplication
+ */
+  override def transferRemove(e:TransferableEntity, cond:Exp): Stmt = {
+        val permVar = LocalVar(Identifier("perm"), permType)
+        val curPerm = currentPermission(e.rcv,e.loc)
+        curPerm := permSub(curPerm,e.transferAmount)
+  }
+
+  override def transferValid(e:TransferableEntity):Seq[(Stmt,Exp)] = {
+   Nil
+  }
+
+
+
+/* old version of inhaleExp (05.04.15)
   override def inhaleExp(e: sil.Exp): Stmt = {
     e match {
       case sil.AccessPredicate(loc, prm) => {
@@ -295,9 +346,63 @@ class NoEpsilonsPermModule(val verifier: Verifier)
       }
       case _ => Nil
     }
+  }*/
+
+  override def inhaleExp(e: sil.Exp): Stmt = {
+    inhaleAux(e, Assume)
   }
 
-  def currentPermission(loc: sil.LocationAccess): MapSelect = {
+  /*
+   * same as the original inhale except that it abstracts over the way assumptions are expressed in the
+   * Boogie program
+   * Note: right now (05.04.15) inhale AND transferAdd both use this function
+   */
+  private def inhaleAux(e: sil.Exp, assmsToStmt: Exp => Stmt):Stmt = {
+    e match {
+      case sil.AccessPredicate(loc, perm) =>
+        val curPerm = currentPermission(loc)
+        val permVar = LocalVar(Identifier("perm"), permType)
+        val (permVal, stmts): (Exp, Stmt) =
+          if (perm.isInstanceOf[WildcardPerm]) {
+            val w = LocalVar(Identifier("wildcard"), Real)
+            (w, LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil)
+          } else {
+            (translatePerm(perm), Nil)
+          }
+        stmts ++
+          (permVar := permVal) ++
+          assmsToStmt(permissionPositive(permVar, Some(perm), true)) ++
+          assmsToStmt(checkNonNullReceiver(loc)) ++
+          (if (!usingOldState) curPerm := permAdd(curPerm, permVar) else Nil)
+      case w@sil.MagicWand(left,right) =>
+        val wandRep = wandModule.getWandRepresentation(w)
+        val curPerm = currentPermission(translateNull, wandRep)
+        (if (!usingOldState) curPerm := permAdd(curPerm, fullPerm) else Nil)
+      case _ => Nil
+    }
+  }
+
+  override def transferAdd(e:TransferableEntity, cond:Exp): Stmt = {
+    val curPerm = currentPermission(e.rcv,e.loc)
+    /* GP: probably redundant in current transfer as these assumputions are implied
+
+      (cond := cond && permissionPositive(e.transferAmount, None,true)) ++
+      {
+      e match {
+        case TransferableFieldAccessPred(rcv,_,_,_) => (cond := cond && checkNonNullReceiver(rcv))
+        case _ => Nil
+      }
+    } ++ */
+      (if (!usingOldState) curPerm := permAdd(curPerm, e.transferAmount) else Nil)
+  }
+
+  override def tempInitMask(rcv: Exp, loc:Exp):(Seq[Exp], Stmt) = {
+    val curPerm = currentPermission(tempMask,rcv,loc)
+    val setMaskStmt = (tempMask := zeroMask) ++ (curPerm := fullPerm)
+    (tempMask, setMaskStmt)
+  }
+
+  override def currentPermission(loc: sil.LocationAccess): MapSelect = {
     loc match {
       case sil.FieldAccess(rcv, field) =>
         currentPermission(translateExp(rcv), translateLocation(loc))

@@ -6,7 +6,7 @@
 
 package viper.carbon.modules.impls
 
-import viper.carbon.modules.StmtModule
+import viper.carbon.modules.{StatelessComponent, StmtModule}
 import viper.silver.ast.utility.Expressions.{whenExhaling, whenInhaling}
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
@@ -14,7 +14,6 @@ import viper.carbon.verifier.Verifier
 import Implicits._
 import viper.silver.verifier.errors
 import viper.silver.verifier.PartialVerificationError
-import viper.carbon.modules.components.SimpleStmtComponent
 import viper.silver.ast.utility.Expressions
 
 /**
@@ -29,6 +28,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
   import inhaleModule._
   import typeModule._
   import funcPredModule._
+  import wandModule._
 
   override def start() {
     // this is the main translation, so it should come at the beginning
@@ -131,6 +131,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
         res
       case w@sil.While(cond, invs, locals, body) =>
         val guard = translateExp(cond)
+        locals map (v => mainModule.env.define(v.localVar)) // add local variables to environment - this should be revisited when scopes are properly implemented
         MaybeCommentBlock("Exhale loop invariant before loop",
           executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotEstablished(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotEstablished(e))))
         ) ++
@@ -143,7 +144,6 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
               Assume(FalseLit())
           )) ++
           MaybeCommentBlock("Check the loop body", NondetIf({
-            locals map (v => mainModule.env.define(v.localVar)) // add local variables to environment - this should be revisited when scopes are properly implemented
             val (freshStateStmt, prevState) = stateModule.freshTempState("loop")
             val stmts = MaybeComment("Reset state", freshStateStmt ++ stateModule.initBoogieState) ++
               MaybeComment("Inhale invariant", inhale(w.invs) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv)))) ++
@@ -184,6 +184,11 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
         Goto(Lbl(Identifier(target)(lblNamespace)))
       case sil.NewStmt(target,fields) =>
         Nil
+      case pa@sil.Package(wand) =>
+      // checkDefinedness(wand, errors.MagicWandNotWellformed(wand))
+        translatePackage(pa,errors.PackageFailed(pa))
+      case a@sil.Apply(wand) =>
+        translateApply(a, errors.ApplyFailed(a))
       case _: sil.Seqn =>
         Nil
     }
