@@ -25,6 +25,9 @@ import java.io.{FileOutputStream, BufferedOutputStream, File}
  * Debug information can either be set using the constructor argument or the setter.
  */
 case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) extends Verifier with viper.silver.verifier.Verifier with BoogieInterface {
+
+  def this() = this(Nil)
+
   var env = null
 
   private var _config: CarbonConfig = _
@@ -52,6 +55,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
   val domainModule = new DefaultDomainModule(this)
   val seqModule = new DefaultSeqModule(this)
   val setModule = new DefaultSetModule(this)
+  val wandModule = new DefaultWandModule(this)
 
   // initialize all modules
   allModules foreach (m => {
@@ -119,10 +123,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
     _program = program
 
     // reset all modules
-    allModules foreach {
-      case m: StatefulComponent => m.reset()
-      case _ =>
-    }
+    allModules map (m => m.reset())
 
     _translated = mainModule.translate(program)
 
@@ -138,7 +139,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
       }) ++
         (config.boogieOpt.get match {
           case Some(l) =>
-            List(l + " ")
+            l.split(" ")
           case None =>
             Nil
         })

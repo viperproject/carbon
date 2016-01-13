@@ -16,7 +16,7 @@ import viper.carbon.boogie.Implicits._
  * The default implementation of a [[viper.carbon.modules.InhaleModule]].
 
  */
-class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule {
+class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule with StatelessComponent {
 
   import verifier._
   import expModule._

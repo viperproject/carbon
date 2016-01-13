@@ -26,6 +26,10 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
 
   def name = "Exhale module"
 
+  override def reset = {
+    currentPhaseId = -1
+  }
+
   override def start() {
     register(this)
   }

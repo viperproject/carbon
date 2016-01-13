@@ -6,20 +6,21 @@
 
 package viper.carbon.modules.impls
 
-import viper.carbon.modules.StmtModule
+import viper.carbon.modules.{StatelessComponent, StmtModule}
+import viper.carbon.modules.components.SimpleStmtComponent
+import viper.silver.ast.utility.Expressions.{whenExhaling, whenInhaling}
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.Verifier
 import Implicits._
 import viper.silver.verifier.errors
 import viper.silver.verifier.PartialVerificationError
-import viper.carbon.modules.components.SimpleStmtComponent
 import viper.silver.ast.utility.Expressions
 
 /**
  * The default implementation of a [[viper.carbon.modules.StmtModule]].
  */
-class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleStmtComponent {
+class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleStmtComponent with StatelessComponent {
 
   import verifier._
   import expModule._
@@ -28,6 +29,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
   import inhaleModule._
   import typeModule._
   import funcPredModule._
+  import wandModule._
 
   override def start() {
     // this is the main translation, so it should come at the beginning
@@ -64,27 +66,27 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
       case assign@sil.FieldAssign(lhs, rhs) =>
         checkDefinedness(lhs, errors.AssignmentFailed(assign)) ++ 
           checkDefinedness(rhs, errors.AssignmentFailed(assign))
-      //case fold@sil.Fold(e) => Should be handled by handleStmt above
+      case fold@sil.Fold(e) => sys.error("Internal error: translation of fold statement cannot be handled by simpleHandleStmt code; found:" + fold.toString())
       case unfold@sil.Unfold(e) =>
         translateUnfold(unfold)
       case inh@sil.Inhale(e) =>
-        checkDefinednessOfSpecAndInhale(e, errors.InhaleFailed(inh))
-        //checkDefinedness(e, errors.InhaleFailed(inh)) ++
-        //  inhale(e)
+        checkDefinednessOfSpecAndInhale(whenInhaling(e), errors.InhaleFailed(inh))
       case exh@sil.Exhale(e) =>
-        checkDefinedness(e, errors.ExhaleFailed(exh)) ++
-          exhale((e, errors.ExhaleFailed(exh)))
+        val transformedExp = whenExhaling(e)
+        checkDefinedness(transformedExp, errors.ExhaleFailed(exh)) ++
+          exhale((transformedExp, errors.ExhaleFailed(exh)))
       case a@sil.Assert(e) =>
-        if (e.isPure) {
+        val transformedExp = whenExhaling(e)
+        if (transformedExp.isPure) {
           // if e is pure, then assert and exhale are the same
-          checkDefinedness(e, errors.AssertFailed(a)) ++
-            exhale((e, errors.AssertFailed(a)))
+          checkDefinedness(transformedExp, errors.AssertFailed(a)) ++
+            exhale((transformedExp, errors.AssertFailed(a)))
         } else {
           // we create a temporary state to ignore the side-effects
           val (backup, snapshot) = freshTempState("Assert")
-          val exhaleStmt = exhale((e, errors.AssertFailed(a)))
-          restoreState(snapshot)
-          checkDefinedness(e, errors.AssertFailed(a)) :: backup :: exhaleStmt :: Nil
+          val exhaleStmt = exhale((transformedExp, errors.AssertFailed(a)))
+          replaceState(snapshot)
+          checkDefinedness(transformedExp, errors.AssertFailed(a)) :: backup :: exhaleStmt :: Nil
         }
       case mc@sil.MethodCall(methodName, args, targets) =>
         val method = verifier.program.findMethod(methodName)
@@ -92,7 +94,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
         val (preCallStateStmt, state) = stateModule.freshTempState("PreCall")
         val preCallState = stateModule.state
         val oldState = stateModule.oldState
-        stateModule.restoreState(state)
+        stateModule.replaceState(state)
         val toUndefine = collection.mutable.ListBuffer[sil.LocalVar]()
         val actualArgs = (args.zipWithIndex) map (a => {
           val (actual, i) = a
@@ -121,15 +123,16 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           (actualArgs map (_._2)) ++
           Havoc((targets map translateExp).asInstanceOf[Seq[Var]]) ++
           MaybeCommentBlock("Exhaling precondition", executeUnfoldings(pres, (pre => errors.Internal(pre))) ++ exhale(pres map (e => (e, errors.PreconditionInCallFalse(mc))))) ++ {
-          stateModule.restoreOldState(preCallState)
+          stateModule.replaceOldState(preCallState)
           val res = MaybeCommentBlock("Inhaling postcondition", inhale(posts) ++ executeUnfoldings(posts, (post => errors.Internal(post))))
-          stateModule.restoreOldState(oldState)
+          stateModule.replaceOldState(oldState)
           toUndefine map mainModule.env.undefine
           res
         }
         res
       case w@sil.While(cond, invs, locals, body) =>
         val guard = translateExp(cond)
+        locals map (v => mainModule.env.define(v.localVar)) // add local variables to environment - this should be revisited when scopes are properly implemented
         MaybeCommentBlock("Exhale loop invariant before loop",
           executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotEstablished(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotEstablished(e))))
         ) ++
@@ -142,9 +145,8 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
               Assume(FalseLit())
           )) ++
           MaybeCommentBlock("Check the loop body", NondetIf({
-            locals map (v => mainModule.env.define(v.localVar)) // add local variables to environment - this should be revisited when scopes are properly implemented
             val (freshStateStmt, prevState) = stateModule.freshTempState("loop")
-            val stmts = MaybeComment("Reset state", freshStateStmt ++ stateModule.initState) ++
+            val stmts = MaybeComment("Reset state", freshStateStmt ++ stateModule.initBoogieState) ++
               MaybeComment("Inhale invariant", inhale(w.invs) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv)))) ++
               Comment("Check and assume guard") ++
               checkDefinedness(cond, errors.WhileFailed(w)) ++
@@ -153,7 +155,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
               MaybeCommentBlock("Translate loop body", translateStmt(body)) ++
               MaybeComment("Exhale invariant", executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotPreserved(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e))))) ++
               MaybeComment("Terminate execution", Assume(FalseLit()))
-            stateModule.restoreState(prevState)
+            stateModule.replaceState(prevState)
             locals map (v => mainModule.env.undefine(v.localVar)) // remove local variables from environment - this should be revisited when scopes are properly implemented
             stmts
           }
@@ -173,19 +175,28 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           If(translateExp(cond),
             translateStmt(thn),
             translateStmt(els))
-      case sil.Label(name) =>
-        Label(Lbl(Identifier(name)(lblNamespace)))
+      case sil.Label(name) => {
+        val (stmt, currentState) = stateModule.freshTempState("Label" + name)
+        stateModule.stateRepositoryPut(name, stateModule.state)
+        stateModule.replaceState(currentState)
+        stmt ++ Label(Lbl(Identifier(name)(lblNamespace)))
+      }
       case sil.Goto(target) =>
         Goto(Lbl(Identifier(target)(lblNamespace)))
       case sil.NewStmt(target,fields) =>
         Nil
+      case pa@sil.Package(wand) =>
+      // checkDefinedness(wand, errors.MagicWandNotWellformed(wand))
+        translatePackage(pa,errors.PackageFailed(pa))
+      case a@sil.Apply(wand) =>
+        translateApply(a, errors.ApplyFailed(a))
       case _: sil.Seqn =>
         Nil
     }
   }
 
   override def translateStmt(stmt: sil.Stmt): Stmt = {
-    var comment = "Translating statement: " + stmt.toString
+    var comment = "Translating statement: " + stmt.toString.replace("\n", "\n  // ")
     stmt match {
       case sil.Seqn(ss) =>
         // return to avoid adding a comment, and to avoid the extra 'assumeGoodState'

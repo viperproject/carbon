@@ -45,7 +45,7 @@ import scala.collection.mutable.ListBuffer
  */
 class QuantifiedPermModule(val verifier: Verifier)
   extends PermModule
-//TODO  with StateComponent
+  with CarbonStateComponent
   with InhaleComponent
   with ExhaleComponent
   with SimpleStmtComponent
@@ -76,7 +76,10 @@ class QuantifiedPermModule(val verifier: Verifier)
   override val pmaskType = NamedType(pmaskTypeName)
   private val maskName = Identifier("Mask")
   private var currentMaskName = maskName
-  private var mask: Exp = GlobalVar(maskName, maskType)
+  private val originalMask = GlobalVar(maskName, maskType)
+  private var mask: Var = originalMask // When reading, don't use this directly: use either maskVar or maskExp as needed
+  private def maskVar : Var = {assert (!usingOldState); mask}
+  private def maskExp : Exp = (if (usingOldState) Old(mask) else mask)
   private val zeroMaskName = Identifier("ZeroMask")
   private val zeroMask = Const(zeroMaskName)
   private val zeroPMaskName = Identifier("ZeroPMask")
@@ -171,13 +174,25 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   def staticStateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(maskName, maskType))
   def currentStateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(currentMaskName, maskType))
-  def currentState: Seq[Exp] = Seq(mask)
-  def initState: Stmt = {
-    (mask := zeroMask)
+  def currentStateExps: Seq[Exp] = Seq(maskExp)
+
+  def initBoogieState: Stmt = {
+    mask := originalMask // ALEX: not sure if this is right - should this assignment happen?
+    resetBoogieState
+  }
+  def resetBoogieState = {
+    (maskVar := zeroMask)
   }
   def initOldState: Stmt = {
-    Assume(Old(mask) === mask)
+    val mVar = maskVar
+    Assume(Old(mVar) === mVar)
   }
+
+  override def reset = {
+    mask = originalMask
+  }
+
+  override def usingOldState = stateModuleIsUsingOldState
 
   override def predicateMaskField(pred: Exp): Exp = {
     FuncApp(predicateMaskFieldName, Seq(pred), pmaskType)
@@ -189,11 +204,11 @@ class QuantifiedPermModule(val verifier: Verifier)
   private def permSub(a: Exp, b: Exp): Exp = a - b
   private def permDiv(a: Exp, b: Exp): Exp = a / b
 
-  override def freshTempState(name: String): Seq[Exp] = {
+  override def freshTempState(name: String): Seq[Var] = {
     Seq(LocalVar(Identifier(s"${name}Mask"), maskType))
   }
 
-  override def restoreState(s: Seq[Exp]) {
+  override def restoreState(s: Seq[Var]) {
     mask = s(0)
 
     currentMaskName =
@@ -209,8 +224,8 @@ class QuantifiedPermModule(val verifier: Verifier)
    * Can a location on a given receiver be read?
    */
   private def hasDirectPerm(mask: Exp, obj: Exp, loc: Exp): Exp =
-    FuncApp(hasDirectPermName, Seq(mask, obj, loc), Bool)
-  private def hasDirectPerm(obj: Exp, loc: Exp): Exp = hasDirectPerm(mask, obj, loc)
+    FuncApp(hasDirectPermName, Seq(maskExp, obj, loc), Bool)
+  private def hasDirectPerm(obj: Exp, loc: Exp): Exp = hasDirectPerm(maskExp, obj, loc)
   override def hasDirectPerm(la: sil.LocationAccess): Exp = {
     la match {
       case sil.FieldAccess(rcv, field) =>
@@ -233,6 +248,9 @@ class QuantifiedPermModule(val verifier: Verifier)
       case _ => if(zeroOK) permission >= RealLit(0) else permission > RealLit(0)
     }
   }
+
+  def sumMask(summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp =
+    sys.error("This module doesn't support sumMask")
 
   override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
@@ -278,7 +296,7 @@ class QuantifiedPermModule(val verifier: Verifier)
                 If(permVar !== noPerm,
                   Assert(permLe(permVar, curPerm), error.dueTo(reasons.InsufficientPermission(loc))), Nil)
               }) ++
-              (if (!isUsingOldState) curPerm := permSub(curPerm, permVar) else Nil)
+              (if (!usingOldState) curPerm := permSub(curPerm, permVar) else Nil)
           })
       case qp@sil.QuantifiedPermissionSupporter.ForallRefPerm(v,cond,recv,fld,perms,forall,fieldAccess) =>
         // alpha renaming, to avoid clashes in context, use vFresh instead of v
@@ -389,8 +407,8 @@ class QuantifiedPermModule(val verifier: Verifier)
           (permVar := permVal) ++
           Assume(permissionPositive(permVar, Some(perm), true)) ++
           Assume(checkNonNullReceiver(loc)) ++
-          (if (!isUsingOldState) curPerm := permAdd(curPerm, permVar) else Nil)
-      case qp@sil.QuantifiedPermissionSupporter.ForallRefPerm(v,cond,recv,fld,perms,forall,fieldAccess) =>
+          (if (!usingOldState) curPerm := permAdd(curPerm, permVar) else Nil)
+      case sil.utility.QuantifiedPermissions.QPForall(v,cond,recv,fld,perms,forall,fieldAccess) =>
         // alpha renaming, to avoid clashes in context, use vFresh instead of v
         val vFresh = env.makeUniquelyNamed(v); env.define(vFresh.localVar)
         val ((qpComp@QPComponents(translatedLocal,translatedCond,translatedRecv,translatedPerms), renamedQP),stmts) =
@@ -463,6 +481,10 @@ class QuantifiedPermModule(val verifier: Verifier)
     }
   }
 
+  override def tempInitMask(rcv: Exp, loc:Exp):(Seq[Exp], Stmt) = {
+    sys.error("This module doesn't support tempInitMask")
+  }
+
   def currentPermission(loc: sil.LocationAccess): MapSelect = {
     loc match {
       case sil.FieldAccess(rcv, field) =>
@@ -472,13 +494,17 @@ class QuantifiedPermModule(val verifier: Verifier)
     }
   }
   def currentPermission(rcv: Exp, location: Exp): MapSelect = {
-    currentPermission(mask, rcv, location)
+    currentPermission(maskExp, rcv, location)
   }
   def currentPermission(mask: Exp, rcv: Exp, location: Exp): MapSelect = {
     MapSelect(mask, Seq(rcv, location))
   }
 
-  override def currentMask = Seq(mask)
+  override def permissionLookup(la: sil.LocationAccess) : Exp = {
+    currentPermission(la)
+  }
+
+  override def currentMask = Seq(maskVar)
   override def staticMask = Seq(LocalVarDecl(maskName, maskType))
   override def staticPermissionPositive(rcv: Exp, loc: Exp) = {
     hasDirectPerm(staticMask(0).l, rcv, loc)

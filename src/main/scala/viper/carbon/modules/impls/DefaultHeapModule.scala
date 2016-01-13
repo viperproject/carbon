@@ -23,8 +23,7 @@ class DefaultHeapModule(val verifier: Verifier)
     extends HeapModule
     with SimpleStmtComponent
     with DefinednessComponent
-    with InhaleComponent
-    with StatefulComponent {
+    with InhaleComponent {
 
   import verifier._
   import typeModule._
@@ -61,14 +60,19 @@ class DefaultHeapModule(val verifier: Verifier)
     NamedType(fieldTypeName, Seq(TypeVar("A"), pmaskType))
   override def predicateMaskFieldTypeOf(p: sil.Predicate): Type =
     NamedType(fieldTypeName, Seq(predicateMetaTypeOf(p), pmaskType))
+  override def wandBasicType(wand: String): Type = NamedType("WandType_" + wand)
+  override def wandFieldType(wand: String) : Type = NamedType(fieldTypeName, Seq(wandBasicType(wand),Int))
   private val heapTyp = NamedType("HeapType")
   private val heapName = Identifier("Heap")
   private var currentHeapName = heapName
   private val exhaleHeapName = Identifier("ExhaleHeap")
   private val exhaleHeap = LocalVar(exhaleHeapName, heapTyp)
-  private var heap: Exp = GlobalVar(heapName, heapTyp)
+  private val originalHeap = GlobalVar(heapName, heapTyp)
   private val qpHeapName = Identifier("QPHeap")
   private val qpHeap = LocalVar(qpHeapName, heapTyp)
+  private var heap: Var = originalHeap
+  private def heapVar: Var = {assert (!usingOldState); heap}
+  private def heapExp: Exp = (if (usingOldState) Old(heap) else heap)
   private val nullName = Identifier("null")
   private val nullLit = Const(nullName)
   private val freshObjectName = Identifier("freshObj")
@@ -76,6 +80,7 @@ class DefaultHeapModule(val verifier: Verifier)
   private val allocName = Identifier("$allocated")(fieldNamespace)
   private val identicalOnKnownLocsName = Identifier("IdenticalOnKnownLocations")
   private val isPredicateFieldName = Identifier("IsPredicateField")
+  private val isWandFieldName = Identifier("IsWandField")
   override def refType = NamedType("Ref")
 
   override def preamble = {
@@ -105,6 +110,9 @@ class DefaultHeapModule(val verifier: Verifier)
         Seq(LocalVarDecl(heapName, heapTyp), LocalVarDecl(exhaleHeapName, heapTyp)) ++ staticMask,
         Bool) ++
       Func(isPredicateFieldName,
+        Seq(LocalVarDecl(Identifier("f"), fieldType)),
+        Bool) ++
+      Func(isWandFieldName,
         Seq(LocalVarDecl(Identifier("f"), fieldType)),
         Bool) ++ {
       val h = LocalVarDecl(heapName, heapTyp)
@@ -163,10 +171,15 @@ class DefaultHeapModule(val verifier: Verifier)
     FuncApp(isPredicateFieldName, Seq(f), Bool)
   }
 
+  override def isWandField(f: Exp) : Exp = {
+    FuncApp(isWandFieldName, Seq(f), Bool)
+  }
+
   override def translateField(f: sil.Field) = {
     val field = locationIdentifier(f)
     ConstDecl(field, NamedType(fieldTypeName, Seq(normalFieldType, translateType(f.typ))), unique = true) ++
-      Axiom(UnExp(Not, isPredicateField(Const(field))))
+      Axiom(UnExp(Not, isPredicateField(Const(field)))) ++
+      Axiom(UnExp(Not, isWandField(Const(field))))
   }
 
   override def predicateGhostFieldDecl(p: sil.Predicate): Seq[Decl] = {
@@ -223,7 +236,7 @@ class DefaultHeapModule(val verifier: Verifier)
   private def predicateMask(loc: sil.PredicateAccess, heap: Exp) = {
     val predicate = verifier.program.findPredicate(loc.predicateName)
     val t = predicateMaskFieldTypeOf(predicate)
-    MapSelect(heap, Seq(nullLit,
+    MapSelect(heapExp, Seq(nullLit,
       FuncApp(predicateMaskIdentifer(predicate),
         loc.args map translateExp, t)))
   }
@@ -248,13 +261,13 @@ class DefaultHeapModule(val verifier: Verifier)
 
   /** Returns a heap-lookup of the allocated field of an object. */
   /** (should only be used for known-non-null references) */
-  private def alloc(o: Exp) = lookup(heap, o, Const(allocName))
+  private def alloc(o: Exp) = lookup(heapExp, o, Const(allocName))
 
   /** Returns a heap-lookup for o.f in a given heap h. */
   private def lookup(h: Exp, o: Exp, f: Exp) = MapSelect(h, Seq(o, f))
 
   override def translateLocationAccess(f: sil.LocationAccess): Exp = {
-    translateLocationAccess(f, heap)
+    translateLocationAccess(f, heapExp)
   }
   private def translateLocationAccess(f: sil.LocationAccess, heap: Exp): Exp = {
     f match {
@@ -263,6 +276,10 @@ class DefaultHeapModule(val verifier: Verifier)
       case sil.PredicateAccess(_, _) =>
         MapSelect(heap, Seq(nullLit, translateLocation(f)))
     }
+  }
+
+  override def translateLocationAccess(rcv: Exp, loc:Exp):Exp = {
+    MapSelect(heap, Seq(rcv, loc))
   }
 
   override def translateLocation(l: sil.LocationAccess): Exp = {
@@ -315,7 +332,7 @@ class DefaultHeapModule(val verifier: Verifier)
 
   override def freeAssumptions(e: sil.Exp): Stmt = {
     e match {
-      case sil.Unfolding(sil.PredicateAccessPredicate(loc, perm), exp) if !isUsingOldState =>
+      case sil.Unfolding(sil.PredicateAccessPredicate(loc, perm), exp) if !usingOldState =>
         addPermissionToPMask(loc)
       case _ => Nil
     }
@@ -396,23 +413,30 @@ class DefaultHeapModule(val verifier: Verifier)
 
   override def translateNull: Exp = nullLit
 
-  def initState: Stmt = {
+  def initBoogieState: Stmt = {
+    heap = originalHeap
     Nil
   }
+  def resetBoogieState: Stmt = {
+    Havoc(heapVar)
+  }
   def initOldState: Stmt = {
-    Assume(Old(heap) === heap)
+    val hVar = heapVar
+    Assume(Old(hVar) === hVar)
   }
 
   def staticStateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(heapName, heapTyp))
   def currentStateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(currentHeapName, heapTyp))
-  def currentState: Seq[Exp] = Seq(heap)
+  def currentStateVars: Seq[Var] = Seq(heap)
+  def currentStateExps: Seq[Exp] = Seq(heapExp)
 
-  override def freshTempState(name: String): Seq[Exp] = {
+
+  override def freshTempState(name: String): Seq[Var] = {
     Seq(LocalVar(Identifier(s"${name}Heap"), heapTyp))
   }
 
-  override def restoreState(s: Seq[Exp]) {
-    heap = s(0)
+  override def restoreState(s: Seq[Var]) {
+    heap = s(0) // note: this should be accessed via heapVar or heapExp as appropriate (whether a variable is essential or not)
     currentHeapName =
       s(0) match {
         case LocalVar(id,typ) => id
@@ -421,6 +445,8 @@ class DefaultHeapModule(val verifier: Verifier)
         case _ => sys.error("wrong state representation for heap module: " + s(0).toString() + " " + s(0).getClass().toString())
       }
   }
+
+  override def usingOldState = stateModuleIsUsingOldState
 
   // AS: this is a trick to avoid well-definedness checks for the outermost heap dereference in an AccessPredicate node (since it describes the location to which permission is provided).
   // The trick is somewhat fragile, in that it relies on the ordering of the calls to this method.
@@ -448,8 +474,8 @@ class DefaultHeapModule(val verifier: Verifier)
   }
 
   override def endExhale: Stmt = {
-    if (!isUsingOldState) Assume(FuncApp(identicalOnKnownLocsName, Seq(heap, exhaleHeap) ++ currentMask, Bool)) ++
-      (heap := exhaleHeap)
+    if (!usingOldState) Assume(FuncApp(identicalOnKnownLocsName, Seq(heapExp, exhaleHeap) ++ currentMask, Bool)) ++
+      (heapVar := exhaleHeap)
     else Nil
   }
 
@@ -465,7 +491,13 @@ class DefaultHeapModule(val verifier: Verifier)
    * Reset the state of this module so that it can be used for new program. This method is called
    * after verifier gets a new program.
    */
-  override def reset(): Unit = {
+  override def reset = {
     allowHeapDeref = false
+    heap = originalHeap
   }
+
+  override def currentHeap = Seq(heap)
+
+  override def identicalOnKnownLocations(otherHeap:Seq[Exp],otherMask:Seq[Exp]):Exp =
+    FuncApp(identicalOnKnownLocsName,otherHeap ++ heap ++ otherMask, Bool)
 }
