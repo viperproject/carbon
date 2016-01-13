@@ -359,7 +359,8 @@ class NoEpsilonsPermModule(val verifier: Verifier)
    */
   private def inhaleAux(e: sil.Exp, assmsToStmt: Exp => Stmt):Stmt = {
     e match {
-      case sil.AccessPredicate(loc, perm) =>
+      case sil.AccessPredicate(loc, prm) =>
+        val perm = PermissionSplitter.normalizePerm(prm)
         val curPerm = currentPermission(loc)
         val permVar = LocalVar(Identifier("perm"), permType)
         val (permVal, stmts): (Exp, Stmt) =

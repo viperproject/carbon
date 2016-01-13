@@ -7,6 +7,7 @@
 package viper.carbon.modules.impls
 
 import viper.carbon.modules.{StatelessComponent, StmtModule}
+import viper.carbon.modules.components.SimpleStmtComponent
 import viper.silver.ast.utility.Expressions.{whenExhaling, whenInhaling}
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
@@ -19,7 +20,7 @@ import viper.silver.ast.utility.Expressions
 /**
  * The default implementation of a [[viper.carbon.modules.StmtModule]].
  */
-class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleStmtComponent {
+class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleStmtComponent with StatelessComponent {
 
   import verifier._
   import expModule._

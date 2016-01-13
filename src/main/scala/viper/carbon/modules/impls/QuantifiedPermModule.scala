@@ -297,7 +297,7 @@ class QuantifiedPermModule(val verifier: Verifier)
           Assume(permissionPositive(permVar, Some(perm), true)) ++
           Assume(checkNonNullReceiver(loc)) ++
           (if (!usingOldState) curPerm := permAdd(curPerm, permVar) else Nil)
-      case sil.QuantifiedPermissionSupporter.ForallRefPerm(v,cond,recv,fld,perms,forall,fieldAccess) =>
+      case sil.utility.QuantifiedPermissions.QPForall(v,cond,recv,fld,perms,forall,fieldAccess) =>
         val v1 = env.makeUniquelyNamed(v); env.define(v1.localVar);
         Nil
       case _ => Nil

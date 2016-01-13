@@ -38,7 +38,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     curState = null
     //usingOldState = false
     //treatOldAsCurrent = false
-    resetState
+    resetBoogieState
   }
 
   def initBoogieState: Stmt = {
@@ -122,7 +122,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
       curState.put(c, tmpExps) // repopulate current state
       c.restoreState(tmpExps)
 
-      (if (initialise) c.resetState else stmt)
+      (if (initialise) c.resetBoogieState else stmt)
     }
     treatOldAsCurrent = usingOldState
     usingOldState = false // we have now set up a temporary state in terms of "old" - this could happen when an unfolding expression is inside an "old"
