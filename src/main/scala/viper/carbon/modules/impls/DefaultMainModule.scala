@@ -49,7 +49,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
 
     verifier.replaceProgram(
       p.transform({
-        case f: sil.Forall =>
+        case f: sil.Forall if f.isPure =>
            f.autoTrigger
 
       })((_) => true)
