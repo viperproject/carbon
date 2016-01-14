@@ -253,9 +253,15 @@ case class Trigger(exps: Seq[Exp]) extends Node
 case class CondExp(cond: Exp, thn: Exp, els: Exp) extends Exp
 case class Old(exp: Exp) extends Exp
 
-sealed abstract class Var(name: Identifier, typ: Type) extends Exp
-case class LocalVar(name: Identifier, typ: Type) extends Var(name, typ)
-case class GlobalVar(name: Identifier, typ: Type) extends Var(name, typ)
+//sealed abstract class Var(val name: Identifier, val typ: Type) extends Exp
+
+sealed trait Var extends Exp {
+  def name : Identifier
+  def typ : Type
+}
+
+case class LocalVar(name: Identifier, typ: Type) extends Var
+case class GlobalVar(name: Identifier, typ: Type) extends Var
 case class Const(name: Identifier) extends Exp
 // typ indicates the return type (needed to compute the free type variables)
 // AS: We should refactor "name" here to be "id" or similar. Otherwise "fa.name" is confusingly similar to the (usually intended) "fa.name.name"
