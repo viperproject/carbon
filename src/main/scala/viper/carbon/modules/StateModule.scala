@@ -37,13 +37,8 @@ trait StateModule extends Module with ComponentRegistry[CarbonStateComponent] wi
   def currentGoodState: Exp
 
   /**
-   */
-  def currentGoodState: Exp
-
-  /**
    * The statements necessary to initialize the Boogie state of all CarbonStateComponent modules.
    * This will also set the variable names used in the current state to the initial ones.
-   * FIXME: remove this line... The statements necessary to initialize the part of the state belonging to this module.
    */
   def initBoogieState: Stmt
 

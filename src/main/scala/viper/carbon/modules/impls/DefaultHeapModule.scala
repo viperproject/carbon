@@ -64,7 +64,6 @@ class DefaultHeapModule(val verifier: Verifier)
   override def wandFieldType(wand: String) : Type = NamedType(fieldTypeName, Seq(wandBasicType(wand),Int))
   private val heapTyp = NamedType("HeapType")
   private val heapName = Identifier("Heap")
-  private var currentHeapName = heapName
   private val exhaleHeapName = Identifier("ExhaleHeap")
   private val exhaleHeap = LocalVar(exhaleHeapName, heapTyp)
   private val originalHeap = GlobalVar(heapName, heapTyp)
@@ -344,7 +343,7 @@ class DefaultHeapModule(val verifier: Verifier)
   private def addPermissionToPMask(loc: sil.PredicateAccess): Stmt = {
     val predBody = loc.predicateBody(verifier.program).get
     predBody match {
-      case sil.QuantifiedPermissionSupporter.ForallRefPerm(v,cond,recv,fld,perms,forall,fieldAccess) =>
+      case sil.utility.QuantifiedPermissions.QPForall(v,cond,recv,fld,perms,forall,fieldAccess) =>
         // alpha renaming, to avoid clashes in context
         val vFresh = env.makeUniquelyNamed(v);
         env.define(vFresh.localVar);
@@ -426,7 +425,7 @@ class DefaultHeapModule(val verifier: Verifier)
   }
 
   def staticStateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(heapName, heapTyp))
-  def currentStateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(currentHeapName, heapTyp))
+  def currentStateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(heap.name, heapTyp))
   def currentStateVars: Seq[Var] = Seq(heap)
   def currentStateExps: Seq[Exp] = Seq(heapExp)
 
@@ -437,13 +436,6 @@ class DefaultHeapModule(val verifier: Verifier)
 
   override def restoreState(s: Seq[Var]) {
     heap = s(0) // note: this should be accessed via heapVar or heapExp as appropriate (whether a variable is essential or not)
-    currentHeapName =
-      s(0) match {
-        case LocalVar(id,typ) => id
-        case GlobalVar(id,typ) => id
-        case Old(_) => currentHeapName
-        case _ => sys.error("wrong state representation for heap module: " + s(0).toString() + " " + s(0).getClass().toString())
-      }
   }
 
   override def usingOldState = stateModuleIsUsingOldState

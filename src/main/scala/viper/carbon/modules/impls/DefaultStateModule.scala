@@ -83,7 +83,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   }
   def staticStateContributions: Seq[LocalVarDecl] = components flatMap (_.staticStateContributions)
   def currentStateContributions: Seq[LocalVarDecl] = components flatMap (_.currentStateContributions)
-  def currentStateContributionValues: Seq[Exp] = components flatMap (_.currentState)
+  def currentStateContributionValues: Seq[Exp] = components flatMap (_.currentStateExps)
 
 
   def staticGoodState: Exp = {
@@ -93,12 +93,6 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   def currentGoodState: Exp = {
     FuncApp(Identifier(isGoodState), currentStateContributionValues, Bool)
   }
-
-
-  def currentGoodState: Exp = {
-    FuncApp(Identifier(isGoodState), currentStateContributions, Bool)
-  }
-
 
   // Note: For "old" state, these variables should be wrapped in "Old(.)" before use
   type StateComponentMapping = java.util.IdentityHashMap[CarbonStateComponent, Seq[Var]]

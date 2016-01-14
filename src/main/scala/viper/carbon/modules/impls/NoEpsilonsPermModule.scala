@@ -183,6 +183,7 @@ class NoEpsilonsPermModule(val verifier: Verifier)
 
   def staticStateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(maskName, maskType))
   def currentStateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(currentMaskName, maskType))
+  def currentStateVars : Seq[Var] = Seq(mask)
   def currentStateExps: Seq[Exp] = Seq(maskExp)
 
   def initBoogieState: Stmt = {

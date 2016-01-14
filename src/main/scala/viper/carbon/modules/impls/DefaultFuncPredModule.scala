@@ -7,7 +7,7 @@
 package viper.carbon.modules.impls
 
 import viper.carbon.modules._
-import viper.silver.ast.{QuantifiedPermissionSupporter, PredicateAccess, PredicateAccessPredicate, Unfolding}
+import viper.silver.ast.{PredicateAccess, PredicateAccessPredicate, Unfolding}
 import viper.silver.ast.utility.Expressions.{whenExhaling, whenInhaling, contains}
 import viper.silver.ast.{PredicateAccess, PredicateAccessPredicate, Unfolding}
 import viper.silver.ast.{FuncApp => silverFuncApp}
@@ -193,7 +193,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   }
 
   override def translateFuncApp(fa: sil.FuncApp) = {
-    translateFuncApp(fa.funcname, currentStateExps ++ (fa.args map translateExp), fa.typ)
+    translateFuncApp(fa.funcname, heapModule.currentStateExps ++ (fa.args map translateExp), fa.typ)
   }
   def translateFuncApp(fname : String, args: Seq[Exp], typ: sil.Type) = {
     FuncApp(Identifier(fname), args, translateType(typ))
@@ -284,7 +284,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   }
 
   private def framingAxiom(f: sil.Function): Seq[Decl] = {
-    stateModule.initState
+    stateModule.reset()
     qpCondFuncs = new ListBuffer[(Func, sil.Forall)]
     val typ = translateType(f.typ)
     val args = f.formalArgs map translateLocalVarDecl
@@ -324,7 +324,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     pre match {
       case sil.AccessPredicate(la, perm) =>
         frameFragment(translateLocationAccess(la))
-      case qp@sil.QuantifiedPermissionSupporter.ForallRefPerm(lvd, condition, rcvr, f, gain, forall, fa) =>
+      case qp@sil.utility.QuantifiedPermissions.QPForall(lvd, condition, rcvr, f, gain, forall, fa) =>
         qpPrecondId = qpPrecondId+1
         val heap = heapModule.staticStateContributions
         val condName = Identifier(fun.name + "#condqp" +qpPrecondId.toString())
@@ -354,7 +354,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
     (for ((condFunc,qp) <- qps) yield {
       qp match {
-        case QuantifiedPermissionSupporter.ForallRefPerm(lvd, condition, rcvr, f, gain, forall, fa) =>
+        case sil.utility.QuantifiedPermissions.QPForall(lvd, condition, rcvr, f, gain, forall, fa) =>
           val vFresh = env.makeUniquelyNamed(lvd);
           env.define(vFresh.localVar)
           def renaming(origExpr: sil.Exp) = Expressions.instantiateVariables(origExpr, Seq(lvd), vFresh.localVar)
@@ -370,7 +370,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           val fieldAccess1 = translateLocationAccess(fa)
 
 
-          stateModule.restoreState(curState)
+          stateModule.replaceState(curState)
           val (_, curState2) = stateModule.freshTempState("Heap1")
 
           val heap2 = heapModule.currentStateContributions
@@ -394,7 +394,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
                   )))
           );
           env.undefine(vFresh.localVar)
-          stateModule.restoreState(curState2)
+          stateModule.replaceState(curState2)
           res
         case _ => sys.error("invalid quantified permission inputted into method")
       }
