@@ -275,6 +275,10 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           Nil
       case w@sil.MagicWand(lhs,rhs) =>
         checkDefinednessWand(w,error, makeChecks = makeChecks)
+      case l@sil.Let(v, e, body) =>
+        checkDefinednessImpl(e, error, makeChecks = makeChecks) ::
+          checkDefinednessImpl(body.replace(v.localVar, e), error, makeChecks = makeChecks) ::
+          Nil
       case _ =>
         def translate: Seqn = {
           val checks = components map (_.partialCheckDefinedness(e, error, makeChecks = makeChecks))
@@ -296,7 +300,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           stmt ++ stmt2 ++ stmt3 ++
             MaybeCommentBlock("Free assumptions", allFreeAssumptions(e))
         }
-
+        
         if (e.isInstanceOf[sil.QuantifiedExp]) {
           val bound_vars  = e.asInstanceOf[sil.QuantifiedExp].variables
 	  bound_vars map (v => env.define(v.localVar))
