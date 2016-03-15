@@ -175,8 +175,8 @@ sealed trait Exp extends Node with PrettyExpression {
 object All {
   def apply(exps: Seq[Exp]): Exp = exps match {
     case Nil => TrueLit()
-    case x :: Nil => x
-    case x :: xs => BinExp(x, And, All(xs))
+    case x +: Nil => x
+    case x +: xs => BinExp(x, And, All(xs))
   }
 }
 
