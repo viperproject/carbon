@@ -315,7 +315,7 @@ class QuantifiedPermModule(val verifier: Verifier)
               }) ++
               (if (!usingOldState) curPerm := permSub(curPerm, permVar) else Nil)
           })
-      case w@sil.MagicWand(left,right) =>
+      case w@sil.MagicWand(_,_) =>
         val wandRep = wandModule.getWandRepresentation(w)
         val curPerm = currentPermission(translateNull, wandRep)
         Comment("permLe")++ //using RealLit(1.0) instead of FullPerm due to permLe's implementation
