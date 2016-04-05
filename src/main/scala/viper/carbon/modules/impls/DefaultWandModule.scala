@@ -185,7 +185,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
    */
   def exec(states: List[StateRep], ops: StateRep, e:sil.Exp, allStateAssms: Exp):Stmt = {
     e match {
-      case fold@sil.Folding(acc,body) =>
+      case fold@sil.FoldingGhostOp(acc,body) =>
         val opsMask = permModule.currentMask
         val opsHeap = heapModule.currentHeap
         val (argsLocal, accTransformed, assignStmt) = evalArgsAccessPredicate(acc, None,mainError,None)
@@ -216,7 +216,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
 
           resultInitStmt ++ exec(states,resultState, body, allStateAssms)
         }
-      case unfold@sil.Unfolding(acc,body) =>
+      case unfold@sil.UnfoldingGhostOp(acc,body) =>
         val opsMask = permModule.currentMask
         val opsHeap = heapModule.currentHeap
 
@@ -248,7 +248,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
           val StateSetup(resultState, resultInitStmt) =  createAndSetSumState(opsHeap,opsMask,ops.boolVar,usedState.boolVar)
           resultInitStmt ++ exec(states,resultState, body,allStateAssms)
         }
-      case sil.Applying(wand, body) =>
+      case sil.ApplyingGhostOp(wand, body) =>
         wand match {
           case w@sil.MagicWand(left,right) =>
             val opsMask = permModule.currentMask
@@ -269,7 +269,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
             }
           case _ => sys.error("Applying ghost operation only supported for magic wands")
         }
-      case p@sil.Packaging(wand,body) =>
+      case p@sil.PackagingGhostOp(wand,body) =>
         val addWand = inhaleModule.inhale(wand)
 
         val PackageSetup(hypState, usedState, initStmt) = packageInit(wand, None)
