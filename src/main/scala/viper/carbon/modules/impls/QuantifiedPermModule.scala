@@ -398,8 +398,8 @@ class QuantifiedPermModule(val verifier: Verifier)
           wildcardAssms ++
           notNull ++
           permPositive ++
-          enoughPerm ++
           CommentBlock("check if receiver " + recv.toString() + " is injective",injectiveAssertion) ++
+          enoughPerm ++
           CommentBlock("assumptions for inverse of receiver " + recv.toString(), Assume(invAssm1)++Assume(invAssm2)) ++
           Assume(Forall(obj,ts, condTrueLocations&&condFalseLocations )) ++
           independentLocations ++
