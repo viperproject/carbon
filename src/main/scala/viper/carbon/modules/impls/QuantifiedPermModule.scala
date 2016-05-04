@@ -528,6 +528,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         env.undefine(vFresh.localVar)
 
         res
+      case _ => Nil
     }
   }
 
