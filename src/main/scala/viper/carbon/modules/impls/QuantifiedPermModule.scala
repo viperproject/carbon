@@ -459,6 +459,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         val wandRep = wandModule.getWandRepresentation(w)
         val curPerm = currentPermission(translateNull, wandRep)
         (if (!usingOldState) curPerm := permAdd(curPerm, fullPerm) else Nil)
+        //Field Access
       case qp@sil.utility.QuantifiedPermissions.QPForall(v,cond,recv,fld,perms,forall,fieldAccess) =>
         // alpha renaming, to avoid clashes in context, use vFresh instead of v
         val vFresh = env.makeUniquelyNamed(v); env.define(vFresh.localVar)
@@ -528,6 +529,14 @@ class QuantifiedPermModule(val verifier: Verifier)
         env.undefine(vFresh.localVar)
 
         res
+        //TODO predicate Access
+      case qp@sil.utility.QuantifiedPermissions.QPPForall(v,cond,args,predname,perms,forall,predAccess) =>
+        println(predAccess)
+
+        //Translate statement
+
+        Nil
+
       case _ => Nil
     }
   }
