@@ -459,7 +459,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         val wandRep = wandModule.getWandRepresentation(w)
         val curPerm = currentPermission(translateNull, wandRep)
         (if (!usingOldState) curPerm := permAdd(curPerm, fullPerm) else Nil)
-        //Field Access
+        //Quantified Field Access
       case qp@sil.utility.QuantifiedPermissions.QPForall(v,cond,recv,fld,perms,forall,fieldAccess) =>
         // alpha renaming, to avoid clashes in context, use vFresh instead of v
         val vFresh = env.makeUniquelyNamed(v); env.define(vFresh.localVar)
@@ -533,6 +533,74 @@ class QuantifiedPermModule(val verifier: Verifier)
       case qp@sil.utility.QuantifiedPermissions.QPPForall(v,cond,args,predname,perms,forall,predAccess) =>
         println(predAccess)
 
+        // alpha renaming, to avoid clashes in context, use vFresh instead of v
+        val vFresh = env.makeUniquelyNamed(v); env.define(vFresh.localVar)
+        val ((qpComp@QPComponents(translatedLocal,translatedCond,translatedRecv,translatedPerms), renamedQP),stmts) =
+          if(perms.isInstanceOf[WildcardPerm]) {
+            val w = LocalVar(Identifier("wildcard"), Real)
+            (setupQPComponents(qp, vFresh,Some(w)),LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil)
+          } else {
+            (setupQPComponents(qp,vFresh),Nil)
+          }
+
+        val a@sil.utility.QuantifiedPermissions.QPForall(_,_,_,_,renamedPerms,_,_) = renamedQP
+
+        val translatedLocation = translateLocation(Expressions.instantiateVariables(fieldAccess, v.localVar,  vFresh.localVar))
+
+        val obj = LocalVarDecl(Identifier("o"), refType)
+        val field = LocalVarDecl(Identifier("f"), fieldType)
+
+        val curPerm:Exp = currentPermission(obj.l,translatedLocation)
+        val invFun = addInverseFunction(vFresh.typ)
+        val invFunApp = FuncApp(invFun.name, Seq(obj.l), invFun.typ )
+
+        val (condInv, rcvInv, permInv) = (translatedCond.replace(env.get(vFresh.localVar), invFunApp),translatedRecv.replace(env.get(vFresh.localVar), invFunApp),translatedPerms.replace(env.get(vFresh.localVar), invFunApp) )
+
+        val (invAssm1, invAssm2) = inverseAssumptions(invFun, qpComp,QPComponents(obj,condInv, rcvInv, permInv))
+
+        val nullAndPermAssm =
+          assmsToStmt(Forall(Seq(translateLocalVarDecl(vFresh)),Seq(),translatedCond ==>
+            (permissionPositive(translatedPerms, Some(renamedPerms)) && (translatedRecv !== translateNull)) ))
+
+        //assumptions for locations that gain permission
+        val condTrueLocations = (condInv ==> (
+          (if (!usingOldState) {
+            (  currentPermission(qpMask,obj.l,translatedLocation) === curPerm + permInv )
+          } else {
+            currentPermission(qpMask,obj.l,translatedLocation) === curPerm
+          } )
+          ) )
+
+        //assumption for locations that don't gain permission
+        val condFalseLocations = (condInv.not ==> (currentPermission(qpMask,obj.l,translatedLocation) === curPerm))
+
+        //assumption for locations that are definitely independent of any of the locations part of the QP (i.e. different
+        //field)
+
+        val independentLocations = assmsToStmt(Forall(Seq(obj,field), Trigger(currentPermission(obj.l,field.l))++
+          Trigger(currentPermission(qpMask,obj.l,field.l)),(field.l !== translatedLocation) ==>
+          (currentPermission(obj.l,field.l) === currentPermission(qpMask,obj.l,field.l))) )
+
+
+        val ts = Seq(Trigger(curPerm),Trigger(currentPermission(qpMask,obj.l,translatedLocation)),Trigger(invFunApp)) //triggers TODO
+
+
+        val injectiveAssumption = assmsToStmt(isInjective(qpComp))
+
+
+        val res = Havoc(qpMask) ++
+          stmts ++
+          assmsToStmt(invAssm1) ++
+          assmsToStmt(invAssm2) ++
+          nullAndPermAssm ++
+          injectiveAssumption ++
+          assmsToStmt(Forall(obj,ts, condTrueLocations&&condFalseLocations )) ++
+          independentLocations ++
+          (mask := qpMask)
+
+        env.undefine(vFresh.localVar)
+
+        res
         //Translate statement
 
         Nil
