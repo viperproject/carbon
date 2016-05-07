@@ -820,28 +820,29 @@ class QuantifiedPermModule(val verifier: Verifier)
    */
   private def setupQPComponents(qp: sil.Forall, vFresh: sil.LocalVarDecl, permExpr: Option[Exp] = None): (QPComponents,sil.Forall) = {
     qp match {
-      case sil.utility.QuantifiedPermissions.QPForall(v,cond,recv,fld,perms,forall,fieldAccess)  =>
-        def renaming[E <: sil.Exp] = (e:E) => Expressions.renameVariables(e, v.localVar, vFresh.localVar)
+      case sil.utility.QuantifiedPermissions.QPForall(v, cond, recv, fld, perms, forall, fieldAccess) =>
+        def renaming[E <: sil.Exp] = (e: E) => Expressions.renameVariables(e, v.localVar, vFresh.localVar)
 
-        val (renamingCond,renamingRecv,renamingPerms, renamingFieldAccess) = (renaming(cond),renaming(recv),renaming(perms), renaming(fieldAccess))
-        val (translatedCond,translatedRecv) = (translateExp(renamingCond),translateExp(renamingRecv))
+        val (renamingCond, renamingRecv, renamingPerms, renamingFieldAccess) = (renaming(cond), renaming(recv), renaming(perms), renaming(fieldAccess))
+        val (translatedCond, translatedRecv) = (translateExp(renamingCond), translateExp(renamingRecv))
 
         val translatedPerms = permExpr match {
           case None => translateExp(renamingPerms)
           case Some(p) => p
+        }
+            //          sil.Forall(Seq(vFresh), Seq(), sil.Implies(renamingCond,sil.FieldAccessPredicate(renamingFieldAccess, renamingPerms)(fieldAccess.pos,fieldAccess.info))(NoPosition,NoInfo))(qp.pos,qp.info))
+            //note: we lose the position and info data of the implies
+            (QPComponents(translateLocalVarDecl(vFresh), translatedCond, translatedRecv, translatedPerms), renaming(qp))
 
-        //          sil.Forall(Seq(vFresh), Seq(), sil.Implies(renamingCond,sil.FieldAccessPredicate(renamingFieldAccess, renamingPerms)(fieldAccess.pos,fieldAccess.info))(NoPosition,NoInfo))(qp.pos,qp.info))
-        //note: we lose the position and info data of the implies
-        (QPComponents(translateLocalVarDecl(vFresh),translatedCond,translatedRecv,translatedPerms),renaming(qp))
-
-      case _ => sys.error("setupQPComponents only handles quantified permissions")
+          case _ => sys.error("setupQPComponents only handles quantified permissions")
+        }
     }
-  }
 
     //TODO adapt definition
   /*For QP \forall x:T :: c(x) ==> acc(pred(e1(x), ....., en(x),p(x)) this case class describes an instantiation of the QP where
  * cond = c(expr), e1(x), ...en(x) = args and perm = p(expr) and expr is of type T and may be dependent on the variable given by v. */
   case class QPPComponents(v:LocalVarDecl, args:Seq[Exp], perm:Exp)
+
   /**
     *
     * @param qp the quantified permission (i.e. should match object sil.QuantifiedPermissionSupporter.ForallRefPerm
@@ -856,7 +857,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         val (renamingCond,renamingPerms) = (renaming(cond),renaming(perms))
         //TODO translate arguments
         val renamingArgs = args/*renaming(_.args)*/
-        val translatedCond = translateExp(renamingCond)
+      val translatedCond = translateExp(renamingCond)
 
 
         val translatedPerms = permExpr match {
@@ -867,12 +868,12 @@ class QuantifiedPermModule(val verifier: Verifier)
         //          sil.Forall(Seq(vFresh), Seq(), sil.Implies(renamingCond,sil.FieldAccessPredicate(renamingFieldAccess, renamingPerms)(fieldAccess.pos,fieldAccess.info))(NoPosition,NoInfo))(qp.pos,qp.info))
         //note: we lose the position and info data of the implies
 
-         QPPComponents(translateLocalVarDecl(vFresh),renamingArgs. translatedPerms),renaming(qp))
-         sys.error("translagint not yet implememented")
+        sys.error("setupQPComponents only handles quantified permissions")
+        //QPPComponents(translateLocalVarDecl(vFresh),renamingArgs. translatedPerms),renaming(qp))
+    sys.error("translagint not yet implememented")
       case _ => sys.error("setupQPComponents only handles quantified permissions")
     }
   }
-
 
   //checks if the receiver expression in qpcomp is injective
   def isInjective(qpcomp: QPComponents):Exp = {
