@@ -841,23 +841,23 @@ class QuantifiedPermModule(val verifier: Verifier)
     //TODO adapt definition
   /*For QP \forall x:T :: c(x) ==> acc(pred(e1(x), ....., en(x),p(x)) this case class describes an instantiation of the QP where
  * cond = c(expr), e1(x), ...en(x) = args and perm = p(expr) and expr is of type T and may be dependent on the variable given by v. */
-  case class QPPComponents(v:LocalVarDecl, args:Seq[Exp], perm:Exp)
-
+  case class QPPComponents(v:LocalVarDecl, cond: Exp, args:Seq[viper.silver.ast.Exp], perm:Exp)
   /**
     *
     * @param qp the quantified permission (i.e. should match object sil.QuantifiedPermissionSupporter.ForallRefPerm
     * @param vFresh the variable which should replace the current bound variable of the qp
     * @return returns a boogie representation of the qp (QPComponents) and a renamed sil node of the  inputted qp
     */
-  private def setupQPPComponents(qp: sil.Forall, vFresh: sil.LocalVarDecl, permExpr: Option[Exp] = None): (QPComponents,sil.Forall) = {
+  private def setupQPPComponents(qp: sil.Forall, vFresh: sil.LocalVarDecl, permExpr: Option[Exp] = None): (QPPComponents,sil.Forall) = {
     qp match {
       case sil.utility.QuantifiedPermissions.QPPForall(v,cond,args,predname,perms,forall,predAccess) =>
         def renaming[E <: sil.Exp] = (e:E) => Expressions.renameVariables(e, v.localVar, vFresh.localVar)
 
         val (renamingCond,renamingPerms) = (renaming(cond),renaming(perms))
-        //TODO translate arguments
-        val renamingArgs = args/*renaming(_.args)*/
-      val translatedCond = translateExp(renamingCond)
+
+        val renamingArgs = args
+        renamingArgs.foreach{translateExp}
+        val translatedCond = translateExp(renamingCond)
 
 
         val translatedPerms = permExpr match {
@@ -865,13 +865,9 @@ class QuantifiedPermModule(val verifier: Verifier)
           case Some(p) => p
         }
 
-        //          sil.Forall(Seq(vFresh), Seq(), sil.Implies(renamingCond,sil.FieldAccessPredicate(renamingFieldAccess, renamingPerms)(fieldAccess.pos,fieldAccess.info))(NoPosition,NoInfo))(qp.pos,qp.info))
-        //note: we lose the position and info data of the implies
-
-        sys.error("setupQPComponents only handles quantified permissions")
-        //QPPComponents(translateLocalVarDecl(vFresh),renamingArgs. translatedPerms),renaming(qp))
-    sys.error("translagint not yet implememented")
+        (QPPComponents(translateLocalVarDecl(vFresh),translatedCond, renamingArgs, translatedPerms), renaming(qp))
       case _ => sys.error("setupQPComponents only handles quantified permissions")
+        sys.error("translagint not yet implememented")
     }
   }
 
