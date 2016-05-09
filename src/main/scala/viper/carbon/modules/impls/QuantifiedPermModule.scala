@@ -472,7 +472,7 @@ class QuantifiedPermModule(val verifier: Verifier)
           }
 
 
-        val a@sil.utility.QuantifiedPermissions.QPForall(_,_,_,_,renamedPerms,_,_) = renamedQP
+        val sil.utility.QuantifiedPermissions.QPForall(_,_,_,_,renamedPerms,_,_) = renamedQP
 
         val translatedLocation = translateLocation(Expressions.instantiateVariables(fieldAccess, v.localVar,  vFresh.localVar))
         println("translatedLocation:")
@@ -533,7 +533,7 @@ class QuantifiedPermModule(val verifier: Verifier)
           Trigger(currentPermission(qpMask,obj.l,field.l)),(field.l !== translatedLocation) ==>
           (currentPermission(obj.l,field.l) === currentPermission(qpMask,obj.l,field.l))) )
 
-        val ts = Seq(Trigger(curPerm),Trigger(currentPermission(qpMask,obj.l,translatedLocation)),Trigger(invFunApp)) //triggers TODO
+        val ts = Seq(Trigger(curPerm),Trigger(currentPermission(qpMask,obj.l,translatedLocation)),Trigger(invFunApp))
 
 
         val injectiveAssumption = assmsToStmt(isInjective(qpComp))
@@ -593,7 +593,10 @@ class QuantifiedPermModule(val verifier: Verifier)
         val predicate = program.findPredicate(predname);
         val formalVars = predicate.formalArgs //sil.LocalVarDecl
         val sLocVars = formalVars.map(env.makeUniquelyNamed)
-       // val names = formalVars.map(1)
+        val newLocVars = sLocVars.map(x => LocalVarDecl(Identifier(x.name), typeModule.translateType(x.typ)))
+
+
+        // val names = formalVars.map(1)
 
 
         //val locVar = env.define(locVar.apply(0).localVar)
@@ -614,8 +617,8 @@ class QuantifiedPermModule(val verifier: Verifier)
         //create local variables for arguments from predicate
 
         qpId = qpId + 1
-  /*     val invFun = Func(Identifier(inverseFunName+qpId), formalVars , typeModule.translateType(vFresh.typ))
-       inverseFuncs += invFun*/
+       val invFun = Func(Identifier(inverseFunName+qpId), newLocVars , typeModule.translateType(vFresh.typ))
+       inverseFuncs += invFun
        //TODO: val invFunApp = FuncApp(invFun.name, translatedArgs, invFun.typ )
 
 
@@ -896,7 +899,7 @@ class QuantifiedPermModule(val verifier: Verifier)
    */
   private def setupQPComponents(qp: sil.Forall, vFresh: sil.LocalVarDecl, permExpr: Option[Exp] = None): (QPComponents,sil.Forall) = {
     qp match {
-      case sil.utility.QuantifiedPermissions.QPForall(v, cond, recv, fld, perms, forall, fieldAccess) =>
+      case sil.utility.QuantifiedPermissions.QPForall(v, cond, recv, _, perms, forall, fieldAccess) =>
         def renaming[E <: sil.Exp] = (e: E) => Expressions.renameVariables(e, v.localVar, vFresh.localVar)
 
         val (renamingCond, renamingRecv, renamingPerms, renamingFieldAccess) = (renaming(cond), renaming(recv), renaming(perms), renaming(fieldAccess))
