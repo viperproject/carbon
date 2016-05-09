@@ -584,53 +584,53 @@ class QuantifiedPermModule(val verifier: Verifier)
         val curPerm:Exp = currentPermission(obj.l,translatedLocation)
         */
 
-
-       //TODO: translate Inverse functions
-        println("number of functions: ")
-        println(translatedArgs.size)
-
-
+        //define inverse function
         val predicate = program.findPredicate(predname);
         val formalVars = predicate.formalArgs //sil.LocalVarDecl
-        val sLocVars = formalVars.map(env.makeUniquelyNamed)
-        val newLocVars = sLocVars.map(x => LocalVarDecl(Identifier(x.name), typeModule.translateType(x.typ)))
-
-
-        // val names = formalVars.map(1)
-
-
-        //val locVar = env.define(locVar.apply(0).localVar)
-
-
-
-        //val curPerm:Exp = currentPermission(obj.l,translatedLocation)
-
-       //TODO: val invFun = addInverseFunction(vFresh.typ)
-        /*        private def addInverseFunction(outputType: sil.Type):Func = {
-                    qpId = qpId+1;
-                    val res = Func(Identifier(inverseFunName+qpId), LocalVarDecl(Identifier("recv"), refType), typeModule.translateType(outputType))
-                    inverseFuncs += res
-                    res
-                  }*/
+        val renamedVars = formalVars.map(env.makeUniquelyNamed)
+        val LocVars = renamedVars.map(x => LocalVarDecl(Identifier(x.name), typeModule.translateType(x.typ)))
 
 
         //create local variables for arguments from predicate
-
         qpId = qpId + 1
-       val invFun = Func(Identifier(inverseFunName+qpId), newLocVars , typeModule.translateType(vFresh.typ))
-       inverseFuncs += invFun
-       //TODO: val invFunApp = FuncApp(invFun.name, translatedArgs, invFun.typ )
+        val invFun = Func(Identifier(inverseFunName+qpId), LocVars , typeModule.translateType(vFresh.typ))
+        inverseFuncs += invFun
+
+        println("invFun")
+        println(invFun)
+        val invFunApp = FuncApp(invFun.name, translatedArgs, invFun.typ)
+        println("invFunApp")
+        println(invFunApp)
 
 
+        //val (condInv, rcvInv, permInv) = (translatedCond.replace(env.get(vFresh.localVar), invFunApp),translatedRecv.replace(env.get(vFresh.localVar), invFunApp),translatedPerms.replace(env.get(vFresh.localVar), invFunApp) )
 
-        //println(invFun)
-//        val invFunApp = FuncApp(invFun.name, args, invFun.typ )
+        //val (invAssm1, invAssm2) = inversePredicateAssumptions(invFun, qpComp,QPPComponents(obj,condInv, rcvInv, permInv))
 
-/*
-        val (condInv, rcvInv, permInv) = (translatedCond.replace(env.get(vFresh.localVar), invFunApp),translatedRecv.replace(env.get(vFresh.localVar), invFunApp),translatedPerms.replace(env.get(vFresh.localVar), invFunApp) )
 
-        val (invAssm1, invAssm2) = inversePredicateAssumptions(invFun, qpComp,QPPComponents(obj,condInv, rcvInv, permInv))
-*/
+        tr1 = Seq()
+        //val invAssm1 = (Forall(v, tr1, cond ==> (FuncApp(invFun.name, translatedArgs, invFun.typ) === v.l )))
+        /*
+
+          def inverseAssumptions(invFun: Func, qpcompStandard: QPComponents, qpcompInverse: QPComponents):(Exp, Exp) = {
+            val QPComponents(v, cond, recv, perm) = qpcompStandard
+            val QPComponents(vInv, condInv, recvInv, permInv) = qpcompInverse
+
+            val tr1 =
+              if(recv.isInstanceOf[LocalVar]) {
+                Seq()
+              } else {
+                Seq(Trigger(recv))
+              }
+            val assm1 = (Forall(Seq(v), tr1, cond ==> (FuncApp(invFun.name, Seq(recv), invFun.typ) === v.l )))
+
+            val assm2 = Forall(Seq(vInv), Seq(Trigger(FuncApp(invFun.name, Seq(vInv.l), invFun.typ))), condInv ==> (recvInv === vInv.l) )
+
+            (assm1,assm2)
+          }
+         */
+
+
         /*
         val tri = Seq()
         val invAssm1 = (Forall(Seq(v), tr1, qppComp.cond ==> (FuncApp(invFun.name, qppComp.args, invFun.typ) === v.l )))
