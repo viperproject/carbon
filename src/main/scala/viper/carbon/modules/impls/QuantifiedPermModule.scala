@@ -473,8 +473,6 @@ class QuantifiedPermModule(val verifier: Verifier)
 
 
         val a@sil.utility.QuantifiedPermissions.QPForall(_,_,_,_,renamedPerms,_,_) = renamedQP
-        println("renamed OP: ")
-        println(renamedQP)
 
         val translatedLocation = translateLocation(Expressions.instantiateVariables(fieldAccess, v.localVar,  vFresh.localVar))
 
@@ -534,7 +532,6 @@ class QuantifiedPermModule(val verifier: Verifier)
         res
         //TODO predicate Access
       case qpp@sil.utility.QuantifiedPermissions.QPPForall(v,cond,args,predname,perms,forall,predAccess) =>
-        println(predAccess)
 
         // alpha renaming, to avoid clashes in context, use vFresh instead of v
         val vFresh = env.makeUniquelyNamed(v); env.define(vFresh.localVar)
@@ -547,7 +544,10 @@ class QuantifiedPermModule(val verifier: Verifier)
           }
 
         println("translated function:")
-        println(renamedQP)
+        println(translatedLocal)
+        println(translatedCond)
+        println(translatedArgs)
+        println(translatedPerms)
 
 
         val a@sil.utility.QuantifiedPermissions.QPPForall(_,_,_,_,renamedPerms,_,_) = renamedQP
@@ -861,7 +861,7 @@ class QuantifiedPermModule(val verifier: Verifier)
     //TODO adapt definition
   /*For QP \forall x:T :: c(x) ==> acc(pred(e1(x), ....., en(x),p(x)) this case class describes an instantiation of the QP where
  * cond = c(expr), e1(x), ...en(x) = args and perm = p(expr) and expr is of type T and may be dependent on the variable given by v. */
-  case class QPPComponents(v:LocalVarDecl, cond: Exp, args:Seq[viper.silver.ast.Exp], perm:Exp)
+  case class QPPComponents(v:LocalVarDecl, cond: Exp, args:Seq[Exp], perm:Exp)
   /**
     *
     * @param qp the quantified permission (i.e. should match object sil.QuantifiedPermissionSupporter.ForallRefPerm
@@ -875,10 +875,9 @@ class QuantifiedPermModule(val verifier: Verifier)
 
         val (renamingCond,renamingPerms) = (renaming(cond),renaming(perms))
 
-        val renamingArgs = args
-        renamingArgs.foreach{translateExp}
-        val translatedCond = translateExp(renamingCond)
+        val renamingArgs = args.map(translateExp)
 
+        val translatedCond = translateExp(renamingCond)
 
         val translatedPerms = permExpr match {
           case None => translateExp(renamingPerms)
