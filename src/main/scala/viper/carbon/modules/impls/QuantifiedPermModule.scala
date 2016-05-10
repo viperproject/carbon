@@ -604,11 +604,21 @@ class QuantifiedPermModule(val verifier: Verifier)
 
 
         //val (condInv, rcvInv, permInv) = (translatedCond.replace(env.get(vFresh.localVar), invFunApp),translatedRecv.replace(env.get(vFresh.localVar), invFunApp),translatedPerms.replace(env.get(vFresh.localVar), invFunApp) )
+        val condInv = translatedCond.replace(env.get(vFresh.localVar), invFunApp)
+        val argsInv = translatedArgs.map(x => x.replace(env.get(vFresh.localVar), invFunApp))
+        val permInv = translatedPerms.replace(env.get(vFresh.localVar), invFunApp)
+
+        print("condInv: ")
+        println(condInv)
+        print("argsInv: ")
+        println(argsInv)
+        print("permInv")
+        println(permInv)
 
         //val (invAssm1, invAssm2) = inversePredicateAssumptions(invFun, qpComp,QPPComponents(obj,condInv, rcvInv, permInv))
 
 
-        tr1 = Seq()
+        val tr1 = Seq()
         //val invAssm1 = (Forall(v, tr1, cond ==> (FuncApp(invFun.name, translatedArgs, invFun.typ) === v.l )))
         /*
 
