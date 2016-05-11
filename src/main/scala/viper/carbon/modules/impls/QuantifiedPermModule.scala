@@ -571,81 +571,44 @@ class QuantifiedPermModule(val verifier: Verifier)
         println(translatedArgs)
         println(translatedPerms)
 
-
         val a@sil.utility.QuantifiedPermissions.QPPForall(_,_,_,_,renamedPerms,_,_) = renamedQP
 
         //TODO: translate Predicate location? replace variables?
-        /*
-        val translatedLocation = translateLocation(Expressions.instantiateVariables(fieldAccess, v.localVar,  vFresh.localVar))
 
-        val obj = LocalVarDecl(Identifier("o"), refType)
-        val field = LocalVarDecl(Identifier("f"), fieldType)
-
-        val curPerm:Exp = currentPermission(obj.l,translatedLocation)
-        */
-
-        //define inverse function
-        val predicate = program.findPredicate(predname);
+        //create local variables from arguments of the predicate
+        val predicate = program.findPredicate(predname)
         val formalVars = predicate.formalArgs //sil.LocalVarDecl
         val renamedVars = formalVars.map(env.makeUniquelyNamed)
-        val LocVars = renamedVars.map(x => LocalVarDecl(Identifier(x.name), typeModule.translateType(x.typ)))
+        val locVars = renamedVars.map(x => LocalVarDecl(Identifier(x.name), typeModule.translateType(x.typ)))
 
 
-        //create local variables for arguments from predicate
+        //define inverse function
         qpId = qpId + 1
-        val invFun = Func(Identifier(inverseFunName+qpId), LocVars , typeModule.translateType(vFresh.typ))
+        val invFun = Func(Identifier(inverseFunName+qpId), locVars , typeModule.translateType(vFresh.typ))
         inverseFuncs += invFun
 
-        println("invFun")
-        println(invFun)
-        val invFunApp = FuncApp(invFun.name, translatedArgs, invFun.typ)
-        println("invFunApp")
-        println(invFunApp)
+        val funApp = FuncApp(invFun.name, translatedArgs, invFun.typ)
 
+        val locExpArgs = locVars.map(_.l)
+        val invFunApp = FuncApp(invFun.name, locExpArgs, invFun.typ)
 
-        //val (condInv, rcvInv, permInv) = (translatedCond.replace(env.get(vFresh.localVar), invFunApp),translatedRecv.replace(env.get(vFresh.localVar), invFunApp),translatedPerms.replace(env.get(vFresh.localVar), invFunApp) )
-        val condInv = translatedCond.replace(env.get(vFresh.localVar), invFunApp)
-        val argsInv = translatedArgs.map(x => x.replace(env.get(vFresh.localVar), invFunApp))
-        val permInv = translatedPerms.replace(env.get(vFresh.localVar), invFunApp)
+        //replace all arguments:
+        val condInv = translatedCond.replace(translatedLocal.l, invFunApp)
+        val argsInv = translatedArgs.map(x => x.replace(translatedLocal.l, invFunApp))
 
-        print("condInv: ")
-        println(condInv)
-        print("argsInv: ")
-        println(argsInv)
-        print("permInv")
-        println(permInv)
+        val permInv = translatedPerms.replace(translatedLocal.l, invFunApp)
 
-        //val (invAssm1, invAssm2) = inversePredicateAssumptions(invFun, qpComp,QPPComponents(obj,condInv, rcvInv, permInv))
-
-
+        //TODO triggers
+        //define inverse functions
         val tr1 = Seq()
-        //val invAssm1 = (Forall(v, tr1, cond ==> (FuncApp(invFun.name, translatedArgs, invFun.typ) === v.l )))
-        /*
+        val invAssm1 = Forall(translatedLocal, tr1, translatedCond ==> (funApp === translatedLocal.l))
 
-          def inverseAssumptions(invFun: Func, qpcompStandard: QPComponents, qpcompInverse: QPComponents):(Exp, Exp) = {
-            val QPComponents(v, cond, recv, perm) = qpcompStandard
-            val QPComponents(vInv, condInv, recvInv, permInv) = qpcompInverse
-
-            val tr1 =
-              if(recv.isInstanceOf[LocalVar]) {
-                Seq()
-              } else {
-                Seq(Trigger(recv))
-              }
-            val assm1 = (Forall(Seq(v), tr1, cond ==> (FuncApp(invFun.name, Seq(recv), invFun.typ) === v.l )))
-
-            val assm2 = Forall(Seq(vInv), Seq(Trigger(FuncApp(invFun.name, Seq(vInv.l), invFun.typ))), condInv ==> (recvInv === vInv.l) )
-
-            (assm1,assm2)
-          }
-         */
+        //for each argument, define a inverse function
+        val eqExpr = (argsInv zip locVars.map(_.l)).map(x => x._1 === x._2)
 
 
-        /*
-        val tri = Seq()
-        val invAssm1 = (Forall(Seq(v), tr1, qppComp.cond ==> (FuncApp(invFun.name, qppComp.args, invFun.typ) === v.l )))
-*/
-        //TODO: assume permission to predicates
+        val tr2 = Seq()
+        val invAssm2 = eqExpr.map(expr => Forall(locVars, tr2, condInv ==> expr))
 /*
         val nullAndPermAssm =
           assmsToStmt(Forall(Seq(translateLocalVarDecl(vFresh)),Seq(),translatedCond ==>
@@ -662,12 +625,12 @@ class QuantifiedPermModule(val verifier: Verifier)
 */
 
         //assumption for locations that don't gain permission
-        /*
+       /*
         val condFalseLocations = (condInv.not ==> (currentPermission(qpMask,obj.l,translatedLocation) === curPerm))
-
+*/
         //assumption for locations that are definitely independent of any of the locations part of the QP (i.e. different
         //field)
-*/
+
         /*
         val independentLocations = assmsToStmt(Forall(Seq(obj,field), Trigger(currentPermission(obj.l,field.l))++
           Trigger(currentPermission(qpMask,obj.l,field.l)),(field.l !== translatedLocation) ==>
@@ -677,14 +640,46 @@ class QuantifiedPermModule(val verifier: Verifier)
         val ts = Seq(Trigger(curPerm),Trigger(currentPermission(qpMask,obj.l,translatedLocation)),Trigger(invFunApp)) //triggers TODO
 
 
-        val injectiveAssumption = assmsToStmt(isInjective(qpComp))
-
 */
+
+        /*
+        def isInjective(qpcomp: QPComponents):Exp = {
+          val QPComponents(v, cond, recv, perm) = qpcomp
+
+          val vFresh = LocalVarDecl(Identifier("v2"),v.typ)
+          Forall( v++vFresh,Seq(),
+            (  (v.l !== vFresh.l) &&  cond && cond.replace(v.l, vFresh.l) ) ==> (recv !== recv.replace(v.l, vFresh.l)) )
+        }
+
+        val injectiveAssumption = assmsToStmt(isInjective(qpComp))
+        */
+
+
+        //assume injectivity of inverse function:
+        //define new variable
+        val v2 = env.makeUniquelyNamed(v); env.define(v2.localVar)
+        //var translatedLocal2 = LocalVarDecl(Identifier(v2.name), translatedLocal.typ);
+        val translatedLocal2 = LocalVarDecl(Identifier(translatedLocal.name.name), translatedLocal.typ) //new varible
+
+        val injectiveCond = (translatedLocal.l.!==(translatedLocal2.l)) && translatedCond && translatedCond.replace(translatedLocal.l, translatedLocal2.l);
+
+        val translatedArgs2= translatedArgs.map(x => x.replace(translatedLocal.l, translatedLocal2.l))
+        //val arg1 = translatedArgs.apply(0).replace(translatedLocal.l, translatedLocal2.l)
+        //println(arg1)
+        //val arg2 = translatedArgs.apply(1).replace(translatedLocal.l, translatedLocal2.l)
+        //println(arg2)
+        //val translatedArgs2 = translatedArgs
+        val ineqs = (translatedArgs zip translatedArgs2).map(x => x._1 !== x._2)
+        val ineqExpr = ineqs.reduce((expr1, expr2) => (expr1) || (expr2))
+        val injectiveAssumption = Forall((translatedLocal ++ translatedLocal2), Seq(),injectiveCond ==> ineqExpr)
+
+        print("injecitveAssumption: ")
+        println(injectiveAssumption)
         val res = Havoc(qpMask) ++
           stmts ++
-          //TODO: replace: multiple inverse functions for predicate
-         // assmsToStmt(invAssm1) ++
-          /*assmsToStmt(invAssm2) ++
+          assmsToStmt(invAssm1) ++
+          invAssm2.map(assmsToStmt) ++
+         /*
           nullAndPermAssm ++
           injectiveAssumption ++ */
         //  assmsToStmt(Forall(obj,ts, condTrueLocations&&condFalseLocations )) ++
