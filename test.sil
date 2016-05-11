@@ -1,0 +1,22 @@
+field f: Int
+
+predicate pred1(a:Ref, b:Int) {
+	acc(a.f)
+}
+
+predicate pred2(a:Ref, p:Perm) {
+	acc(a.f, p)
+}
+
+ method test01_qp(xs: Seq[Ref], y: Ref, val:Int)
+   requires y in xs
+   //requires forall x:Ref :: x in xs ==> acc(x.f)
+   requires forall x: Ref :: x in xs ==> acc(pred1(x, val+5))
+  // ensures  forall x: Ref :: x in xs ==> acc(pred1(x, val+5))
+ {
+   var a:Int := 0
+   var b:Int := 1
+   unfold pred1(y, val + 5)
+   //y.f := val
+   //fold pred1(y, val + 5)
+ }
