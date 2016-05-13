@@ -30,7 +30,7 @@ import viper.carbon.boogie.Assert
 import viper.carbon.boogie.ConstDecl
 import viper.carbon.boogie.Const
 import viper.carbon.boogie.LocalVar
-import viper.silver.ast.{NoInfo, NoPosition, NullLit, WildcardPerm}
+import viper.silver.ast.{NoInfo, NoPosition, NullLit, WildcardPerm, PredicateAccessPredicate, PredicateAccess, Literal}
 import viper.carbon.boogie.Forall
 import viper.carbon.boogie.Assign
 import viper.carbon.boogie.Func
@@ -475,40 +475,20 @@ class QuantifiedPermModule(val verifier: Verifier)
         val sil.utility.QuantifiedPermissions.QPForall(_,_,_,_,renamedPerms,_,_) = renamedQP
 
         val translatedLocation = translateLocation(Expressions.instantiateVariables(fieldAccess, v.localVar,  vFresh.localVar))
-        println("translatedLocation:")
-        println(translatedLocation)
 
         val obj = LocalVarDecl(Identifier("o"), refType)
         val field = LocalVarDecl(Identifier("f"), fieldType)
 
-        println("obj && field:")
-        println(obj, field)
 
         val curPerm:Exp = currentPermission(obj.l,translatedLocation)
         val invFun = addInverseFunction(vFresh.typ)
         val invFunApp = FuncApp(invFun.name, Seq(obj.l), invFun.typ )
 
-        println("curPerm")
-        println(curPerm)
-        println("invFun")
-        println(invFun)
-        println("invFunApp")
-        println(invFunApp)
-
 
         val (condInv, rcvInv, permInv) = (translatedCond.replace(env.get(vFresh.localVar), invFunApp),translatedRecv.replace(env.get(vFresh.localVar), invFunApp),translatedPerms.replace(env.get(vFresh.localVar), invFunApp) )
-        println(condInv)
-        println(rcvInv)
-
-        println(permInv)
 
 
         val (invAssm1, invAssm2) = inverseAssumptions(invFun, qpComp,QPComponents(obj,condInv, rcvInv, permInv))
-
-
-        println("inverse assumptions:")
-        println(invAssm1)
-        println(invAssm2)
 
         val nullAndPermAssm =
           assmsToStmt(Forall(Seq(translateLocalVarDecl(vFresh)),Seq(),translatedCond ==>
@@ -556,20 +536,14 @@ class QuantifiedPermModule(val verifier: Verifier)
       case qpp@sil.utility.QuantifiedPermissions.QPPForall(v,cond,args,predname,perms,forall,predAccess) =>
 
         // alpha renaming, to avoid clashes in context, use vFresh instead of v
-        val vFresh = env.makeUniquelyNamed(v); env.define(vFresh.localVar)
-        val ((qppComp@QPPComponents(translatedLocal,translatedCond, predname, translatedArgs,translatedPerms), renamedQP),stmts) =
+        val vFresh = env.makeUniquelyNamed(v); env.define(vFresh.localVar);
+        val ((qppComp@QPPComponents(translatedLocal,translatedCond, predname, translatedArgs,translatedPerms, predAccPred), renamedQP),stmts) =
           if(perms.isInstanceOf[WildcardPerm]) {
             val w = LocalVar(Identifier("wildcard"), Real)
             (setupQPPComponents(qpp, vFresh,Some(w)),LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil)
           } else {
             (setupQPPComponents(qpp,vFresh),Nil)
           }
-
-        println("translated function:")
-        println(translatedLocal)
-        println(translatedCond)
-        println(translatedArgs)
-        println(translatedPerms)
 
         val a@sil.utility.QuantifiedPermissions.QPPForall(_,_,_,_,renamedPerms,_,_) = renamedQP
 
@@ -609,50 +583,39 @@ class QuantifiedPermModule(val verifier: Verifier)
 
         val tr2 = Seq()
         val invAssm2 = eqExpr.map(expr => Forall(locVars, tr2, condInv ==> expr))
-/*
-        val nullAndPermAssm =
-          assmsToStmt(Forall(Seq(translateLocalVarDecl(vFresh)),Seq(),translatedCond ==>
-            (permissionPositive(translatedPerms, Some(renamedPerms)) && (translatedRecv !== translateNull)) ))
+
+
 
         //assumptions for locations that gain permission
+        //TODO: define trs, rename predAccPred.loc.args
+        //val renamedLocation = new PredicateAccess(argsInv, predname)
+        /*
+        val trs = Seq(Trigger(curPerm),Trigger(currentPermission(qpMask,obj.l,translatedLocation)),Trigger(invFunApp))
+*/
+        val curPerm = currentPermission(predAccPred.loc)
+        val translatedLocation = translateLocation(predAccPred.loc)
         val condTrueLocations = (condInv ==> (
           (if (!usingOldState) {
-            (  currentPermission(qpMask,obj.l,translatedLocation) === curPerm + permInv )
+            (  currentPermission(qpMask, translateNull, translatedLocation === curPerm + permInv))
           } else {
-            currentPermission(qpMask,obj.l,translatedLocation) === curPerm
+            currentPermission(qpMask, translateNull, translatedLocation) === curPerm
           } )
           ) )
-*/
 
         //assumption for locations that don't gain permission
-       /*
-        val condFalseLocations = (condInv.not ==> (currentPermission(qpMask,obj.l,translatedLocation) === curPerm))
-*/
+        val condFalseLocations = (condInv.not ==> (currentPermission(qpMask,translateNull, translateLocation(predAccPred.loc)) === curPerm))
+        val trs = Seq()
+        //final assumption statement
+        val permissionsMap = assmsToStmt(Forall(locVars,trs, condTrueLocations&&condFalseLocations ))
+
+
         //assumption for locations that are definitely independent of any of the locations part of the QP (i.e. different
         //field)
-
-        /*
+        val obj = LocalVarDecl(Identifier("o"), refType)
+        val field = LocalVarDecl(Identifier("f"), fieldType)
         val independentLocations = assmsToStmt(Forall(Seq(obj,field), Trigger(currentPermission(obj.l,field.l))++
-          Trigger(currentPermission(qpMask,obj.l,field.l)),(field.l !== translatedLocation) ==>
+          Trigger(currentPermission(qpMask,obj.l,field.l)),((obj.l !== translateNull)||(field.l !== translatedLocation)) ==>
           (currentPermission(obj.l,field.l) === currentPermission(qpMask,obj.l,field.l))) )
-*/
-/*
-        val ts = Seq(Trigger(curPerm),Trigger(currentPermission(qpMask,obj.l,translatedLocation)),Trigger(invFunApp)) //triggers TODO
-
-
-*/
-
-        /*
-        def isInjective(qpcomp: QPComponents):Exp = {
-          val QPComponents(v, cond, recv, perm) = qpcomp
-
-          val vFresh = LocalVarDecl(Identifier("v2"),v.typ)
-          Forall( v++vFresh,Seq(),
-            (  (v.l !== vFresh.l) &&  cond && cond.replace(v.l, vFresh.l) ) ==> (recv !== recv.replace(v.l, vFresh.l)) )
-        }
-
-        val injectiveAssumption = assmsToStmt(isInjective(qpComp))
-        */
 
 
         //assume injectivity of inverse function:
@@ -663,27 +626,19 @@ class QuantifiedPermModule(val verifier: Verifier)
 
         val injectiveCond = (translatedLocal.l.!==(translatedLocal2.l)) && translatedCond && translatedCond.replace(translatedLocal.l, translatedLocal2.l);
 
-        val translatedArgs2= translatedArgs.map(x => x.replace(translatedLocal.l, translatedLocal2.l))
-        //val arg1 = translatedArgs.apply(0).replace(translatedLocal.l, translatedLocal2.l)
-        //println(arg1)
-        //val arg2 = translatedArgs.apply(1).replace(translatedLocal.l, translatedLocal2.l)
-        //println(arg2)
-        //val translatedArgs2 = translatedArgs
+        val translatedArgs2= translatedArgs.map(x => x.replace[Exp](translatedLocal.l, translatedLocal2.l))
+
         val ineqs = (translatedArgs zip translatedArgs2).map(x => x._1 !== x._2)
         val ineqExpr = ineqs.reduce((expr1, expr2) => (expr1) || (expr2))
-        val injectiveAssumption = Forall((translatedLocal ++ translatedLocal2), Seq(),injectiveCond ==> ineqExpr)
+        val injectiveAssumption = assmsToStmt(Forall((translatedLocal ++ translatedLocal2), Seq(),injectiveCond ==> ineqExpr))
 
-        print("injecitveAssumption: ")
-        println(injectiveAssumption)
         val res = Havoc(qpMask) ++
           stmts ++
           assmsToStmt(invAssm1) ++
           invAssm2.map(assmsToStmt) ++
-         /*
-          nullAndPermAssm ++
-          injectiveAssumption ++ */
-        //  assmsToStmt(Forall(obj,ts, condTrueLocations&&condFalseLocations )) ++
-          /*independentLocations ++*/
+          injectiveAssumption ++
+          permissionsMap ++
+          independentLocations ++
           (mask := qpMask)
 
         env.undefine(vFresh.localVar)
@@ -724,6 +679,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         currentPermission(translateNull, translateLocation(loc))
     }
   }
+
   def currentPermission(rcv: Exp, location: Exp): MapSelect = {
     currentPermission(maskExp, rcv, location)
   }
@@ -925,7 +881,7 @@ class QuantifiedPermModule(val verifier: Verifier)
     //TODO adapt definition
   /*For QP \forall x:T :: c(x) ==> acc(pred(e1(x), ....., en(x),p(x)) this case class describes an instantiation of the QP where
  * cond = c(expr), e1(x), ...en(x) = args and perm = p(expr) and expr is of type T and may be dependent on the variable given by v. */
-  case class QPPComponents(v:LocalVarDecl, cond: Exp, predname:String, args:Seq[Exp], perm:Exp)
+  case class QPPComponents(v:LocalVarDecl, cond: Exp, predname:String, args:Seq[Exp], perm:Exp, predAcc:PredicateAccessPredicate)
   /**
     *
     * @param qp the quantified permission (i.e. should match object sil.QuantifiedPermissionSupporter.ForallRefPerm
@@ -939,6 +895,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
         val (renamingCond,renamingPerms) = (renaming(cond),renaming(perms))
 
+        //TODO renaming local variables?
         val renamingArgs = args.map(translateExp)
 
         val translatedCond = translateExp(renamingCond)
@@ -948,7 +905,7 @@ class QuantifiedPermModule(val verifier: Verifier)
           case Some(p) => p
         }
 
-        (QPPComponents(translateLocalVarDecl(vFresh),translatedCond, predname, renamingArgs, translatedPerms), renaming(qp))
+        (QPPComponents(translateLocalVarDecl(vFresh),translatedCond, predname, renamingArgs, translatedPerms, predAccess), renaming(qp))
       case _ => sys.error("setupQPComponents only handles quantified permissions")
         sys.error("translagint not yet implememented")
     }
