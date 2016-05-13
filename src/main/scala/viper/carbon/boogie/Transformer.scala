@@ -13,7 +13,7 @@ package viper.carbon.boogie
  */
 object Transformer {
 
-  def transform[A <: Node](node: Node,
+  def transform[A <: Node](node: A,
                            pre: PartialFunction[Node, Node] = PartialFunction.empty)(
                             recursive: Node => Boolean = !pre.isDefinedAt(_),
                             post: PartialFunction[Node, Node] = PartialFunction.empty): A = {
