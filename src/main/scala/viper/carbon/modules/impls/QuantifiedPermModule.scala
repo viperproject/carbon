@@ -470,11 +470,11 @@ class QuantifiedPermModule(val verifier: Verifier)
 
         val permNeeded =
           if(isWildcard) {
-            (currentPermission(translateNull, translatedLocation) > RealLit(0)).replace(translatedLocal.l, invFunApp)
+            (currentPermission(translateNull, translatedLocation) > RealLit(0))
           } else {
-            (currentPermission(translateNull, translatedLocation) >= translatedPerms).replace(translatedLocal.l, invFunApp)
+            (currentPermission(translateNull, translatedLocation) >= translatedPerms)
           }
-        val enoughPerm = Assert(Forall(locVars, Seq(), condInv ==> permNeeded),
+        val enoughPerm = Assert(Forall(translatedLocal, Seq(), translatedCond ==> permNeeded),
           error.dueTo(reasons.InsufficientPermission(predAccess.loc)))
 
 // TODO: wildcards???
@@ -707,22 +707,17 @@ class QuantifiedPermModule(val verifier: Verifier)
 
         //TODO triggers
         //define inverse functions
-        val tr1 = Seq()
+        val tr1 = Seq(Trigger(argsInv))
         val invAssm1 = Forall(translatedLocal, tr1, translatedCond ==> (funApp === translatedLocal.l))
 
         //for each argument, define a inverse function
         val eqExpr = (argsInv zip locVars.map(_.l)).map(x => x._1 === x._2)
 
 
-        val tr2 = Seq()
+        val tr2 = Seq(Trigger(funApp))
         val invAssm2 = eqExpr.map(expr => Forall(locVars, tr2, condInv ==> expr))
 
         //assumptions for locations that gain permission
-        //TODO: define trs
-        /*
-        val trs = Seq(Trigger(curPerm),Trigger(currentPermission(qpMask,obj.l,translatedLocation)),Trigger(invFunApp))
-        */
-
         val curPerm = currentPermission(predAccPred.loc).replace(translatedLocal.l, invFunApp)
         val translatedLocation = translateLocation(predAccPred.loc)
         val condTrueLocations = condInv ==> (
@@ -733,10 +728,10 @@ class QuantifiedPermModule(val verifier: Verifier)
           } )
 
 
-
         //assumption for locations that don't gain permission
-        val condFalseLocations = condInv.not ==> ((currentPermission(qpMask,translateNull, translateLocation(predAccPred.loc))).replace(translatedLocal.l, invFunApp) === curPerm)
-        val trs = Seq()
+        val condFalseLocations = condInv.not ==> ((currentPermission(qpMask,translateNull, translatedLocation)).replace(translatedLocal.l, invFunApp) === curPerm)
+        val temp = currentPermission(qpMask, translateNull, translatedLocation).replace(translatedLocal.l, invFunApp)
+        val trs = Seq(Trigger(curPerm),Trigger(temp),Trigger(invFunApp))
         //final assumption statement
         val permissionsMap = assmsToStmt(Forall(locVars,trs, condTrueLocations&&condFalseLocations ))
 
