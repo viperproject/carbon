@@ -449,7 +449,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
         val permInv = translatedPerms.replace(translatedLocal.l, invFunApp)
 
-        val curPerm = currentPermission(predAccPred.loc).replace(translatedLocal.l, invFunApp)
+        val curPerm = currentPermission(predAccPred.loc)
         val translatedLocation = translateLocation(predAccPred.loc)
 
         //TODO triggers
@@ -485,29 +485,32 @@ class QuantifiedPermModule(val verifier: Verifier)
             Nil
           }
 */
+
         //assumptions for locations that gain permission
-        val condTrueLocations = condInv ==>
-          (if (!usingOldState) {
-            (currentPermission(qpMask, translateNull, translatedLocation) === curPerm - permInv).replace(translatedLocal.l, invFunApp)
+        val condTrueLocations = translatedCond ==> (
+          if (!usingOldState) {
+            (currentPermission(qpMask, translateNull, translatedLocation) === curPerm - permInv)
           } else {
-            (currentPermission(qpMask, translateNull, translatedLocation) === curPerm).replace(translatedLocal.l, invFunApp)
+            (currentPermission(qpMask, translateNull, translatedLocation) === curPerm)
           } )
 
 
         //assumption for locations that don't gain permission
-        val condFalseLocations = (condInv.not ==> (currentPermission(qpMask,translateNull,translatedLocation) === curPerm).replace(translatedLocal.l, invFunApp))
+        val condFalseLocations = translatedCond.not ==> ((currentPermission(qpMask,translateNull, translatedLocation)) === curPerm)
+        val temp = currentPermission(qpMask, translateNull, translatedLocation)
+        val trs = Seq(Trigger(curPerm),Trigger(temp))
+        //final assumption statement
+        val permissionsMap = Assume(Forall(translatedLocal,trs, condTrueLocations&&condFalseLocations ))
 
-        //assumption for locations that are definitely independent of any of the locations part of the QP (i.e. different
-        //field)
 
 
+        //assumption for locations that are definitely independent of any of the locations part of the QP (i.e. fields, not matching predicates etc.
         val obj = LocalVarDecl(Identifier("o"), refType)
         val field = LocalVarDecl(Identifier("f"), fieldType)
         val independentLocations = Assume(Forall(Seq(obj,field), Seq() /* TODO Trigger(currentPermission(obj.l,field.l))++
           Trigger(currentPermission(qpMask,obj.l,field.l))*/,((obj.l !== translateNull)) ==>
           (currentPermission(obj.l,field.l) === currentPermission(qpMask,obj.l,field.l))) )
 
-        //TODO Trigger
         //assert injectivity of inverse function:
         //define new variable
         val v2 = env.makeUniquelyNamed(v); env.define(v2.localVar)
@@ -523,8 +526,6 @@ class QuantifiedPermModule(val verifier: Verifier)
         val injectiveAssertion = Assert(Forall((translatedLocal ++ translatedLocal2), Seq(),injectiveCond ==> ineqExpr), error.dueTo(reasons.ReceiverNotInjective(predAccess.loc)))
 
 
-        var temp = currentPermission(qpMask, translateNull, translatedLocation).replace(translatedLocal.l, invFunApp)
-
         val res = Havoc(qpMask) ++
           stmts ++
         //  wildcardAssms ++
@@ -532,7 +533,7 @@ class QuantifiedPermModule(val verifier: Verifier)
           CommentBlock("check if receiver " + predAccess.toString() + " is injective",injectiveAssertion) ++
           enoughPerm ++
           CommentBlock("assumptions for inverse of receiver " + predAccess.toString(), Assume(invAssm1)++ invAssm2.map(Assume)) ++
-          Assume(Forall(locVars,Seq(Trigger(curPerm),Trigger(temp),Trigger(invFunApp)), condTrueLocations&&condFalseLocations )) ++
+          permissionsMap ++
           independentLocations ++
           (mask := qpMask)
 
@@ -717,22 +718,22 @@ class QuantifiedPermModule(val verifier: Verifier)
         val invAssm2 = eqExpr.map(expr => Forall(locVars, tr2, condInv ==> expr))
 
         //assumptions for locations that gain permission
-        val curPerm = currentPermission(predAccPred.loc).replace(translatedLocal.l, invFunApp)
+        val curPerm = currentPermission(predAccPred.loc)
         val translatedLocation = translateLocation(predAccPred.loc)
-        val condTrueLocations = condInv ==> (
+        val condTrueLocations = translatedCond ==> (
           if (!usingOldState) {
-            (currentPermission(qpMask, translateNull, translatedLocation) === curPerm + permInv).replace(translatedLocal.l, invFunApp)
+            (currentPermission(qpMask, translateNull, translatedLocation) === curPerm + permInv)
           } else {
-            (currentPermission(qpMask, translateNull, translatedLocation) === curPerm).replace(translatedLocal.l, invFunApp)
+            (currentPermission(qpMask, translateNull, translatedLocation) === curPerm)
           } )
 
 
         //assumption for locations that don't gain permission
-        val condFalseLocations = condInv.not ==> ((currentPermission(qpMask,translateNull, translatedLocation)).replace(translatedLocal.l, invFunApp) === curPerm)
-        val temp = currentPermission(qpMask, translateNull, translatedLocation).replace(translatedLocal.l, invFunApp)
-        val trs = Seq(Trigger(curPerm),Trigger(temp),Trigger(invFunApp))
+        val condFalseLocations = translatedCond.not ==> ((currentPermission(qpMask,translateNull, translatedLocation)) === curPerm)
+        val temp = currentPermission(qpMask, translateNull, translatedLocation)
+        val trs = Seq(Trigger(curPerm),Trigger(temp))
         //final assumption statement
-        val permissionsMap = assmsToStmt(Forall(locVars,trs, condTrueLocations&&condFalseLocations ))
+        val permissionsMap = assmsToStmt(Forall(translatedLocal,trs, condTrueLocations&&condFalseLocations ))
 
 
        //assumption for locations that are definitely independent of any of the locations part of the QP (i.e. different fields)
