@@ -31,6 +31,7 @@ import viper.carbon.boogie.ConstDecl
 import viper.carbon.boogie.Const
 import viper.carbon.boogie.LocalVar
 import viper.silver.ast.{NoInfo, NoPosition, NullLit, WildcardPerm, PredicateAccessPredicate, PredicateAccess, Literal}
+import viper.silver.ast.{LocalVar=> _, And => _, Bool => _, Div => _, Exp => _, Int => _, LocalVarDecl => _, Mul => _, Not => _, Stmt => _, _}
 import viper.carbon.boogie.Forall
 import viper.carbon.boogie.Assign
 import viper.carbon.boogie.Func
@@ -688,6 +689,9 @@ class QuantifiedPermModule(val verifier: Verifier)
         val formalVars = predicate.formalArgs //sil.LocalVarDecl
         val renamedVars = formalVars.map(env.makeUniquelyNamed)
         val locVars = renamedVars.map(x => LocalVarDecl(Identifier(x.name), typeModule.translateType(x.typ)))
+        val expr:sil.Exp = LocalVar("z")(args.apply(0).typ)
+        val expr:sil.Exp = LocalVar(formalVars.apply(0).name)(formalVars.apply(0).typ)
+        val formalArgsExpr = formalVars.map(x => LocalVar(x.name)(x.typ))
 
 
         //define inverse function
@@ -747,9 +751,11 @@ class QuantifiedPermModule(val verifier: Verifier)
           (currentPermission(obj.l,field.l) === currentPermission(qpMask,obj.l,field.l))))
 
         //TODO triggers Forall args: not cond(inv(args)) ==> qpMask(null, pred(args)) == Mask(null, pred(args))
-        val neutralPredAcc = PredicateAccess(formalVars map (_.loc),predicate)(predicate.pos,predicate.info)
-        val general_args = formalVars
-        val general_location = translateLocation(new PredicateAccess(renamedVars, predname))
+
+        //val neutralPredAcc = PredicateAccess(formalVars map (_.loc),predicate)(predicate.pos,predicate.info)
+        //val general_args = formalVars
+        val general_location = translateLocation(new PredicateAccess(formalArgsExpr, predname))
+        println(general_location)
         val tr = Seq()
         val independentPredicate = assmsToStmt(Forall(locVars, tr, condInv.not ==> currentPermission(qpMask,translateNull, general_location) === currentPermission(qpMask,translateNull, general_location)))
 
