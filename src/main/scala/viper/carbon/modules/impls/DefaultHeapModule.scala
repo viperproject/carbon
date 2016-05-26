@@ -80,6 +80,8 @@ class DefaultHeapModule(val verifier: Verifier)
   private val identicalOnKnownLocsName = Identifier("IdenticalOnKnownLocations")
   private val isPredicateFieldName = Identifier("IsPredicateField")
   private val isWandFieldName = Identifier("IsWandField")
+  private val getPredicateIdName = Identifier("getPredicateId")
+  private var NextPredicateId:BigInt = 0
   override def refType = NamedType("Ref")
 
   override def preamble = {
@@ -113,7 +115,10 @@ class DefaultHeapModule(val verifier: Verifier)
         Bool) ++
       Func(isWandFieldName,
         Seq(LocalVarDecl(Identifier("f"), fieldType)),
-        Bool) ++ {
+        Bool) ++
+      Func(getPredicateIdName,
+        Seq(LocalVarDecl(Identifier("f"), fieldType)),
+        Int) ++ {
       val h = LocalVarDecl(heapName, heapTyp)
       val eh = LocalVarDecl(exhaleHeapName, heapTyp)
       val vars = Seq(h, eh) ++ staticMask
@@ -174,12 +179,27 @@ class DefaultHeapModule(val verifier: Verifier)
     FuncApp(isWandFieldName, Seq(f), Bool)
   }
 
+  // returns predicat Id
+  override def getPredicateId(f:Exp): Exp = {
+    FuncApp(getPredicateIdName,Seq(f), Int)
+  }
+
+  var PredIdMap:Map[String, BigInt] = Map()
+
+  def getNewPredId : BigInt = {
+    val id = NextPredicateId
+    NextPredicateId = NextPredicateId + 1
+    id
+  }
+
   override def translateField(f: sil.Field) = {
     val field = locationIdentifier(f)
     ConstDecl(field, NamedType(fieldTypeName, Seq(normalFieldType, translateType(f.typ))), unique = true) ++
       Axiom(UnExp(Not, isPredicateField(Const(field)))) ++
       Axiom(UnExp(Not, isWandField(Const(field))))
   }
+
+
 
   override def predicateGhostFieldDecl(p: sil.Predicate): Seq[Decl] = {
     val predicate = locationIdentifier(p)
@@ -188,6 +208,8 @@ class DefaultHeapModule(val verifier: Verifier)
     val pmT = predicateMaskFieldTypeOf(p)
     val varDecls = p.formalArgs map mainModule.translateLocalVarDecl
     val vars = varDecls map (_.l)
+    val predId:BigInt = getNewPredId;
+    PredIdMap += (p.name -> predId)
     val f0 = FuncApp(predicate, vars, t)
     val f1 = predicateMaskField(f0)
     val f2 = FuncApp(pmField, vars, pmT)
@@ -196,6 +218,7 @@ class DefaultHeapModule(val verifier: Verifier)
       Func(pmField, varDecls, pmT) ++
       Axiom(MaybeForall(varDecls, Trigger(f1), f1 === f2)) ++
       Axiom(MaybeForall(varDecls, Trigger(f0), isPredicateField(f0))) ++
+      Axiom(MaybeForall(varDecls, Trigger(f0), getPredicateId(f0) === IntLit(predId))) ++
       Func(predicateTriggerIdentifier(p), Seq(LocalVarDecl(heapName, heapTyp), LocalVarDecl(Identifier("pred"), predicateVersionFieldType())), Bool) ++
       Func(predicateTriggerAnyStateIdentifier(p), Seq(LocalVarDecl(Identifier("pred"), predicateVersionFieldType())), Bool) ++
       {

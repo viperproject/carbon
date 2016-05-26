@@ -1,12 +1,26 @@
 field f: Int
+field g: Int
 
-predicate h(a:Ref) {
+predicate p1(a:Ref) {
 	acc(a.f)
 }
 
+predicate p2(a:Ref, b:Int) {
+	acc(a.g)
+}
 
-method test01(xs: Set[Ref], ys: Seq[Ref])
-  requires forall x: Ref :: x in xs ==> acc(h(x))
-  requires forall i: Int :: i in [0..|ys|) ==> acc(h(ys[i]))
-  ensures forall x: Ref :: x in xs ==> acc(h(x))
-{}
+
+//different predicate
+method m4(r:Ref, i:Int)
+ requires acc(p1(r))
+ ensures acc(p1(r))
+ {
+ 	inhale forall x:Int :: x > 0 ==> acc(p2(r, x))
+ 	unfold p1(r)
+ 	fold p1(r)
+ 	/*
+ 	exhale forall x:Int :: x > 0 ==> acc(p2(r, x))
+ 	unfold p1(r)
+ 	fold p1(r)
+ 	*/
+ }

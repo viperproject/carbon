@@ -121,6 +121,16 @@ trait HeapModule extends Module with CarbonStateComponent {
   def isPredicateField(f: Exp): Exp
 
   /**
+    * get Predicate Id (unique for each Predicate)
+    */
+  def getPredicateId(f:Exp): Exp
+
+  /**
+    * Predicate name mapping to Id
+    */
+  var PredIdMap:Map[String, BigInt]
+
+  /**
    * Is the given field a wand field?
    */
   def isWandField(f: Exp): Exp

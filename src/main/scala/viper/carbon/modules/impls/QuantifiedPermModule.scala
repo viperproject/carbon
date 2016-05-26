@@ -743,8 +743,9 @@ class QuantifiedPermModule(val verifier: Verifier)
        //assumption for locations that are definitely independent of any of the locations part of the QP (i.e. different fields)
         val obj = LocalVarDecl(Identifier("o"), refType)
         val field = LocalVarDecl(Identifier("f"), fieldType)
-        val independentLocations = assmsToStmt(Forall(Seq(obj,field), Seq(/*Trigger(currentPermission(obj.l,field.l))++
-          Trigger(currentPermission(qpMask,obj.l,field.l)*/),(obj.l !== translateNull) ==>
+        val fieldVar = LocalVar(Identifier("f"), fieldType)
+        val independentLocations = assmsToStmt(Forall(Seq(obj,field), Seq(Trigger(currentPermission(obj.l, field.l)), Trigger(currentPermission(qpMask, obj.l, field.l))),
+          (obj.l !== translateNull) ||  isPredicateField(fieldVar).not || (getPredicateId(fieldVar) !== IntLit(PredIdMap(predname)) )  ==>
           (currentPermission(obj.l,field.l) === currentPermission(qpMask,obj.l,field.l))))
 
         val gl = new PredicateAccess(formalArgsExpr, predname) (predicate.pos, predicate.info)
@@ -760,8 +761,8 @@ class QuantifiedPermModule(val verifier: Verifier)
 
         //assume injectivity of inverse function:
         //define new variable
+
         val v2 = env.makeUniquelyNamed(v); env.define(v2.localVar)
-        //var translatedLocal2 = LocalVarDecl(Identifier(v2.name), translatedLocal.typ);
         val translatedLocal2 = LocalVarDecl(Identifier(translatedLocal.name.name), translatedLocal.typ) //new varible
 
         val injectiveCond = (translatedLocal.l.!==(translatedLocal2.l)) && translatedCond && translatedCond.replace(translatedLocal.l, translatedLocal2.l);
