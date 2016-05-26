@@ -31,7 +31,7 @@ import viper.carbon.boogie.ConstDecl
 import viper.carbon.boogie.Const
 import viper.carbon.boogie.LocalVar
 import viper.silver.ast.{NoInfo, NoPosition, NullLit, WildcardPerm, PredicateAccessPredicate, PredicateAccess, Literal}
-import viper.silver.ast.{LocalVar=> _, And => _, Bool => _, Div => _, Exp => _, Int => _, LocalVarDecl => _, Mul => _, Not => _, Stmt => _, _}
+import viper.silver.ast.{LocalVar=> _, And => _, Bool => _, Div => _, Exp => _, Int => _, LocalVarDecl => _, Mul => _, Not => _, Stmt => _}
 import viper.carbon.boogie.Forall
 import viper.carbon.boogie.Assign
 import viper.carbon.boogie.Func
@@ -688,10 +688,13 @@ class QuantifiedPermModule(val verifier: Verifier)
         val predicate = program.findPredicate(predname)
         val formalVars = predicate.formalArgs //sil.LocalVarDecl
         val renamedVars = formalVars.map(env.makeUniquelyNamed)
+        val formalArgsExpr = renamedVars.map(x => sil.LocalVar(x.name)(x.typ))
+        println(formalArgsExpr)
+        renamedVars.foreach(x => env.define(x.localVar))
         val locVars = renamedVars.map(x => LocalVarDecl(Identifier(x.name), typeModule.translateType(x.typ)))
-        val expr:sil.Exp = LocalVar("z")(args.apply(0).typ)
-        val expr:sil.Exp = LocalVar(formalVars.apply(0).name)(formalVars.apply(0).typ)
-        val formalArgsExpr = formalVars.map(x => LocalVar(x.name)(x.typ))
+       // val expr:sil.Exp = LocalVar("z")(args.apply(0).typ)
+      //  val expr:sil.Exp = LocalVar(formalVars.apply(0).name)(formalVars.apply(0).typ)
+
 
 
         //define inverse function
@@ -754,8 +757,13 @@ class QuantifiedPermModule(val verifier: Verifier)
 
         //val neutralPredAcc = PredicateAccess(formalVars map (_.loc),predicate)(predicate.pos,predicate.info)
         //val general_args = formalVars
-        val general_location = translateLocation(new PredicateAccess(formalArgsExpr, predname))
-        println(general_location)
+        //locVars.foreach(x=> env.define(x))
+        val gl = new PredicateAccess(formalArgsExpr, predname) (predicate.pos, predicate.info)
+        val general_location = translateLocation(gl)
+       // val predLoc = FuncApp(locationIdentifier(predname), formalArgsExpr map translateExp, predicateMetaTypeOf(predname))
+        //translated PredicateAccess: FuncApp(locationIdentifier(pred), args map translateExp, t)
+       //MapSelect(mask, Seq(translateNull, gl)
+        //println(gl)
         val tr = Seq()
         val independentPredicate = assmsToStmt(Forall(locVars, tr, condInv.not ==> currentPermission(qpMask,translateNull, general_location) === currentPermission(qpMask,translateNull, general_location)))
 
