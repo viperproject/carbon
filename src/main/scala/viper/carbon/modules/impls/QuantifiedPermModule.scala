@@ -665,9 +665,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
         res
         //TODO predicate Access
-      case qpp@sil.utility.QuantifiedPermissions.QPPForall(v
-      ,cond,args,predname,perms,forall,predAccess) =>
-
+      case qpp@sil.utility.QuantifiedPermissions.QPPForall(v,cond,args,predname,perms,forall,predAccess) =>
         // alpha renaming, to avoid clashes in context, use vFresh instead of v
         val vFresh = env.makeUniquelyNamed(v); env.define(vFresh.localVar);
 
@@ -682,19 +680,13 @@ class QuantifiedPermModule(val verifier: Verifier)
 
         val a@sil.utility.QuantifiedPermissions.QPPForall(_,_,_,_,renamedPerms,_,_) = renamedQP
 
-        //TODO: translate Predicate location? replace variables?
-
         //create local variables from arguments of the predicate
         val predicate = program.findPredicate(predname)
         val formalVars = predicate.formalArgs //sil.LocalVarDecl
-        val renamedVars = formalVars.map(env.makeUniquelyNamed)
-        val formalArgsExpr = renamedVars.map(x => sil.LocalVar(x.name)(x.typ))
-        println(formalArgsExpr)
+        val renamedVars = formalVars /*.map(env.makeUniquelyNamed)*/
         renamedVars.foreach(x => env.define(x.localVar))
+        val formalArgsExpr = renamedVars.map(x => sil.LocalVar(x.name)(x.typ))
         val locVars = renamedVars.map(x => LocalVarDecl(Identifier(x.name), typeModule.translateType(x.typ)))
-       // val expr:sil.Exp = LocalVar("z")(args.apply(0).typ)
-      //  val expr:sil.Exp = LocalVar(formalVars.apply(0).name)(formalVars.apply(0).typ)
-
 
 
         //define inverse function
@@ -705,6 +697,8 @@ class QuantifiedPermModule(val verifier: Verifier)
         val funApp = FuncApp(invFun.name, translatedArgs, invFun.typ)
 
         val locExpArgs = locVars.map(_.l)
+        val locExpArgs2 = formalArgsExpr.map(translateExp)
+
         val invFunApp = FuncApp(invFun.name, locExpArgs, invFun.typ)
 
         //replace all arguments:
@@ -743,7 +737,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         val trs = Seq(Trigger(curPerm),Trigger(temp))
         //final assumption statement
 
-        val permissionsMap = assmsToStmt(Forall(translatedLocal,trs, condTrueLocations&&condFalseLocations ))
+        val permissionsMap = assmsToStmt(Forall(translatedLocal,trs, condTrueLocations ))
 
 
        //assumption for locations that are definitely independent of any of the locations part of the QP (i.e. different fields)
@@ -753,19 +747,15 @@ class QuantifiedPermModule(val verifier: Verifier)
           Trigger(currentPermission(qpMask,obj.l,field.l)*/),(obj.l !== translateNull) ==>
           (currentPermission(obj.l,field.l) === currentPermission(qpMask,obj.l,field.l))))
 
-        //TODO triggers Forall args: not cond(inv(args)) ==> qpMask(null, pred(args)) == Mask(null, pred(args))
-
-        //val neutralPredAcc = PredicateAccess(formalVars map (_.loc),predicate)(predicate.pos,predicate.info)
-        //val general_args = formalVars
-        //locVars.foreach(x=> env.define(x))
         val gl = new PredicateAccess(formalArgsExpr, predname) (predicate.pos, predicate.info)
         val general_location = translateLocation(gl)
-       // val predLoc = FuncApp(locationIdentifier(predname), formalArgsExpr map translateExp, predicateMetaTypeOf(predname))
-        //translated PredicateAccess: FuncApp(locationIdentifier(pred), args map translateExp, t)
-       //MapSelect(mask, Seq(translateNull, gl)
-        //println(gl)
-        val tr = Seq()
-        val independentPredicate = assmsToStmt(Forall(locVars, tr, condInv.not ==> currentPermission(qpMask,translateNull, general_location) === currentPermission(qpMask,translateNull, general_location)))
+        val invFunApp2 = FuncApp(invFun.name, locExpArgs2, invFun.typ)
+        val condInv2 = translatedCond.replace(translatedLocal.l, invFunApp2)
+
+        val tr = Seq(Trigger(general_location))
+        val mappedVars = formalArgsExpr.map(x => env.get(x))
+        val vars = mappedVars.map(x => LocalVarDecl(x.name, x.typ))
+        val independentPredicate = assmsToStmt(Forall(vars, tr, (condInv2.not) ==> (currentPermission(qpMask,translateNull, general_location) === currentPermission(translateNull, general_location))))
 
 
         //assume injectivity of inverse function:
@@ -794,6 +784,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
         env.undefine(vFresh.localVar)
         env.undefine(v2.localVar)
+        renamedVars.foreach(x => env.undefine(x.localVar))
 
         res
 
