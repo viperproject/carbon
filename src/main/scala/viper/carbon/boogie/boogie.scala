@@ -72,8 +72,20 @@ sealed trait Node {
    * @param replacement The node to replace all occurrences with
    * @return The result of the substitution
    */
-  def replace[A <: Node](original: A, replacement: A): A =
-    Transformer.transform(this,{case `original` => replacement})()
+  def replace(original: Node, replacement: Node): this.type =
+    this.transform({case `original` => replacement})()
+
+  /**
+    * This extra level of indirection (not calling transform directly), appears to affect the type-checking. We need to look into this.
+    * The usage of this.type is also "suspect", since we are really casting in a way that can't be caught out at runtime..
+    *
+    * See Silver issue
+    */
+  def transform(pre: PartialFunction[Node, Node] = PartialFunction.empty)
+               (recursive: Node => Boolean = !pre.isDefinedAt(_),
+                post: PartialFunction[Node, Node] = PartialFunction.empty)
+  : this.type =
+    Transformer.transform[this.type](this, pre)(recursive, post)
 
   override def toString = PrettyPrinter.pretty(this)
 }

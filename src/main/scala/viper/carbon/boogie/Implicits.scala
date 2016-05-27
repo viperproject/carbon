@@ -36,7 +36,7 @@ object Implicits {
         case Nil => None
         case Seq(x) => Some(x)
         case Seq(x, y) => Some(BinExp(x, Or, y))
-        case x :: xs => Some(BinExp(x, Or, all(xs).get))
+        case x +: xs => Some(BinExp(x, Or, all(xs).get))
       }
     }
 
@@ -45,7 +45,7 @@ object Implicits {
         case Nil => None
         case Seq(x) => Some(x)
         case Seq(x, y) => Some(BinExp(x, And, y))
-        case x :: xs => Some(BinExp(x, And, all(xs).get))
+        case x +: xs => Some(BinExp(x, And, all(xs).get))
       }
     }
   }

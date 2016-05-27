@@ -315,8 +315,8 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
          */
         value("%.9f".formatLocal(java.util.Locale.US, d))
       case RealConv(exp) => "real" <> parens(show(exp))
-      case Forall(vars, triggers, exp, tv) if triggers.length > 1 =>
-        show(triggers.tail.foldLeft[Exp](Forall(vars, Seq(triggers.head), exp, tv))((soFar,nextTrig) => BinExp(soFar,And,Forall(vars, Seq(nextTrig), exp, tv))))
+//      case Forall(vars, triggers, exp, tv) if triggers.length > 1 => // expands foralls into conjunctions of foralls with single triggers each
+//        show(triggers.tail.foldLeft[Exp](Forall(vars, Seq(triggers.head), exp, tv))((soFar,nextTrig) => BinExp(soFar,And,Forall(vars, Seq(nextTrig), exp, tv))))
       case Forall(vars, triggers, exp, Nil) =>
         parens("forall" <+>
           commasep(vars) <+>
