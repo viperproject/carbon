@@ -1,26 +1,74 @@
 field f: Int
-field g: Int
 
-predicate p1(a:Ref) {
-	acc(a.f)
+predicate pred(r:Ref) {
+	acc(r.f)
 }
 
-predicate p2(a:Ref, b:Int) {
-	acc(a.g)
+method t1(r: Ref) returns ()
+    requires forall x:Ref :: true ==> acc(pred(x), wildcard)
+{
+    t1(r)
+    t1(r)
+}
+
+method t2(r: Ref) returns ()
+    requires forall x:Ref :: true ==> acc(x.f, wildcard)
+{
+    t2(r)
+    t2(r)
 }
 
 
-//different predicate
-method m4(r:Ref, i:Int)
- requires acc(p1(r))
- ensures acc(p1(r))
- {
- 	inhale forall x:Int :: x > 0 ==> acc(p2(r, x))
- 	unfold p1(r)
- 	fold p1(r)
- 	/*
- 	exhale forall x:Int :: x > 0 ==> acc(p2(r, x))
- 	unfold p1(r)
- 	fold p1(r)
- 	*/
- }
+
+method t3(r: Ref) returns ()
+    requires forall x:Ref :: true ==> acc(pred(x), wildcard)
+    ensures forall x:Ref :: true ==> acc(pred(x), wildcard)
+    ensures forall x:Ref :: true ==> acc(pred(x), wildcard)
+{}
+
+method t4(r: Ref) returns ()
+    requires forall x:Ref :: true ==> acc(x.f, wildcard)
+    ensures forall x:Ref :: true ==> acc(x.f, wildcard)
+    ensures forall x:Ref :: true ==> acc(x.f, wildcard)
+{}
+
+
+method t5(r: Ref) returns ()
+    requires forall x:Ref :: true ==> acc(x.f, write)
+{
+    exhale forall x:Ref :: true ==> acc(x.f, 1/3)
+    assert forall x:Ref :: true ==> (perm(x.f) == (2/3))
+    assert forall x:Ref :: true ==> acc(x.f, wildcard)
+    assert forall x:Ref :: true ==> acc(x.f, wildcard)
+    exhale forall x:Ref :: true ==> acc(x.f, perm(x.f))
+    //:: ExpectedOutput(assert.failed:insufficient.permission)
+    assert forall x:Ref :: true ==> (perm(x.f) == none)
+    assert forall x:Ref :: true ==> acc(x.f, wildcard)
+}
+
+method t6(r: Ref) returns ()
+    requires forall x:Ref :: true ==> acc(pred(r), write)
+{
+    exhale forall x:Ref :: true ==> acc(pred(r), 1/3)
+    assert forall x:Ref :: true ==> (perm(pred(r)) == (2/3))
+    assert forall x:Ref :: true ==> acc(pred(r), wildcard)
+    assert forall x:Ref :: true ==> acc(pred(r), wildcard)
+    exhale forall x:Ref :: true ==> acc(pred(r), perm(pred(r)))
+    //:: ExpectedOutput(assert.failed:insufficient.permission)
+    assert forall x:Ref :: true ==> acc(pred(r), wildcard)
+}
+
+method t7(r:Ref, xs:Seq[Ref]) returns ()
+requires r in xs
+{
+    inhale forall x:Ref :: x in xs ==> x != null
+    exhale forall x:Ref :: x in xs ==> acc(x.f, wildcard)
+}
+
+method t8(r:Ref, xs:Seq[Ref]) returns ()
+requires r in xs
+{
+    //:: ExpectedOutput(exhale.failed:insufficient.permission)
+    exhale forall x:Ref :: x in xs ==> acc(pred(r), wildcard)
+}
+

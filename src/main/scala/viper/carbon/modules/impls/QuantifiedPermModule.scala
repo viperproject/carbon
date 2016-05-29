@@ -410,22 +410,16 @@ class QuantifiedPermModule(val verifier: Verifier)
 
         res
       case qpp@sil.utility.QuantifiedPermissions.QPPForall(v,cond,args,predname,perms,forall,predAccess) =>
-        // alpha renaming, to avoid clashes in context, use vFresh instead of v
         var isWildcard = false
-        // alpha renaming, to avoid clashes in context, use vFresh instead of v
         val vFresh = env.makeUniquelyNamed(v); env.define(vFresh.localVar);
-
-
-        val ((qppComp@QPPComponents(translatedLocal,translatedCond, predname, translatedArgs,translatedPerms, predAccPred), renamedQP),stmts) =
+        val ((qppComp@QPPComponents(translatedLocal,translatedCond, predname, translatedArgs,translatedPerms, predAccPred), renamedQP),stmts, wildcard) =
           if(perms.isInstanceOf[WildcardPerm]) {
             isWildcard = true
             val w = LocalVar(Identifier("wildcard"), Real)
-            (setupQPPComponents(qpp, vFresh,Some(w)),LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil)
+            (setupQPPComponents(qpp, vFresh,Some(w)),LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil, w)
           } else {
-            (setupQPPComponents(qpp,vFresh),Nil)
+            (setupQPPComponents(qpp,vFresh),Nil, null)
           }
-
-        val a@sil.utility.QuantifiedPermissions.QPPForall(_,_,_,_,renamedPerms,_,_) = renamedQP
 
         //create local variables from arguments of the predicate
         val predicate = program.findPredicate(predname)
@@ -486,14 +480,14 @@ class QuantifiedPermModule(val verifier: Verifier)
         val enoughPerm = Assert(Forall(translatedLocal, Seq(), translatedCond ==> permNeeded),
           error.dueTo(reasons.InsufficientPermission(predAccess.loc)))
 
-// TODO: wildcards???
-  /*      val wildcardAssms:Stmt =
+      val wildcardAssms:Stmt =
           if(isWildcard) {
-            (Assume(Forall(locVars, Seq(), condInv ==> (wildcard < currentPermission(translatedRecv, translatedLocation)))))
+            Assert(Forall(translatedLocal, Seq(), translatedCond ==> (currentPermission(translateNull, translatedLocation) > noPerm)), error.dueTo(reasons.InsufficientPermission(predAccess.loc))) ++
+              Assume(Forall(translatedLocal, Seq(), translatedCond ==> (wildcard < currentPermission(translateNull, translatedLocation))))
           } else {
             Nil
           }
-*/
+
 
         //assumptions for locations that gain permission
         val condTrueLocations = translatedCond ==> (
@@ -555,7 +549,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
         val res = Havoc(qpMask) ++
           stmts ++
-        //  wildcardAssms ++
+          wildcardAssms ++
           permPositive ++
           CommentBlock("check if receiver " + predAccess.toString() + " is injective",injectiveAssertion) ++
           enoughPerm ++
@@ -692,7 +686,6 @@ class QuantifiedPermModule(val verifier: Verifier)
         env.undefine(vFresh.localVar)
 
         res
-        //TODO predicate Access
       case qpp@sil.utility.QuantifiedPermissions.QPPForall(v,cond,args,predname,perms,forall,predAccess) =>
         // alpha renaming, to avoid clashes in context, use vFresh instead of v
         val vFresh = env.makeUniquelyNamed(v); env.define(vFresh.localVar);
