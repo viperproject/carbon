@@ -1,74 +1,95 @@
-field f: Int
-
-predicate pred(r:Ref) {
-	acc(r.f)
+predicate access(a:IArray, i:Int) {
+    (i % 2 == 0)  ==> acc(loc(a, i).val) && acc(loc(a, i+1).val)/* && loc(a,i) != null && loc(a, i+1) != null*/
 }
 
-method t1(r: Ref) returns ()
-    requires forall x:Ref :: true ==> acc(pred(x), wildcard)
+
+method readTwo(a:IArray, i:Int) returns (sum:Int)
+requires acc(access(a, i)) && (i%2 == 0)
 {
-    t1(r)
-    t1(r)
+    unfold access(a,i)
+    sum := loc(a, i).val + loc(a, i+1).val
 }
 
-method t2(r: Ref) returns ()
-    requires forall x:Ref :: true ==> acc(x.f, wildcard)
+
+method totalSum(a:IArray, i:Int) returns (sum:Int)
+requires i >= 0 && i + 1 < len(a)
+requires i % 2 == 0
+requires forall j:Int :: (j >= 0 && j < len(a) && (j%2 ==0)) ==> acc(access(a,j))
+ensures i >= 0 && i <= len(a)
+ensures forall j:Int :: j >= 0 && j < len(a) && (j%2 ==0) ==> acc(access(a,j))
 {
-    t2(r)
-    t2(r)
+    if (i + 3 < len(a)) {
+        sum:= totalSum(a, i+2)
+        unfold access(a, i)
+        sum := sum + loc(a, i).val + loc(a, i+1).val
+        fold access(a, i)
+    } else {
+        unfold access(a, i)
+        sum := loc(a, i).val + loc(a, i+1).val
+        fold access(a, i)
+    }
+
 }
 
 
-
-method t3(r: Ref) returns ()
-    requires forall x:Ref :: true ==> acc(pred(x), wildcard)
-    ensures forall x:Ref :: true ==> acc(pred(x), wildcard)
-    ensures forall x:Ref :: true ==> acc(pred(x), wildcard)
-{}
-
-method t4(r: Ref) returns ()
-    requires forall x:Ref :: true ==> acc(x.f, wildcard)
-    ensures forall x:Ref :: true ==> acc(x.f, wildcard)
-    ensures forall x:Ref :: true ==> acc(x.f, wildcard)
-{}
-
-
-method t5(r: Ref) returns ()
-    requires forall x:Ref :: true ==> acc(x.f, write)
+method setVal(a:IArray, i:Int, newVal:Int)
+requires i >= 0 && i < len(a)
+requires i % 2 == 0
+requires forall j:Int :: j >= 0 && j < len(a) && (j%2 ==0) ==> acc(access(a,j))
+ensures i >= 0 && i < len(a)
+ensures forall j:Int :: j >= 0 && j < len(a) && (j%2 ==0) ==> acc(access(a,j))
+ensures forall j:Int :: (j == i ==> true && unfolding acc(access(a,j)) in (loc(a,j).val == newVal))
 {
-    exhale forall x:Ref :: true ==> acc(x.f, 1/3)
-    assert forall x:Ref :: true ==> (perm(x.f) == (2/3))
-    assert forall x:Ref :: true ==> acc(x.f, wildcard)
-    assert forall x:Ref :: true ==> acc(x.f, wildcard)
-    exhale forall x:Ref :: true ==> acc(x.f, perm(x.f))
-    //:: ExpectedOutput(assert.failed:insufficient.permission)
-    assert forall x:Ref :: true ==> (perm(x.f) == none)
-    assert forall x:Ref :: true ==> acc(x.f, wildcard)
+    var k:Int
+    assume k >= 0 && k < len(a) && (k%2 == 0) && k!= i
+    unfold access(a,i)
+    loc(a,i).val := newVal
+	loc(a,i+1).val := newVal
+	fold access(a,i)
+
+    assert (unfolding acc(access(a, k)) in loc(a, k).val) == old(unfolding acc(access(a, k)) in loc(a, k).val)
+	if (i + 2 < len(a)) {
+        setVal(a, i+2, newVal)
+    }
+
+    //assert (unfolding acc(access(a, k)) in loc(a, k).val) == old(unfolding acc(access(a, k)) in loc(a, k).val)
 }
 
-method t6(r: Ref) returns ()
-    requires forall x:Ref :: true ==> acc(pred(r), write)
+
+method setVal2(a:IArray, i:Int, newVal:Int)
+requires i >= 0 && i < len(a)
+requires forall j:Int :: j >= 0 && j < len(a) ==> acc(loc(a,j).val)
+ensures i >= 0 && i < len(a)
+ensures forall j:Int :: j >= 0 && j < len(a) ==> acc(loc(a,j).val)
+ensures forall j:Int :: j >= 0 && j < len(a) && j < i ==> old(loc(a, j).val) == loc(a, j).val
 {
-    exhale forall x:Ref :: true ==> acc(pred(r), 1/3)
-    assert forall x:Ref :: true ==> (perm(pred(r)) == (2/3))
-    assert forall x:Ref :: true ==> acc(pred(r), wildcard)
-    assert forall x:Ref :: true ==> acc(pred(r), wildcard)
-    exhale forall x:Ref :: true ==> acc(pred(r), perm(pred(r)))
-    //:: ExpectedOutput(assert.failed:insufficient.permission)
-    assert forall x:Ref :: true ==> acc(pred(r), wildcard)
+    var k:Int
+    assume k >= 0 && k < len(a) && (k%2 == 0) && k!= i
+    loc(a,i).val := newVal
+
+	if (i + 2 < len(a)) {
+        setVal2(a, i+1, newVal)
+    }
+
 }
 
-method t7(r:Ref, xs:Seq[Ref]) returns ()
-requires r in xs
-{
-    inhale forall x:Ref :: x in xs ==> x != null
-    exhale forall x:Ref :: x in xs ==> acc(x.f, wildcard)
-}
 
-method t8(r:Ref, xs:Seq[Ref]) returns ()
-requires r in xs
-{
-    //:: ExpectedOutput(exhale.failed:insufficient.permission)
-    exhale forall x:Ref :: x in xs ==> acc(pred(r), wildcard)
-}
+/* Encoding of arrays */
 
+field val: Int
+
+domain IArray {
+  function loc(a: IArray, i: Int): Ref
+  function len(a: IArray): Int
+  function first(r: Ref): IArray
+  function second(r: Ref): Int
+
+  axiom all_diff {
+    forall a: IArray, i: Int :: {loc(a, i)}
+      first(loc(a, i)) == a && second(loc(a, i)) == i
+  }
+
+  axiom len_nonneg {
+    forall a: IArray :: len(a) >= 0
+  }
+}
