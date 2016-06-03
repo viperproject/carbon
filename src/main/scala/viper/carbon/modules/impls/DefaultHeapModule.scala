@@ -507,6 +507,8 @@ class DefaultHeapModule(val verifier: Verifier)
    * after verifier gets a new program.
    */
   override def reset = {
+    PredIdMap = Map()
+    NextPredicateId = 0
     allowHeapDeref = false
     heap = originalHeap
   }
