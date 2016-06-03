@@ -365,6 +365,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
         val wildcardAssms:Stmt =
           if(isWildcard) {
+            (Assert(Forall(translateLocalVarDecl(vFresh), Seq(), translatedCond ==> (currentPermission(translatedRecv, translatedLocation) > noPerm)), error.dueTo(reasons.InsufficientPermission(fieldAccess))))++
             (Assume(Forall(translateLocalVarDecl(vFresh), Seq(), translatedCond ==> (wildcard < currentPermission(translatedRecv, translatedLocation)))))
           } else {
             Nil
