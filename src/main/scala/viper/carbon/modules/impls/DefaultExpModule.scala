@@ -428,6 +428,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       val stmt2 =
         e match {
           case sil.MagicWand(_,_) => Nil
+          case sil.Forall(_,_,_) => Nil
           case _ =>
             for (sub <- e.subnodes if sub.isInstanceOf[sil.Exp]) yield {
               allFreeAssumptions(sub.asInstanceOf[sil.Exp])
