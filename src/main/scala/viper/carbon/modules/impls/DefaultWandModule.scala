@@ -454,18 +454,18 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
 
     val positivePerm = Assert(neededLocal >= RealLit(0), mainError.dueTo(reasons.NegativePermission(e)))
 
-    val nullCheck =
-      transferEntity match {
-        case TransferableFieldAccessPred(rcv,loc,_,origAccessPred) =>
-          Assert((allStateAssms&&used.boolVar) ==> heapModule.checkNonNullReceiver(rcv),mainError.dueTo(reasons.ReceiverNull(origAccessPred.loc)))
-        case _ => Statements.EmptyStmt
-      }
+    //val nullCheck =
+      //transferEntity match {
+      //  case TransferableFieldAccessPred(rcv,loc,_,origAccessPred) =>
+      //    Assert((allStateAssms&&used.boolVar) ==> heapModule.checkNonNullReceiver(rcv),mainError.dueTo(reasons.ReceiverNull(origAccessPred.loc)))
+      //  case _ => Statements.EmptyStmt
+      //}
 
     val definedness = MaybeCommentBlock("checking if access predicate defined in used state",
       If(allStateAssms&&used.boolVar,expModule.checkDefinedness(e, mainError),Statements.EmptyStmt))
 
     val transferRest = transferAcc(states,used, transferEntity,allStateAssms)
-    val stmt = definedness++ initStmt ++ nullCheck ++ initPermVars ++  positivePerm ++ transferRest
+    val stmt = definedness++ initStmt /*++ nullCheck*/ ++ initPermVars ++  positivePerm ++ transferRest
 
 
     MaybeCommentBlock("Transfer of " + e.toString(), stmt)
@@ -592,11 +592,11 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
       case sil.FieldAccessPredicate(loc,perm) =>
         val SILrcvLocal = mainModule.env.makeUniquelyNamed(sil.LocalVarDecl("rcv", sil.Ref)(loc.rcv.pos,loc.rcv.info)).localVar
         val rcvLocal = mainModule.env.define(SILrcvLocal) //bind Boogie to Silver variable
-      val assignStmt = rcvLocal := expModule.translateExp(loc.rcv)
-
+        val assignStmt = rcvLocal := expModule.translateExp(loc.rcv)
         val newLocation = sil.FieldAccess(SILrcvLocal, loc.field)(acc.pos,acc.info)
-        val nullCheck:Stmt = Assert((b.get ==> heapModule.checkNonNullReceiver(newLocation)),error.dueTo(reasons.ReceiverNull(loc)))
-        (Seq(SILrcvLocal), sil.FieldAccessPredicate(newLocation,newPerm)(acc.pos,acc.info),assignStmt++nullCheck)
+        // AS: not convinced this nullCheck is necessary - in any case, the FieldAccessPredicate case for this code seems never to be used.
+        //val nullCheck:Stmt = Assert((b.get ==> heapModule.checkNonNullReceiver(newLocation)),error.dueTo(reasons.ReceiverNull(loc)))
+        (Seq(SILrcvLocal), sil.FieldAccessPredicate(newLocation,newPerm)(acc.pos,acc.info),assignStmt/*++nullCheck*/)
 
       case sil.PredicateAccessPredicate(loc,perm) =>
         /* for each argument create a variable and evaluate the argument in the used state */

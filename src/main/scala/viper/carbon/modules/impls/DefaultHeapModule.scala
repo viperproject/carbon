@@ -440,26 +440,7 @@ class DefaultHeapModule(val verifier: Verifier)
 
   override def usingOldState = stateModuleIsUsingOldState
 
-  // AS: this is a trick to avoid well-definedness checks for the outermost heap dereference in an AccessPredicate node (since it describes the location to which permission is provided).
-  // The trick is somewhat fragile, in that it relies on the ordering of the calls to this method.
-  private var allowHeapDeref = false
-  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
-    if(makeChecks) (
-      e match {
-        case sil.AccessPredicate(loc, perm) =>
-          allowHeapDeref = true
-          Nil
-        case fa@sil.FieldAccess(rcv, field) =>
-          if (allowHeapDeref) {
-            allowHeapDeref = false
-            Nil
-          } else {
-            Assert(translateExp(rcv) !== nullLit, error.dueTo(reasons.ReceiverNull(fa)))
-          }
-        case _ => Nil
-      }
-    ) else Nil
-  }
+
 
   override def beginExhale: Stmt = {
     Havoc(exhaleHeap)
@@ -484,7 +465,6 @@ class DefaultHeapModule(val verifier: Verifier)
    * after verifier gets a new program.
    */
   override def reset = {
-    allowHeapDeref = false
     heap = originalHeap
   }
 
