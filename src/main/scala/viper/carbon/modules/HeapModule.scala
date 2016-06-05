@@ -128,8 +128,8 @@ trait HeapModule extends Module with CarbonStateComponent {
   /**
     * Predicate name mapping to Id
     */
-  var PredIdMap:Map[String, BigInt]
 
+  def getPredicateId(s:String):BigInt
   /**
    * Is the given field a wand field?
    */

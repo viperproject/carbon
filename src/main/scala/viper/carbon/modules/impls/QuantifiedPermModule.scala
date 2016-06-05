@@ -567,7 +567,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         val field = LocalVarDecl(Identifier("f"), fieldType)
         val fieldVar = LocalVar(Identifier("f"), fieldType)
         val independentLocations = Assume(Forall(Seq(obj,field), Seq(Trigger(currentPermission(obj.l, field.l)), Trigger(currentPermission(qpMask, obj.l, field.l))),
-          ((obj.l !== translateNull) ||  isPredicateField(fieldVar).not || (getPredicateId(fieldVar) !== IntLit(PredIdMap(predname)) ))  ==>
+          ((obj.l !== translateNull) ||  isPredicateField(fieldVar).not || (getPredicateId(fieldVar) !== IntLit(getPredicateId(predname)) ))  ==>
             (currentPermission(obj.l,field.l) === currentPermission(qpMask,obj.l,field.l))))
 
 
@@ -888,7 +888,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         val field = LocalVarDecl(Identifier("f"), fieldType)
         val fieldVar = LocalVar(Identifier("f"), fieldType)
         val independentLocations = Assume(Forall(Seq(obj,field), Seq(Trigger(currentPermission(obj.l, field.l)), Trigger(currentPermission(qpMask, obj.l, field.l))),
-          ((obj.l !== translateNull) ||  isPredicateField(fieldVar).not || (getPredicateId(fieldVar) !== IntLit(PredIdMap(predname)) ))  ==>
+          ((obj.l !== translateNull) ||  isPredicateField(fieldVar).not || (getPredicateId(fieldVar) !== IntLit(getPredicateId(predname)) ))  ==>
             (currentPermission(obj.l,field.l) === currentPermission(qpMask,obj.l,field.l))))
 
         val gl = new PredicateAccess(formalArgsExpr, predname) (predicate.pos, predicate.info)
