@@ -214,6 +214,9 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   override def reset = {
     mask = originalMask
+    allowLocationAccessWithoutPerm = false
+    qpId = 0
+    inverseFuncs = new ListBuffer[Func]();
   }
 
   override def usingOldState = stateModuleIsUsingOldState
@@ -485,8 +488,11 @@ class QuantifiedPermModule(val verifier: Verifier)
         val (invAssm1, invAssm2) = inverseAssumptions(invFun, qpComp,QPComponents(obj,condInv, rcvInv, permInv))
 
         val nonNullAssumptions =
-          assmsToStmt(Forall(Seq(translateLocalVarDecl(vFresh)),Seq(),translatedCond && (permissionPositive(translatedPerms, Some(renamedPerms), false) ==>
-              (translatedRecv !== translateNull)) ))
+          assmsToStmt(Forall(Seq(translateLocalVarDecl(vFresh)),Seq(),(translatedCond && permissionPositive(translatedPerms, Some(renamedPerms), false)) ==>
+            (translatedRecv !== translateNull) ))
+
+        val permPositive = assmsToStmt(Forall(translateLocalVarDecl(vFresh), Seq(), translatedCond ==> permissionPositive(translatedPerms,None,true)))
+
 
         //assumptions for locations that gain permission
         val condTrueLocations = (condInv ==> (
@@ -519,6 +525,7 @@ class QuantifiedPermModule(val verifier: Verifier)
           assmsToStmt(invAssm1) ++
           assmsToStmt(invAssm2) ++
           nonNullAssumptions ++
+          permPositive ++
           injectiveAssumption ++
           assmsToStmt(Forall(obj,ts, condTrueLocations&&condFalseLocations )) ++
           independentLocations ++
