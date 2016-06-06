@@ -30,7 +30,7 @@ import viper.carbon.boogie.Assert
 import viper.carbon.boogie.ConstDecl
 import viper.carbon.boogie.Const
 import viper.carbon.boogie.LocalVar
-import viper.silver.ast.{NoInfo, NoPosition, NullLit, WildcardPerm}
+import viper.silver.ast.WildcardPerm
 import viper.carbon.boogie.Forall
 import viper.carbon.boogie.Assign
 import viper.carbon.boogie.Func
@@ -214,6 +214,9 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   override def reset = {
     mask = originalMask
+    allowLocationAccessWithoutPerm = false
+    qpId = 0
+    inverseFuncs = new ListBuffer[Func]();
   }
 
   override def usingOldState = stateModuleIsUsingOldState
@@ -275,8 +278,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         val perms = PermissionSplitter.splitPerm(p) filter (x => x._1 - 1 == exhaleModule.currentPhaseId)
         (if (exhaleModule.currentPhaseId == 0)
           (if (!p.isInstanceOf[WildcardPerm])
-            Assert(permissionPositive(translatePerm(p), Some(p), true), error.dueTo(reasons.NegativePermission(p))) else Nil: Stmt) ++
-            Assert(checkNonNullReceiver(loc), error.dueTo(reasons.ReceiverNull(loc)))
+            Assert(permissionPositive(translatePerm(p), Some(p), true), error.dueTo(reasons.NegativePermission(p))) else Nil: Stmt) ++ Nil // check amount is non-negative
         else Nil) ++
           (if (perms.size == 0) {
             Nil
@@ -348,10 +350,10 @@ class QuantifiedPermModule(val verifier: Verifier)
 
         val (invAssm1, invAssm2) = inverseAssumptions(invFun, qpComp,QPComponents(obj,condInv, rcvInv, permInv))
 
-        val notNull = Assert(Forall(translateLocalVarDecl(vFresh), Seq(), translatedCond ==> checkNonNullReceiver(renamingFieldAccess)),
-          error.dueTo(reasons.ReceiverNull(fieldAccess)))
+        //val notNull = Assert(Forall(translateLocalVarDecl(vFresh), Seq(), translatedCond && permissionPositive(translatedPerms) ==> checkNonNullReceiver(renamingFieldAccess)),
+        //  error.dueTo(reasons.ReceiverNull(fieldAccess)))
 
-        val permPositive = Assert(Forall(translateLocalVarDecl(vFresh), Seq(), translatedCond ==> permissionPositive(translatedPerms)),
+        val permPositive = Assert(Forall(translateLocalVarDecl(vFresh), Seq(), translatedCond ==> permissionPositive(translatedPerms,None,true)),
           error.dueTo(reasons.NegativePermission(perms)))
 
         val permNeeded =
@@ -397,7 +399,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         val res = Havoc(qpMask) ++
           stmts ++
           wildcardAssms ++
-          notNull ++
+          // notNull ++ // subsumed by permission check
           permPositive ++
           CommentBlock("check if receiver " + recv.toString() + " is injective",injectiveAssertion) ++
           enoughPerm ++
@@ -454,7 +456,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         stmts ++
           (permVar := permVal) ++
           assmsToStmt(permissionPositive(permVar, Some(perm), true)) ++
-          assmsToStmt(checkNonNullReceiver(loc)) ++
+          assmsToStmt(permissionPositive(permVar, Some(perm), false) ==> checkNonNullReceiver(loc)) ++
           (if (!usingOldState) curPerm := permAdd(curPerm, permVar) else Nil)
       case w@sil.MagicWand(left,right) =>
         val wandRep = wandModule.getWandRepresentation(w)
@@ -486,9 +488,12 @@ class QuantifiedPermModule(val verifier: Verifier)
 
         val (invAssm1, invAssm2) = inverseAssumptions(invFun, qpComp,QPComponents(obj,condInv, rcvInv, permInv))
 
-        val nullAndPermAssm =
-          assmsToStmt(Forall(Seq(translateLocalVarDecl(vFresh)),Seq(),translatedCond ==>
-              (permissionPositive(translatedPerms, Some(renamedPerms)) && (translatedRecv !== translateNull)) ))
+        val nonNullAssumptions =
+          assmsToStmt(Forall(Seq(translateLocalVarDecl(vFresh)),Seq(),(translatedCond && permissionPositive(translatedPerms, Some(renamedPerms), false)) ==>
+            (translatedRecv !== translateNull) ))
+
+        val permPositive = assmsToStmt(Forall(translateLocalVarDecl(vFresh), Seq(), translatedCond ==> permissionPositive(translatedPerms,None,true)))
+
 
         //assumptions for locations that gain permission
         val condTrueLocations = (condInv ==> (
@@ -520,7 +525,8 @@ class QuantifiedPermModule(val verifier: Verifier)
           stmts ++
           assmsToStmt(invAssm1) ++
           assmsToStmt(invAssm2) ++
-          nullAndPermAssm ++
+          nonNullAssumptions ++
+          permPositive ++
           injectiveAssumption ++
           assmsToStmt(Forall(obj,ts, condTrueLocations&&condFalseLocations )) ++
           independentLocations ++
@@ -708,6 +714,8 @@ class QuantifiedPermModule(val verifier: Verifier)
     }
   }
 
+  // AS: this is a trick to avoid well-definedness checks for the outermost heap dereference in an AccessPredicate node (since it describes the location to which permission is provided).
+  // The trick is somewhat fragile, in that it relies on the ordering of the calls to this method (but generally works out because of the recursive traversal of the assertion).
   private var allowLocationAccessWithoutPerm = false
   override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
     if(makeChecks) (
@@ -809,7 +817,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   def splitter = PermissionSplitter
   object PermissionSplitter {
 
-    def isPositivePerm(e: sil.Exp): Exp = {
+    def isStrictlyPositivePerm(e: sil.Exp): Exp = {
       require(e isSubtype sil.Perm, s"found ${e.typ} ($e), but required Perm")
       val backup = permissionPositive(translatePerm(e), Some(e))
       e match {
@@ -823,17 +831,17 @@ class QuantifiedPermModule(val verifier: Verifier)
           val (l, r) = (translateExp(left), translateExp(right))
           ((l > IntLit(0)) && (r > IntLit(0))) || ((l < IntLit(0)) && (r < IntLit(0)))
         case sil.PermAdd(left, right) =>
-          (isPositivePerm(left) && isPositivePerm(right)) || backup
+          (isStrictlyPositivePerm(left) && isStrictlyPositivePerm(right)) || backup
         case sil.PermSub(left, right) => backup
         case sil.PermMul(a, b) =>
-          (isPositivePerm(a) && isPositivePerm(b)) || (isNegativePerm(a) && isNegativePerm(b))
+          (isStrictlyPositivePerm(a) && isStrictlyPositivePerm(b)) || (isNegativePerm(a) && isNegativePerm(b))
         case sil.PermDiv(a, b) =>
-          isPositivePerm(a) // note: b should be ruled out from being non-positive
+          isStrictlyPositivePerm(a) // note: b should be ruled out from being non-positive
         case sil.IntPermMul(a, b) =>
           val n = translateExp(a)
-          ((n > IntLit(0)) && isPositivePerm(b)) || ((n < IntLit(0)) && isNegativePerm(b))
+          ((n > IntLit(0)) && isStrictlyPositivePerm(b)) || ((n < IntLit(0)) && isNegativePerm(b))
         case sil.CondExp(cond, thn, els) =>
-          CondExp(translateExp(cond), isPositivePerm(thn), isPositivePerm(els))
+          CondExp(translateExp(cond), isStrictlyPositivePerm(thn), isStrictlyPositivePerm(els))
         case _ => backup
       }
     }
@@ -912,12 +920,12 @@ class QuantifiedPermModule(val verifier: Verifier)
           (isNegativePerm(left) && isNegativePerm(right)) || backup
         case sil.PermSub(left, right) => backup
         case sil.PermMul(a, b) =>
-          (isPositivePerm(a) && isNegativePerm(b)) || (isNegativePerm(a) && isPositivePerm(b))
+          (isStrictlyPositivePerm(a) && isNegativePerm(b)) || (isNegativePerm(a) && isStrictlyPositivePerm(b))
         case sil.PermDiv(a, b) =>
           isNegativePerm(a) // note: b should be guaranteed ruled out from being non-positive
         case sil.IntPermMul(a, b) =>
           val n = translateExp(a)
-          ((n > IntLit(0)) && isNegativePerm(b)) || ((n < IntLit(0)) && isPositivePerm(b))
+          ((n > IntLit(0)) && isNegativePerm(b)) || ((n < IntLit(0)) && isStrictlyPositivePerm(b))
         case sil.CondExp(cond, thn, els) =>
           CondExp(translateExp(cond), isNegativePerm(thn), isNegativePerm(els))
         case _ => backup
@@ -967,7 +975,7 @@ class QuantifiedPermModule(val verifier: Verifier)
     //3 (n*(b+c)) --> (n*b + n*c)
     //4 (m*(n*c)) --> ((m*n)*c)
     // (a*b) --> (b*a) if b is a "fixedPerm" and a is not
-    // (a*wildcard) --> wildcard if isPositivePerm(a)
+    // (a*wildcard) --> wildcard if isStrictlyPositivePerm(a)
     // a*(x?b:c) --> (x?(a*b):(a*c)) etc.
     // (x?b:c)/n --> (x?(b/n):(c/n)) etc.
 
@@ -1081,14 +1089,14 @@ class QuantifiedPermModule(val verifier: Verifier)
           val cond = translateExp(n) > zero
           Seq((2, cond, e), (3, UnExp(Not, cond), e))
         case sil.PermMul(left, right: sil.LocalVar) if isAbstractRead(right) =>
-          val cond = isPositivePerm(left)
+          val cond = isStrictlyPositivePerm(left)
           Seq((2, cond, e), (3, UnExp(Not, cond), e))
         case sil.PermMul(left, sil.IntPermMul(n, p: sil.LocalVar)) if isAbstractRead(p) =>
-          val cond = isPositivePerm(left) && (translateExp(n) > zero)
+          val cond = isStrictlyPositivePerm(left) && (translateExp(n) > zero)
           Seq((2, cond, e), (3, UnExp(Not, cond), e))
         case sil.PermAdd(left, right) =>
           val splitted = splitPerm(left) ++ splitPerm(right)
-          val cond = isPositivePerm(left) && isPositivePerm(right)
+          val cond = isStrictlyPositivePerm(left) && isStrictlyPositivePerm(right)
           addCond(splitted, cond) ++ Seq((3, UnExp(Not, cond), e))
         case sil.CondExp(cond,thn,els) =>
           val thncases = splitPerm(thn)
