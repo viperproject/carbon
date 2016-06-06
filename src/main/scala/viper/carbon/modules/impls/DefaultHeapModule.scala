@@ -79,6 +79,7 @@ class DefaultHeapModule(val verifier: Verifier)
   private val allocName = Identifier("$allocated")(fieldNamespace)
   private val identicalOnKnownLocsName = Identifier("IdenticalOnKnownLocations")
   private val isPredicateFieldName = Identifier("IsPredicateField")
+  private var PredIdMap:Map[String, BigInt] = Map()
   private val isWandFieldName = Identifier("IsWandField")
   private val getPredicateIdName = Identifier("getPredicateId")
   private var NextPredicateId:BigInt = 0
@@ -184,7 +185,9 @@ class DefaultHeapModule(val verifier: Verifier)
     FuncApp(getPredicateIdName,Seq(f), Int)
   }
 
-  var PredIdMap:Map[String, BigInt] = Map()
+  override def getPredicateId(s:String): BigInt = {
+    PredIdMap(s)
+  }
 
   def getNewPredId : BigInt = {
     val id = NextPredicateId
