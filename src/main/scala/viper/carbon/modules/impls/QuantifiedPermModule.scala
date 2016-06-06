@@ -436,12 +436,12 @@ class QuantifiedPermModule(val verifier: Verifier)
         val res1 = Havoc(qpMask) ++
           stmts ++
           wildcardAssms ++
-          notNull ++
+          //notNull ++
           permPositive ++
           CommentBlock("check if receiver " + recv.toString() + " is injective",injectiveAssertion) ++
           enoughPerm ++
           CommentBlock("assumptions for inverse of receiver " + recv.toString(), Assume(invAssm1)++Assume(invAssm2)) ++
-          Assume(Forall(obj,ts, condTrueLocations)) ++
+          Assume(Forall(obj,ts, condTrueLocations&&condFalseLocations )) ++
           independentLocations ++
           (mask := qpMask)
 
@@ -946,7 +946,6 @@ class QuantifiedPermModule(val verifier: Verifier)
         evaluateInhale(v, newCond, e0) ++ Nil
       case _ =>
         if (expr.isPure) {
-          println("isPure")
           val forall = sil.Forall(v, Seq(), expr)(expr.pos, expr.info)
           Assume(translateExp(forall)) ++ Nil
         } else {
@@ -964,21 +963,16 @@ class QuantifiedPermModule(val verifier: Verifier)
       case qp@sil.utility.QuantifiedPermissions.QuantifiedPermission(v, cond, expr)  =>
         Nil
       case sil.FieldAccessPredicate(fa@sil.FieldAccess(rcvr, f), gain) =>
-        println("Field Access")
         Nil
       case predAccPred@sil.PredicateAccessPredicate(PredicateAccess(args, predname), perm) =>
-        println("Predicate access")
         Nil
       case sil.And(e0, e1) =>
-        println("And")
         Nil
       case sil.Implies(e0, e1) =>
         //e0 must be pure
-        println("Implies")
         Nil
       case sil.Or(e0, e1) =>
         //e0 must be pure
-        println("Or")
         Nil
       case _ => Nil
     }
