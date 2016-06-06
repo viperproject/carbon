@@ -397,12 +397,12 @@ class QuantifiedPermModule(val verifier: Verifier)
         val res = Havoc(qpMask) ++
           stmts ++
           wildcardAssms ++
-          notNull ++
+          //notNull ++
           permPositive ++
           CommentBlock("check if receiver " + recv.toString() + " is injective",injectiveAssertion) ++
           enoughPerm ++
           CommentBlock("assumptions for inverse of receiver " + recv.toString(), Assume(invAssm1)++Assume(invAssm2)) ++
-          Assume(Forall(obj,ts, condTrueLocations)) ++
+          Assume(Forall(obj,ts, condTrueLocations&&condFalseLocations )) ++
           independentLocations ++
           (mask := qpMask)
 
