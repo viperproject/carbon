@@ -80,9 +80,11 @@ class DefaultHeapModule(val verifier: Verifier)
   private val identicalOnKnownLocsName = Identifier("IdenticalOnKnownLocations")
   private val isPredicateFieldName = Identifier("IsPredicateField")
   private var PredIdMap:Map[String, BigInt] = Map()
+  private var NextPredicateId:BigInt = 0
   private val isWandFieldName = Identifier("IsWandField")
   private val getPredicateIdName = Identifier("getPredicateId")
-  private var NextPredicateId:BigInt = 0
+  private var isQuantifierLocalVar:Map[String, Int] = Map()
+
   override def refType = NamedType("Ref")
 
   override def preamble = {
@@ -476,12 +478,33 @@ class DefaultHeapModule(val verifier: Verifier)
           allowHeapDeref = true
           Nil
         case fa@sil.FieldAccess(rcv, field) =>
+          //check if receiver is quantified
+          fa.pos match {
+            case sil.AbstractSourcePosition(line, column) => {
+              if (isQuantifierLocalVar(rcv.toString()) == line) {
+                allowHeapDeref = true
+              }
+            }
+            case _ => ;
+          }
+          //find checks
           if (allowHeapDeref) {
             allowHeapDeref = false
             Nil
           } else {
             Assert(translateExp(rcv) !== nullLit, error.dueTo(reasons.ReceiverNull(fa)))
           }
+        case f@sil.Forall(locVarDecls, _, _) =>
+            //add occurance to mapping
+          f.pos match {
+            case sil.AbstractSourcePosition(line, column) => {
+              //add to line of occurance to mapping
+              var locVars = locVarDecls.map(x => x.name)
+              locVars.foreach(x => isQuantifierLocalVar += (x -> line))
+            }
+            case _ => ;
+          }
+            Nil
         case _ => Nil
       }
     ) else Nil
@@ -512,6 +535,7 @@ class DefaultHeapModule(val verifier: Verifier)
   override def reset = {
     PredIdMap = Map()
     NextPredicateId = 0
+    isQuantifierLocalVar = Map()
     allowHeapDeref = false
     heap = originalHeap
   }
