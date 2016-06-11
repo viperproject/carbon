@@ -281,6 +281,12 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           Nil
       case _ =>
         def translate: Seqn = {
+          //if checking in a quantifier, note variables it is depending on for the checks (neeeded for quantified permissions and pure combinations)
+          if (e.isInstanceOf[sil.Forall]) {
+            var vars = e.asInstanceOf[sil.Forall].variables
+            vars.map(x => heapModule.addQuantifierVar(x.name, true))
+          }
+
           val checks = components map (_.partialCheckDefinedness(e, error, makeChecks = makeChecks))
           val stmt = checks map (_._1())
           // AS: note that some implementations of the definedness checks rely on the order of these calls (i.e. parent nodes are checked before children, and children *are* always checked after parents.
@@ -295,8 +301,11 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
                     "stmt:" + stmt.toString() +
                     "stmt2:" + stmt2.toString() +
                     "stmt3:" + stmt3.toString())
+            case sil.Forall(vars, _, _) =>
+              vars.map(x => heapModule.removeQuantifierVar(x.name))
             case _ => Nil
           }
+
           stmt ++ stmt2 ++ stmt3 ++
             MaybeCommentBlock("Free assumptions", allFreeAssumptions(e))
         }

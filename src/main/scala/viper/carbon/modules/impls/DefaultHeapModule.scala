@@ -83,7 +83,7 @@ class DefaultHeapModule(val verifier: Verifier)
   private var NextPredicateId:BigInt = 0
   private val isWandFieldName = Identifier("IsWandField")
   private val getPredicateIdName = Identifier("getPredicateId")
-  private var isQuantifierLocalVar:Map[String, Int] = Map()
+  private var isQuantifierLocalVar:Map[String, Boolean] = Map()
 
   override def refType = NamedType("Ref")
 
@@ -479,13 +479,8 @@ class DefaultHeapModule(val verifier: Verifier)
           Nil
         case fa@sil.FieldAccess(rcv, field) =>
           //check if receiver is quantified
-          fa.pos match {
-            case sil.AbstractSourcePosition(line, column) => {
-              if (isQuantifierLocalVar(rcv.toString()) == line) {
-                allowHeapDeref = true
-              }
-            }
-            case _ => ;
+          if (isQuantifierVar(rcv.toString())) {
+            allowHeapDeref = true
           }
           //find checks
           if (allowHeapDeref) {
@@ -494,17 +489,6 @@ class DefaultHeapModule(val verifier: Verifier)
           } else {
             Assert(translateExp(rcv) !== nullLit, error.dueTo(reasons.ReceiverNull(fa)))
           }
-        case f@sil.Forall(locVarDecls, _, _) =>
-            //add occurance to mapping
-          f.pos match {
-            case sil.AbstractSourcePosition(line, column) => {
-              //add to line of occurance to mapping
-              var locVars = locVarDecls.map(x => x.name)
-              locVars.foreach(x => isQuantifierLocalVar += (x -> line))
-            }
-            case _ => ;
-          }
-            Nil
         case _ => Nil
       }
     ) else Nil
@@ -526,6 +510,22 @@ class DefaultHeapModule(val verifier: Verifier)
         addPermissionToPMask(loc)
       case _ => Nil
     }
+  }
+
+  override def isQuantifierVar(s:String): Boolean = {
+    if (isQuantifierLocalVar.contains(s)) {
+      return isQuantifierLocalVar(s)
+    } else {
+      return false;
+    }
+
+  }
+  override def addQuantifierVar(s:String, b:Boolean) ={
+    isQuantifierLocalVar += (s -> b)
+  }
+
+  override def removeQuantifierVar(s:String) = {
+    isQuantifierLocalVar-= s
   }
 
   /**

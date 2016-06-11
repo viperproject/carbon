@@ -1173,6 +1173,14 @@ class QuantifiedPermModule(val verifier: Verifier)
           allowLocationAccessWithoutPerm = true
           Nil
         case fa@sil.LocationAccess(_) =>
+          fa match {
+            case sil.FieldAccess(rcv, field) =>
+              if (heapModule.isQuantifierVar(rcv.toString())){
+                allowLocationAccessWithoutPerm = true
+              }
+            case _ => ;
+          }
+
           if (allowLocationAccessWithoutPerm) {
             allowLocationAccessWithoutPerm = false
             Nil
