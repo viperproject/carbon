@@ -401,6 +401,35 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       case sil.CondExp(c, e1, e2) =>
         checkDefinedness(c, error) ++
           If(translateExp(c), checkDefinednessOfSpecAndInhale(e1, error), checkDefinednessOfSpecAndInhale(e2, error))
+      case fa@sil.Forall(vars, triggers, expr) =>
+          val res = fa match {
+          case qp@sil.utility.QuantifiedPermissions.QuantifiedPermission(v, cond, expr) =>
+              val stmts = expr match {
+                  //Field Access
+                case sil.AccessPredicate(_,_)  =>
+                checkDefinedness(e, error) ++
+                inhale(e)
+                case and@sil.And(e0, e1) =>
+
+                checkDefinednessOfSpecAndInhale(sil.Forall(vars, triggers, sil.Implies(cond , e0)(expr.pos, expr.info))(fa.pos, fa.info), error) ::
+                checkDefinednessOfSpecAndInhale(sil.Forall(vars, triggers, sil.Implies(cond , e1)(expr.pos, expr.info))(fa.pos, fa.info), error) ::
+                Nil
+                  //combination: implies
+                case implies@sil.Implies(e0, e1) =>
+                  //e0 must be pure
+                val newCond = sil.And(cond, e0)(cond.pos, cond.info)
+                  checkDefinednessOfSpecAndInhale(sil.Forall(vars, triggers,  sil.Implies(newCond , e0)(expr.pos, expr.info))(fa.pos, fa.info), error) ++
+                    Nil
+                case _ =>
+                checkDefinedness(e, error) ++
+                inhale(e)
+              }
+          stmts
+        case _ =>
+          checkDefinedness(e, error) ++
+          inhale(e)
+        }
+        res
       case _ =>
         checkDefinedness(e, error) ++
           inhale(e)
@@ -421,7 +450,44 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           If(translateExp(c),
             checkDefinednessOfSpecAndExhale(e1, definednessError, exhaleError),
             checkDefinednessOfSpecAndExhale(e2, definednessError, exhaleError))
+      case fa@sil.Forall(vars, triggers, expr) =>
+        println("matched forall")
+        val res = fa match {
+          case qp@sil.utility.QuantifiedPermissions.QuantifiedPermission(v, cond, expr) =>
+            println("matched quantifiedPermission")
+            val stmts = expr match {
+              //Field Access
+              case sil.AccessPredicate(_,_)  =>
+                println("matched accessPredicate")
+                checkDefinedness(e, definednessError) ++
+                  exhale(Seq((e, exhaleError)))
+              case and@sil.And(e0, e1) =>
+                println("matched &&")
+                println(sil.Forall(vars, triggers, sil.Implies(cond , e0)(expr.pos, expr.info))(fa.pos, fa.info))
+                println(sil.Forall(vars, triggers, sil.Implies(cond , e1)(expr.pos, expr.info))(fa.pos, fa.info))
+                checkDefinednessOfSpecAndExhale(sil.Forall(vars, triggers, sil.Implies(cond , e0)(expr.pos, expr.info))(fa.pos, fa.info), definednessError, exhaleError) ::
+                  checkDefinednessOfSpecAndExhale(sil.Forall(vars, triggers, sil.Implies(cond , e1)(expr.pos, expr.info))(fa.pos, fa.info), definednessError, exhaleError) ::
+                  Nil
+              //combination: implies
+              case implies@sil.Implies(e0, e1) =>
+                println("matched implies")
+                //e0 must be pure
+                val newCond = sil.And(cond, e0)(cond.pos, cond.info)
+                checkDefinednessOfSpecAndExhale(sil.Forall(vars, triggers,  sil.Implies(newCond , e0)(expr.pos, expr.info))(fa.pos, fa.info), definednessError,exhaleError ) ++
+                  Nil
+              case _ =>
+                checkDefinedness(e, definednessError) ++
+                  exhale(Seq((e, exhaleError)))
+            }
+            stmts
+          case _ =>
+            println("didnt match qp")
+            checkDefinedness(e, definednessError) ++
+              exhale(Seq((e, exhaleError)))
+        }
+        res
       case _ =>
+        println("matched default")
         checkDefinedness(e, definednessError) ++
           exhale(Seq((e, exhaleError)))
     }

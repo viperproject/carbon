@@ -29,3 +29,8 @@ field f:Int
   //ensures forall x:Ref :: x in xs ==> acc(pred(x)) && unfolding pred(x) in true
   ensures forall x:Ref :: x in xs ==> (unfolding pred(x) in true) && acc(pred(x))
   {}
+
+  method m4(xs:Seq[Ref], b:Bool)
+  requires forall x:Ref :: x in xs ==> (b ==> acc(x.f))
+  requires forall x:Ref :: x in xs ==> (b ==> (x.f > 0))
+  {}
