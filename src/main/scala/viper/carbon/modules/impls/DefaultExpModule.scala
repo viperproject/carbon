@@ -6,15 +6,16 @@
 
 package viper.carbon.modules.impls
 
-import viper.carbon.modules.{StatelessComponent, ExpModule}
+import viper.carbon.modules.{ExpModule, StatelessComponent}
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.Verifier
-import viper.silver.verifier.{reasons, PartialVerificationError}
+import viper.silver.verifier.{PartialVerificationError, reasons}
 import viper.carbon.boogie.Implicits._
 import viper.carbon.modules.components.DefinednessComponent
 import viper.silver.ast.{LocationAccess, QuantifiedExp}
 import viper.silver.ast.utility.Expressions
+import viper.silver.ast.utility.Expressions._
 
 /**
  * The default implementation of [[viper.carbon.modules.ExpModule]].
@@ -404,15 +405,28 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       case fa@sil.Forall(vars, triggers, expr) =>
           val res = fa match {
           case qp@sil.utility.QuantifiedPermissions.QuantifiedPermission(v, cond, expr) =>
+
               val stmts = expr match {
-                  //Field Access
                 case sil.AccessPredicate(_,_)  =>
                 checkDefinedness(e, error) ++
                 inhale(e)
                 case and@sil.And(e0, e1) =>
-
-                checkDefinednessOfSpecAndInhale(sil.Forall(vars, triggers, sil.Implies(cond , e0)(expr.pos, expr.info))(fa.pos, fa.info), error) ::
-                checkDefinednessOfSpecAndInhale(sil.Forall(vars, triggers, sil.Implies(cond , e1)(expr.pos, expr.info))(fa.pos, fa.info), error) ::
+                  val tr0:Seq[sil.Trigger] = {
+                    if (e0.isPure && triggers.isEmpty) {
+                      Seq(sil.Trigger(cond) (cond.pos, cond.info))
+                    } else {
+                      triggers
+                    }
+                  }
+                  val tr1:Seq[sil.Trigger] = {
+                    if (e1.isPure && triggers.isEmpty) {
+                      Seq(sil.Trigger(cond)(cond.pos, cond.info))
+                    } else {
+                      triggers
+                    }
+                  }
+                checkDefinednessOfSpecAndInhale(sil.Forall(vars, tr0, sil.Implies(cond , e0)(expr.pos, expr.info))(fa.pos, fa.info), error) ::
+                checkDefinednessOfSpecAndInhale(sil.Forall(vars, tr1, sil.Implies(cond , e1)(expr.pos, expr.info))(fa.pos, fa.info), error) ::
                 Nil
                   //combination: implies
                 case implies@sil.Implies(e0, e1) =>
@@ -426,8 +440,10 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
               }
           stmts
         case _ =>
-          checkDefinedness(e, error) ++
-          inhale(e)
+          val check = checkDefinedness(e, error)
+          val in = inhale(e)
+          check ++
+          in
         }
         res
       case _ =>
@@ -451,26 +467,21 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             checkDefinednessOfSpecAndExhale(e1, definednessError, exhaleError),
             checkDefinednessOfSpecAndExhale(e2, definednessError, exhaleError))
       case fa@sil.Forall(vars, triggers, expr) =>
-        println("matched forall")
         val res = fa match {
           case qp@sil.utility.QuantifiedPermissions.QuantifiedPermission(v, cond, expr) =>
-            println("matched quantifiedPermission")
             val stmts = expr match {
               //Field Access
               case sil.AccessPredicate(_,_)  =>
-                println("matched accessPredicate")
                 checkDefinedness(e, definednessError) ++
                   exhale(Seq((e, exhaleError)))
               case and@sil.And(e0, e1) =>
-                println("matched &&")
                 println(sil.Forall(vars, triggers, sil.Implies(cond , e0)(expr.pos, expr.info))(fa.pos, fa.info))
                 println(sil.Forall(vars, triggers, sil.Implies(cond , e1)(expr.pos, expr.info))(fa.pos, fa.info))
                 checkDefinednessOfSpecAndExhale(sil.Forall(vars, triggers, sil.Implies(cond , e0)(expr.pos, expr.info))(fa.pos, fa.info), definednessError, exhaleError) ::
-                  checkDefinednessOfSpecAndExhale(sil.Forall(vars, triggers, sil.Implies(cond , e1)(expr.pos, expr.info))(fa.pos, fa.info), definednessError, exhaleError) ::
+                checkDefinednessOfSpecAndExhale(sil.Forall(vars, triggers, sil.Implies(cond , e1)(expr.pos, expr.info))(fa.pos, fa.info), definednessError, exhaleError) ::
                   Nil
               //combination: implies
               case implies@sil.Implies(e0, e1) =>
-                println("matched implies")
                 //e0 must be pure
                 val newCond = sil.And(cond, e0)(cond.pos, cond.info)
                 checkDefinednessOfSpecAndExhale(sil.Forall(vars, triggers,  sil.Implies(newCond , e0)(expr.pos, expr.info))(fa.pos, fa.info), definednessError,exhaleError ) ++
@@ -481,13 +492,11 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             }
             stmts
           case _ =>
-            println("didnt match qp")
             checkDefinedness(e, definednessError) ++
               exhale(Seq((e, exhaleError)))
         }
         res
       case _ =>
-        println("matched default")
         checkDefinedness(e, definednessError) ++
           exhale(Seq((e, exhaleError)))
     }

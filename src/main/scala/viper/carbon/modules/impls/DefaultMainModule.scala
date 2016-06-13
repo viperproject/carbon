@@ -124,7 +124,6 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
   }
 
   private def translateMethodDeclCheckPosts(posts: Seq[sil.Exp]): Stmt = {
-
     val (stmt, state) = stateModule.freshTempState("Post")
 
     val reset = stateModule.resetBoogieState

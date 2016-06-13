@@ -305,6 +305,7 @@ class QuantifiedPermModule(val verifier: Verifier)
           (if (!usingOldState) curPerm := permSub(curPerm, RealLit(1.0)) else Nil)
 
       case qp@sil.utility.QuantifiedPermissions.QuantifiedPermission(v, cond, expr) =>
+
         //quantified permissions
         val res = {
           if (qp.isPure) {
@@ -320,6 +321,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   def evaluateExhale(v: sil.LocalVarDecl, cond:sil.Exp, expr:sil.Exp, error: PartialVerificationError): Stmt = {
     val res = expr match {
+
       case qp@sil.utility.QuantifiedPermissions.QuantifiedPermission(v, cond, expr)  =>
         //TODO: nested quantifier
         Nil
@@ -597,7 +599,8 @@ class QuantifiedPermModule(val verifier: Verifier)
         res1
       //combination and
       case and@sil.And(e0, e1) =>
-        evaluateExhale(v, cond, e0, error) ++ evaluateExhale(v, cond, e1, error)
+        evaluateExhale(v, cond, e0, error) ++
+          evaluateExhale(v, cond, e1, error)
       //combination: implies
       case implies@sil.Implies(e0, e1) =>
         //TODO e0 must be pure
@@ -610,7 +613,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         evaluateExhale(v, newCond, e0, error) ++ Nil
       case _ =>
         if (expr.isPure) {
-          val forall = sil.Forall(v, Seq(), expr)(expr.pos, expr.info)
+          val forall = sil.Forall(v, Seq(), sil.Implies(cond, expr)(cond.pos, cond.info))(expr.pos, expr.info)
           Assert(translateExp(forall), error.dueTo(reasons.AssertionFalse(expr))) ++ Nil
         } else {
           Nil
@@ -931,7 +934,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         evaluateInhale(v, newCond, e0) ++ Nil
       case _ =>
         if (expr.isPure) {
-          val forall = sil.Forall(v, Seq(), expr)(expr.pos, expr.info)
+          val forall = sil.Forall(v, Seq(), sil.Implies(cond, expr)(cond.pos, cond.info))(expr.pos, expr.info)
           Assume(translateExp(forall)) ++ Nil
         } else {
           Nil
@@ -1159,21 +1162,7 @@ class QuantifiedPermModule(val verifier: Verifier)
             allowLocationAccessWithoutPerm = false
             Nil
           } else {
-            val checks:Stmt = fa match {
-              case sil.FieldAccess(rcv, field) =>
-
-                if (heapModule.isQuantifierVar(rcv.toString()) && getQuantifierMapping(fa)!= null ) {
-                  //TODO: check permission with additional mappings is greater than 0
-                  val translatedLocation = currentPermission(fa)
-                  val additionalPermission = translateExp(getQuantifierMapping(fa))
-                  val totalPermission = translatedLocation + additionalPermission
-                  Assert(totalPermission > RealLit(0), error.dueTo(reasons.InsufficientPermission(fa)))
-                } else {
-                  Nil
-                }
-              case _ =>  Assert(hasDirectPerm(fa), error.dueTo(reasons.InsufficientPermission(fa)))
-            }
-            checks
+            Assert(hasDirectPerm(fa), error.dueTo(reasons.InsufficientPermission(fa)))
           }
         case sil.PermDiv(a, b) =>
           Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
