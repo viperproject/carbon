@@ -470,41 +470,6 @@ class DefaultHeapModule(val verifier: Verifier)
 
   override def usingOldState = stateModuleIsUsingOldState
 
-  // AS: this is a trick to avoid well-definedness checks for the outermost heap dereference in an AccessPredicate node (since it describes the location to which permission is provided).
-  // The trick is somewhat fragile, in that it relies on the ordering of the calls to this method.
-  private var allowHeapDeref = false
-  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
-    if(makeChecks) (
-      e match {
-        case sil.AccessPredicate(loc, perm) =>
-          //add to Quantifier Field Modified List
-          loc match {
-            case fa@sil.FieldAccess(rcv, field) =>
-              QuantifierFieldPerm += fa -> perm
-            case _ => ;
-          }
-          allowHeapDeref = true
-          Nil
-        case fa@sil.FieldAccess(rcv, field) =>
-          //check if receiver is quantified
-          if (isQuantifierVar(rcv.toString())) {
-            if (QuantifierFieldPerm.contains(fa)) {
-              //TODO: check permission greater 0
-              allowHeapDeref = true
-            }
-
-          }
-          //find checks
-          if (allowHeapDeref) {
-            allowHeapDeref = false
-            Nil
-          } else {
-            Assert(translateExp(rcv) !== nullLit, error.dueTo(reasons.ReceiverNull(fa)))
-          }
-        case _ => Nil
-      }
-    ) else Nil
-  }
 
   override def getQuantifierMapping(loc:sil.LocationAccess):sil.Exp = {
         QuantifierFieldPerm.getOrElse(loc, null)
@@ -557,7 +522,6 @@ class DefaultHeapModule(val verifier: Verifier)
     NextPredicateId = 0
     isQuantifierLocalVar = Map()
     QuantifierFieldPerm = Map()
-    allowHeapDeref = false
     heap = originalHeap
   }
 
