@@ -148,6 +148,16 @@ trait HeapModule extends Module with CarbonStateComponent {
     */
   def removeQuantifierVar(s:String)
 
+/**
+  * reset Quantifier Field to Permission Map
+  */
+  def resetQuantifierFieldMap()
+
+  /**
+    * get Permission of current Quantifier for certain LocationAccess
+    */
+  def getQuantifierMapping(loc:sil.LocationAccess):sil.Exp
+
   /**
    * Generate a trigger for a given predicate.
    */

@@ -7,14 +7,15 @@
 package viper.carbon.modules.impls
 
 import viper.carbon.modules._
-import viper.carbon.modules.components.{InhaleComponent, ExhaleComponent, SimpleStmtComponent, DefinednessComponent}
+import viper.carbon.modules.components.{DefinednessComponent, ExhaleComponent, InhaleComponent, SimpleStmtComponent}
 import viper.silver.ast.utility.Expressions
 import viper.silver.components.StatefulComponent
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
-import viper.silver.verifier.{reasons, PartialVerificationError}
+import viper.silver.verifier.{PartialVerificationError, reasons}
 import viper.carbon.verifier.Verifier
+import viper.silver.ast.NullLit
 
 /**
  * The default implementation of a [[viper.carbon.modules.HeapModule]].
@@ -84,6 +85,7 @@ class DefaultHeapModule(val verifier: Verifier)
   private val isWandFieldName = Identifier("IsWandField")
   private val getPredicateIdName = Identifier("getPredicateId")
   private var isQuantifierLocalVar:Map[String, Boolean] = Map()
+  private var QuantifierFieldPerm:Map[sil.LocationAccess, sil.Exp] = Map()
 
   override def refType = NamedType("Ref")
 
@@ -475,12 +477,22 @@ class DefaultHeapModule(val verifier: Verifier)
     if(makeChecks) (
       e match {
         case sil.AccessPredicate(loc, perm) =>
+          //add to Quantifier Field Modified List
+          loc match {
+            case fa@sil.FieldAccess(rcv, field) =>
+              QuantifierFieldPerm += fa -> perm
+            case _ => ;
+          }
           allowHeapDeref = true
           Nil
         case fa@sil.FieldAccess(rcv, field) =>
           //check if receiver is quantified
           if (isQuantifierVar(rcv.toString())) {
-            allowHeapDeref = true
+            if (QuantifierFieldPerm.contains(fa)) {
+              //TODO: check permission greater 0
+              allowHeapDeref = true
+            }
+
           }
           //find checks
           if (allowHeapDeref) {
@@ -492,6 +504,14 @@ class DefaultHeapModule(val verifier: Verifier)
         case _ => Nil
       }
     ) else Nil
+  }
+
+  override def getQuantifierMapping(loc:sil.LocationAccess):sil.Exp = {
+        QuantifierFieldPerm.getOrElse(loc, null)
+    }
+
+  override def resetQuantifierFieldMap {
+    QuantifierFieldPerm = Map()
   }
 
   override def beginExhale: Stmt = {
@@ -536,6 +556,7 @@ class DefaultHeapModule(val verifier: Verifier)
     PredIdMap = Map()
     NextPredicateId = 0
     isQuantifierLocalVar = Map()
+    QuantifierFieldPerm = Map()
     allowHeapDeref = false
     heap = originalHeap
   }

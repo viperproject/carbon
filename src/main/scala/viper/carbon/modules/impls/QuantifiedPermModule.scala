@@ -13,30 +13,9 @@ import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
 import viper.silver.verifier._
-import viper.carbon.boogie.NamedType
-import viper.carbon.boogie.MapSelect
-import viper.carbon.boogie.LocalVarWhereDecl
-import viper.carbon.boogie.Trigger
 import viper.silver.verifier.PartialVerificationError
-import viper.carbon.boogie.LocalVarDecl
-import viper.carbon.boogie.Assume
-import viper.carbon.boogie.RealLit
-import viper.carbon.boogie.GlobalVar
-import viper.carbon.boogie.GlobalVarDecl
-import viper.carbon.boogie.Axiom
-import viper.carbon.boogie.BinExp
-import viper.carbon.boogie.MapType
-import viper.carbon.boogie.Assert
-import viper.carbon.boogie.ConstDecl
-import viper.carbon.boogie.Const
-import viper.carbon.boogie.LocalVar
-import viper.silver.ast.{NoInfo, NoPosition, NullLit, WildcardPerm, PredicateAccessPredicate, PredicateAccess, Literal}
-import viper.silver.ast.{LocalVar=> _, And => _, Bool => _, Div => _, Exp => _, Int => _, LocalVarDecl => _, Mul => _, Not => _, Stmt => _}
-import viper.carbon.boogie.Forall
-import viper.carbon.boogie.Assign
-import viper.carbon.boogie.Func
-import viper.carbon.boogie.TypeAlias
-import viper.carbon.boogie.FuncApp
+import viper.silver.ast.{Literal, NoInfo, NoPosition, NullLit, PredicateAccess, PredicateAccessPredicate, WildcardPerm}
+import viper.silver.ast.{And => _, Bool => _, Div => _, Exp => _, Int => _, LocalVar => _, LocalVarDecl => _, Mul => _, Not => _, Stmt => _}
 import viper.carbon.verifier.Verifier
 
 import scala.collection.mutable.ListBuffer
@@ -1172,20 +1151,29 @@ class QuantifiedPermModule(val verifier: Verifier)
         case sil.AccessPredicate(loc, perm) =>
           allowLocationAccessWithoutPerm = true
           Nil
+        case sil.PredicateAccess(loc, perm) =>
+          allowLocationAccessWithoutPerm = true
+          Nil
         case fa@sil.LocationAccess(_) =>
-          fa match {
-            case sil.FieldAccess(rcv, field) =>
-              if (heapModule.isQuantifierVar(rcv.toString())){
-                allowLocationAccessWithoutPerm = true
-              }
-            case _ => ;
-          }
-
           if (allowLocationAccessWithoutPerm) {
             allowLocationAccessWithoutPerm = false
             Nil
           } else {
-            Assert(hasDirectPerm(fa), error.dueTo(reasons.InsufficientPermission(fa)))
+            val checks:Stmt = fa match {
+              case sil.FieldAccess(rcv, field) =>
+
+                if (heapModule.isQuantifierVar(rcv.toString()) && getQuantifierMapping(fa)!= null ) {
+                  //TODO: check permission with additional mappings is greater than 0
+                  val translatedLocation = currentPermission(fa)
+                  val additionalPermission = translateExp(getQuantifierMapping(fa))
+                  val totalPermission = translatedLocation + additionalPermission
+                  Assert(totalPermission > RealLit(0), error.dueTo(reasons.InsufficientPermission(fa)))
+                } else {
+                  Nil
+                }
+              case _ =>  Assert(hasDirectPerm(fa), error.dueTo(reasons.InsufficientPermission(fa)))
+            }
+            checks
           }
         case sil.PermDiv(a, b) =>
           Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))

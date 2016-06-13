@@ -282,7 +282,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       case _ =>
         def translate: Seqn = {
           //if checking in a quantifier, note variables it is depending on for the checks (neeeded for quantified permissions and pure combinations)
-          if (e.isInstanceOf[sil.Forall]) {
+          if (e.isInstanceOf[sil.Forall] && !e.isPure) {
             var vars = e.asInstanceOf[sil.Forall].variables
             vars.map(x => heapModule.addQuantifierVar(x.name, true))
           }
@@ -302,7 +302,10 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
                     "stmt2:" + stmt2.toString() +
                     "stmt3:" + stmt3.toString())
             case sil.Forall(vars, _, _) =>
-              vars.map(x => heapModule.removeQuantifierVar(x.name))
+              if (!e.isPure) {
+                vars.map(x => heapModule.removeQuantifierVar(x.name))
+                resetQuantifierFieldMap()
+              }
             case _ => Nil
           }
 
