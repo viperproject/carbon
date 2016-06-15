@@ -134,33 +134,7 @@ trait HeapModule extends Module with CarbonStateComponent {
    * Is the given field a wand field?
    */
   def isWandField(f: Exp): Exp
-  /**
-    * Is the variable with String s a quantifier variable?
-    */
-  def isQuantifierVar(s:String): Boolean
-  /**
-    * add quantifier variable string
-    */
-  def addQuantifierVar(s:String, b:Boolean)
 
-  /**
-    * remove Quantifier variable with name
-    */
-  def removeQuantifierVar(s:String)
-
-/**
-  * reset Quantifier Field to Permission Map
-  */
-  def resetQuantifierFieldMap()
-
-  /**
-    * get Permission of current Quantifier for certain LocationAccess
-    */
-  def getQuantifierMapping(loc:sil.LocationAccess):sil.Exp
-
-  /**
-   * Generate a trigger for a given predicate.
-   */
   def predicateTrigger(extras: Seq[Exp], pred: sil.PredicateAccess, anyState: Boolean = false): Exp
 
   def currentHeap:Seq[Exp]

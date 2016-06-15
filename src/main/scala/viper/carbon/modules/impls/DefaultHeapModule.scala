@@ -84,8 +84,6 @@ class DefaultHeapModule(val verifier: Verifier)
   private var NextPredicateId:BigInt = 0
   private val isWandFieldName = Identifier("IsWandField")
   private val getPredicateIdName = Identifier("getPredicateId")
-  private var isQuantifierLocalVar:Map[String, Boolean] = Map()
-  private var QuantifierFieldPerm:Map[sil.LocationAccess, sil.Exp] = Map()
 
   override def refType = NamedType("Ref")
 
@@ -471,14 +469,6 @@ class DefaultHeapModule(val verifier: Verifier)
   override def usingOldState = stateModuleIsUsingOldState
 
 
-  override def getQuantifierMapping(loc:sil.LocationAccess):sil.Exp = {
-        QuantifierFieldPerm.getOrElse(loc, null)
-    }
-
-  override def resetQuantifierFieldMap {
-    QuantifierFieldPerm = Map()
-  }
-
   override def beginExhale: Stmt = {
     Havoc(exhaleHeap)
   }
@@ -497,22 +487,6 @@ class DefaultHeapModule(val verifier: Verifier)
     }
   }
 
-  override def isQuantifierVar(s:String): Boolean = {
-    if (isQuantifierLocalVar.contains(s)) {
-      return isQuantifierLocalVar(s)
-    } else {
-      return false;
-    }
-
-  }
-  override def addQuantifierVar(s:String, b:Boolean) ={
-    isQuantifierLocalVar += (s -> b)
-  }
-
-  override def removeQuantifierVar(s:String) = {
-    isQuantifierLocalVar-= s
-  }
-
   /**
    * Reset the state of this module so that it can be used for new program. This method is called
    * after verifier gets a new program.
@@ -520,8 +494,6 @@ class DefaultHeapModule(val verifier: Verifier)
   override def reset = {
     PredIdMap = Map()
     NextPredicateId = 0
-    isQuantifierLocalVar = Map()
-    QuantifierFieldPerm = Map()
     heap = originalHeap
   }
 

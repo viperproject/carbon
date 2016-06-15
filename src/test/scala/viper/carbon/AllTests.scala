@@ -17,7 +17,7 @@ import java.nio.file.Path
 
   */
 class AllTests extends SilSuite {
-  override def testDirectories: Seq[String] = Vector(/*"wands", "all", "local", "quantifiedpermissions"*/ "quantifiedpredicates"
+  override def testDirectories: Seq[String] = Vector("wands", "all", "local", "quantifiedpermissions","quantifiedpredicates", "quantifiedcombinations"
     //, "generated"
   )
 
