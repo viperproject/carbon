@@ -1154,9 +1154,6 @@ class QuantifiedPermModule(val verifier: Verifier)
         case sil.AccessPredicate(loc, perm) =>
           allowLocationAccessWithoutPerm = true
           Nil
-        case sil.PredicateAccess(loc, perm) =>
-          allowLocationAccessWithoutPerm = true
-          Nil
         case fa@sil.LocationAccess(_) =>
           if (allowLocationAccessWithoutPerm) {
             allowLocationAccessWithoutPerm = false

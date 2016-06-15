@@ -403,49 +403,55 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         checkDefinedness(c, error) ++
           If(translateExp(c), checkDefinednessOfSpecAndInhale(e1, error), checkDefinednessOfSpecAndInhale(e2, error))
       case fa@sil.Forall(vars, triggers, expr) =>
-          val res = fa match {
-          case qp@sil.utility.QuantifiedPermissions.QuantifiedPermission(v, cond, expr) =>
-
-              val stmts = expr match {
-                case sil.AccessPredicate(_,_)  =>
-                checkDefinedness(e, error) ++
-                inhale(e)
-                case and@sil.And(e0, e1) =>
-                  val tr0:Seq[sil.Trigger] = {
-                    if (e0.isPure && triggers.isEmpty) {
-                      Seq(sil.Trigger(cond) (cond.pos, cond.info))
-                    } else {
-                      triggers
+          if (isPure(fa)) {
+            checkDefinedness(e, error) ++
+              inhale(e)
+          } else {
+            val res = fa match {
+              case qp@sil.utility.QuantifiedPermissions.QuantifiedPermission(v, cond, expr) =>
+                val stmts = expr match {
+                  case sil.AccessPredicate(_,_)  =>
+                    checkDefinedness(e, error) ++
+                      inhale(e)
+                  case and@sil.And(e0, e1) =>
+                    val tr0:Seq[sil.Trigger] = {
+                      if (e0.isPure && triggers.isEmpty) {
+                        Seq(sil.Trigger(cond) (cond.pos, cond.info))
+                      } else {
+                        triggers
+                      }
                     }
-                  }
-                  val tr1:Seq[sil.Trigger] = {
-                    if (e1.isPure && triggers.isEmpty) {
-                      Seq(sil.Trigger(cond)(cond.pos, cond.info))
-                    } else {
-                      triggers
+                    val tr1:Seq[sil.Trigger] = {
+                      if (e1.isPure && triggers.isEmpty) {
+                        Seq(sil.Trigger(cond)(cond.pos, cond.info))
+                      } else {
+                        triggers
+                      }
                     }
-                  }
-                checkDefinednessOfSpecAndInhale(sil.Forall(vars, tr0, sil.Implies(cond , e0)(expr.pos, expr.info))(fa.pos, fa.info), error) ::
-                checkDefinednessOfSpecAndInhale(sil.Forall(vars, tr1, sil.Implies(cond , e1)(expr.pos, expr.info))(fa.pos, fa.info), error) ::
-                Nil
+                    checkDefinednessOfSpecAndInhale(sil.Forall(vars, tr0, sil.Implies(cond , e0)(expr.pos, expr.info))(fa.pos, fa.info), error) ::
+                      checkDefinednessOfSpecAndInhale(sil.Forall(vars, tr1, sil.Implies(cond , e1)(expr.pos, expr.info))(fa.pos, fa.info), error) ::
+                      Nil
                   //combination: implies
-                case implies@sil.Implies(e0, e1) =>
-                  //e0 must be pure
-                val newCond = sil.And(cond, e0)(cond.pos, cond.info)
-                  checkDefinednessOfSpecAndInhale(sil.Forall(vars, triggers,  sil.Implies(newCond , e0)(expr.pos, expr.info))(fa.pos, fa.info), error) ++
-                    Nil
-                case _ =>
-                checkDefinedness(e, error) ++
-                inhale(e)
-              }
-          stmts
-        case _ =>
-          val check = checkDefinedness(e, error)
-          val in = inhale(e)
-          check ++
-          in
-        }
-        res
+                  case implies@sil.Implies(e0, e1) =>
+                    //e0 must be pure
+                    val newCond = sil.And(cond, e0)(cond.pos, cond.info)
+                    checkDefinednessOfSpecAndInhale(sil.Forall(vars, triggers,  sil.Implies(newCond , e0)(expr.pos, expr.info))(fa.pos, fa.info), error) ++
+                      Nil
+                  case _ =>
+                    checkDefinedness(e, error) ++
+                      inhale(e)
+                }
+                stmts
+              case _ =>
+                println(e)
+                val check = checkDefinedness(e, error)
+                val in = inhale(e)
+                check ++
+                  in
+            }
+            res
+          }
+
       case _ =>
         checkDefinedness(e, error) ++
           inhale(e)
