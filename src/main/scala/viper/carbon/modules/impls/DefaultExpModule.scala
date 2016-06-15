@@ -39,6 +39,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   }
 
   def name = "Expression module"
+
   override def translateExp(e: sil.Exp): Exp = {
     e match {
       case sil.IntLit(i) =>
@@ -71,29 +72,33 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         val res = translateExp(exp)
         stateModule.replaceState(prevState)
         res
-      case sil.Let(lvardecl,exp,body) =>
+      case sil.Let(lvardecl, exp, body) =>
         val translatedExp = translateExp(exp) // expression to bind "v" to
-        val v = env.makeUniquelyNamed(lvardecl) // choose a fresh "v" binder
+      val v = env.makeUniquelyNamed(lvardecl) // choose a fresh "v" binder
         env.define(v.localVar)
-        val translatedBody = translateExp(Expressions.instantiateVariables(body,Seq(lvardecl),Seq(v.localVar))) // translate body with "v" in place of bound variable
-        val substitutedBody = translatedBody.replace(env.get(v.localVar),translatedExp) // now replace all "v"s with expression. Doing this after translation avoids constructs such as heap-dependant expressions getting reevaluated after substitution in the wrong heaps (e.g. if substituted into an "old" expression).
+        val translatedBody = translateExp(Expressions.instantiateVariables(body, Seq(lvardecl), Seq(v.localVar))) // translate body with "v" in place of bound variable
+      val substitutedBody = translatedBody.replace(env.get(v.localVar), translatedExp) // now replace all "v"s with expression. Doing this after translation avoids constructs such as heap-dependant expressions getting reevaluated after substitution in the wrong heaps (e.g. if substituted into an "old" expression).
         env.undefine(v.localVar)
         substitutedBody
       case sil.CondExp(cond, thn, els) =>
         CondExp(translateExp(cond), translateExp(thn), translateExp(els))
       case sil.Exists(vars, exp) => {
         // alpha renaming, to avoid clashes in context
-        val renamedVars : Seq[sil.LocalVarDecl] = vars map (v => { val v1 = env.makeUniquelyNamed(v); env.define(v1.localVar); v1 } );
-        val renaming = (e:sil.Exp) => Expressions.instantiateVariables(e,(vars map (_.localVar)), renamedVars map (_.localVar) )
+        val renamedVars: Seq[sil.LocalVarDecl] = vars map (v => {
+          val v1 = env.makeUniquelyNamed(v); env.define(v1.localVar); v1
+        });
+        val renaming = (e: sil.Exp) => Expressions.instantiateVariables(e, (vars map (_.localVar)), renamedVars map (_.localVar))
         val res = Exists(renamedVars map translateLocalVarDecl, translateExp(renaming(exp)))
         renamedVars map (v => env.undefine(v.localVar))
         res
       }
       case sil.Forall(vars, triggers, exp) => {
         // alpha renaming, to avoid clashes in context
-        val renamedVars : Seq[sil.LocalVarDecl] = vars map (v => { val v1 = env.makeUniquelyNamed(v); env.define(v1.localVar); v1 } );
-        val renaming = (e:sil.Exp) => Expressions.instantiateVariables(e,(vars map (_.localVar)), renamedVars map (_.localVar) )
-        val ts = triggers map (t => Trigger(t.exps map {e => verifier.funcPredModule.toTriggers(translateExp(renaming(e)))}))
+        val renamedVars: Seq[sil.LocalVarDecl] = vars map (v => {
+          val v1 = env.makeUniquelyNamed(v); env.define(v1.localVar); v1
+        });
+        val renaming = (e: sil.Exp) => Expressions.instantiateVariables(e, (vars map (_.localVar)), renamedVars map (_.localVar))
+        val ts = triggers map (t => Trigger(t.exps map { e => verifier.funcPredModule.toTriggers(translateExp(renaming(e))) }))
 
         val res = Forall(renamedVars map translateLocalVarDecl, ts, translateExp(renaming(exp)))
         renamedVars map (v => env.undefine(v.localVar))
@@ -101,21 +106,27 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       }
       case sil.ForPerm(variable, locations, body) => {
         // alpha renaming, to avoid clashes in context
-        val renamedVar : sil.LocalVarDecl = { val v1 = env.makeUniquelyNamed(variable); env.define(v1.localVar); v1 }
-        val renaming = (e:sil.Exp) => Expressions.instantiateVariables(e,Seq(variable.localVar), Seq(renamedVar.localVar) )
-       // val ts = triggers map (t => Trigger(t.exps map {e => verifier.funcPredModule.toTriggers(translateExp(renaming(e)))} // no triggers yet?
-        val perLocFilter : sil.Location => (Exp,Trigger) = loc => {
-         val locAccess : LocationAccess = loc match {
-           case f: sil.Field => sil.FieldAccess(renamedVar.localVar, f)(loc.pos, loc.info)
-           case p: sil.Predicate => sil.PredicateAccess(Seq(renamedVar.localVar), p)(loc.pos, loc.info)
-         }
-         (hasDirectPerm(locAccess),Trigger(permissionLookup(locAccess)))
-       }
-        val filter = locations.foldLeft[(Exp,Seq[Trigger])](BoolLit(false),Seq())((soFar,loc) => soFar match { case (exp,triggers) =>
-          perLocFilter(loc) match { case (newExp, newTrigger) => (BinExp(exp,Or,newExp),triggers ++ Seq(newTrigger)) }})
+        val renamedVar: sil.LocalVarDecl = {
+          val v1 = env.makeUniquelyNamed(variable); env.define(v1.localVar); v1
+        }
+        val renaming = (e: sil.Exp) => Expressions.instantiateVariables(e, Seq(variable.localVar), Seq(renamedVar.localVar))
+        // val ts = triggers map (t => Trigger(t.exps map {e => verifier.funcPredModule.toTriggers(translateExp(renaming(e)))} // no triggers yet?
+        val perLocFilter: sil.Location => (Exp, Trigger) = loc => {
+          val locAccess: LocationAccess = loc match {
+            case f: sil.Field => sil.FieldAccess(renamedVar.localVar, f)(loc.pos, loc.info)
+            case p: sil.Predicate => sil.PredicateAccess(Seq(renamedVar.localVar), p)(loc.pos, loc.info)
+          }
+          (hasDirectPerm(locAccess), Trigger(permissionLookup(locAccess)))
+        }
+        val filter = locations.foldLeft[(Exp, Seq[Trigger])](BoolLit(false), Seq())((soFar, loc) => soFar match {
+          case (exp, triggers) =>
+            perLocFilter(loc) match {
+              case (newExp, newTrigger) => (BinExp(exp, Or, newExp), triggers ++ Seq(newTrigger))
+            }
+        })
 
         val res = Forall(translateLocalVarDecl(renamedVar), filter._2, // no triggers yet :(
-        BinExp(filter._1,Implies,translateExp(renaming(body))))
+          BinExp(filter._1, Implies, translateExp(renaming(body))))
         env.undefine(renamedVar.localVar)
         res
       }
@@ -186,7 +197,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           case sil.AndOp => And
           case sil.ImpliesOp => Implies
           case _ =>
-            sys.error("Expression translation did not match any cases (should be handled before reaching translateExp code)"+e.getClass())
+            sys.error("Expression translation did not match any cases (should be handled before reaching translateExp code)" + e.getClass())
         }
         BinExp(translateExp(left), bop, translateExp(right))
       case sil.Minus(exp) =>
@@ -237,7 +248,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   }
 
   override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
-    if(makeChecks)
+    if (makeChecks)
       e match {
         case sil.Div(a, b) =>
           Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
@@ -250,7 +261,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
     else Nil
   }
 
-  override def checkDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks:Boolean): Stmt = {
+  override def checkDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
     MaybeCommentBlock(s"Check definedness of $e",
       MaybeStmt(checkDefinednessImpl(e, error, makeChecks = makeChecks),
         stateModule.assumeGoodState))
@@ -267,15 +278,15 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           If(translateExp(e1), checkDefinednessImpl(e2, error, makeChecks = makeChecks), Statements.EmptyStmt) ::
           Nil
       case sil.CondExp(c, e1, e2) =>
-        checkDefinednessImpl(c, error, makeChecks = makeChecks) :: 
+        checkDefinednessImpl(c, error, makeChecks = makeChecks) ::
           If(translateExp(c), checkDefinednessImpl(e1, error, makeChecks = makeChecks), checkDefinednessImpl(e2, error, makeChecks = makeChecks)) ::
           Nil
       case sil.Or(e1, e2) =>
         checkDefinednessImpl(e1, error, makeChecks = makeChecks) :: // short-circuiting evaluation:
           If(UnExp(Not, translateExp(e1)), checkDefinednessImpl(e2, error, makeChecks = makeChecks), Statements.EmptyStmt) ::
           Nil
-      case w@sil.MagicWand(lhs,rhs) =>
-        checkDefinednessWand(w,error, makeChecks = makeChecks)
+      case w@sil.MagicWand(lhs, rhs) =>
+        checkDefinednessWand(w, error, makeChecks = makeChecks)
       case l@sil.Let(v, e, body) =>
         checkDefinednessImpl(e, error, makeChecks = makeChecks) ::
           checkDefinednessImpl(body.replace(v.localVar, e), error, makeChecks = makeChecks) ::
@@ -291,34 +302,34 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           val stmt3 = checks map (_._2())
 
           e match {
-            case sil.MagicWand(lhs,rhs) =>
-              sys.error("wand subnodes:"+e.subnodes.toString() +
-                    "stmt:" + stmt.toString() +
-                    "stmt2:" + stmt2.toString() +
-                    "stmt3:" + stmt3.toString())
+            case sil.MagicWand(lhs, rhs) =>
+              sys.error("wand subnodes:" + e.subnodes.toString() +
+                "stmt:" + stmt.toString() +
+                "stmt2:" + stmt2.toString() +
+                "stmt3:" + stmt3.toString())
             case _ => Nil
           }
 
           stmt ++ stmt2 ++ stmt3 ++
             MaybeCommentBlock("Free assumptions", allFreeAssumptions(e))
         }
-        
-        if (e.isInstanceOf[sil.QuantifiedExp]) {
-          val bound_vars  = e.asInstanceOf[sil.QuantifiedExp].variables
-	  bound_vars map (v => env.define(v.localVar))
-	  val res = if(e.isInstanceOf[sil.ForPerm]) {
-      val eAsForallRef = e.asInstanceOf[sil.ForPerm]
-      val bound_var = eAsForallRef.variable
-      val perLocFilter : sil.Location => LocationAccess = loc => loc match {
-          case f: sil.Field => sil.FieldAccess(bound_var.localVar, f)(loc.pos, loc.info)
-          case p: sil.Predicate => sil.PredicateAccess(Seq(bound_var.localVar), p)(loc.pos, loc.info)
-        }
-      val filter : Exp = eAsForallRef.accessList.foldLeft[Exp](BoolLit(false))((soFar,loc) => BinExp(soFar,Or,hasDirectPerm(perLocFilter(loc))))
 
-      handleQuantifiedLocals(bound_vars, If(filter, translate, Nil))
-    }else handleQuantifiedLocals(bound_vars,translate)
-	  bound_vars map (v => env.undefine(v.localVar))
-          res        
+        if (e.isInstanceOf[sil.QuantifiedExp]) {
+          val bound_vars = e.asInstanceOf[sil.QuantifiedExp].variables
+          bound_vars map (v => env.define(v.localVar))
+          val res = if (e.isInstanceOf[sil.ForPerm]) {
+            val eAsForallRef = e.asInstanceOf[sil.ForPerm]
+            val bound_var = eAsForallRef.variable
+            val perLocFilter: sil.Location => LocationAccess = loc => loc match {
+              case f: sil.Field => sil.FieldAccess(bound_var.localVar, f)(loc.pos, loc.info)
+              case p: sil.Predicate => sil.PredicateAccess(Seq(bound_var.localVar), p)(loc.pos, loc.info)
+            }
+            val filter: Exp = eAsForallRef.accessList.foldLeft[Exp](BoolLit(false))((soFar, loc) => BinExp(soFar, Or, hasDirectPerm(perLocFilter(loc))))
+
+            handleQuantifiedLocals(bound_vars, If(filter, translate, Nil))
+          } else handleQuantifiedLocals(bound_vars, translate)
+          bound_vars map (v => env.undefine(v.localVar))
+          res
         } else e match {
           case sil.Old(_) =>
             val prevState = stateModule.state
@@ -326,36 +337,36 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             val res = translate
             stateModule.replaceState(prevState)
             res
-          case sil.LabelledOld(_,oldLabel) =>
+          case sil.LabelledOld(_, oldLabel) =>
             val prevState = stateModule.state
             stateModule.replaceState(stateModule.stateRepositoryGet(oldLabel).get)
             val res = translate
             stateModule.replaceState(prevState)
             res
           case _ =>
-          translate
+            translate
         }
     }
   }
 
   /**
-   * checks self-framedness of both sides of wand
-   * GP: maybe should "MagicWandNotWellFormed" error
-   */
+    * checks self-framedness of both sides of wand
+    * GP: maybe should "MagicWandNotWellFormed" error
+    */
   private def checkDefinednessWand(e: sil.MagicWand, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
-   val (initStmtLHS,curState): (Stmt,stateModule.StateSnapshot) = stateModule.freshEmptyState("WandDefLHS",true)
+    val (initStmtLHS, curState): (Stmt, stateModule.StateSnapshot) = stateModule.freshEmptyState("WandDefLHS", true)
     val defStateLHS = stateModule.state
-    val (initStmtRHS, _): (Stmt, stateModule.StateSnapshot) = stateModule.freshEmptyState("WandDefRHS",true)
+    val (initStmtRHS, _): (Stmt, stateModule.StateSnapshot) = stateModule.freshEmptyState("WandDefRHS", true)
     val defStateRHS = stateModule.state
 
     stateModule.replaceState(defStateLHS)
-    val lhs = initStmtLHS ++  checkDefinednessOfSpecAndInhale(e.left,error)
+    val lhs = initStmtLHS ++ checkDefinednessOfSpecAndInhale(e.left, error)
 
     stateModule.replaceState(defStateRHS)
-    val rhs= initStmtRHS ++ checkDefinednessOfSpecAndInhale(e.right, error)
+    val rhs = initStmtRHS ++ checkDefinednessOfSpecAndInhale(e.right, error)
 
     stateModule.replaceState(curState)
-    NondetIf(lhs++rhs++Assume(FalseLit()))
+    NondetIf(lhs ++ rhs ++ Assume(FalseLit()))
   }
 
 
@@ -363,21 +374,64 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
     // introduce local variables for the variables in quantifications. we do this by first check
     // definedness without worrying about missing variable declarations, and then replace all of them
     // with fresh variables.
-          val namespace = verifier.freshNamespace("exp.quantifier")
-          val newVars = vars map (x => (translateLocalVar(x.localVar),
-          // we use a fresh namespace to make sure we get fresh variables
-          Identifier(x.name)(namespace)
-          ))
-          Transformer.transform(res, {
-            case v@LocalVar(name, _) =>
-              newVars.find(x => (name == x._1.name)) match {
-                case None => v // no change
-                case Some((x, xb)) =>
-                  // use the new variable
-                  LocalVar(xb, x.typ)
-              }
-          })()
+    val namespace = verifier.freshNamespace("exp.quantifier")
+    val newVars = vars map (x => (translateLocalVar(x.localVar),
+      // we use a fresh namespace to make sure we get fresh variables
+      Identifier(x.name)(namespace)
+      ))
+    Transformer.transform(res, {
+      case v@LocalVar(name, _) =>
+        newVars.find(x => (name == x._1.name)) match {
+          case None => v // no change
+          case Some((x, xb)) =>
+            // use the new variable
+            LocalVar(xb, x.typ)
+        }
+    })()
   }
+
+  def rewriteForall(e: sil.Forall, f: sil.Exp => Stmt): Stmt = {
+    val vars = e.variables
+    val triggers = e.triggers
+    e match {
+      case qp@sil.utility.QuantifiedPermissions.QuantifiedPermission (v, cond, expr) =>
+        val stmts:Stmt = expr match {
+          case sil.AccessPredicate (_, _) =>
+            f(e)
+          case and@sil.And (e0, e1) =>
+            //rewrite Triggers (in case pure forall)
+            val tr0: Seq[sil.Trigger] = {
+              if (e0.isPure && triggers.isEmpty) {
+                Seq (sil.Trigger (cond) (cond.pos, cond.info) )
+              } else {
+                triggers
+              }
+            }
+            val tr1: Seq[sil.Trigger] = {
+              if (e1.isPure && triggers.isEmpty) {
+                Seq (sil.Trigger (cond) (cond.pos, cond.info) )
+              } else {
+                triggers
+              }
+            }
+            rewriteForall (sil.Forall (vars, tr0, sil.Implies (cond, e0) (expr.pos, expr.info) ) (e.pos, e.info), f) ::
+            rewriteForall (sil.Forall (vars, tr1, sil.Implies (cond, e1) (expr.pos, expr.info) ) (e.pos, e.info), f) ::
+            Nil
+          //combination: implies
+          case implies@sil.Implies (e0, e1) =>
+            //e0 must be pure
+            val newCond = sil.And (cond, e0) (cond.pos, cond.info)
+            rewriteForall (sil.Forall (vars, triggers, sil.Implies (newCond, e0) (expr.pos, expr.info) ) (e.pos, e.info), f) ++
+            Nil
+          case _ =>
+            f(e)
+        }
+        stmts
+      case _ =>
+        f(e)
+      }
+  }
+
 
   override def checkDefinednessOfSpecAndInhale(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
@@ -396,51 +450,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             checkDefinedness(e, error) ++
               inhale(e)
           } else {
-            val res = fa match {
-              case qp@sil.utility.QuantifiedPermissions.QuantifiedPermission(v, cond, expr) =>
-                val stmts = expr match {
-                  case sil.AccessPredicate(_,_)  =>
-                    checkDefinedness(e, error) ++
-                      inhale(e)
-                  case and@sil.And(e0, e1) =>
-                    val tr0:Seq[sil.Trigger] = {
-                      if (e0.isPure && triggers.isEmpty) {
-                        Seq(sil.Trigger(cond) (cond.pos, cond.info))
-                      } else {
-                        triggers
-                      }
-                    }
-                    val tr1:Seq[sil.Trigger] = {
-                      if (e1.isPure && triggers.isEmpty) {
-                        Seq(sil.Trigger(cond)(cond.pos, cond.info))
-                      } else {
-                        triggers
-                      }
-                    }
-                    checkDefinednessOfSpecAndInhale(sil.Forall(vars, tr0, sil.Implies(cond , e0)(expr.pos, expr.info))(fa.pos, fa.info), error) ::
-                      checkDefinednessOfSpecAndInhale(sil.Forall(vars, tr1, sil.Implies(cond , e1)(expr.pos, expr.info))(fa.pos, fa.info), error) ::
-                      Nil
-                  //combination: implies
-                  case implies@sil.Implies(e0, e1) =>
-                    //e0 must be pure
-                    val newCond = sil.And(cond, e0)(cond.pos, cond.info)
-                    checkDefinednessOfSpecAndInhale(sil.Forall(vars, triggers,  sil.Implies(newCond , e0)(expr.pos, expr.info))(fa.pos, fa.info), error) ++
-                      Nil
-                  case _ =>
-                    checkDefinedness(e, error) ++
-                      inhale(e)
-                }
-                stmts
-              case _ =>
-                println(e)
-                val check = checkDefinedness(e, error)
-                val in = inhale(e)
-                check ++
-                  in
-            }
-            res
+            rewriteForall(fa, (x => checkDefinedness(x, error) ++ inhale(x)))
           }
-
       case _ =>
         checkDefinedness(e, error) ++
           inhale(e)
@@ -462,35 +473,12 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             checkDefinednessOfSpecAndExhale(e1, definednessError, exhaleError),
             checkDefinednessOfSpecAndExhale(e2, definednessError, exhaleError))
       case fa@sil.Forall(vars, triggers, expr) =>
-        val res = fa match {
-          case qp@sil.utility.QuantifiedPermissions.QuantifiedPermission(v, cond, expr) =>
-            val stmts = expr match {
-              //Field Access
-              case sil.AccessPredicate(_,_)  =>
-                checkDefinedness(e, definednessError) ++
-                  exhale(Seq((e, exhaleError)))
-              case and@sil.And(e0, e1) =>
-                println(sil.Forall(vars, triggers, sil.Implies(cond , e0)(expr.pos, expr.info))(fa.pos, fa.info))
-                println(sil.Forall(vars, triggers, sil.Implies(cond , e1)(expr.pos, expr.info))(fa.pos, fa.info))
-                checkDefinednessOfSpecAndExhale(sil.Forall(vars, triggers, sil.Implies(cond , e0)(expr.pos, expr.info))(fa.pos, fa.info), definednessError, exhaleError) ::
-                checkDefinednessOfSpecAndExhale(sil.Forall(vars, triggers, sil.Implies(cond , e1)(expr.pos, expr.info))(fa.pos, fa.info), definednessError, exhaleError) ::
-                  Nil
-              //combination: implies
-              case implies@sil.Implies(e0, e1) =>
-                //e0 must be pure
-                val newCond = sil.And(cond, e0)(cond.pos, cond.info)
-                checkDefinednessOfSpecAndExhale(sil.Forall(vars, triggers,  sil.Implies(newCond , e0)(expr.pos, expr.info))(fa.pos, fa.info), definednessError,exhaleError ) ++
-                  Nil
-              case _ =>
-                checkDefinedness(e, definednessError) ++
-                  exhale(Seq((e, exhaleError)))
-            }
-            stmts
-          case _ =>
-            checkDefinedness(e, definednessError) ++
-              exhale(Seq((e, exhaleError)))
+        if (isPure(fa)) {
+          checkDefinedness(e, definednessError) ++
+            exhale(Seq((e, exhaleError)))
+        } else {
+          rewriteForall(fa, (x => checkDefinedness(x, definednessError) ++ exhale(Seq((x, exhaleError)))))
         }
-        res
       case _ =>
         checkDefinedness(e, definednessError) ++
           exhale(Seq((e, exhaleError)))
