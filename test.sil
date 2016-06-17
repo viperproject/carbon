@@ -1,36 +1,11 @@
 field f:Int
-  field g:Int
-  field vals:Seq[Int]
+field g:Int
 
-  predicate pred(x:Ref) {
-      acc(x.f)
-  }
+predicate pred(x:Ref) {
+    acc(x.f)
+}
 
-  function get_val(xs:Seq[Ref], i:Int):Ref
-  {
-      xs[i]
-  }
-
-  method m1(xs:Seq[Ref])
-  requires forall x:Ref :: x in xs ==> acc(x.f) && x.f > 0
-  ensures forall x:Ref :: x in xs ==> acc(x.f) && x.f > 0
-  {}
-
-
-  method m2(xs:Seq[Ref])
-  requires forall x:Ref :: x in xs ==> x.f > 0 && acc(x.f)
-  ensures forall x:Ref :: x in xs ==> x.f > 0 && acc(x.f)
-  {}
-
-
-  method m3(xs:Seq[Ref], y:Ref)
-  requires forall x:Ref :: x in xs ==> acc(pred(x))
-  requires y in xs
-  //ensures forall x:Ref :: x in xs ==> acc(pred(x)) && unfolding pred(x) in true
-  ensures forall x:Ref :: x in xs ==> (unfolding pred(x) in true) && acc(pred(x))
-  {}
-
-  method m4(xs:Seq[Ref], b:Bool)
-  requires forall x:Ref :: x in xs ==> (b ==> acc(x.f))
-  requires forall x:Ref :: x in xs ==> (b ==> (x.f > 0))
-  {}
+method m8(xs:Seq[Ref], ys:Seq[Ref])
+requires forall x:Ref :: x in xs ==> (x in ys ==> acc(x.f)) && (x in ys ==> acc(x.g))
+ensures forall x:Ref :: x in xs ==> (x in ys ==> acc(x.f)) && (x in ys ==> acc(x.g))
+{}

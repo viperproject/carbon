@@ -421,7 +421,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           case implies@sil.Implies (e0, e1) =>
             //e0 must be pure
             val newCond = sil.And (cond, e0) (cond.pos, cond.info)
-            rewriteForall (sil.Forall (vars, triggers, sil.Implies (newCond, e0) (expr.pos, expr.info) ) (e.pos, e.info), f) ++
+            rewriteForall (sil.Forall (vars, triggers, sil.Implies (newCond, e1) (expr.pos, expr.info) ) (e.pos, e.info), f) ++
             Nil
           case _ =>
             f(e)
