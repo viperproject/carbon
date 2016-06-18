@@ -321,12 +321,44 @@ class QuantifiedPermModule(val verifier: Verifier)
     }
   }
 
+  def translateComponents(v:sil.LocalVarDecl, cond:sil.Exp, expr:sil.Exp): Unit = {
+    val res = expr match {
+      case sil.FieldAccessPredicate(fieldAccess@sil.FieldAccess(recv, f), perms) =>
+        val vFresh = env.makeUniquelyNamed(v); env.define(vFresh.localVar);
+        var isWildcard = false
+
+        def renaming[E <: sil.Exp] = (e:E) => Expressions.renameVariables(e, v.localVar, vFresh.localVar)
+
+        val translatedLocal = translateLocalVarDecl(vFresh)
+        val translatedCond = translateExp(renaming(cond))
+        val translatedRecv = translateExp(renaming(recv))
+
+        val (translatedPerms, stmts, wildcard) = {
+          if (perms.isInstanceOf[WildcardPerm]) {
+            isWildcard = true
+            val w = LocalVar(Identifier("wildcard"), Real)
+            (w, LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil, w)
+          } else {
+            (translateExp(renaming(perms))), Nil, null)
+          }
+        }
+
+        val translatedLocation = translateLocation(renaming(fieldAccess))
+      case _ =>
+    }
+
+  }
+
+
+
+
   def translateExhale(fa: sil.Forall, error: PartialVerificationError): Stmt =  {
     val stmt = fa match {
       case qp@sil.utility.QuantifiedPermissions.QuantifiedPermission(v, cond, expr)  =>
         val res = expr match {
           case sil.FieldAccessPredicate(fieldAccess@sil.FieldAccess(recv, f), perms) =>
             // alpha renaming, to avoid clashes in context, use vFresh instead of v
+
             val vFresh = env.makeUniquelyNamed(v); env.define(vFresh.localVar);
             var isWildcard = false
             def renaming[E <: sil.Exp] = (e:E) => Expressions.renameVariables(e, v.localVar, vFresh.localVar)
@@ -366,6 +398,8 @@ class QuantifiedPermModule(val verifier: Verifier)
 
             val invAssm1 = (Forall(Seq(translatedLocal), tr1, translatedCond ==> (FuncApp(invFun.name, Seq(translatedRecv), invFun.typ) === translatedLocal.l )))
             val invAssm2 = Forall(Seq(obj), Seq(Trigger(FuncApp(invFun.name, Seq(obj.l), invFun.typ))), condInv ==> (rcvInv === obj.l) )
+
+            //val invs:Seq[Stmt] = getInverseAssumptions()
 
             //val notNull = Assert(Forall(translateLocalVarDecl(vFresh), Seq(), translatedCond && permissionPositive(translatedPerms) ==> checkNonNullReceiver(renamingFieldAccess)),
             //  error.dueTo(reasons.ReceiverNull(fieldAccess)))
