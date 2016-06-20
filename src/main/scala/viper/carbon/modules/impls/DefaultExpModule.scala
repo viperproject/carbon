@@ -390,48 +390,6 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
     })()
   }
 
-  def rewriteForall(e: sil.Forall, f: sil.Exp => Stmt): Stmt = {
-    val vars = e.variables
-    val triggers = e.triggers
-    e match {
-      case qp@sil.utility.QuantifiedPermissions.QuantifiedPermission (v, cond, expr) =>
-        val stmts:Stmt = expr match {
-          case sil.AccessPredicate (_, _) =>
-            f(e)
-          case and@sil.And (e0, e1) =>
-            //rewrite Triggers (in case pure forall)
-            val tr0: Seq[sil.Trigger] = {
-              if (e0.isPure && triggers.isEmpty) {
-                Seq (sil.Trigger (cond) (cond.pos, cond.info) )
-              } else {
-                triggers
-              }
-            }
-            val tr1: Seq[sil.Trigger] = {
-              if (e1.isPure && triggers.isEmpty) {
-                Seq (sil.Trigger (cond) (cond.pos, cond.info) )
-              } else {
-                triggers
-              }
-            }
-            rewriteForall (sil.Forall (vars, tr0, sil.Implies (cond, e0) (expr.pos, expr.info) ) (e.pos, e.info), f) ::
-            rewriteForall (sil.Forall (vars, tr1, sil.Implies (cond, e1) (expr.pos, expr.info) ) (e.pos, e.info), f) ::
-            Nil
-          //combination: implies
-          case implies@sil.Implies (e0, e1) =>
-            //e0 must be pure
-            val newCond = sil.And (cond, e0) (cond.pos, cond.info)
-            rewriteForall (sil.Forall (vars, triggers, sil.Implies (newCond, e1) (expr.pos, expr.info) ) (e.pos, e.info), f) ++
-            Nil
-          case _ =>
-            f(e)
-        }
-        stmts
-      case _ =>
-        f(e)
-      }
-  }
-
 
   override def checkDefinednessOfSpecAndInhale(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
@@ -450,7 +408,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             checkDefinedness(e, error) ++
               inhale(e)
           } else {
-            rewriteForall(fa, (x => checkDefinedness(x, error) ++ inhale(x)))
+
+            permModule.rewriteForallAndApply(fa, (x => checkDefinedness(x, error) ++ inhale(x)))
           }
       case _ =>
         checkDefinedness(e, error) ++
@@ -477,7 +436,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           checkDefinedness(e, definednessError) ++
             exhale(Seq((e, exhaleError)))
         } else {
-          rewriteForall(fa, (x => checkDefinedness(x, definednessError) ++ exhale(Seq((x, exhaleError)))))
+          permModule.rewriteForallAndApply(fa, (x => checkDefinedness(x, definednessError) ++ exhale(Seq((x, exhaleError)))))
         }
       case _ =>
         checkDefinedness(e, definednessError) ++

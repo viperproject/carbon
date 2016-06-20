@@ -321,32 +321,53 @@ class QuantifiedPermModule(val verifier: Verifier)
     }
   }
 
-  def translateComponents(v:sil.LocalVarDecl, cond:sil.Exp, expr:sil.Exp): Unit = {
-    val res = expr match {
-      case sil.FieldAccessPredicate(fieldAccess@sil.FieldAccess(recv, f), perms) =>
-        val vFresh = env.makeUniquelyNamed(v); env.define(vFresh.localVar);
-        var isWildcard = false
 
-        def renaming[E <: sil.Exp] = (e:E) => Expressions.renameVariables(e, v.localVar, vFresh.localVar)
+  /*For QP \forall x:T :: c(x) ==> acc(e(x),p(x)) this case class describes an instantiation of the QP where
+   * cond = c(expr), recv = e(expr) and perm = p(expr) and expr is of type T and may be dependent on the variable given by v. */
+  case class QuantifiedFieldComponents( translatedVar:LocalVarDecl,
+                                        translatedCondcond: Exp,
+                                        translatedRcv: Exp,
+                                        translatedPerm: Exp,
+                                        translatedLoc:Exp)
+  case class QuantifiedFieldInverseComponents(condInv: Exp,
+                                             recvInv: Exp,
+                                              invFun:Exp,
+                                              obj:Exp,
+                                              field:Exp)
 
-        val translatedLocal = translateLocalVarDecl(vFresh)
+  /**
+    * translates given quantified field access predicate to Boogie components needed for translation of the statement
+    */
+  def translateFieldAccessComponents(v:sil.LocalVarDecl, cond:sil.Exp, fieldAccess:sil.FieldAccess, perms:sil.Exp): (QuantifiedFieldComponents, Boolean, LocalVar, Stmt) = {
+        val newV = env.makeUniquelyNamed(v);
+        env.define(newV.localVar);
+
+        //replaces components with unique localVar
+        def renaming[E <: sil.Exp] = (e:E) => Expressions.renameVariables(e, v.localVar, newV.localVar)
+
+        //translate components
+        val translatedLocal = translateLocalVarDecl(newV)
         val translatedCond = translateExp(renaming(cond))
-        val translatedRecv = translateExp(renaming(recv))
+        val translatedRcv = translateExp(renaming(fieldAccess.rcv))
+        val translatedLocation = translateLocation(renaming(fieldAccess))
 
+        //translate Permission and create Stmts and Local Variable if wildcard permission
+        var isWildcard = false
         val (translatedPerms, stmts, wildcard) = {
           if (perms.isInstanceOf[WildcardPerm]) {
             isWildcard = true
             val w = LocalVar(Identifier("wildcard"), Real)
             (w, LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil, w)
           } else {
-            (translateExp(renaming(perms))), Nil, null)
+            (translateExp(renaming(perms)), Nil, null)
           }
         }
 
-        val translatedLocation = translateLocation(renaming(fieldAccess))
-      case _ =>
-    }
-
+        //return values: Quantified Field Components, wildcard
+        (QuantifiedFieldComponents(translateLocalVarDecl(newV), translatedCond, translatedRcv, translatedPerms, translatedLocation),
+          isWildcard,
+          wildcard,
+          stmts)
   }
 
 
@@ -1294,7 +1315,7 @@ class QuantifiedPermModule(val verifier: Verifier)
     res
   }
 
-  def rewriteForallAndApply (e: sil.Forall, f: sil.Forall => Stmt): Stmt = {
+  override def rewriteForallAndApply (e: sil.Forall, f: sil.Forall => Stmt): Stmt = {
     val vars = e.variables
     val triggers = e.triggers
     e match {
