@@ -1324,23 +1324,8 @@ class QuantifiedPermModule(val verifier: Verifier)
           case sil.AccessPredicate (_, _) =>
             f(e)
           case and@sil.And (e0, e1) =>
-            //rewrite Triggers (in case pure forall)
-            val tr0: Seq[sil.Trigger] = {
-              if (e0.isPure && triggers.isEmpty) {
-                Seq (sil.Trigger (cond) (cond.pos, cond.info) )
-              } else {
-                triggers
-              }
-            }
-            val tr1: Seq[sil.Trigger] = {
-              if (e1.isPure && triggers.isEmpty) {
-                Seq (sil.Trigger (cond) (cond.pos, cond.info) )
-              } else {
-                triggers
-              }
-            }
-            rewriteForallAndApply (sil.Forall (vars, tr0, sil.Implies (cond, e0) (expr.pos, expr.info) ) (e.pos, e.info), f) ::
-              rewriteForallAndApply (sil.Forall (vars, tr1, sil.Implies (cond, e1) (expr.pos, expr.info) ) (e.pos, e.info), f) ::
+            rewriteForallAndApply (sil.Forall (vars, triggers, sil.Implies (cond, e0) (expr.pos, expr.info) ) (e.pos, e.info), f) ::
+              rewriteForallAndApply (sil.Forall (vars, triggers, sil.Implies (cond, e1) (expr.pos, expr.info) ) (e.pos, e.info), f) ::
               Nil
           //combination: implies
           case implies@sil.Implies (e0, e1) =>
@@ -1354,7 +1339,8 @@ class QuantifiedPermModule(val verifier: Verifier)
         }
         stmts
       case _ =>
-        f(e)
+        //generate trigger if needed.
+        f(e.autoTrigger)
     }
   }
 
