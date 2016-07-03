@@ -86,11 +86,6 @@ trait PermModule extends Module with CarbonStateComponent {
 
   def currentPermission(rcv:Exp, loc:Exp):Exp
 
-  /**
-    * applies given function f to rewritten forall functions
-    */
-  def rewriteForallAndApply (e: sil.Forall, f: sil.Forall => Stmt): Stmt
-
   /**these methods are for experimental purposes, not yet finalized **/
   /*def beginSumMask : Stmt
 

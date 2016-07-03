@@ -404,13 +404,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         checkDefinedness(c, error) ++
           If(translateExp(c), checkDefinednessOfSpecAndInhale(e1, error), checkDefinednessOfSpecAndInhale(e2, error))
       case fa@sil.Forall(vars, triggers, expr) =>
-          if (isPure(fa)) {
             checkDefinedness(e, error) ++
               inhale(e)
-          } else {
-
-            permModule.rewriteForallAndApply(fa, (x => checkDefinedness(x, error) ++ inhale(x)))
-          }
       case _ =>
         checkDefinedness(e, error) ++
           inhale(e)
@@ -432,12 +427,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             checkDefinednessOfSpecAndExhale(e1, definednessError, exhaleError),
             checkDefinednessOfSpecAndExhale(e2, definednessError, exhaleError))
       case fa@sil.Forall(vars, triggers, expr) =>
-        if (isPure(fa)) {
-          checkDefinedness(e, definednessError) ++
-            exhale(Seq((e, exhaleError)))
-        } else {
-          permModule.rewriteForallAndApply(fa, (x => checkDefinedness(x, definednessError) ++ exhale(Seq((x, exhaleError)))))
-        }
+        checkDefinedness(e, definednessError) ++
+          exhale(Seq((e, exhaleError)))
       case _ =>
         checkDefinedness(e, definednessError) ++
           exhale(Seq((e, exhaleError)))

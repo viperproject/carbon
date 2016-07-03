@@ -306,17 +306,13 @@ class QuantifiedPermModule(val verifier: Verifier)
 
       case fa@sil.Forall(v, cond, expr) =>
 
-        //quantified permissions
-        val res = {
-          if (fa.isPure) {
-            Nil
-          } else {
-            //Quantified Permission
-            val stmt = rewriteForallAndApply(fa, (x:sil.Forall) =>  translateExhale(x, error))
-            stmt ++ Nil
-          }
+        if (fa.isPure) {
+          Nil
+        } else {
+          //Quantified Permission
+          val stmt = translateExhale(fa, error)
+          stmt
         }
-        res
       case _ => Nil
     }
   }
@@ -715,21 +711,38 @@ class QuantifiedPermModule(val verifier: Verifier)
 
       //Quantified Permission Expression
       case fa@sil.Forall(_, _, _) =>
-        val res = {
-          if (fa.isPure) {
-            Nil
-          } else {
-            //Quantified Permission
-            val stmt:Stmt = rewriteForallAndApply(fa, (x:sil.Forall) =>  translateInhale(x))
-            stmt ++ Nil
-          }
+        if (fa.isPure) {
+          Nil
+        } else {
+          //Quantified Permission
+          val stmt:Stmt = translateInhale(fa)
+          stmt ++ Nil
         }
-        res
       case _ => Nil
 
     }
   }
 
+  def containsVars(vars:Seq[LocalVarDecl], exps:Seq[Exp]) : Boolean = {
+    var varMap:Map[Identifier,Boolean] = Map()
+    for (expr <- exps) {
+      for (sub <- expr.subnodes if sub.isInstanceOf[LocalVar]) {
+        varMap += (sub.asInstanceOf[LocalVar].name -> true)
+      }
+    }
+
+    (vars.map(x => varMap(x.name))).reduce((var1, var2) => var1 && var2)
+  }
+
+
+  def validateTrigger(vars:Seq[LocalVarDecl], trigger:Trigger): Seq[Trigger] = {
+    //TODO: check if trigger is valid
+    if (containsVars(vars, trigger.exps)) {
+      Seq(trigger)
+    } else {
+      Seq()
+    }
+  }
 
   def translateInhale(e: sil.Forall): Stmt = e match{
     case qp@sil.utility.QuantifiedPermissions.QuantifiedPermission(v, cond, expr) =>
@@ -1312,35 +1325,6 @@ class QuantifiedPermModule(val verifier: Verifier)
     val res = Func(Identifier(inverseFunName+qpId), LocalVarDecl(Identifier("recv"), refType), typeModule.translateType(outputType))
     inverseFuncs += res
     res
-  }
-
-  override def rewriteForallAndApply (e: sil.Forall, f: sil.Forall => Stmt): Stmt = {
-    val vars = e.variables
-    val triggers = e.triggers
-    e match {
-      case qp@sil.utility.QuantifiedPermissions.QuantifiedPermission (v, cond, expr) =>
-        val stmts:Stmt = expr match {
-          case sil.AccessPredicate (_, _) =>
-            f(e)
-          case and@sil.And (e0, e1) =>
-            rewriteForallAndApply (sil.Forall (vars, triggers, sil.Implies (cond, e0) (expr.pos, expr.info) ) (e.pos, e.info), f) ::
-              rewriteForallAndApply (sil.Forall (vars, triggers, sil.Implies (cond, e1) (expr.pos, expr.info) ) (e.pos, e.info), f) ::
-              Nil
-          //combination: implies
-          case implies@sil.Implies (e0, e1) =>
-            //e0 must be pure
-            val newCond = sil.And (cond, e0) (cond.pos, cond.info)
-            val newFa = sil.Forall (vars, triggers, sil.Implies (newCond, e1) (expr.pos, expr.info) ) (e.pos, e.info)
-            rewriteForallAndApply (newFa, f) ++
-              Nil
-          case _ =>
-            f(e)
-        }
-        stmts
-      case _ =>
-        //generate trigger if needed.
-        f(e.autoTrigger)
-    }
   }
 
   def splitter = PermissionSplitter

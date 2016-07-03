@@ -49,9 +49,12 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
 
     verifier.replaceProgram(
       p.transform({
-        case f: sil.Forall if f.isPure =>
-           f.autoTrigger
-
+        case f: sil.Forall =>
+          if (f.isPure) {
+            f.autoTrigger
+          } else {
+            rewriteForall(f)
+          }
       })((_) => true)
     )
 
@@ -89,6 +92,35 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
     }
 
     output.optimize.asInstanceOf[Program]
+  }
+
+  def rewriteForall (e: sil.Forall) : sil.Exp = {
+    val vars = e.variables
+    val triggers = e.triggers
+    e match {
+      case qp@sil.utility.QuantifiedPermissions.QuantifiedPermission (v, cond, expr) =>
+        val stmts:sil.Exp = expr match {
+          case sil.AccessPredicate (_, _) =>
+            e
+          case and@sil.And (e0, e1) =>
+            val rewrittenExp:sil.Exp = sil.And(rewriteForall (sil.Forall (vars, triggers, sil.Implies (cond, e0) (expr.pos, expr.info) ) (e.pos, e.info)),
+              rewriteForall (sil.Forall (vars, triggers, sil.Implies (cond, e1) (expr.pos, expr.info) ) (e.pos, e.info))) (and.pos, and.info)
+            rewrittenExp
+          //combination: implies
+          case implies@sil.Implies (e0, e1) =>
+            //e0 must be pure
+            val newCond = sil.And (cond, e0) (cond.pos, cond.info)
+            val newFa = sil.Forall (vars, triggers, sil.Implies (newCond, e1) (expr.pos, expr.info) ) (e.pos, e.info)
+            val rewrittenExp:sil.Exp = rewriteForall (newFa)
+            rewrittenExp
+          case _ =>
+            e
+        }
+        stmts
+      case _ =>
+        //generate trigger if needed.
+        e.autoTrigger
+    }
   }
 
   def translateMethodDecl(m: sil.Method): Seq[Decl] = {
