@@ -788,6 +788,16 @@ class QuantifiedPermModule(val verifier: Verifier)
            val (renamingCond, renamingRecv, renamingPerms, renamingFieldAccess) = (renaming(cond), renaming(recv), renaming(perms), renaming(fieldAccess))
            val (translatedCond, translatedRecv) = (translateExp(renamingCond), translateExp(renamingRecv))
 
+           //translate Triggers
+           var renamedTriggers:Seq[sil.Trigger] = Seq()
+           for (trigger <- e.triggers) {
+             renamedTriggers = renamedTriggers ++ Seq(sil.Trigger(trigger.exps.map(x => renaming(x)))(trigger.pos, trigger.info))
+           }
+           var translatedTriggers:Seq[Trigger] = Seq()
+           for (trigger <- renamedTriggers) {
+              translatedTriggers = translatedTriggers ++ (Trigger(trigger.exps.map(x => translateExp(x))))
+           }
+
            val translatedLocal = translateLocalVarDecl(vFresh)
 
            val (translatedPerms, stmts) = {
@@ -818,7 +828,17 @@ class QuantifiedPermModule(val verifier: Verifier)
 
            val (condInv, rcvInv, permInv) = (translatedCond.replace(env.get(vFresh.localVar), invFunApp),translatedRecv.replace(env.get(vFresh.localVar), invFunApp),translatedPerms.replace(env.get(vFresh.localVar), invFunApp) )
 
-           val tr1 = validateTrigger(Seq(translatedLocal), Trigger(translatedRecv))
+
+           val tr1 = if (e.triggers.nonEmpty) {
+              //remove not valid trigger parts
+             var newTrigger:Seq[Trigger] = Seq()
+             for (trigger <- translatedTriggers) {
+                newTrigger = newTrigger ++ validateTrigger(Seq(translatedLocal), trigger)
+              }
+             newTrigger
+           } else {
+             validateTrigger(Seq(translatedLocal), Trigger(translatedRecv))
+           }
 
            val invAssm1 = (Forall(Seq(translatedLocal), tr1, translatedCond ==> (FuncApp(invFun.name, Seq(translatedRecv), invFun.typ) === translatedLocal.l )))
            val invAssm2 = Forall(Seq(obj), Seq(Trigger(FuncApp(invFun.name, Seq(obj.l), invFun.typ))), condInv ==> (rcvInv === obj.l) )
