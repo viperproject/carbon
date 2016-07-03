@@ -723,21 +723,41 @@ class QuantifiedPermModule(val verifier: Verifier)
     }
   }
 
-  def containsVars(vars:Seq[LocalVarDecl], exps:Seq[Exp]) : Boolean = {
-    var varMap:Map[Identifier,Boolean] = Map()
+  var varMap:Map[Identifier,Boolean] = Map()
+
+  def containVars(n:Node) {
+    if (n.isInstanceOf[LocalVar]) {
+      varMap += (n.asInstanceOf[LocalVar].name -> true)
+    }
+    for (sub <- n.subnodes ) {
+      containVars(sub)
+    }
+  }
+
+  def validTrigger(vars:Seq[LocalVarDecl], exps:Seq[Exp]) : Boolean = {
+    varMap = Map()
+    //Main-Node
+    var valid = true
     for (expr <- exps) {
-      for (sub <- expr.subnodes if sub.isInstanceOf[LocalVar]) {
-        varMap += (sub.asInstanceOf[LocalVar].name -> true)
+
+      //not only LocalVar
+      if (expr.isInstanceOf[LocalVar]) {
+        valid = false;
       }
+      //map occuring LocalVars
+      containVars(expr)
     }
 
-    (vars.map(x => varMap(x.name))).reduce((var1, var2) => var1 && var2)
+    var containsVars = (vars.map(x => varMap.contains(x.name))).reduce((var1, var2) => var1 && var2)
+    valid && containsVars
   }
 
 
   def validateTrigger(vars:Seq[LocalVarDecl], trigger:Trigger): Seq[Trigger] = {
-    //TODO: check if trigger is valid
-    if (containsVars(vars, trigger.exps)) {
+    //TODO: valid type?]
+    //any trigger expression only LocalVar -> invalid
+
+    if (validTrigger(vars, trigger.exps))  {
       Seq(trigger)
     } else {
       Seq()
@@ -770,7 +790,6 @@ class QuantifiedPermModule(val verifier: Verifier)
                (translateExp(renamingPerms), Nil)
              }
            }
-           //   val sil.utility.QuantifiedPermissions.QPForall(_,_,_,_,renamedPerms,_,_) = renamedQP
 
            val translatedLocation = translateLocation(Expressions.instantiateVariables(fieldAccess, v.localVar,  vFresh.localVar))
 
@@ -785,17 +804,13 @@ class QuantifiedPermModule(val verifier: Verifier)
 
            val (condInv, rcvInv, permInv) = (translatedCond.replace(env.get(vFresh.localVar), invFunApp),translatedRecv.replace(env.get(vFresh.localVar), invFunApp),translatedPerms.replace(env.get(vFresh.localVar), invFunApp) )
 
-           val tr1 =
-             if(translatedRecv.isInstanceOf[LocalVar]) {
-               Seq()
-             } else {
-               Seq(Trigger(translatedRecv))
-             }
+           val tr1 = validateTrigger(Seq(translatedLocal), Trigger(translatedRecv))
+
            val invAssm1 = (Forall(Seq(translatedLocal), tr1, translatedCond ==> (FuncApp(invFun.name, Seq(translatedRecv), invFun.typ) === translatedLocal.l )))
            val invAssm2 = Forall(Seq(obj), Seq(Trigger(FuncApp(invFun.name, Seq(obj.l), invFun.typ))), condInv ==> (rcvInv === obj.l) )
 
            val nonNullAssumptions =
-             Assume(Forall(Seq(translateLocalVarDecl(vFresh)),Seq(),(translatedCond && permissionPositive(translatedPerms, Some(renamingPerms), false)) ==>
+             Assume(Forall(Seq(translatedLocal),tr1,(translatedCond && permissionPositive(translatedPerms, Some(renamingPerms), false)) ==>
                (translatedRecv !== translateNull) ))
 
            val permPositive = Assume(Forall(translateLocalVarDecl(vFresh), Seq(), translatedCond ==> permissionPositive(translatedPerms,None,true)))
@@ -1284,28 +1299,6 @@ class QuantifiedPermModule(val verifier: Verifier)
     Forall( v++vFresh,Seq(),
       (  (v.l !== vFresh.l) &&  cond && cond.replace(v.l, vFresh.l) ) ==> (recv !== recv.replace(v.l, vFresh.l)) )
   }
-
-  /*makes assumptions about the inverse of the receiver expression in qpStandard
-   *qpcompStandard represents the qp \forall v::T. c(v) ==> acc(e(v).f,p(v))
-   *qpcompInverse represents the qp \forall vInv::T. c(inv(v)) ==> e(inv(v)).f, p(inv(v))
-   */
-  def inverseAssumptions(invFun: Func, qpcompStandard: QPComponents, qpcompInverse: QPComponents):(Exp, Exp) = {
-    val QPComponents(v, cond, recv, perm) = qpcompStandard
-    val QPComponents(vInv, condInv, recvInv, permInv) = qpcompInverse
-
-    val tr1 =
-      if(recv.isInstanceOf[LocalVar]) {
-        Seq()
-      } else {
-        Seq(Trigger(recv))
-      }
-    val assm1 = (Forall(Seq(v), tr1, cond ==> (FuncApp(invFun.name, Seq(recv), invFun.typ) === v.l )))
-
-    val assm2 = Forall(Seq(vInv), Seq(Trigger(FuncApp(invFun.name, Seq(vInv.l), invFun.typ))), condInv ==> (recvInv === vInv.l) )
-
-    (assm1,assm2)
-  }
-
 
 
   /* records a fresh function which represents the inverse function of a receiver expression in a qp, if the qp is
