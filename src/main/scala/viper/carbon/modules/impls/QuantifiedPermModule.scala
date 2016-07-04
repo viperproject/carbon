@@ -737,6 +737,7 @@ class QuantifiedPermModule(val verifier: Verifier)
     if (n.isInstanceOf[LocalVar]) {
       varMap += (n.asInstanceOf[LocalVar].name -> true)
     }
+
     for (sub <- n.subnodes ) {
       containVars(sub)
     }
@@ -747,7 +748,6 @@ class QuantifiedPermModule(val verifier: Verifier)
     //Main-Node
     var valid = true
     for (expr <- exps) {
-
       //not only LocalVar
       if (expr.isInstanceOf[LocalVar]) {
         valid = false;
@@ -772,6 +772,16 @@ class QuantifiedPermModule(val verifier: Verifier)
     }
   }
 
+  def validateTriggers(vars:Seq[LocalVarDecl], triggers:Seq[Trigger]):Seq[Trigger] = {
+    if (triggers.isEmpty) {
+      Seq()
+    } else {
+      val validatedTriggers = triggers.map(validateTrigger(vars, _))
+      validatedTriggers.reduce((t1, t2) => t1 ++ t2)
+    }
+
+  }
+
   def translateInhale(e: sil.Forall): Stmt = e match{
     case qp@sil.utility.QuantifiedPermissions.QuantifiedPermission(v, cond, expr) =>
      if (qp.isPure) {
@@ -787,16 +797,6 @@ class QuantifiedPermModule(val verifier: Verifier)
 
            val (renamingCond, renamingRecv, renamingPerms, renamingFieldAccess) = (renaming(cond), renaming(recv), renaming(perms), renaming(fieldAccess))
            val (translatedCond, translatedRecv) = (translateExp(renamingCond), translateExp(renamingRecv))
-
-           //translate Triggers
-           var renamedTriggers:Seq[sil.Trigger] = Seq()
-           for (trigger <- e.triggers) {
-             renamedTriggers = renamedTriggers ++ Seq(sil.Trigger(trigger.exps.map(x => renaming(x)))(trigger.pos, trigger.info))
-           }
-           var translatedTriggers:Seq[Trigger] = Seq()
-           for (trigger <- renamedTriggers) {
-              translatedTriggers = translatedTriggers ++ (Trigger(trigger.exps.map(x => translateExp(x))))
-           }
 
            val translatedLocal = translateLocalVarDecl(vFresh)
 
@@ -819,6 +819,19 @@ class QuantifiedPermModule(val verifier: Verifier)
            val invFun = addInverseFunction(vFresh.typ)
            val invFunApp = FuncApp(invFun.name, Seq(obj.l), invFun.typ )
 
+           //translate Triggers
+           var renamedTriggers:Seq[sil.Trigger] = Seq()
+           for (trigger <- e.triggers) {
+             renamedTriggers = renamedTriggers ++ Seq(sil.Trigger(trigger.exps.map(x => renaming(x)))(trigger.pos, trigger.info))
+           }
+           var translatedTriggers:Seq[Trigger] = Seq()
+           for (trigger <- renamedTriggers) {
+             translatedTriggers = translatedTriggers ++ (Trigger(trigger.exps.map(x => translateExp(x))))
+           }
+           var invTriggers:Seq[Trigger] = Seq()
+           for (trigger <- translatedTriggers) {
+             invTriggers = invTriggers ++ (Trigger(trigger.exps.map(x => x.replace(env.get(vFresh.localVar), invFunApp))))
+           }
 
            //define trigger function
            val triggerFun = Func(Identifier(triggerFunName+qpId), LocalVarDecl(Identifier("recv"), refType), typeModule.translateType(vFresh.typ))
@@ -866,10 +879,10 @@ class QuantifiedPermModule(val verifier: Verifier)
            //field)
 
            val independentLocations = Assume(Forall(Seq(obj,field), Trigger(currentPermission(obj.l,field.l))++
-             Trigger(currentPermission(qpMask,obj.l,field.l)),(field.l !== translatedLocation) ==>
+             Trigger(currentPermission(qpMask,obj.l,field.l))++validateTriggers(Seq(obj,field), invTriggers),(field.l !== translatedLocation) ==>
              (currentPermission(obj.l,field.l) === currentPermission(qpMask,obj.l,field.l))) )
 
-           val ts = Seq(Trigger(curPerm),Trigger(currentPermission(qpMask,obj.l,translatedLocation)),Trigger(invFunApp))
+           val ts = Seq(Trigger(curPerm),Trigger(currentPermission(qpMask,obj.l,translatedLocation)),Trigger(invFunApp))++validateTriggers(Seq(obj), invTriggers)
 
 
 
@@ -939,7 +952,6 @@ class QuantifiedPermModule(val verifier: Verifier)
            val permInv = translatedPerms.replace(translatedLocal.l, invFunApp)
 
            //define inverse functions
-           //TODO:
            val tr1 =
              if (translatedArgs.map(x =>  x.contains(translatedLocal)).reduce(_ && _)) {
                Seq(Trigger(translateLocation(predAccPred.loc)))
