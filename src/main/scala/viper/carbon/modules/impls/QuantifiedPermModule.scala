@@ -491,8 +491,9 @@ class QuantifiedPermModule(val verifier: Verifier)
 
             val ts = Seq(Trigger(curPerm),Trigger(currentPermission(qpMask,obj.l,translatedLocation)),Trigger(invFunApp))++validateTriggers(Seq(obj), invTriggers)
 
-            val v2 = LocalVarDecl(Identifier("v2"),translatedLocal.typ)
-            val is_injective = Forall( translatedLocal++v2,Seq(Trigger(Seq(triggerFunApp, triggerFunApp.replace(translatedLocal.l, v2.l)))),(  (translatedLocal.l !== v2.l) &&  translatedCond && translatedCond.replace(translatedLocal.l, v2.l) ) ==> (translatedRecv !== translatedRecv.replace(translatedLocal.l, v2.l)))
+
+            val v2 = LocalVarDecl(Identifier(translatedLocal.name.name), translatedLocal.typ)
+            val is_injective = Forall( translatedLocal++v2,validateTriggers(translatedLocal++v2, Seq(Trigger(Seq(triggerFunApp, triggerFunApp.replace(translatedLocal.l, v2.l))))),(  (translatedLocal.l !== v2.l) &&  translatedCond && translatedCond.replace(translatedLocal.l, v2.l) ) ==> (translatedRecv !== translatedRecv.replace(translatedLocal.l, v2.l)))
             val injectiveAssertion = Assert(is_injective,error.dueTo(reasons.ReceiverNotInjective(fieldAccess)))
 
             val res1 = Havoc(qpMask) ++
@@ -535,7 +536,7 @@ class QuantifiedPermModule(val verifier: Verifier)
             //create local variables from arguments of the predicate
             val predicate = program.findPredicate(predname)
             val formalVars = predicate.formalArgs //sil.LocalVarDecl
-          val renamedVars = formalVars.map(env.makeUniquelyNamed)
+            val renamedVars = formalVars.map(env.makeUniquelyNamed)
             renamedVars.foreach(x => env.define(x.localVar))
             val locVars = renamedVars.map(x => LocalVarDecl(Identifier(x.name), typeModule.translateType(x.typ)))
             val formalArgsExpr = renamedVars.map(x => sil.LocalVar(x.name)(x.typ))
@@ -637,7 +638,6 @@ class QuantifiedPermModule(val verifier: Verifier)
 
             //assert injectivity of inverse function:
             //define new variable
-            val v2 = env.makeUniquelyNamed(v); env.define(v2.localVar)
             //var translatedLocal2 = LocalVarDecl(Identifier(v2.name), translatedLocal.typ);
             val translatedLocal2 = LocalVarDecl(Identifier(translatedLocal.name.name), translatedLocal.typ) //new varible
 
@@ -675,7 +675,6 @@ class QuantifiedPermModule(val verifier: Verifier)
               (mask := qpMask)
 
             env.undefine(vFresh.localVar)
-            env.undefine(v2.localVar)
             renamedVars.foreach(x => env.undefine(x.localVar))
             res1
           case _ =>
@@ -904,9 +903,9 @@ class QuantifiedPermModule(val verifier: Verifier)
 
 
            val v2 = LocalVarDecl(Identifier("v2"),translatedLocal.typ)
+
            val injectiveTrigger = validateTrigger(translatedLocal++v2, Trigger(Seq(translatedRecv, translatedRecv.replace(translatedLocal.l, v2.l))))
            val injectiveAssumption = Assume(Forall( translatedLocal++v2,injectiveTrigger,((translatedLocal.l !== v2.l) &&  translatedCond && translatedCond.replace(translatedLocal.l, v2.l) ) ==> (translatedRecv !== translatedRecv.replace(translatedLocal.l, v2.l))))
-
 
            val res1 = Havoc(qpMask) ++
              stmts ++
