@@ -424,11 +424,11 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       // Postcondition contains InhaleExhale expression.
       // Need to check inhale and exhale parts separately.
       val onlyInhalePosts: Seq[Stmt] = f.posts map (e => {
-        checkDefinedness(whenInhaling(e), errors.ContractNotWellformed(e))
+        checkDefinednessOfSpecAndInhale(whenInhaling(e), errors.ContractNotWellformed(e))
       })
       val onlyExhalePosts: Seq[Stmt] = if (f.isAbstract) {
         f.posts map (e => {
-          checkDefinedness(
+          checkDefinednessOfSpecAndInhale( // inhale since we are not checking, but want short-circuiting
             whenExhaling(e),
             errors.ContractNotWellformed(e))
         })
@@ -447,13 +447,13 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       if (f.isAbstract) {
         MaybeCommentBlock("Checking definedness of postcondition (no body)",
           inhaleCheck ++
-          MaybeCommentBlock("Do welldefinedness check of the inhale part.",
+          MaybeCommentBlock("Do welldefinedness check of the exhale part.",
             onlyExhalePosts))
       }
       else {
         MaybeCommentBlock("Exhaling postcondition (with checking)",
           inhaleCheck ++
-          MaybeCommentBlock("Normally inhale the exhale part.",
+          MaybeCommentBlock("Normally exhale the exhale part.",
             onlyExhalePosts))
       }
     }
@@ -461,7 +461,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       // Postcondition does not contain InhaleExhale expression.
       if (f.isAbstract) {
         val posts: Seq[Stmt] = f.posts map (e => {
-          checkDefinedness(e, errors.ContractNotWellformed(e))
+          checkDefinednessOfSpecAndInhale(e, errors.ContractNotWellformed(e)) // inhale since we are not checking, but want short-circuiting
         })
         MaybeCommentBlock("Checking definedness of postcondition (no body)", posts)
       }
