@@ -710,7 +710,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           stateModule.replaceState(state)
           r
         } else Nil
-        CommentBlock("Extra unfolding of predicate",
+        MaybeCommentBlock("Extra unfolding of predicate",
           res ++ (if (duringUnfold) insidePredicate(unfoldInfo, pap) else Nil))
       case _ => Nil
     }
