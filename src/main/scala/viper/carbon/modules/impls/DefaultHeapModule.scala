@@ -40,9 +40,8 @@ class DefaultHeapModule(val verifier: Verifier)
 
   override def start() {
     stateModule.register(this)
-    stmtModule.register(this, before = Seq(verifier.permModule,verifier.stmtModule))
+    stmtModule.register(this)
     expModule.register(this)
-  //  exhaleModule.register(this)
     inhaleModule.register(this)
   }
 

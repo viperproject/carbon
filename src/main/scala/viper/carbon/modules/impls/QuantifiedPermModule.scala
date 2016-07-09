@@ -49,7 +49,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   with InhaleComponent
   with ExhaleComponent
   with TransferComponent
-  with SimpleStmtComponent
+  with StmtComponent
   with DefinednessComponent {
 
   import verifier._
@@ -58,13 +58,13 @@ class QuantifiedPermModule(val verifier: Verifier)
   import expModule._
   import stateModule._
 
-  def name = "Permission module (with quantified permission support)"
+  def name = "Permission module"
 
   override def start() {
     stateModule.register(this)
     exhaleModule.register(this)
     inhaleModule.register(this)
-    stmtModule.register(this)
+    stmtModule.register(this, before = Seq(verifier.heapModule)) // check for field write permission should come before the operation itself (but adding permissions for new stmts is done afterwards - see handleStmt below)
     expModule.register(this)
     wandModule.register(this)
   }
@@ -663,17 +663,16 @@ class QuantifiedPermModule(val verifier: Verifier)
       (bvs map (v => Assume((v > RealLit(0)) && (v < RealLit(1)))))
   }
 
-  override def simpleHandleStmt(s: sil.Stmt): Stmt = {
+  override def handleStmt(s: sil.Stmt) : (Stmt,Stmt) =
     s match {
       case n@sil.NewStmt(target,fields) =>
-        for (field <- fields) yield {
+        (Nil,for (field <- fields) yield {
           Assign(currentPermission(sil.FieldAccess(target, field)()), fullPerm)
-        }
+        })
       case assign@sil.FieldAssign(fa, rhs) =>
-        Assert(permGe(currentPermission(fa), fullPerm), errors.AssignmentFailed(assign).dueTo(reasons.InsufficientPermission(fa)))
-      case _ => Nil
+        (Assert(permGe(currentPermission(fa), fullPerm), errors.AssignmentFailed(assign).dueTo(reasons.InsufficientPermission(fa))),Nil)
+      case _ => (Nil,Nil)
     }
-  }
 
   private def permEq(a: Exp, b: Exp): Exp = {
     a === b
