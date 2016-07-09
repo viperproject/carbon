@@ -15,7 +15,7 @@ import viper.carbon.verifier.Verifier
  * Common trait for modules.
 
  */
-trait Module extends LifetimeComponent with StatefulComponent {
+trait Module extends LifetimeComponent with StatefulComponent with viper.carbon.modules.components.Component {
   /** The verifier to interact with other modules. */
   def verifier: Verifier
 

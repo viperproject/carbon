@@ -41,9 +41,8 @@ class DefaultHeapModule(val verifier: Verifier)
 
   override def start() {
     stateModule.register(this)
-    stmtModule.register(this, before = Seq(verifier.permModule,verifier.stmtModule))
+    stmtModule.register(this)
     expModule.register(this)
-  //  exhaleModule.register(this)
     inhaleModule.register(this)
   }
 
@@ -366,11 +365,17 @@ class DefaultHeapModule(val verifier: Verifier)
   }
 
   /**
-   * Adds the permissions from an expression to a permission mask.
+   * Adds the permissions from the body of a predicate to its permission mask.
    */
   private def addPermissionToPMask(loc: sil.PredicateAccess): Stmt = {
     val predBody = loc.predicateBody(verifier.program).get
-    predBody match {
+    addPermissionToPMaskHelper(predBody, loc, predicateMask(loc,heap))
+  }
+  /**
+   * Adds the permissions from an expression to a permission mask.
+   */
+  private def addPermissionToPMaskHelper(e: sil.Exp, loc: sil.PredicateAccess, pmask: Exp): Stmt = {
+    e match {
       case sil.utility.QuantifiedPermissions.QPForall(v,cond,recv,fld,perms,forall,fieldAccess) =>
         // alpha renaming, to avoid clashes in context
         val vFresh = env.makeUniquelyNamed(v);
@@ -381,28 +386,16 @@ class DefaultHeapModule(val verifier: Verifier)
         val (renamingCond,renamingFieldAccess) = (renaming(cond),renaming(fieldAccess))
         val translatedCond = translateExp(renamingCond)
 
+        val newPMask = LocalVar(Identifier("newPMask"), pmaskType)
         val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
         val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
-        val pmask = predicateMask(loc,heap)
-        val pmaskQP = predicateMask(loc,qpHeap)
-        Havoc(qpHeap) ++
+        val pm1 = MapSelect(pmask, Seq(obj.l, field.l))
+        val pm2 = MapSelect(newPMask, Seq(obj.l, field.l))
           MaybeComment("register all known folded permissions guarded by predicate " + loc.predicateName,
-            Assume(Forall(translateLocalVarDecl(vFresh),Seq(),translatedCond ==> (translateLocationAccess(renamingFieldAccess, pmaskQP) === TrueLit()) ))) ++
-          Assume(Forall(translateLocalVarDecl(vFresh),Seq(),translatedCond.not ==>
-            (translateLocationAccess(renamingFieldAccess, pmaskQP) === translateLocationAccess(renamingFieldAccess, pmask) ))) ++
-          MaybeComment("all heap locations which aren't the predicate mask of " + loc.predicateName + " stay the same",Assume(Forall(
-          Seq(obj, field),
-          Trigger(lookup(heap, obj.l, field.l)) ++
-            Trigger(lookup(qpHeap, obj.l, field.l)),
-          (predicateMaskField(translateLocation(loc)) !== field.l) ==> (lookup(heap, obj.l, field.l) === lookup(qpHeap, obj.l, field.l)))
-        )) ++
-          (heap := qpHeap)
-      case _ =>
-        addPermissionToPMaskHelper(predBody, predicateMask(loc,heap))
-    }
-  }
-  private def addPermissionToPMaskHelper(e: sil.Exp, pmask: Exp): Stmt = {
-    e match {
+            Havoc(newPMask) ++
+              Assume(Forall(Seq(obj, field), Seq(Trigger(pm2)), (pm1 ==> pm2))) ++
+                Assume(Forall(translateLocalVarDecl(vFresh),Seq(),translatedCond ==> (translateLocationAccess(renamingFieldAccess, newPMask) === TrueLit()) ))) ++
+            (pmask := newPMask)
       case sil.FieldAccessPredicate(loc, perm) =>
         translateLocationAccess(loc, pmask) := TrueLit()
       case sil.PredicateAccessPredicate(loc, perm) =>
@@ -416,13 +409,13 @@ class DefaultHeapModule(val verifier: Verifier)
           Assume(Forall(Seq(obj, field), Seq(Trigger(pm3)), (pm1 || pm2) ==> pm3)) ++
           (pmask := newPMask)
       case sil.And(e1, e2) =>
-        addPermissionToPMaskHelper(e1, pmask) ::
-          addPermissionToPMaskHelper(e2, pmask) ::
+        addPermissionToPMaskHelper(e1, loc, pmask) ::
+          addPermissionToPMaskHelper(e2, loc, pmask) ::
           Nil
       case sil.Implies(e1, e2) =>
-        If(translateExp(e1), addPermissionToPMaskHelper(e2, pmask), Statements.EmptyStmt)
+        If(translateExp(e1), addPermissionToPMaskHelper(e2, loc, pmask), Statements.EmptyStmt)
       case sil.CondExp(c, e1, e2) =>
-        If(translateExp(c), addPermissionToPMaskHelper(e1, pmask), addPermissionToPMaskHelper(e2, pmask))
+        If(translateExp(c), addPermissionToPMaskHelper(e1, loc, pmask), addPermissionToPMaskHelper(e2, loc, pmask))
       case _ => Nil
     }
   }

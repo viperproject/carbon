@@ -32,8 +32,8 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
   import wandModule._
 
   override def start() {
-    // this is the main translation, so it should come at the beginning
-    register(this, before = verifier.allModules)
+    // this is the main translation, so it should come at the beginning ?
+    register(this, before = Seq(verifier.heapModule,verifier.permModule)) // checks for field assignment should be made before the assignment itself
   }
 
   val lblNamespace = verifier.freshNamespace("stmt.lbl")
@@ -64,7 +64,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           checkDefinedness(rhs, errors.AssignmentFailed(assign)) ++
           Assign(translateExp(lhs), translateExp(rhs))
       case assign@sil.FieldAssign(lhs, rhs) =>
-        checkDefinedness(lhs, errors.AssignmentFailed(assign)) ++ 
+        checkDefinedness(lhs.rcv, errors.AssignmentFailed(assign)) ++
           checkDefinedness(rhs, errors.AssignmentFailed(assign))
       case fold@sil.Fold(e) => sys.error("Internal error: translation of fold statement cannot be handled by simpleHandleStmt code; found:" + fold.toString())
       case unfold@sil.Unfold(e) =>
@@ -183,14 +183,12 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
       }
       case sil.Goto(target) =>
         Goto(Lbl(Identifier(target)(lblNamespace)))
-      case sil.NewStmt(target,fields) =>
-        Nil
       case pa@sil.Package(wand) =>
       // checkDefinedness(wand, errors.MagicWandNotWellformed(wand))
         translatePackage(pa,errors.PackageFailed(pa))
       case a@sil.Apply(wand) =>
         translateApply(a, errors.ApplyFailed(a))
-      case _: sil.Seqn =>
+      case _ =>
         Nil
     }
   }
@@ -222,7 +220,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
     }
 
     var stmts = Seqn(Nil)
-    for (c <- components.reverse) { // reverse order, so that "first" component contributes first (outermost) code
+    for (c <- components) { // should be in reverse order, so that "first" component contributes first (outermost) code, but it seems the sorting is also currently reversed
       val (before, after) = c.handleStmt(stmt)
       stmts = before ++ stmts ++ after
     }
