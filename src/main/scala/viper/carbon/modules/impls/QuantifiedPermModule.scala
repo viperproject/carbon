@@ -428,15 +428,13 @@ class QuantifiedPermModule(val verifier: Verifier)
 
             val (condInv, rcvInv, permInv) = (translatedCond.replace(env.get(vFresh.localVar), invFunApp),translatedRecv.replace(env.get(vFresh.localVar), invFunApp),translatedPerms.replace(env.get(vFresh.localVar), invFunApp) )
 
-            val tr1 = if (fa.triggers.nonEmpty) {
+            val tr1 = validateTrigger(Seq(translatedLocal), Trigger(translatedRecv))
+            if (fa.triggers.nonEmpty) {
               //remove not valid trigger parts
               var newTrigger:Seq[Trigger] = Seq()
               for (trigger <- translatedTriggers) {
                 newTrigger = newTrigger ++ validateTrigger(Seq(translatedLocal), trigger)
               }
-              newTrigger
-            } else {
-              validateTrigger(Seq(translatedLocal), Trigger(translatedRecv))
             }
 
             val invAssm1 = (Forall(Seq(translatedLocal), tr1, translatedCond ==> (FuncApp(invFun.name, Seq(translatedRecv), invFun.typ) === translatedLocal.l )))
@@ -851,9 +849,9 @@ class QuantifiedPermModule(val verifier: Verifier)
 
 
            var tr1:Seq[Trigger] = validateTrigger(Seq(translatedLocal), Trigger(translatedRecv))
-           for (trigger <- translatedTriggers) {
+          /* for (trigger <- translatedTriggers) {
              tr1 = tr1 ++ validateTrigger(Seq(translatedLocal), trigger)
-           }
+           }*/
 
 
            val invAssm1 = (Forall(Seq(translatedLocal), tr1, translatedCond ==> (FuncApp(invFun.name, Seq(translatedRecv), invFun.typ) === translatedLocal.l )))
@@ -863,7 +861,7 @@ class QuantifiedPermModule(val verifier: Verifier)
              Assume(Forall(Seq(translatedLocal),tr1,(translatedCond && permissionPositive(translatedPerms, Some(renamingPerms), false)) ==>
                (translatedRecv !== translateNull) ))
 
-           val permPositive = Assume(Forall(translateLocalVarDecl(vFresh), tr1, translatedCond ==> permissionPositive(translatedPerms,None,true)))
+           val permPositive = Assume(Forall(translateLocalVarDecl(vFresh), Seq(), translatedCond ==> permissionPositive(translatedPerms,None,true)))
 
 
            //assumptions for locations that gain permission

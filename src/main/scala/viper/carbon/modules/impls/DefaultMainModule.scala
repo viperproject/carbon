@@ -53,7 +53,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
           if (f.isPure) {
             f.autoTrigger
           } else {
-            rewriteForall(f.autoTrigger)
+            rewriteForall(f)
           }
       })((_) => true)
     )
@@ -114,7 +114,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
             val rewrittenExp:sil.Exp = rewriteForall (newFa)
             rewrittenExp
           case _ =>
-            e
+            e.autoTrigger
         }
         stmts
       case _ =>
