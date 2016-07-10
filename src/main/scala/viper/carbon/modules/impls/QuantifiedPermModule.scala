@@ -394,14 +394,12 @@ class QuantifiedPermModule(val verifier: Verifier)
 
 
         val ts = Seq(Trigger(curPerm),Trigger(currentPermission(qpMask,obj.l,translatedLocation)),Trigger(invFunApp))
-        val injectiveAssertion = Assert(isInjective(qpComp), error.dueTo(reasons.ReceiverNotInjective(fieldAccess)))
 
         val res = Havoc(qpMask) ++
           stmts ++
           wildcardAssms ++
           // notNull ++ // subsumed by permission check
           permPositive ++
-          CommentBlock("check if receiver " + recv.toString() + " is injective",injectiveAssertion) ++
           enoughPerm ++
           CommentBlock("assumptions for inverse of receiver " + recv.toString(), Assume(invAssm1)++Assume(invAssm2)) ++
           Assume(Forall(obj,ts, condTrueLocations&&condFalseLocations )) ++
@@ -518,16 +516,12 @@ class QuantifiedPermModule(val verifier: Verifier)
         val ts = Seq(Trigger(curPerm),Trigger(currentPermission(qpMask,obj.l,translatedLocation)),Trigger(invFunApp)) //triggers TODO
 
 
-        val injectiveAssumption = assmsToStmt(isInjective(qpComp))
-
-
         val res = Havoc(qpMask) ++
           stmts ++
           assmsToStmt(invAssm1) ++
           assmsToStmt(invAssm2) ++
           nonNullAssumptions ++
           permPositive ++
-          injectiveAssumption ++
           assmsToStmt(Forall(obj,ts, condTrueLocations&&condFalseLocations )) ++
           independentLocations ++
           (mask := qpMask)

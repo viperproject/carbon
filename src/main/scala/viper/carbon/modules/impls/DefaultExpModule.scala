@@ -8,13 +8,18 @@ package viper.carbon.modules.impls
 
 import viper.carbon.modules.{StatelessComponent, ExpModule}
 import viper.silver.{ast => sil}
-import viper.carbon.boogie._
 import viper.carbon.verifier.Verifier
 import viper.silver.verifier.{reasons, PartialVerificationError}
 import viper.carbon.boogie.Implicits._
 import viper.carbon.modules.components.DefinednessComponent
 import viper.silver.ast.{LocationAccess, QuantifiedExp}
 import viper.silver.ast.utility.Expressions
+
+import viper.carbon.boogie._
+import viper.carbon.boogie.LocalVarDecl
+import viper.carbon.boogie.Forall
+import viper.carbon.boogie.Assert
+import viper.carbon.boogie.Identifier
 
 /**
  * The default implementation of [[viper.carbon.modules.ExpModule]].
@@ -31,7 +36,6 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   import inhaleModule._
   import funcPredModule._
   import exhaleModule._
-  import stateModule.StateSnapshot
 
   override def start() {
     register(this)
@@ -300,23 +304,39 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           stmt ++ stmt2 ++ stmt3 ++
             MaybeCommentBlock("Free assumptions", allFreeAssumptions(e))
         }
-        
+
         if (e.isInstanceOf[sil.QuantifiedExp]) {
           val bound_vars  = e.asInstanceOf[sil.QuantifiedExp].variables
-	  bound_vars map (v => env.define(v.localVar))
-	  val res = if(e.isInstanceOf[sil.ForPerm]) {
-      val eAsForallRef = e.asInstanceOf[sil.ForPerm]
-      val bound_var = eAsForallRef.variable
-      val perLocFilter : sil.Location => LocationAccess = loc => loc match {
-          case f: sil.Field => sil.FieldAccess(bound_var.localVar, f)(loc.pos, loc.info)
-          case p: sil.Predicate => sil.PredicateAccess(Seq(bound_var.localVar), p)(loc.pos, loc.info)
-        }
-      val filter : Exp = eAsForallRef.accessList.foldLeft[Exp](BoolLit(false))((soFar,loc) => BinExp(soFar,Or,hasDirectPerm(perLocFilter(loc))))
+	        bound_vars map (v => env.define(v.localVar))
+          //check injectivity
+          val injectivity_check:Stmt = e match  {
+            case qp@sil.utility.QuantifiedPermissions.QPForall(v_orig, cond_orig, recv_orig, field, exp, forall, fieldAccess) =>
+                val namespace = verifier.freshNamespace("perm")
+                val v = translateLocalVarDecl(v_orig)
+                val cond = translateExp(cond_orig)
+                val recv = translateExp(recv_orig)
+                val v1 = LocalVarDecl(Identifier("v")(namespace), v.typ)
+                val v2 = LocalVarDecl(Identifier("v2")(namespace),v.typ)
+                MaybeCommentBlock("Check if receiver " + recv_orig.toString() + " is injective", Assert(Forall( v1++v2, Seq(), ((v1.l !== v2.l) &&  cond.replace(v.l, v1.l) && cond.replace(v.l, v2.l) ) ==> (recv.replace(v.l, v1.l) !== recv.replace(v.l, v2.l)) ),
+                          error.dueTo(reasons.ReceiverNotInjective(fieldAccess))))
 
-      handleQuantifiedLocals(bound_vars, If(filter, translate, Nil))
-    }else handleQuantifiedLocals(bound_vars,translate)
-	  bound_vars map (v => env.undefine(v.localVar))
-          res        
+            case _ => Nil
+          }
+
+
+          val res:Stmt = if(e.isInstanceOf[sil.ForPerm]) {
+            val eAsForallRef = e.asInstanceOf[sil.ForPerm]
+            val bound_var = eAsForallRef.variable
+            val perLocFilter : sil.Location => LocationAccess = loc => loc match {
+                case f: sil.Field => sil.FieldAccess(bound_var.localVar, f)(loc.pos, loc.info)
+                case p: sil.Predicate => sil.PredicateAccess(Seq(bound_var.localVar), p)(loc.pos, loc.info)
+              }
+            val filter : Exp = eAsForallRef.accessList.foldLeft[Exp](BoolLit(false))((soFar,loc) => BinExp(soFar,Or,hasDirectPerm(perLocFilter(loc))))
+
+            handleQuantifiedLocals(bound_vars, If(filter, translate, Nil))
+          } else handleQuantifiedLocals(bound_vars,translate)
+              bound_vars map (v => env.undefine(v.localVar))
+              injectivity_check ++  res
         } else e match {
           case sil.Old(_) =>
             val prevState = stateModule.state
@@ -331,7 +351,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             stateModule.replaceState(prevState)
             res
           case _ =>
-          translate
+            translate
         }
     }
   }
