@@ -418,10 +418,7 @@ class QuantifiedPermModule(val verifier: Verifier)
             for (trigger <- renamedTriggers) {
               translatedTriggers = translatedTriggers ++ (Trigger(trigger.exps.map(x => translateExp(x))))
             }
-            var invTriggers:Seq[Trigger] = Seq()
-            for (trigger <- translatedTriggers) {
-              invTriggers = invTriggers ++ (Trigger(trigger.exps.map(x => x.replace(env.get(vFresh.localVar), invFunApp))))
-            }
+
 
             //define trigger function
             val triggerFun = Func(Identifier(triggerFunName+qpId), LocalVarDecl(Identifier("recv"), refType), typeModule.translateType(vFresh.typ))
@@ -485,11 +482,11 @@ class QuantifiedPermModule(val verifier: Verifier)
             //assumption for locations that are definitely independent of any of the locations part of the QP (i.e. different
             //field)
             val independentLocations = Assume(Forall(Seq(obj,field), Trigger(currentPermission(obj.l,field.l))++
-              Trigger(currentPermission(qpMask,obj.l,field.l)) ++ validateTriggers(Seq(obj,field), invTriggers),(field.l !== translatedLocation) ==>
+              Trigger(currentPermission(qpMask,obj.l,field.l)),(field.l !== translatedLocation) ==>
               (currentPermission(obj.l,field.l) === currentPermission(qpMask,obj.l,field.l))) )
 
 
-            val ts = Seq(Trigger(curPerm),Trigger(currentPermission(qpMask,obj.l,translatedLocation)),Trigger(invFunApp))++validateTriggers(Seq(obj), invTriggers)
+            val ts = Seq(Trigger(curPerm),Trigger(currentPermission(qpMask,obj.l,translatedLocation)),Trigger(invFunApp))
 
 
             val v2 = LocalVarDecl(Identifier(translatedLocal.name.name), translatedLocal.typ)
@@ -756,8 +753,12 @@ class QuantifiedPermModule(val verifier: Verifier)
   var varMap:Map[Identifier,Boolean] = Map()
 
   def containVars(n:Node) {
-    if (n.isInstanceOf[LocalVar]) {
-      varMap += (n.asInstanceOf[LocalVar].name -> true)
+    //if (n.isInstanceOf[LocalVar]) {
+    //  varMap += (n.asInstanceOf[LocalVar].name -> true)
+   // }
+    //if (n.isInstanceOf[Const]) println(n)
+    if (n.isInstanceOf[Var]) {
+      varMap+= (n.asInstanceOf[Var].name -> true)
     }
 
     for (sub <- n.subnodes ) {
@@ -777,16 +778,12 @@ class QuantifiedPermModule(val verifier: Verifier)
       //map occuring LocalVars
       containVars(expr)
     }
-
     var containsVars = (vars.map(x => varMap.contains(x.name))).reduce((var1, var2) => var1 && var2)
     valid && containsVars
   }
 
-
   def validateTrigger(vars:Seq[LocalVarDecl], trigger:Trigger): Seq[Trigger] = {
-    //TODO: valid type?]
     //any trigger expression only LocalVar -> invalid
-
     if (validTrigger(vars, trigger.exps))  {
       Seq(trigger)
     } else {
@@ -801,7 +798,6 @@ class QuantifiedPermModule(val verifier: Verifier)
       val validatedTriggers = triggers.map(validateTrigger(vars, _))
       validatedTriggers.reduce((t1, t2) => t1 ++ t2)
     }
-
   }
 
   def translateInhale(e: sil.Forall): Stmt = e match{
@@ -850,24 +846,15 @@ class QuantifiedPermModule(val verifier: Verifier)
            for (trigger <- renamedTriggers) {
              translatedTriggers = translatedTriggers ++ (Trigger(trigger.exps.map(x => translateExp(x))))
            }
-           var invTriggers:Seq[Trigger] = Seq()
-           for (trigger <- translatedTriggers) {
-             invTriggers = invTriggers ++ (Trigger(trigger.exps.map(x => x.replace(env.get(vFresh.localVar), invFunApp))))
-           }
 
            val (condInv, rcvInv, permInv) = (translatedCond.replace(env.get(vFresh.localVar), invFunApp),translatedRecv.replace(env.get(vFresh.localVar), invFunApp),translatedPerms.replace(env.get(vFresh.localVar), invFunApp) )
 
 
-           val tr1 = if (e.triggers.nonEmpty) {
-              //remove not valid trigger parts
-             var newTrigger:Seq[Trigger] = Seq()
-             for (trigger <- translatedTriggers) {
-                newTrigger = newTrigger ++ validateTrigger(Seq(translatedLocal), trigger)
-              }
-             newTrigger
-           } else {
-             validateTrigger(Seq(translatedLocal), Trigger(translatedRecv))
+           var tr1:Seq[Trigger] = validateTrigger(Seq(translatedLocal), Trigger(translatedRecv))
+           for (trigger <- translatedTriggers) {
+             tr1 = tr1 ++ validateTrigger(Seq(translatedLocal), trigger)
            }
+
 
            val invAssm1 = (Forall(Seq(translatedLocal), tr1, translatedCond ==> (FuncApp(invFun.name, Seq(translatedRecv), invFun.typ) === translatedLocal.l )))
            val invAssm2 = Forall(Seq(obj), Seq(Trigger(FuncApp(invFun.name, Seq(obj.l), invFun.typ))), condInv ==> (rcvInv === obj.l) )
@@ -895,10 +882,10 @@ class QuantifiedPermModule(val verifier: Verifier)
            //field)
 
            val independentLocations = Assume(Forall(Seq(obj,field), Trigger(currentPermission(obj.l,field.l))++
-             Trigger(currentPermission(qpMask,obj.l,field.l))++validateTriggers(Seq(obj,field), invTriggers),(field.l !== translatedLocation) ==>
+             Trigger(currentPermission(qpMask,obj.l,field.l)),(field.l !== translatedLocation) ==>
              (currentPermission(obj.l,field.l) === currentPermission(qpMask,obj.l,field.l))) )
 
-           val ts = Seq(Trigger(curPerm),Trigger(currentPermission(qpMask,obj.l,translatedLocation)),Trigger(invFunApp))++validateTriggers(Seq(obj), invTriggers)
+           val ts = Seq(Trigger(curPerm),Trigger(currentPermission(qpMask,obj.l,translatedLocation)),Trigger(invFunApp))
 
 
 
@@ -914,7 +901,7 @@ class QuantifiedPermModule(val verifier: Verifier)
              nonNullAssumptions ++
              permPositive ++
              injectiveAssumption ++
-             Assume(Forall(obj,ts ++ validateTriggers(Seq(obj), invTriggers), condTrueLocations&&condFalseLocations )) ++
+             Assume(Forall(obj,ts, condTrueLocations&&condFalseLocations )) ++
              independentLocations ++
              (mask := qpMask)
 
@@ -974,10 +961,7 @@ class QuantifiedPermModule(val verifier: Verifier)
            for (trigger <- renamedTriggers) {
              translatedTriggers = translatedTriggers ++ (Trigger(trigger.exps.map(x => translateExp(x))))
            }
-           var invTriggers:Seq[Trigger] = Seq()
-           for (trigger <- translatedTriggers) {
-             invTriggers = invTriggers ++ (Trigger(trigger.exps.map(x => x.replace(env.get(vFresh.localVar), invFunApp))))
-           }
+
 
            //define inverse functions
            val tr1 = if (e.triggers.isEmpty) {
@@ -1013,7 +997,7 @@ class QuantifiedPermModule(val verifier: Verifier)
            val obj = LocalVarDecl(Identifier("o"), refType)
            val field = LocalVarDecl(Identifier("f"), fieldType)
            val fieldVar = LocalVar(Identifier("f"), fieldType)
-           val independentLocations = Assume(Forall(Seq(obj,field), Seq(Trigger(currentPermission(obj.l, field.l)), Trigger(currentPermission(qpMask, obj.l, field.l))) ++ validateTriggers(Seq(obj,field),invTriggers),
+           val independentLocations = Assume(Forall(Seq(obj,field), Seq(Trigger(currentPermission(obj.l, field.l)), Trigger(currentPermission(qpMask, obj.l, field.l))),
              ((obj.l !== translateNull) ||  isPredicateField(fieldVar).not || (getPredicateId(fieldVar) !== IntLit(getPredicateId(predname)) ))  ==>
                (currentPermission(obj.l,field.l) === currentPermission(qpMask,obj.l,field.l))))
 
@@ -1022,17 +1006,12 @@ class QuantifiedPermModule(val verifier: Verifier)
            val invFunApp2 = FuncApp(invFun.name, locExpArgs2, invFun.typ)
            val condInv2 = translatedCond.replace(translatedLocal.l, invFunApp2)
 
-           var invTriggers2:Seq[Trigger] = Seq()
-           for (trigger <- translatedTriggers) {
-             invTriggers2 = invTriggers2 ++ (Trigger(trigger.exps.map(x => x.replace(env.get(vFresh.localVar), invFunApp2))))
-           }
 
            val mappedVars = formalArgsExpr.map(x => env.get(x))
            val vars = mappedVars.map(x => LocalVarDecl(x.name, x.typ))
 
 
-           val tr = Seq(Trigger(currentPermission(qpMask,translateNull, general_location)), Trigger(currentPermission(mask, translateNull, general_location)), Trigger(invFunApp2)) ++
-                    validateTriggers(vars, invTriggers2)
+           val tr = Seq(Trigger(currentPermission(qpMask,translateNull, general_location)), Trigger(currentPermission(mask, translateNull, general_location)), Trigger(invFunApp2))
            val independentPredicate = Assume(Forall(vars, tr, (condInv2.not) ==> (currentPermission(qpMask,translateNull, general_location) === currentPermission(translateNull, general_location))))
            val permissionsMap = Assume(Forall(vars,tr, condInv2 ==> (currentPermission(qpMask,translateNull, general_location) === currentPermission(translateNull, general_location) + permInv)))
 

@@ -53,7 +53,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
           if (f.isPure) {
             f.autoTrigger
           } else {
-            rewriteForall(f)
+            rewriteForall(f.autoTrigger)
           }
       })((_) => true)
     )
