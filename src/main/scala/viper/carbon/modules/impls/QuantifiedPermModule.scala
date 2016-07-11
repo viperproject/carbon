@@ -550,6 +550,16 @@ class QuantifiedPermModule(val verifier: Verifier)
             val triggerFunApp = FuncApp(triggerFun.name, translatedArgs, triggerFun.typ)
             val invTriggerFunApp = FuncApp(triggerFun.name, locExpArgs, triggerFun.typ)
 
+            //translate Triggers
+            var renamedTriggers:Seq[sil.Trigger] = Seq()
+            for (trigger <- fa.triggers) {
+              renamedTriggers = renamedTriggers ++ Seq(sil.Trigger(trigger.exps.map(x => renaming(x)))(trigger.pos, trigger.info))
+            }
+            var translatedTriggers:Seq[Trigger] = Seq()
+            for (trigger <- renamedTriggers) {
+              translatedTriggers = translatedTriggers ++ (Trigger(trigger.exps.map(x => translateExp(x))))
+            }
+
             //replace all arguments:
             val condInv = translatedCond.replace(translatedLocal.l, invFunApp)
 
@@ -562,12 +572,8 @@ class QuantifiedPermModule(val verifier: Verifier)
 
 
             //define inverse functions
-            val tr1 =
-              if (translatedArgs.map(x =>  x.contains(translatedLocal)).reduce(_ && _)) {
-                Seq(Trigger(translateLocation(predAccPred.loc)))
-              } else {
-                Seq()
-              }
+            val tr1 = validateTrigger(translatedLocal, Trigger(translateLocation(predAccPred.loc)))
+
             val invAssm1 = Forall(translatedLocal, tr1, translatedCond ==> (funApp === translatedLocal.l))
 
             //for each argument, define a inverse function
@@ -611,12 +617,7 @@ class QuantifiedPermModule(val verifier: Verifier)
             //assumption for locations that don't gain permission
             val condFalseLocations = translatedCond.not ==> ((currentPermission(qpMask,translateNull, translatedLocation)) === curPerm)
             val temp = currentPermission(qpMask, translateNull, translatedLocation)
-            val trs =
-              if (Seq(curPerm, temp).map(x =>  x.contains(translatedLocal)).reduce(_ && _)) {
-                Seq(Trigger(curPerm),Trigger(temp))
-              } else {
-                Seq()
-              }
+
             //final assumption statement
             //val permissionsMap = Assume(Forall(translatedLocal,trs, condTrueLocations&&condFalseLocations ))
 
@@ -649,7 +650,7 @@ class QuantifiedPermModule(val verifier: Verifier)
             val invFunApp2 = FuncApp(invFun.name, locExpArgs2, invFun.typ)
             val condInv2 = translatedCond.replace(translatedLocal.l, invFunApp2)
 
-            val tr = Seq(Trigger(currentPermission(qpMask,translateNull, general_location)))
+            val tr = Seq(Trigger(currentPermission(qpMask,translateNull, general_location)), Trigger(currentPermission(mask, translateNull, general_location)), Trigger(invFunApp2))
             val mappedVars = formalArgsExpr.map(x => env.get(x))
             val vars = mappedVars.map(x => LocalVarDecl(x.name, x.typ))
             val independentPredicate = Assume(Forall(vars, tr, (condInv2.not) ==> (currentPermission(qpMask,translateNull, general_location) === currentPermission(translateNull, general_location))))
