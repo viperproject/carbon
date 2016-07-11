@@ -849,10 +849,16 @@ class QuantifiedPermModule(val verifier: Verifier)
            val (condInv, rcvInv, permInv) = (translatedCond.replace(env.get(vFresh.localVar), invFunApp),translatedRecv.replace(env.get(vFresh.localVar), invFunApp),translatedPerms.replace(env.get(vFresh.localVar), invFunApp) )
 
 
+           //Trigger for first inverse function. It should be triggered for all location accesses via the permission map.
+           //This cannot be done with the inverse function. All generated/user-given Triggers are included.
            var tr1:Seq[Trigger] = validateTrigger(Seq(translatedLocal), Trigger(translatedRecv))
-          /* for (trigger <- translatedTriggers) {
-             tr1 = tr1 ++ validateTrigger(Seq(translatedLocal), trigger)
-           }*/
+           if (tr1.nonEmpty) {
+             for (trigger <- translatedTriggers) {
+               if (!tr1.contains(trigger)) {
+                 tr1 = tr1 ++ validateTrigger(Seq(translatedLocal), trigger)
+               }
+             }
+           }
 
 
            val invAssm1 = (Forall(Seq(translatedLocal), tr1, translatedCond ==> (FuncApp(invFun.name, Seq(translatedRecv), invFun.typ) === translatedLocal.l )))
@@ -895,13 +901,13 @@ class QuantifiedPermModule(val verifier: Verifier)
 
            val res1 = Havoc(qpMask) ++
              stmts ++
-             Assume(invAssm1) ++
-             Assume(invAssm2) ++
-             nonNullAssumptions ++
-             permPositive ++
-             injectiveAssumption ++
-             Assume(Forall(obj,ts, condTrueLocations&&condFalseLocations )) ++
-             independentLocations ++
+             CommentBlock("Define Inverse Function", Assume(invAssm1) ++
+               Assume(invAssm2)) ++
+             CommentBlock("Assume set of fields is nonNull", nonNullAssumptions) ++
+             MaybeComment("Assume permission expression is positive for all fields", permPositive) ++
+             CommentBlock("Assume injectivity", injectiveAssumption) ++
+             CommentBlock("Define permissions", Assume(Forall(obj,ts, condTrueLocations&&condFalseLocations )) ++
+               independentLocations) ++
              (mask := qpMask)
 
            env.undefine(vFresh.localVar)

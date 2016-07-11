@@ -101,7 +101,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
       case qp@sil.utility.QuantifiedPermissions.QuantifiedPermission (v, cond, expr) =>
         val stmts:sil.Exp = expr match {
           case sil.AccessPredicate (_, _) =>
-            e
+            e.autoTrigger
           case and@sil.And (e0, e1) =>
             val rewrittenExp:sil.Exp = sil.And(rewriteForall (sil.Forall (vars, triggers, sil.Implies (cond, e0) (expr.pos, expr.info) ) (e.pos, e.info)),
               rewriteForall (sil.Forall (vars, triggers, sil.Implies (cond, e1) (expr.pos, expr.info) ) (e.pos, e.info))) (and.pos, and.info)
