@@ -371,9 +371,6 @@ class QuantifiedPermModule(val verifier: Verifier)
           stmts)
   }
 
-
-
-
   def translateExhale(fa: sil.Forall, error: PartialVerificationError): Stmt =  {
     val stmt = fa match {
       case qp@sil.utility.QuantifiedPermissions.QuantifiedPermission(v, cond, expr)  =>
@@ -428,14 +425,17 @@ class QuantifiedPermModule(val verifier: Verifier)
 
             val (condInv, rcvInv, permInv) = (translatedCond.replace(env.get(vFresh.localVar), invFunApp),translatedRecv.replace(env.get(vFresh.localVar), invFunApp),translatedPerms.replace(env.get(vFresh.localVar), invFunApp) )
 
-            val tr1 = validateTrigger(Seq(translatedLocal), Trigger(translatedRecv))
-            if (fa.triggers.nonEmpty) {
-              //remove not valid trigger parts
-              var newTrigger:Seq[Trigger] = Seq()
+            //Trigger for first inverse function. It should be triggered for all location accesses via the permission map.
+            //This cannot be done with the inverse function. All generated/user-given Triggers are included.
+            var tr1:Seq[Trigger] = validateTrigger(Seq(translatedLocal), Trigger(translatedRecv))
+            if (tr1.nonEmpty) {
               for (trigger <- translatedTriggers) {
-                newTrigger = newTrigger ++ validateTrigger(Seq(translatedLocal), trigger)
+                if (!tr1.contains(trigger)) {
+                  tr1 = tr1 ++ validateTrigger(Seq(translatedLocal), trigger)
+                }
               }
             }
+
 
             val invAssm1 = (Forall(Seq(translatedLocal), tr1, translatedCond ==> (FuncApp(invFun.name, Seq(translatedRecv), invFun.typ) === translatedLocal.l )))
             val invAssm2 = Forall(Seq(obj), Seq(Trigger(FuncApp(invFun.name, Seq(obj.l), invFun.typ))), condInv ==> (rcvInv === obj.l) )
@@ -904,7 +904,7 @@ class QuantifiedPermModule(val verifier: Verifier)
              CommentBlock("Define Inverse Function", Assume(invAssm1) ++
                Assume(invAssm2)) ++
              CommentBlock("Assume set of fields is nonNull", nonNullAssumptions) ++
-             MaybeComment("Assume permission expression is positive for all fields", permPositive) ++
+             MaybeComment("Assume permission expression is non-negative for all fields", permPositive) ++
              CommentBlock("Assume injectivity", injectiveAssumption) ++
              CommentBlock("Define permissions", Assume(Forall(obj,ts, condTrueLocations&&condFalseLocations )) ++
                independentLocations) ++
