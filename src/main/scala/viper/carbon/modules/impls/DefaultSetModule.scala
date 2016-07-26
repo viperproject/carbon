@@ -71,7 +71,7 @@ class DefaultSetModule(val verifier: Verifier)
         fa
       case sil.ExplicitSet(elems) =>
         def buildSet(es: Seq[sil.Exp]): Exp = {
-          es match {
+          es.toList match {
             case Nil => sys.error("did not expect empty sequence")
             case a :: Nil =>
               FuncApp(Identifier("Set#Singleton"), t(a), typ)
@@ -86,7 +86,7 @@ class DefaultSetModule(val verifier: Verifier)
         fa
       case sil.ExplicitMultiset(elems) =>
         def buildSet(es: Seq[sil.Exp]): Exp = {
-          es match {
+          es.toList match {
             case Nil => sys.error("did not expect empty sequence")
             case a :: Nil =>
               FuncApp(Identifier("MultiSet#Singleton"), t(a), typ)
