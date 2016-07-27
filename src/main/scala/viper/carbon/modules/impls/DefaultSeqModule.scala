@@ -55,7 +55,7 @@ class DefaultSeqModule(val verifier: Verifier)
         fa.showReturnType = true // needed (in general) to avoid Boogie complaints about ambiguous type variable
         fa
       case s@sil.ExplicitSeq(elems) =>
-        elems match {
+        elems.toList match {
           case Nil => sys.error("did not expect empty sequence")
           case a :: Nil =>
             FuncApp(Identifier("Seq#Singleton"), t(a), typ)
