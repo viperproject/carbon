@@ -81,6 +81,10 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
       exps map (e => Assume(e === Old(e))): Stmt
     }
   }
+
+  def setTreatOldAsCurrentState(b: Boolean) =
+  { treatOldAsCurrent = b }
+
   def staticStateContributions: Seq[LocalVarDecl] = components flatMap (_.staticStateContributions)
   def currentStateContributions: Seq[LocalVarDecl] = components flatMap (_.currentStateContributions)
   def currentStateContributionValues: Seq[Exp] = components flatMap (_.currentStateExps)
