@@ -12,8 +12,8 @@ object CarbonBuild extends Build {
           scalaVersion := "2.11.7",
           scalacOptions in Compile ++= Seq("-deprecation", "-unchecked", "-feature"),
           libraryDependencies += "org.rogach" %% "scallop" % "0.9.5",
-          libraryDependencies += "org.jgrapht" % "jgrapht-core" % "0.9.0",
-          libraryDependencies += "com.googlecode.kiama" % "kiama_2.11" % "1.8.0"
+          libraryDependencies += "org.jgrapht" % "jgrapht-core" % "0.9.0"
+//          libraryDependencies += "com.googlecode.kiama" % "kiama_2.11" % "1.8.0"
 
        )
   )
@@ -29,11 +29,14 @@ object CarbonBuild extends Build {
               name := "Carbon",
               jarName in assembly := "carbon.jar",
               test in assembly := {},
+              javaOptions in Test += "-Xss128m",
               testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oD"),
               traceLevel := 20,
               maxErrors := 6,
               classDirectory in Test <<= classDirectory in Compile,
-              libraryDependencies ++= externalDep))
+              libraryDependencies ++= externalDep,
+              fork in Test := true
+           ))
     )
     for (dep <- internalDep) {
       p = p.dependsOn(dep)
