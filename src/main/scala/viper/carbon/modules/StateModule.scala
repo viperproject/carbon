@@ -108,6 +108,8 @@ trait StateModule extends Module with ComponentRegistry[CarbonStateComponent] wi
    */
   def replaceOldState(snapshot: StateSnapshot)
 
+  def setTreatOldAsCurrentState(b: Boolean)
+
   /**
    * Get the current state.
    */
