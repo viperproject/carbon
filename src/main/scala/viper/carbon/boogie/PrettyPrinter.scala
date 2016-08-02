@@ -7,6 +7,7 @@
 package viper.carbon.boogie
 
 //import org.kiama.output._
+import org.kiama.output._
 import viper.silver.ast.pretty._
 import viper.silver.verifier.VerificationError
 
@@ -22,7 +23,7 @@ object PrettyPrinter {
 /**
  * The class that implements most of the pretty-printing functionality.
  */
-class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
+class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPrettyPrinter {
 
   lazy val pretty: String = {
     pretty(n)
@@ -305,7 +306,7 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
   }
 
   // Note: pretty-printing expressions is mostly taken care of by Kiama
-  override def toParenDoc(e: FastPrettyExpression): Doc = {
+  override def toParenDoc(e: PrettyExpression): Doc = {
     e match {
       case IntLit(i) => value(i)
       case BoolLit(b) => value(b)
@@ -363,29 +364,29 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
         }
       case CondExp(cond, e1, e2) =>
         parens("if" <+> show(cond) <+> "then" <+> show(e1) <+> "else" <+> show(e2))
-      case _: FastPrettyUnaryExpression | _: FastPrettyBinaryExpression => {
+      case _: PrettyUnaryExpression | _: PrettyBinaryExpression => {
         e match {
-          case b: FastPrettyBinaryExpression =>
+          case b: PrettyBinaryExpression =>
             val ld =
               b.left match {
-                case l: FastPrettyOperatorExpression =>
+                case l: PrettyOperatorExpression =>
                   bracket(l, b, LeftAssoc)
                 case l =>
                   toParenDoc(l)
               }
             val rd =
               b.right match {
-                case r: FastPrettyOperatorExpression =>
+                case r: PrettyOperatorExpression =>
                   bracket(r, b, RightAssoc)
                 case r =>
                   toParenDoc(r)
               }
             ld <+> text(b.op) <+> rd
 
-          case u: FastPrettyUnaryExpression =>
+          case u: PrettyUnaryExpression =>
             val ed =
               u.exp match {
-                case e: FastPrettyOperatorExpression =>
+                case e: PrettyOperatorExpression =>
                   bracket(e, u, NonAssoc)
                 case e =>
                   toParenDoc(e)

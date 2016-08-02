@@ -9,6 +9,7 @@ package viper.carbon.boogie
 
 //import org.kiama.output._
 import UnicodeString.string2unicodestring
+import org.kiama.output._
 import viper.silver.ast.pretty._
 import viper.silver.verifier.VerificationError
 
@@ -155,7 +156,7 @@ case class MapType(domains: Seq[Type], range: Type, typVars: Seq[TypeVar] = Nil)
 
 // --- Expressions
 
-sealed trait Exp extends Node with FastPrettyExpression {
+sealed trait Exp extends Node with PrettyExpression {
   def ===(other: Exp) = BinExp(this, EqCmp, other)
   def !==(other: Exp) = BinExp(this, NeCmp, other)
   def :=(rhs: Exp) = Assign(this, rhs)
@@ -208,13 +209,13 @@ object BoolLit {
 }
 case class RealConv(e: Exp) extends Exp
 
-case class BinExp(left: Exp, binop: BinOp, right: Exp) extends Exp with FastPrettyBinaryExpression {
+case class BinExp(left: Exp, binop: BinOp, right: Exp) extends Exp with PrettyBinaryExpression {
   lazy val op = binop.name
   lazy val priority = binop.priority
   lazy val fixity = binop.fixity
 }
 
-case class UnExp(unop: UnOp, exp: Exp) extends Exp with FastPrettyUnaryExpression {
+case class UnExp(unop: UnOp, exp: Exp) extends Exp with PrettyUnaryExpression {
   lazy val op = unop.name
   lazy val priority = unop.priority
   lazy val fixity = unop.fixity
