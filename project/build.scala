@@ -34,8 +34,8 @@ object CarbonBuild extends Build {
               traceLevel := 20,
               maxErrors := 6,
               classDirectory in Test <<= classDirectory in Compile,
-              libraryDependencies ++= externalDep,
-              fork in Test := true
+              libraryDependencies ++= externalDep
+              //fork in Test := true
            ))
     )
     for (dep <- internalDep) {
