@@ -29,7 +29,7 @@ object CarbonBuild extends Build {
               name := "Carbon",
               jarName in assembly := "carbon.jar",
               test in assembly := {},
-              javaOptions in Test += "-Xss128m",
+              //javaOptions in Test += "-Xss128m",
               testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oD"),
               traceLevel := 20,
               maxErrors := 6,
