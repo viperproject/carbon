@@ -13,9 +13,31 @@ import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
 import viper.silver.verifier._
+import viper.carbon.boogie.NamedType
+import viper.carbon.boogie.MapSelect
+import viper.carbon.boogie.LocalVarWhereDecl
+import viper.carbon.boogie.Trigger
 import viper.silver.verifier.PartialVerificationError
 import viper.silver.ast.{Literal, NoInfo, NoPosition, NullLit, PredicateAccess, PredicateAccessPredicate, WildcardPerm}
 import viper.silver.ast.{And => _, Bool => _, Div => _, Exp => _, Int => _, LocalVar => _, LocalVarDecl => _, Mul => _, Not => _, Stmt => _}
+import viper.carbon.boogie.LocalVarDecl
+import viper.carbon.boogie.Assume
+import viper.carbon.boogie.RealLit
+import viper.carbon.boogie.GlobalVar
+import viper.carbon.boogie.GlobalVarDecl
+import viper.carbon.boogie.Axiom
+import viper.carbon.boogie.BinExp
+import viper.carbon.boogie.MapType
+import viper.carbon.boogie.Assert
+import viper.carbon.boogie.ConstDecl
+import viper.carbon.boogie.Const
+import viper.carbon.boogie.LocalVar
+import viper.silver.ast.WildcardPerm
+import viper.carbon.boogie.Forall
+import viper.carbon.boogie.Assign
+import viper.carbon.boogie.Func
+import viper.carbon.boogie.TypeAlias
+import viper.carbon.boogie.FuncApp
 import viper.carbon.verifier.Verifier
 
 import scala.collection.mutable.ListBuffer
@@ -243,7 +265,9 @@ class QuantifiedPermModule(val verifier: Verifier)
    * Expression that expresses that 'permission' is positive. 'silPerm' is used to
    * optimize the check if possible.
    */
-  private def permissionPositive(permission: Exp, silPerm: Option[sil.Exp] = None, zeroOK : Boolean = false): Exp = {
+  override def permissionPositive(permission: Exp, zeroOK : Boolean = false): Exp = permissionPositiveInternal(permission, None, zeroOK)
+
+  private def permissionPositiveInternal(permission: Exp, silPerm: Option[sil.Exp] = None, zeroOK : Boolean = false): Exp = {
     (permission, silPerm) match {
       case (x, _) if permission == fullPerm => TrueLit()
       case (_, Some(sil.FullPerm())) => TrueLit()
@@ -263,7 +287,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         val perms = PermissionSplitter.splitPerm(p) filter (x => x._1 - 1 == exhaleModule.currentPhaseId)
         (if (exhaleModule.currentPhaseId == 0)
           (if (!p.isInstanceOf[WildcardPerm])
-            Assert(permissionPositive(translatePerm(p), Some(p), true), error.dueTo(reasons.NegativePermission(p))) else Nil: Stmt) ++ Nil // check amount is non-negative
+            Assert(permissionPositiveInternal(translatePerm(p), Some(p), true), error.dueTo(reasons.NegativePermission(p))) else Nil: Stmt) ++ Nil // check amount is non-negative
         else Nil) ++
           (if (perms.size == 0) {
             Nil
@@ -727,8 +751,8 @@ class QuantifiedPermModule(val verifier: Verifier)
           }
         stmts ++
           (permVar := permVal) ++
-          assmsToStmt(permissionPositive(permVar, Some(perm), true)) ++
-          assmsToStmt(permissionPositive(permVar, Some(perm), false) ==> checkNonNullReceiver(loc)) ++
+          assmsToStmt(permissionPositiveInternal(permVar, Some(perm), true)) ++
+          assmsToStmt(permissionPositiveInternal(permVar, Some(perm), false) ==> checkNonNullReceiver(loc)) ++
           (if (!usingOldState) curPerm := permAdd(curPerm, permVar) else Nil)
       case w@sil.MagicWand(left,right) =>
         val wandRep = wandModule.getWandRepresentation(w)
@@ -866,9 +890,12 @@ class QuantifiedPermModule(val verifier: Verifier)
 
            val nonNullAssumptions =
              Assume(Forall(Seq(translatedLocal),tr1,(translatedCond && permissionPositive(translatedPerms, Some(renamingPerms), false)) ==>
+          assmsToStmt(Forall(Seq(translateLocalVarDecl(vFresh)),Seq(),(translatedCond && permissionPositiveInternal(translatedPerms, Some(renamedPerms), false)) ==>
                (translatedRecv !== translateNull) ))
 
            val permPositive = Assume(Forall(translateLocalVarDecl(vFresh), Seq(), translatedCond ==> permissionPositive(translatedPerms,None,true)))
+        val permPositive = assmsToStmt(Forall(translateLocalVarDecl(vFresh), Seq(), translatedCond ==> permissionPositiveInternal(translatedPerms,None,true)))
+        val permPositive = assmsToStmt(Forall(translateLocalVarDecl(vFresh), Seq(), translatedCond ==> permissionPositiveInternal(translatedPerms,None,true)))
 
 
            //assumptions for locations that gain permission
@@ -1382,12 +1409,14 @@ class QuantifiedPermModule(val verifier: Verifier)
     res
   }
 
-  def splitter = PermissionSplitter
+  override def conservativeIsPositivePerm(e: sil.Exp): Boolean = splitter.conservativeIsPositivePerm(e)
+
+    def splitter = PermissionSplitter
   object PermissionSplitter {
 
     def isStrictlyPositivePerm(e: sil.Exp): Exp = {
       require(e isSubtype sil.Perm, s"found ${e.typ} ($e), but required Perm")
-      val backup = permissionPositive(translatePerm(e), Some(e))
+      val backup = permissionPositiveInternal(translatePerm(e), Some(e))
       e match {
         case sil.NoPerm() => FalseLit()
         case sil.FullPerm() => TrueLit()
@@ -1473,7 +1502,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
     def isNegativePerm(e: sil.Exp): Exp = {
       require(e isSubtype sil.Perm)
-      val backup = UnExp(Not,permissionPositive(translatePerm(e), Some(e), true))
+      val backup = UnExp(Not,permissionPositiveInternal(translatePerm(e), Some(e), true))
       e match {
         case sil.NoPerm() => FalseLit() // strictly negative
         case sil.FullPerm() => FalseLit()

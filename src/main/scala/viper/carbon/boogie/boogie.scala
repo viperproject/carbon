@@ -7,8 +7,10 @@
 
 package viper.carbon.boogie
 
-import org.kiama.output._
+//import org.kiama.output._
 import UnicodeString.string2unicodestring
+import org.kiama.output._
+import viper.silver.ast.pretty._
 import viper.silver.verifier.VerificationError
 
 /** The root of the Boogie AST. */

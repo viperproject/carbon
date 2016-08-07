@@ -33,6 +33,18 @@ trait PermModule extends Module with CarbonStateComponent {
   def translatePermComparison(e: sil.Exp): Exp
 
   /**
+   * Returns an expression representing that a permission amount is positive
+   *
+   * @param permission the permission amount to be checked
+   * @param zeroOK whether the comparison should (not) be strict, or not
+   * @return the expression representing the fact that the permission is positive
+   */
+  def permissionPositive(permission: Exp, zeroOK : Boolean = false): Exp
+
+
+  def conservativeIsPositivePerm(e: sil.Exp): Boolean
+
+  /**
    * The number of phases during exhale.
    */
   def numberOfPhases: Int

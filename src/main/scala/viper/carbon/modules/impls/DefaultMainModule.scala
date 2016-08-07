@@ -165,7 +165,8 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
   }
 
   private def translateMethodDeclPre(pres: Seq[sil.Exp]): Stmt = {
-    if (Expressions.contains[sil.InhaleExhaleExp](pres)) {
+    stateModule.setTreatOldAsCurrentState(true)
+    val res = if (Expressions.contains[sil.InhaleExhaleExp](pres)) {
       // Precondition contains InhaleExhale expression.
       // Need to check inhale and exhale parts separately.
       val onlyExhalePres: Seq[Stmt] = checkDefinednessOfExhaleSpecAndInhale(
@@ -190,6 +191,9 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
       })
       MaybeCommentBlock("Checked inhaling of precondition", inhalePres)
     }
+
+    stateModule.setTreatOldAsCurrentState(false)
+    res
   }
 
   override def allAssumptionsAboutValue(typ:sil.Type, arg: LocalVarDecl, isParameter:Boolean): Stmt = {
