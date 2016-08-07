@@ -20,24 +20,6 @@ import viper.carbon.boogie.Trigger
 import viper.silver.verifier.PartialVerificationError
 import viper.silver.ast.{Literal, NoInfo, NoPosition, NullLit, PredicateAccess, PredicateAccessPredicate, WildcardPerm}
 import viper.silver.ast.{And => _, Bool => _, Div => _, Exp => _, Int => _, LocalVar => _, LocalVarDecl => _, Mul => _, Not => _, Stmt => _}
-import viper.carbon.boogie.LocalVarDecl
-import viper.carbon.boogie.Assume
-import viper.carbon.boogie.RealLit
-import viper.carbon.boogie.GlobalVar
-import viper.carbon.boogie.GlobalVarDecl
-import viper.carbon.boogie.Axiom
-import viper.carbon.boogie.BinExp
-import viper.carbon.boogie.MapType
-import viper.carbon.boogie.Assert
-import viper.carbon.boogie.ConstDecl
-import viper.carbon.boogie.Const
-import viper.carbon.boogie.LocalVar
-import viper.silver.ast.WildcardPerm
-import viper.carbon.boogie.Forall
-import viper.carbon.boogie.Assign
-import viper.carbon.boogie.Func
-import viper.carbon.boogie.TypeAlias
-import viper.carbon.boogie.FuncApp
 import viper.carbon.verifier.Verifier
 
 import scala.collection.mutable.ListBuffer
@@ -469,7 +451,7 @@ class QuantifiedPermModule(val verifier: Verifier)
             //val notNull = Assert(Forall(translateLocalVarDecl(vFresh), Seq(), translatedCond && permissionPositive(translatedPerms) ==> checkNonNullReceiver(renamingFieldAccess)),
             //  error.dueTo(reasons.ReceiverNull(fieldAccess)))
 
-            val permPositive = Assert(Forall(translateLocalVarDecl(vFresh),tr1, translatedCond ==> permissionPositive(translatedPerms,None,true)),
+            val permPositive = Assert(Forall(translateLocalVarDecl(vFresh),tr1, translatedCond ==> permissionPositiveInternal(translatedPerms,None,true)),
               error.dueTo(reasons.NegativePermission(perms)))
 
             val permNeeded =
@@ -889,13 +871,10 @@ class QuantifiedPermModule(val verifier: Verifier)
            val invAssm2 = Forall(Seq(obj), Seq(Trigger(FuncApp(invFun.name, Seq(obj.l), invFun.typ))), condInv ==> (rcvInv === obj.l) )
 
            val nonNullAssumptions =
-             Assume(Forall(Seq(translatedLocal),tr1,(translatedCond && permissionPositive(translatedPerms, Some(renamingPerms), false)) ==>
-          assmsToStmt(Forall(Seq(translateLocalVarDecl(vFresh)),Seq(),(translatedCond && permissionPositiveInternal(translatedPerms, Some(renamedPerms), false)) ==>
+             Assume(Forall(Seq(translatedLocal),tr1,(translatedCond && permissionPositiveInternal(translatedPerms, Some(renamingPerms), false)) ==>
                (translatedRecv !== translateNull) ))
 
-           val permPositive = Assume(Forall(translateLocalVarDecl(vFresh), Seq(), translatedCond ==> permissionPositive(translatedPerms,None,true)))
-        val permPositive = assmsToStmt(Forall(translateLocalVarDecl(vFresh), Seq(), translatedCond ==> permissionPositiveInternal(translatedPerms,None,true)))
-        val permPositive = assmsToStmt(Forall(translateLocalVarDecl(vFresh), Seq(), translatedCond ==> permissionPositiveInternal(translatedPerms,None,true)))
+           val permPositive = Assume(Forall(translateLocalVarDecl(vFresh), Seq(), translatedCond ==> permissionPositiveInternal(translatedPerms,None,true)))
 
 
            //assumptions for locations that gain permission
