@@ -975,11 +975,14 @@ class QuantifiedPermModule(val verifier: Verifier)
 
 
            //define inverse functions
-           val tr1 = if (e.triggers.isEmpty) {
-               validateTrigger(translatedLocal, Trigger(translateLocation(predAccPred.loc)))
-             } else {
-                validateTriggers(translatedLocal, translatedTriggers)
+           var tr1: Seq[Trigger] = validateTrigger(Seq(translatedLocal), Trigger(translateLocation(predAccPred.loc)))
+           if (tr1.nonEmpty) {
+             for (trigger <- translatedTriggers) {
+               if (!tr1.contains(trigger)) {
+                 tr1 = tr1 ++ validateTrigger(Seq(translatedLocal), trigger)
+               }
              }
+           }
 
            val invAssm1 = Forall(translatedLocal, tr1, translatedCond ==> (funApp === translatedLocal.l))
 
