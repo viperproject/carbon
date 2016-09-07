@@ -758,10 +758,6 @@ class QuantifiedPermModule(val verifier: Verifier)
   var varMap:Map[Identifier,Boolean] = Map()
 
   def containVars(n:Node) {
-    //if (n.isInstanceOf[LocalVar]) {
-    //  varMap += (n.asInstanceOf[LocalVar].name -> true)
-   // }
-    //if (n.isInstanceOf[Const]) println(n)
     if (n.isInstanceOf[Var]) {
       varMap+= (n.asInstanceOf[Var].name -> true)
     }
@@ -771,20 +767,42 @@ class QuantifiedPermModule(val verifier: Verifier)
     }
   }
 
+  /*
+      Checks whether the trigger is of a type accepted by Boogie. These can be: any Var and Constants, MapSelect and Function App (considering their arguments itself are valid)
+      and Binary Expressions
+   */
+  def validTypes(exp:Exp): Boolean = {
+    exp match {
+      case LocalVar(_, _) => true
+      case GlobalVar(_, _) => true
+      case Const(_) => true
+      case IntLit(_) => true
+      case RealLit(_) => true
+      case BoolLit(_) => true
+      case MapSelect(_, idxs) => idxs.map(validTypes).reduce((b1, b2) => b1 && b2) //TODO check arguments or not?
+      case FuncApp(_, args, _) => args.map(validTypes).reduce((b1, b2) => b1 && b2)
+      case BinExp(_, _, _) => true
+      case _ => false
+    }
+  }
+
   def validTrigger(vars:Seq[LocalVarDecl], exps:Seq[Exp]) : Boolean = {
     varMap = Map()
     //Main-Node
-    var valid = true
+    var validType = true
     for (expr <- exps) {
       //not only LocalVar
       if (expr.isInstanceOf[LocalVar]) {
-        valid = false;
+        validType = false;
+      }
+      if (!validTypes(expr)) {
+        validType = false
       }
       //map occuring LocalVars
       containVars(expr)
     }
     var containsVars = (vars.map(x => varMap.contains(x.name))).reduce((var1, var2) => var1 && var2)
-    valid && containsVars
+    validType && containsVars
   }
 
   def validateTrigger(vars:Seq[LocalVarDecl], trigger:Trigger): Seq[Trigger] = {
@@ -847,11 +865,11 @@ class QuantifiedPermModule(val verifier: Verifier)
            for (trigger <- e.triggers) {
              renamedTriggers = renamedTriggers ++ Seq(sil.Trigger(trigger.exps.map(x => renaming(x)))(trigger.pos, trigger.info))
            }
+
            var translatedTriggers:Seq[Trigger] = Seq()
            for (trigger <- renamedTriggers) {
              translatedTriggers = translatedTriggers ++ (Trigger(trigger.exps.map(x => translateExp(x))))
            }
-
            val (condInv, rcvInv, permInv) = (translatedCond.replace(env.get(vFresh.localVar), invFunApp),translatedRecv.replace(env.get(vFresh.localVar), invFunApp),translatedPerms.replace(env.get(vFresh.localVar), invFunApp) )
 
 
@@ -976,7 +994,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
            //define inverse functions
            var tr1: Seq[Trigger] = validateTrigger(Seq(translatedLocal), Trigger(translateLocation(predAccPred.loc)))
-           if (tr1.nonEmpty) {
+           if (tr1.nonEmpty) { //TODO: is this necessary?sbt
              for (trigger <- translatedTriggers) {
                if (!tr1.contains(trigger)) {
                  tr1 = tr1 ++ validateTrigger(Seq(translatedLocal), trigger)
