@@ -1015,7 +1015,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
         // remove unary minus
         val e1a = e1.transform()(_ => true, {
-          case sil.Minus(a) => done = false
+          case sil.PermMinus(a) => done = false
             sil.IntPermMul(sil.IntLit(-1)(), a)()
         })
 
