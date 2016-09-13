@@ -126,6 +126,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         translatePerm(e)
       case sil.EpsilonPerm() =>
         translatePerm(e)
+      case sil.PermMinus(_) =>
+        translatePerm(e)
       case sil.CurrentPerm(loc) =>
         translatePerm(e)
       case sil.FractionalPerm(left, right) =>
