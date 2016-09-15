@@ -35,6 +35,7 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
   }
 
   override def exhale(exps: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true): Stmt = {
+    val originalPhaseId = currentPhaseId // needed to get nested exhales (e.g. from unfolding expressions) correct
     val phases = for (phase <- 1 to numberOfPhases) yield {
       currentPhaseId = phase - 1
       val stmts = exps map (e => exhaleConnective(e._1.whenExhaling, e._2, currentPhaseId))
@@ -46,6 +47,9 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
     }
     val assumptions = MaybeCommentBlock("Free assumptions",
       exps map (e => allFreeAssumptions(e._1)))
+
+    currentPhaseId = originalPhaseId
+
     if ((exps map (_._1.isPure) forall identity) || !havocHeap) {
       // if all expressions are pure, then there is no need for heap copies
       phases ++ assumptions
