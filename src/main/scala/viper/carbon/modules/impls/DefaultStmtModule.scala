@@ -96,7 +96,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
         val oldState = stateModule.oldState
         stateModule.replaceState(state)
         val toUndefine = collection.mutable.ListBuffer[sil.LocalVar]()
-        val actualArgs = (args.zipWithIndex) map (a => {
+        val actualArgs = args.zipWithIndex map (a => {
           val (actual, i) = a
           // use the concrete argument if it is just a variable or constant (to avoid code bloat)
           val useConcrete = actual match {
@@ -106,15 +106,20 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           }
           if (!useConcrete) {
             val silFormal = method.formalArgs(i)
-            val formal = sil.LocalVar("arg_" + silFormal.name)(silFormal.typ)
-            mainModule.env.define(formal)
-            toUndefine.append(formal)
-            val stmt = translateExp(formal) := translateExp(actual)
-            (formal, stmt)
+            val tempArg = sil.LocalVar("arg_" + silFormal.name)(silFormal.typ)
+            mainModule.env.define(tempArg)
+            toUndefine.append(tempArg)
+            val translatedTempArg = translateExp(tempArg)
+            val translatedActual = translateExp(actual)
+            val stmt = translatedTempArg := translatedActual
+            (tempArg, stmt, Some(actual))
           } else {
-            (args(i), Nil: Stmt)
+            (args(i), Nil: Stmt, None)
           }
         })
+        val neededRenamings : Seq[(sil.AbstractLocalVar, sil.Exp)] = actualArgs.filter((_._3.isDefined)).map(element => (element._1.asInstanceOf[sil.LocalVar],element._3.get))
+        val renamingArguments : (errors.PositionedNode => errors.PositionedNode) = ((n:errors.PositionedNode) => n.transform({case e:sil.Exp => Expressions.instantiateVariables[sil.Exp](e,neededRenamings map (_._1), neededRenamings map (_._2))})())
+
         val pres = method.pres map (e => Expressions.instantiateVariables(e, method.formalArgs ++ method.formalReturns, (actualArgs map (_._1)) ++ targets))
         val posts = method.posts map (e => Expressions.instantiateVariables(e, method.formalArgs ++ method.formalReturns, (actualArgs map (_._1)) ++ targets))
         val res = preCallStateStmt ++
@@ -122,9 +127,9 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           (args map (e => checkDefinedness(e, errors.CallFailed(mc)))) ++
           (actualArgs map (_._2)) ++
           Havoc((targets map translateExp).asInstanceOf[Seq[Var]]) ++
-          MaybeCommentBlock("Exhaling precondition", executeUnfoldings(pres, (pre => errors.Internal(pre))) ++ exhale(pres map (e => (e, errors.PreconditionInCallFalse(mc))))) ++ {
+          MaybeCommentBlock("Exhaling precondition", executeUnfoldings(pres, (pre => errors.Internal(pre).withReasonNodeTransformed(renamingArguments))) ++ exhale(pres map (e => (e, errors.PreconditionInCallFalse(mc).withReasonNodeTransformed(renamingArguments))))) ++ {
           stateModule.replaceOldState(preCallState)
-          val res = MaybeCommentBlock("Inhaling postcondition", inhale(posts) ++ executeUnfoldings(posts, (post => errors.Internal(post))))
+          val res = MaybeCommentBlock("Inhaling postcondition", inhale(posts) ++ executeUnfoldings(posts, (post => errors.Internal(post).withReasonNodeTransformed(renamingArguments))))
           stateModule.replaceOldState(oldState)
           toUndefine map mainModule.env.undefine
           res
