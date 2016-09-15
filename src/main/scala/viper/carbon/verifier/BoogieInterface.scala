@@ -11,9 +11,11 @@ import sys.process._
 import java.io._
 import viper.carbon.boogie._
 import viper.silver.verifier.Failure
+import viper.silver.verifier.errors.PositionedNode
+import viper.silver.verifier.reasons.InternalReason
 import viper.carbon.boogie.Assert
 import viper.carbon.boogie.Program
-import viper.silver.ast.{NoPosition, Position}
+import viper.silver.ast.{Positioned, NoPosition, Position}
 
 class BoogieDependency(_location: String) extends Dependency {
   def name = "Boogie"
@@ -85,6 +87,8 @@ trait BoogieInterface {
           def id: String = "unknown"
 
           def offendingNode = null
+
+          def withNode(offendingNode: PositionedNode = this.offendingNode) = this.clone().asInstanceOf[ErrorReason]
         }
 
         def offendingNode = null
@@ -93,6 +97,8 @@ trait BoogieInterface {
 
         override def readableMessage(withId: Boolean, withPosition: Boolean) =
           s"Internal error: $text"
+
+        def withNode(offendingNode: PositionedNode = this.offendingNode) = this.clone().asInstanceOf[ErrorMessage]
       }
       errormap += (otherErrId -> internalError)
     }
