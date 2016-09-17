@@ -1183,6 +1183,8 @@ class QuantifiedPermModule(val verifier: Verifier)
         currentPermission(loc)
       case sil.FractionalPerm(left, right) =>
         BinExp(translateExp(left), Div, translateExp(right))
+      case sil.PermMinus(a) =>
+        UnExp(Minus,translatePerm(a))
       case sil.PermAdd(a, b) =>
         permAdd(translatePerm(a), translatePerm(b))
       case sil.PermSub(a, b) =>
@@ -1409,7 +1411,7 @@ class QuantifiedPermModule(val verifier: Verifier)
     res
   }
 
-  override def conservativeIsPositivePerm(e: sil.Exp): Boolean = splitter.conservativeIsPositivePerm(e)
+  override def conservativeIsPositivePerm(e: sil.Exp): Boolean = splitter.conservativeStaticIsStrictlyPositivePerm(e)
 
     def splitter = PermissionSplitter
   object PermissionSplitter {
@@ -1427,23 +1429,25 @@ class QuantifiedPermModule(val verifier: Verifier)
         case sil.FractionalPerm(left, right) =>
           val (l, r) = (translateExp(left), translateExp(right))
           ((l > IntLit(0)) && (r > IntLit(0))) || ((l < IntLit(0)) && (r < IntLit(0)))
+        case sil.PermMinus(a) =>
+          isStrictlyNegativePerm(a)
         case sil.PermAdd(left, right) =>
           (isStrictlyPositivePerm(left) && isStrictlyPositivePerm(right)) || backup
         case sil.PermSub(left, right) => backup
         case sil.PermMul(a, b) =>
-          (isStrictlyPositivePerm(a) && isStrictlyPositivePerm(b)) || (isNegativePerm(a) && isNegativePerm(b))
+          (isStrictlyPositivePerm(a) && isStrictlyPositivePerm(b)) || (isStrictlyNegativePerm(a) && isStrictlyNegativePerm(b))
         case sil.PermDiv(a, b) =>
           isStrictlyPositivePerm(a) // note: b should be ruled out from being non-positive
         case sil.IntPermMul(a, b) =>
           val n = translateExp(a)
-          ((n > IntLit(0)) && isStrictlyPositivePerm(b)) || ((n < IntLit(0)) && isNegativePerm(b))
+          ((n > IntLit(0)) && isStrictlyPositivePerm(b)) || ((n < IntLit(0)) && isStrictlyNegativePerm(b))
         case sil.CondExp(cond, thn, els) =>
           CondExp(translateExp(cond), isStrictlyPositivePerm(thn), isStrictlyPositivePerm(els))
         case _ => backup
       }
     }
 
-    def conservativeIsPositivePerm(e: sil.Exp): Boolean = {
+    def conservativeStaticIsStrictlyPositivePerm(e: sil.Exp): Boolean = {
       require(e isSubtype sil.Perm, s"found ${e.typ} ($e), but required Perm")
       e match {
         case sil.NoPerm() => false
@@ -1455,23 +1459,25 @@ class QuantifiedPermModule(val verifier: Verifier)
         case sil.FractionalPerm(sil.IntLit(m), sil.IntLit(n)) =>
           m > 0 && n > 0 || m < 0 && n < 0
         case sil.FractionalPerm(left, right) => false // conservative
+        case sil.PermMinus(a) =>
+          conservativeStaticIsStrictlyNegativePerm(a)
         case sil.PermAdd(left, right) =>
-          conservativeIsPositivePerm(left) && conservativeIsPositivePerm(right)
+          conservativeStaticIsStrictlyPositivePerm(left) && conservativeStaticIsStrictlyPositivePerm(right)
         case sil.PermSub(left, right) => false // conservative
         case sil.PermMul(a, b) =>
-          (conservativeIsPositivePerm(a) && conservativeIsPositivePerm(b)) || (conservativeIsNegativePerm(a) && conservativeIsNegativePerm(b))
+          (conservativeStaticIsStrictlyPositivePerm(a) && conservativeStaticIsStrictlyPositivePerm(b)) || (conservativeStaticIsStrictlyNegativePerm(a) && conservativeStaticIsStrictlyNegativePerm(b))
         case sil.PermDiv(a, b) =>
-          conservativeIsPositivePerm(a) // note: b should be guaranteed ruled out from being non-positive
+          conservativeStaticIsStrictlyPositivePerm(a) // note: b should be guaranteed ruled out from being non-positive
         case sil.IntPermMul(sil.IntLit(n), b) =>
-          n > 0 && conservativeIsPositivePerm(b) || n < 0 && conservativeIsNegativePerm(b)
+          n > 0 && conservativeStaticIsStrictlyPositivePerm(b) || n < 0 && conservativeStaticIsStrictlyNegativePerm(b)
         case sil.IntPermMul(a, b) => false // conservative
         case sil.CondExp(cond, thn, els) => // conservative
-          conservativeIsPositivePerm(thn) && conservativeIsPositivePerm(els)
+          conservativeStaticIsStrictlyPositivePerm(thn) && conservativeStaticIsStrictlyPositivePerm(els)
         case _ => false // conservative?
       }
     }
 
-    def conservativeIsNegativePerm(e: sil.Exp): Boolean = {
+    def conservativeStaticIsStrictlyNegativePerm(e: sil.Exp): Boolean = {
       require(e isSubtype sil.Perm, s"found ${e.typ} ($e), but required Perm")
       e match {
         case sil.NoPerm() => false // strictly negative
@@ -1483,24 +1489,26 @@ class QuantifiedPermModule(val verifier: Verifier)
         case sil.FractionalPerm(sil.IntLit(m), sil.IntLit(n)) =>
           m > 0 && n < 0 || m < 0 && n > 0
         case sil.FractionalPerm(left, right) => false // conservative
+        case sil.PermMinus(a) =>
+          conservativeStaticIsStrictlyPositivePerm(a)
         case sil.PermAdd(left, right) =>
-          conservativeIsNegativePerm(left) && conservativeIsNegativePerm(right)
+          conservativeStaticIsStrictlyNegativePerm(left) && conservativeStaticIsStrictlyNegativePerm(right)
         case sil.PermSub(left, right) => false // conservative
         case sil.PermMul(a, b) =>
-          (conservativeIsPositivePerm(a) && conservativeIsNegativePerm(b)) || (conservativeIsNegativePerm(a) && conservativeIsPositivePerm(b))
+          (conservativeStaticIsStrictlyPositivePerm(a) && conservativeStaticIsStrictlyNegativePerm(b)) || (conservativeStaticIsStrictlyNegativePerm(a) && conservativeStaticIsStrictlyPositivePerm(b))
         case sil.PermDiv(a, b) =>
-          conservativeIsNegativePerm(a) // note: b should be guaranteed ruled out from being non-positive
+          conservativeStaticIsStrictlyNegativePerm(a) // note: b should be guaranteed ruled out from being non-positive
         case sil.IntPermMul(sil.IntLit(n), b) =>
-          n > 0 && conservativeIsNegativePerm(b) || n < 0 && conservativeIsPositivePerm(b)
+          n > 0 && conservativeStaticIsStrictlyNegativePerm(b) || n < 0 && conservativeStaticIsStrictlyPositivePerm(b)
         case sil.IntPermMul(a, b) => false // conservative
         case sil.CondExp(cond, thn, els) => // conservative
-          conservativeIsNegativePerm(thn) && conservativeIsNegativePerm(els)
+          conservativeStaticIsStrictlyNegativePerm(thn) && conservativeStaticIsStrictlyNegativePerm(els)
         case _ => false // conservative?
       }
     }
 
 
-    def isNegativePerm(e: sil.Exp): Exp = {
+    def isStrictlyNegativePerm(e: sil.Exp): Exp = {
       require(e isSubtype sil.Perm)
       val backup = UnExp(Not,permissionPositiveInternal(translatePerm(e), Some(e), true))
       e match {
@@ -1513,22 +1521,25 @@ class QuantifiedPermModule(val verifier: Verifier)
         case sil.FractionalPerm(left, right) =>
           val (l, r) = (translateExp(left), translateExp(right))
           ((l < IntLit(0)) && (r > IntLit(0))) || ((l > IntLit(0)) && (r < IntLit(0)))
+        case sil.PermMinus(a) =>
+          isStrictlyPositivePerm(a)
         case sil.PermAdd(left, right) =>
-          (isNegativePerm(left) && isNegativePerm(right)) || backup
+          (isStrictlyNegativePerm(left) && isStrictlyNegativePerm(right)) || backup
         case sil.PermSub(left, right) => backup
         case sil.PermMul(a, b) =>
-          (isStrictlyPositivePerm(a) && isNegativePerm(b)) || (isNegativePerm(a) && isStrictlyPositivePerm(b))
+          (isStrictlyPositivePerm(a) && isStrictlyNegativePerm(b)) || (isStrictlyNegativePerm(a) && isStrictlyPositivePerm(b))
         case sil.PermDiv(a, b) =>
-          isNegativePerm(a) // note: b should be guaranteed ruled out from being non-positive
+          isStrictlyNegativePerm(a) // note: b should be guaranteed ruled out from being non-positive
         case sil.IntPermMul(a, b) =>
           val n = translateExp(a)
-          ((n > IntLit(0)) && isNegativePerm(b)) || ((n < IntLit(0)) && isStrictlyPositivePerm(b))
+          ((n > IntLit(0)) && isStrictlyNegativePerm(b)) || ((n < IntLit(0)) && isStrictlyPositivePerm(b))
         case sil.CondExp(cond, thn, els) =>
-          CondExp(translateExp(cond), isNegativePerm(thn), isNegativePerm(els))
+          CondExp(translateExp(cond), isStrictlyNegativePerm(thn), isStrictlyNegativePerm(els))
         case _ => backup
       }
     }
 
+    // Does this permission amount definitely denote a statically-known constant amount?
     // NOTE: this is conservative and so always returns false for local variables
     def isFixedPerm(e: sil.Exp): Boolean = {
       require(e isSubtype sil.Perm)
@@ -1538,7 +1549,14 @@ class QuantifiedPermModule(val verifier: Verifier)
         case sil.WildcardPerm() => false
         case sil.EpsilonPerm() =>  sys.error("epsilon permissions are not supported by this permission module")
         //case sil.CurrentPerm(loc) => true
-        case sil.FractionalPerm(left, right) => true
+        case sil.FractionalPerm(left, right) => { // AS: this seems a reasonable way to catch the possibilities - if no free variables and no heap dependence, I think the expression must be made up of statically-known parts? Trying to avoid writing a whole extra method for the purpose of correctly supporting this case..
+          if(left.existsDefined({case _:sil.LocalVar => }) || left.existsDefined({case _:sil.LocalVar => })) false else {
+            val prog: sil.Program = verifier.program
+            !left.isHeapDependent(prog) && !right.isHeapDependent(prog)
+          }
+        }
+        case sil.PermMinus(a) =>
+          isFixedPerm(a)
         case sil.PermAdd(left, right) =>
           isFixedPerm(left) && isFixedPerm(right)
         case sil.PermSub(left, right) =>
@@ -1589,8 +1607,14 @@ class QuantifiedPermModule(val verifier: Verifier)
             sil.PermAdd(left, sil.IntPermMul(sil.IntLit(-1)(), right)())()
         })
 
+        // remove unary minus
+        val e1a = e1.transform()(_ => true, {
+          case sil.PermMinus(a) => done = false
+            sil.IntPermMul(sil.IntLit(-1)(), a)()
+        })
+
         // move permission multiplications all the way to the inside
-        val e2 = e1.transform()(_ => true, {
+        val e2 = e1a.transform()(_ => true, {
           case sil.PermMul(sil.PermAdd(a, b), c) => done = false
             sil.PermAdd(sil.PermMul(a, c)(), sil.PermMul(b, c)())()
           case sil.PermMul(a, sil.PermAdd(b, c)) => done = false
@@ -1625,7 +1649,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
         // collapse a*wildcard to just wildcard, if b is known to be positive
         val e5a = e5.transform()(_ => true, {
-          case sil.PermMul(a, wp@sil.WildcardPerm()) if conservativeIsPositivePerm(a) => done = false
+          case sil.PermMul(a, wp@sil.WildcardPerm()) if conservativeStaticIsStrictlyPositivePerm(a) => done = false
             sil.WildcardPerm()(wp.pos,wp.info)
         })
 
