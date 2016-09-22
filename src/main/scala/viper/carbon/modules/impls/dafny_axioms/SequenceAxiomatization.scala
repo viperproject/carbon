@@ -33,14 +33,19 @@ object SequenceAxiomatization {
       |
       |function Seq#Append<T>(Seq T, Seq T): Seq T;
       |axiom (forall<T> s0: Seq T, s1: Seq T :: { Seq#Length(Seq#Append(s0,s1)) }
-      |  Seq#Length(Seq#Append(s0,s1)) == Seq#Length(s0) + Seq#Length(s1));
+      |  s0 != Seq#Empty() && s1 != Seq#Empty() ==>
+      |    Seq#Length(Seq#Append(s0,s1)) == Seq#Length(s0) + Seq#Length(s1));
+      |
+      |axiom (forall<T> s: Seq T :: { Seq#Append(Seq#Empty(),s) } Seq#Append(Seq#Empty(),s) == s);
+      |axiom (forall<T> s: Seq T :: { Seq#Append(s,Seq#Empty()) } Seq#Append(s,Seq#Empty()) == s);
       |
       |function Seq#Index<T>(Seq T, int): T;
       |axiom (forall<T> t: T :: { Seq#Index(Seq#Singleton(t), 0) } Seq#Index(Seq#Singleton(t), 0) == t);
       |// ** AS: 1st of 3 axioms which get instantiated very often in certain problems involving take/drop/append
       |axiom (forall<T> s0: Seq T, s1: Seq T, n: int :: { Seq#Index(Seq#Append(s0,s1), n) } // {:weight 25} // AS: dropped weight
-      |  (n < Seq#Length(s0) ==> Seq#Index(Seq#Append(s0,s1), n) == Seq#Index(s0, n)) &&
-      |  (Seq#Length(s0) <= n ==> Seq#Index(Seq#Append(s0,s1), n) == Seq#Index(s1, n - Seq#Length(s0))));
+      |  s0 != Seq#Empty() && s1 != Seq#Empty() ==>
+      |  ((n < Seq#Length(s0) ==> Seq#Index(Seq#Append(s0,s1), n) == Seq#Index(s0, n)) &&
+      |  (Seq#Length(s0) <= n ==> Seq#Index(Seq#Append(s0,s1), n) == Seq#Index(s1, n - Seq#Length(s0)))));
       |
       |function Seq#Update<T>(Seq T, int, T): Seq T;
       |axiom (forall<T> s: Seq T, i: int, v: T :: { Seq#Length(Seq#Update(s,i,v)) }
