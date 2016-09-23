@@ -1071,12 +1071,12 @@ class QuantifiedPermModule(val verifier: Verifier)
 
            val res1 = Havoc(qpMask) ++
              stmts ++
-             Assume(invAssm1) ++
-             invAssm2.map(Assume) ++
-             injectiveAssumption ++
-             permissionsMap ++
+             CommentBlock("Define Inverse Function", Assume(invAssm1) ++
+               invAssm2.map(Assume)) ++
+             CommentBlock("Assume injectivity", injectiveAssumption) ++
+             CommentBlock("Define permissions", permissionsMap ++
              independentLocations ++
-             independentPredicate ++
+             independentPredicate) ++
              (mask := qpMask)
 
            env.undefine(vFresh.localVar)
