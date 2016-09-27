@@ -494,11 +494,9 @@ class QuantifiedPermModule(val verifier: Verifier)
             val independentLocations = Assume(Forall(Seq(obj,field), Trigger(currentPermission(obj.l,field.l))++
               Trigger(currentPermission(qpMask,obj.l,field.l)),(field.l !== translatedLocation) ==>
               (currentPermission(obj.l,field.l) === currentPermission(qpMask,obj.l,field.l))) )
-
-
             val ts = Seq(Trigger(curPerm),Trigger(currentPermission(qpMask,obj.l,translatedLocation)),Trigger(invFunApp))
 
-
+            //injectivity assertion
             val v2 = LocalVarDecl(Identifier(translatedLocal.name.name), translatedLocal.typ)
             val is_injective = Forall( translatedLocal++v2,validateTriggers(translatedLocal++v2, Seq(Trigger(Seq(triggerFunApp, triggerFunApp.replace(translatedLocal.l, v2.l))))),(  (translatedLocal.l !== v2.l) &&  translatedCond && translatedCond.replace(translatedLocal.l, v2.l) ) ==> (translatedRecv !== translatedRecv.replace(translatedLocal.l, v2.l)))
             val injectiveAssertion = Assert(is_injective,error.dueTo(reasons.ReceiverNotInjective(fieldAccess)))
@@ -917,8 +915,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
 
            val v2 = LocalVarDecl(Identifier("v2"),translatedLocal.typ)
-
-           val injectiveTrigger = validateTrigger(translatedLocal++v2, Trigger(Seq(translatedRecv, translatedRecv.replace(translatedLocal.l, v2.l))))
+           val injectiveTrigger = tr1.map(trigger => Trigger(trigger.exps ++ trigger.exps.map(exp => exp.replace(translatedLocal.l, v2.l))))
            val injectiveAssumption = Assume(Forall( translatedLocal++v2,injectiveTrigger,((translatedLocal.l !== v2.l) &&  translatedCond && translatedCond.replace(translatedLocal.l, v2.l) ) ==> (translatedRecv !== translatedRecv.replace(translatedLocal.l, v2.l))))
 
            val res1 = Havoc(qpMask) ++
