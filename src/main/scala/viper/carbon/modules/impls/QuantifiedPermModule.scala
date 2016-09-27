@@ -779,9 +779,9 @@ class QuantifiedPermModule(val verifier: Verifier)
       case IntLit(_) => true
       case RealLit(_) => true
       case BoolLit(_) => true
-      case MapSelect(_, idxs) => idxs.map(validTypes).reduce((b1, b2) => b1 && b2) //TODO check arguments or not?
+      case MapSelect(_, idxs) => idxs.map(validTypes).reduce((b1, b2) => b1 && b2)
       case FuncApp(_, args, _) => args.map(validTypes).reduce((b1, b2) => b1 && b2)
-      case BinExp(_, _, _) => true
+      case BinExp(_, _, _) => true //TODO test
       case _ => false
     }
   }
