@@ -1317,61 +1317,11 @@ class QuantifiedPermModule(val verifier: Verifier)
   /*For QP \forall x:T :: c(x) ==> acc(e(x),p(x)) this case class describes an instantiation of the QP where
    * cond = c(expr), recv = e(expr) and perm = p(expr) and expr is of type T and may be dependent on the variable given by v. */
   case class QPComponents(v:LocalVarDecl,cond: Exp, recv: Exp, perm: Exp)
-  /**
-   *
-   * @param qp the quantified permission (i.e. should match object sil.QuantifiedPermissionSupporter.ForallRefPerm
-   * @param vFresh the variable which should replace the current bound variable of the qp
-   * @return returns a boogie representation of the qp (QPComponents) and a renamed sil node of the  inputted qp
-   */
-  private def setupQPComponents(qp: sil.Forall, vFresh: sil.LocalVarDecl, permExpr: Option[Exp] = None): (QPComponents,sil.Forall) = {
-    qp match {
-      case sil.utility.QuantifiedPermissions.QPForall(v, cond, recv, _, perms, forall, fieldAccess) =>
-        def renaming[E <: sil.Exp] = (e: E) => Expressions.renameVariables(e, v.localVar, vFresh.localVar)
-
-        val (renamingCond, renamingRecv, renamingPerms, renamingFieldAccess) = (renaming(cond), renaming(recv), renaming(perms), renaming(fieldAccess))
-        val (translatedCond, translatedRecv) = (translateExp(renamingCond), translateExp(renamingRecv))
-
-        val translatedPerms = permExpr match {
-          case None => translateExp(renamingPerms)
-          case Some(p) => p
-        }
-            //          sil.Forall(Seq(vFresh), Seq(), sil.Implies(renamingCond,sil.FieldAccessPredicate(renamingFieldAccess, renamingPerms)(fieldAccess.pos,fieldAccess.info))(NoPosition,NoInfo))(qp.pos,qp.info))
-            //note: we lose the position and info data of the implies
-            (QPComponents(translateLocalVarDecl(vFresh), translatedCond, translatedRecv, translatedPerms), renaming(qp))
-
-          case _ => sys.error("setupQPComponents only handles quantified permissions")
-        }
-    }
 
   /*For QP \forall x:T :: c(x) ==> acc(pred(e1(x), ....., en(x),p(x)) this case class describes an instantiation of the QP where
  * cond = c(expr), e1(x), ...en(x) = args and perm = p(expr) and expr is of type T and may be dependent on the variable given by v. */
   case class QPPComponents(v:LocalVarDecl, cond: Exp, predname:String, args:Seq[Exp], perm:Exp, predAcc:PredicateAccessPredicate)
-  /**
-    *
-    * @param qp the quantified permission (i.e. should match object sil.QuantifiedPermissionSupporter.ForallRefPerm
-    * @param vFresh the variable which should replace the current bound variable of the qp
-    * @return returns a boogie representation of the qp (QPComponents) and a renamed sil node of the  inputted qp
-    */
-  private def setupQPPComponents(qp: sil.Forall, vFresh: sil.LocalVarDecl, permExpr: Option[Exp] = None): (QPPComponents,sil.Forall) = {
-    qp match {
-      case sil.utility.QuantifiedPermissions.QPPForall(v,cond,args,predname,perms,forall,predAccess) =>
-        def renaming[E <: sil.Exp] = (e:E) => Expressions.renameVariables(e, v.localVar, vFresh.localVar)
 
-        val (renamingCond,renamingPerms) = (renaming(cond),renaming(perms))
-
-        val renamingArgs = args.map(translateExp)
-
-        val translatedCond = translateExp(renamingCond)
-
-        val translatedPerms = permExpr match {
-          case None => translateExp(renamingPerms)
-          case Some(p) => p
-        }
-
-        (QPPComponents(translateLocalVarDecl(vFresh),translatedCond, predname, renamingArgs, translatedPerms, predAccess), renaming(qp))
-      case _ => sys.error("setupQPPComponents only handles quantified predicate permissions")
-    }
-  }
 
   //checks if the receiver expression in qpcomp is injective
   def isInjective(qpcomp: QPComponents):Exp = {
@@ -1387,15 +1337,7 @@ class QuantifiedPermModule(val verifier: Verifier)
    given by \forall x:: T. c(x) ==> acc(e(x).f,p(x)) then "outputType" is T. The returned function takes values of type
    Ref and returns value of type T.
    */
-
   private def addInverseFunction(outputType: sil.Type):Func = {
-    qpId = qpId+1;
-    val res = Func(Identifier(inverseFunName+qpId), LocalVarDecl(Identifier("recv"), refType), typeModule.translateType(outputType))
-    inverseFuncs += res
-    res
-  }
-
-  private def addInversePredicateFunction(outputType: sil.Type):Func = {
     qpId = qpId+1;
     val res = Func(Identifier(inverseFunName+qpId), LocalVarDecl(Identifier("recv"), refType), typeModule.translateType(outputType))
     inverseFuncs += res
