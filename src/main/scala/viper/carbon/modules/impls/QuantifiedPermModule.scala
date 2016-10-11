@@ -30,7 +30,7 @@ import viper.carbon.boogie.Assert
 import viper.carbon.boogie.ConstDecl
 import viper.carbon.boogie.Const
 import viper.carbon.boogie.LocalVar
-import viper.silver.ast.WildcardPerm
+import viper.silver.ast.{NoPerm, PermGtCmp, WildcardPerm}
 import viper.carbon.boogie.Forall
 import viper.carbon.boogie.Assign
 import viper.carbon.boogie.Func
@@ -127,7 +127,7 @@ class QuantifiedPermModule(val verifier: Verifier)
       Axiom(Forall(
         Seq(obj, field),
         Trigger(permInZeroMask),
-        (permInZeroMask === RealLit(0)))) ::
+        (permInZeroMask === noPerm))) ::
       // pmask type
       TypeAlias(pmaskType, MapType(Seq(refType, fieldType), Bool, fieldType.freeTypeVars)) ::
       // zero pmask
@@ -156,10 +156,10 @@ class QuantifiedPermModule(val verifier: Verifier)
       Axiom(Forall(staticStateContributions ++ obj ++ field,
         Trigger(Seq(staticGoodMask, perm)),
         // permissions are non-negative
-        (staticGoodMask ==> ( perm >= RealLit(0) &&
+        (staticGoodMask ==> ( perm >= noPerm &&
           // permissions for fields which aren't predicates are smaller than 1
           // permissions for fields which aren't predicates or wands are smaller than 1
-          ((staticGoodMask && heapModule.isPredicateField(field.l).not && heapModule.isWandField(field.l).not) ==> perm <= RealLit(1) )))
+          ((staticGoodMask && heapModule.isPredicateField(field.l).not && heapModule.isWandField(field.l).not) ==> perm <= fullPerm )))
       ))    } ++ {
       val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
       val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
@@ -266,7 +266,7 @@ class QuantifiedPermModule(val verifier: Verifier)
       case (_, Some(sil.FullPerm())) => TrueLit()
       case (_, Some(sil.WildcardPerm())) => TrueLit()
       case (_, Some(sil.NoPerm())) => if (zeroOK) TrueLit() else FalseLit()
-      case _ => if(zeroOK) permission >= RealLit(0) else permission > RealLit(0)
+      case _ => if(zeroOK) permission >= noPerm else permission > noPerm
     }
   }
 
@@ -293,7 +293,7 @@ class QuantifiedPermModule(val verifier: Verifier)
                 val (permVal, wildcard, stmts): (Exp, Exp, Stmt) =
                   if (perm.isInstanceOf[WildcardPerm]) {
                     val w = LocalVar(Identifier("wildcard"), Real)
-                    (w, w, LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil)
+                    (w, w, LocalVarWhereDecl(w.name, w > noPerm) :: Havoc(w) :: Nil)
                   } else {
                     onlyWildcard = false
                     (translatePerm(perm), null, Nil)
@@ -302,7 +302,7 @@ class QuantifiedPermModule(val verifier: Verifier)
                   stmts ++
                     (permVar := permAdd(permVar, permVal)) ++
                     (if (perm.isInstanceOf[WildcardPerm]) {
-                      (Assert(curPerm > RealLit(0), error.dueTo(reasons.InsufficientPermission(loc))) ++
+                      (Assert(curPerm > noPerm, error.dueTo(reasons.InsufficientPermission(loc))) ++
                         Assume(wildcard < curPerm)): Stmt
                     } else {
                       Nil
@@ -311,7 +311,7 @@ class QuantifiedPermModule(val verifier: Verifier)
               }).flatten ++
               (if (onlyWildcard) Nil else if (exhaleModule.currentPhaseId + 1 == 2) {
                 If(permVar !== noPerm,
-                  (Assert(curPerm > RealLit(0), error.dueTo(reasons.InsufficientPermission(loc))) ++
+                  (Assert(curPerm > noPerm, error.dueTo(reasons.InsufficientPermission(loc))) ++
                     Assume(permVar < curPerm)): Stmt, Nil)
               } else {
                 If(permVar !== noPerm,
@@ -322,9 +322,9 @@ class QuantifiedPermModule(val verifier: Verifier)
       case w@sil.MagicWand(_,_) =>
         val wandRep = wandModule.getWandRepresentation(w)
         val curPerm = currentPermission(translateNull, wandRep)
-        Comment("permLe")++ //using RealLit(1.0) instead of FullPerm due to permLe's implementation
-          Assert(permLe(RealLit(1.0), curPerm), error.dueTo(reasons.MagicWandChunkNotFound(w))) ++
-          (if (!usingOldState) curPerm := permSub(curPerm, RealLit(1.0)) else Nil)
+        Comment("permLe")++
+          Assert(permLe(fullPerm, curPerm), error.dueTo(reasons.MagicWandChunkNotFound(w))) ++
+          (if (!usingOldState) curPerm := permSub(curPerm, fullPerm) else Nil)
       case qp@sil.utility.QuantifiedPermissions.QPForall(v,cond,recv,fld,perms,forall,fieldAccess) =>
         // alpha renaming, to avoid clashes in context, use vFresh instead of v
         var isWildcard = false
@@ -333,7 +333,7 @@ class QuantifiedPermModule(val verifier: Verifier)
           if(perms.isInstanceOf[WildcardPerm]) {
             isWildcard = true
             val w = LocalVar(Identifier("wildcard"), Real)
-            (setupQPComponents(qp, vFresh,Some(w)),LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil,w)
+            (setupQPComponents(qp, vFresh,Some(w)),LocalVarWhereDecl(w.name, w > noPerm) :: Havoc(w) :: Nil,w)
           } else {
             (setupQPComponents(qp,vFresh),Nil,null)
           }
@@ -360,7 +360,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
         val permNeeded =
           if(isWildcard) {
-            currentPermission(translatedRecv, translatedLocation) > RealLit(0)
+            currentPermission(translatedRecv, translatedLocation) > noPerm
           } else {
             currentPermission(translatedRecv, translatedLocation) >= translatedPerms
           }
@@ -451,7 +451,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         val (permVal, stmts): (Exp, Stmt) =
           if (perm.isInstanceOf[WildcardPerm]) {
             val w = LocalVar(Identifier("wildcard"), Real)
-            (w, LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil)
+            (w, LocalVarWhereDecl(w.name, w > noPerm) :: Havoc(w) :: Nil)
           } else {
             (translatePerm(perm), Nil)
           }
@@ -470,7 +470,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         val ((qpComp@QPComponents(translatedLocal,translatedCond,translatedRecv,translatedPerms), renamedQP),stmts) =
           if(perms.isInstanceOf[WildcardPerm]) {
             val w = LocalVar(Identifier("wildcard"), Real)
-            (setupQPComponents(qp, vFresh,Some(w)),LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil)
+            (setupQPComponents(qp, vFresh,Some(w)),LocalVarWhereDecl(w.name, w > noPerm) :: Havoc(w) :: Nil)
           } else {
             (setupQPComponents(qp,vFresh),Nil)
           }
@@ -664,7 +664,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   override def freshReads(vars: Seq[viper.silver.ast.LocalVar]): Stmt = {
     val bvs = vars map translateLocalVar
     Havoc(bvs) ++
-      (bvs map (v => Assume((v > RealLit(0)) && (v < RealLit(1)))))
+      (bvs map (v => Assume((v > noPerm) && (v < fullPerm))))
   }
 
   override def handleStmt(s: sil.Stmt) : (Stmt,Stmt) =
@@ -674,7 +674,7 @@ class QuantifiedPermModule(val verifier: Verifier)
           Assign(currentPermission(sil.FieldAccess(target, field)()), fullPerm)
         })
       case assign@sil.FieldAssign(fa, rhs) =>
-        (Assert(permGe(currentPermission(fa), fullPerm), errors.AssignmentFailed(assign).dueTo(reasons.InsufficientPermission(fa))),Nil)
+        (Assert(permGe(currentPermission(fa), fullPerm, true), errors.AssignmentFailed(assign).dueTo(reasons.InsufficientPermission(fa))),Nil)
       case _ => (Nil,Nil)
     }
 
@@ -687,18 +687,18 @@ class QuantifiedPermModule(val verifier: Verifier)
   private def permLt(a: Exp, b: Exp): Exp = {
     a < b
   }
-  private def permLe(a: Exp, b: Exp): Exp = {
+  private def permLe(a: Exp, b: Exp, forField : Boolean = false): Exp = {
     // simple optimization that helps in many cases
-    if (a == fullPerm) permEq(a, b)
+    if (forField && a == fullPerm) permEq(a, b)
     else a <= b
   }
-  private def permGt(a: Exp, b: Exp): Exp = {
+  private def permGt(a: Exp, b: Exp, forField : Boolean = false): Exp = {
     // simple optimization that helps in many cases
-    if (b == fullPerm) permEq(a, b)
+    if (forField && b == fullPerm) permEq(a, b)
     else permLt(b, a)
   }
-  private def permGe(a: Exp, b: Exp): Exp = {
-    permLe(b, a)
+  private def permGe(a: Exp, b: Exp, forField : Boolean = false): Exp = {
+    permLe(b, a, forField)
   }
 
   override val numberOfPhases = 3
@@ -782,7 +782,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
     val vFresh = LocalVarDecl(Identifier("v2"),v.typ)
     Forall( v++vFresh,Seq(),
-      (  (v.l !== vFresh.l) &&  cond && cond.replace(v.l, vFresh.l) ) ==> (recv !== recv.replace(v.l, vFresh.l)) )
+      (  (v.l !== vFresh.l) &&  cond && cond.replace(v.l, vFresh.l) && permGt(perm,noPerm) && permGt(perm.replace(v.l, vFresh.l),noPerm) ) ==> (recv !== recv.replace(v.l, vFresh.l)) )
   }
 
   /*makes assumptions about the inverse of the receiver expression in qpStandard
@@ -799,9 +799,9 @@ class QuantifiedPermModule(val verifier: Verifier)
       } else {
         Seq(Trigger(recv))
       }
-    val assm1 = (Forall(Seq(v), tr1, cond ==> (FuncApp(invFun.name, Seq(recv), invFun.typ) === v.l )))
+    val assm1 = (Forall(Seq(v), tr1, (cond && permGt(perm, noPerm)) ==> (FuncApp(invFun.name, Seq(recv), invFun.typ) === v.l )))
 
-    val assm2 = Forall(Seq(vInv), Seq(Trigger(FuncApp(invFun.name, Seq(vInv.l), invFun.typ))), condInv ==> (recvInv === vInv.l) )
+    val assm2 = Forall(Seq(vInv), Seq(Trigger(FuncApp(invFun.name, Seq(vInv.l), invFun.typ))), (condInv && permGt(permInv, noPerm)) ==> (recvInv === vInv.l) )
 
     (assm1,assm2)
   }
