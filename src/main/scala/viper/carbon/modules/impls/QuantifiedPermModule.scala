@@ -463,8 +463,14 @@ class QuantifiedPermModule(val verifier: Verifier)
             */
 
             //inverse assumptions
-            val invAssm1 = (Forall(Seq(translatedLocal), tr1, translatedCond ==> (FuncApp(invFun.name, Seq(translatedRecv), invFun.typ) === translatedLocal.l )))
-            val invAssm2 = Forall(Seq(obj), Seq(Trigger(FuncApp(invFun.name, Seq(obj.l), invFun.typ))), condInv ==> (rcvInv === obj.l) )
+
+            val invAssm1 = (Forall(Seq(translatedLocal), tr1, (translatedCond && permGt(translatedPerms, noPerm)) ==> (FuncApp(invFun.name, Seq(translatedRecv), invFun.typ) === translatedLocal.l )))
+
+            val invAssm2 = Forall(Seq(obj), Seq(Trigger(FuncApp(invFun.name, Seq(obj.l), invFun.typ))), (condInv && permGt(permInv, noPerm)) ==> (rcvInv === obj.l) )
+
+
+      //      val invAssm1 = (Forall(Seq(translatedLocal), tr1, translatedCond ==> (FuncApp(invFun.name, Seq(translatedRecv), invFun.typ) === translatedLocal.l )))
+            // val invAssm2 = Forall(Seq(obj), Seq(Trigger(FuncApp(invFun.name, Seq(obj.l), invFun.typ))), condInv ==> (rcvInv === obj.l) )
 
             //val notNull = Assert(Forall(translateLocalVarDecl(vFresh), Seq(), translatedCond && permissionPositive(translatedPerms) ==> checkNonNullReceiver(renamingFieldAccess)),
             //  error.dueTo(reasons.ReceiverNull(fieldAccess)))
@@ -599,10 +605,10 @@ class QuantifiedPermModule(val verifier: Verifier)
                 tr1 = tr1 ++ validateTrigger(Seq(translatedLocal), trigger)
               }
             }
-            val invAssm1 = Forall(translatedLocal, tr1, translatedCond ==> (funApp === translatedLocal.l))
+            val invAssm1 = Forall(translatedLocal, tr1, (translatedCond && permGt(translatedPerms, noPerm)) ==> (funApp === translatedLocal.l))
             //for each argument, define the second inverse function
             val eqExpr = (argsInv zip locVars.map(_.l)).map(x => x._1 === x._2)
-            val invAssm2 = eqExpr.map(expr => Forall(locVars, Trigger(invFunApp), condInv ==> expr))
+            val invAssm2 = eqExpr.map(expr => Forall(locVars, Trigger(invFunApp), (condInv && permGt(permInv, noPerm)) ==> expr))
 
             //check that the permission expression is positive for all predicates satisfying the condition
             val permPositive = Assert(Forall(locVars, Seq(), condInv ==> permissionPositive(permInv)),
@@ -901,8 +907,8 @@ class QuantifiedPermModule(val verifier: Verifier)
               }
             }
             */
-           val invAssm1 = (Forall(Seq(translatedLocal), tr1, translatedCond ==> (FuncApp(invFun.name, Seq(translatedRecv), invFun.typ) === translatedLocal.l )))
-           val invAssm2 = Forall(Seq(obj), Seq(Trigger(FuncApp(invFun.name, Seq(obj.l), invFun.typ))), condInv ==> (rcvInv === obj.l) )
+           val invAssm1 = (Forall(Seq(translatedLocal), tr1, (translatedCond && permGt(translatedPerms, noPerm)) ==> (FuncApp(invFun.name, Seq(translatedRecv), invFun.typ) === translatedLocal.l )))
+           val invAssm2 = Forall(Seq(obj), Seq(Trigger(FuncApp(invFun.name, Seq(obj.l), invFun.typ))), (condInv && permGt(permInv, noPerm)) ==> (rcvInv === obj.l) )
 
            //Define non-null Assumptions:
            val nonNullAssumptions =
@@ -1013,11 +1019,11 @@ class QuantifiedPermModule(val verifier: Verifier)
                tr1 = tr1 ++ validateTrigger(Seq(translatedLocal), trigger)
              }
            }
-           val invAssm1 = Forall(translatedLocal, tr1, translatedCond ==> (funApp === translatedLocal.l))
 
-           //for each argument, define the inverse function with a new forall expression
+           val invAssm1 = Forall(translatedLocal, tr1, (translatedCond && permGt(translatedPerms, noPerm)) ==> (funApp === translatedLocal.l))
+           //for each argument, define the second inverse function
            val eqExpr = (argsInv zip locVars.map(_.l)).map(x => x._1 === x._2)
-           val invAssm2 = eqExpr.map(expr => Forall(locVars, Trigger(invFunApp), condInv ==> expr))
+           val invAssm2 = eqExpr.map(expr => Forall(locVars, Trigger(invFunApp), (condInv && permGt(permInv, noPerm)) ==> expr))
 
            //define arguments needed to describe map updates
            val curPerm = currentPermission(predAccPred.loc)
@@ -1333,8 +1339,11 @@ class QuantifiedPermModule(val verifier: Verifier)
 
     val vFresh = LocalVarDecl(Identifier("v2"),v.typ)
     Forall( v++vFresh,Seq(),
-      (  (v.l !== vFresh.l) &&  cond && cond.replace(v.l, vFresh.l) && permGt(perm,noPerm) && permGt(perm.replace(v.l, vFresh.l),noPerm) ) ==> (recv !== recv.replace(v.l, vFresh.l)) )
+    (  (v.l !== vFresh.l) &&  cond && cond.replace(v.l, vFresh.l) && permGt(perm,noPerm) && permGt(perm.replace(v.l, vFresh.l),noPerm) ) ==> (recv !== recv.replace(v.l, vFresh.l)) )
   }
+
+
+
 
 
   /* records a fresh function which represents the inverse function of a receiver expression in a qp, if the qp is
