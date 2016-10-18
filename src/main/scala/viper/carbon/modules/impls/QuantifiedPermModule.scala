@@ -1076,9 +1076,9 @@ class QuantifiedPermModule(val verifier: Verifier)
         // propagate addition into conditional expressions
         val e7 = e6.transform()(_ => true, {
           case sil.PermAdd(a, sil.CondExp(cond, thn, els)) => done = false
-            sil.CondExp(cond, sil.PermAdd(a,thn)(), sil.PermMul(a,els)())()
+            sil.CondExp(cond, sil.PermAdd(a,thn)(), sil.PermAdd(a,els)())()
           case sil.PermAdd(sil.CondExp(cond, thn, els),a) => done = false
-            sil.CondExp(cond, sil.PermAdd(thn,a)(), sil.PermMul(els,a)())()
+            sil.CondExp(cond, sil.PermAdd(thn,a)(), sil.PermAdd(els,a)())()
         })
 
 
