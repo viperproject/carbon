@@ -6,8 +6,7 @@
 
 package viper.carbon.boogie
 
-//import org.kiama.output._
-import org.kiama.output._
+
 import viper.silver.ast.pretty._
 import viper.silver.verifier.VerificationError
 
@@ -23,7 +22,7 @@ object PrettyPrinter {
 /**
  * The class that implements most of the pretty-printing functionality.
  */
-class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPrettyPrinter {
+class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
 
   lazy val pretty: String = {
     pretty(n)
@@ -58,7 +57,7 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
   /**
    * Map an identifier to a string, making it unique first if necessary.
    */
-  implicit def ident2doc(i: Identifier): Doc = {
+  implicit def ident2doc(i: Identifier): Cont = {
     idnMap.get(i) match {
       case Some(s) => s
       case None =>
@@ -71,14 +70,14 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
   override val defaultIndent = 2
   /** Pretty-print any AST node. */
   def pretty(n: Node): String = {
-    super.pretty(show(n))
+    super.pretty(defaultWidth, show(n))
   }
 
   /** Show any AST node. */
-  def show(n: Node) : Doc = { show(n,false) }
+  def show(n: Node) : Cont = { show(n,false) }
 
   /** Show any AST node, with extra flag to indicate that (in the context), arguments are being parsed via whitespace (e.g., Field A (Seq B) is needed instead of Field A Seq B) */
-  def show(n: Node, spaceDelimitedContext : Boolean): Doc = {
+  def show(n: Node, spaceDelimitedContext : Boolean): Cont = {
     n match {
       case exp: Exp => toParenDoc(exp)
       case stmt: Stmt => showStmt(stmt)
@@ -91,7 +90,7 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
     }
   }
 
-  def showType(t: Type, spaceDelimitedContext : Boolean): Doc = {
+  def showType(t: Type, spaceDelimitedContext : Boolean): Cont = {
     t match {
       case Int => "int"
       case Bool => "bool"
@@ -99,49 +98,49 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
       case TypeVar(name) => name
       case NamedType(name, typVars) =>
         (if (typVars.size == 0) name
-        else (if (spaceDelimitedContext) "(" else "") <> name <> space <> ssep((typVars map (x => (show(x,true)))).to[collection.immutable.Seq],space) <> (if (spaceDelimitedContext) ")" else "") <> "")
+        else text(if (spaceDelimitedContext) "(" else "") <> name <> space <> ssep((typVars map (x => (show(x,true)))).to[collection.immutable.Seq],space) <> (if (spaceDelimitedContext) ")" else "") <> "")
       case MapType(doms, range, typVars) =>
         showTypeVars(typVars) <> "[" <> commasep(doms) <> "]" <> showType(range,false)
     }
   }
 
-  def showStmt(s: Stmt): Doc = {
-    def showIf(cond: Doc, thn: Stmt, els: Stmt): Doc = {
-      "if" <+> "(" <> cond <> ")" <+> showBlock(thn) <> {
-        if (els.children.size == 0) empty
+  def showStmt(s: Stmt): Cont = {
+    def showIf(cond: Cont, thn: Stmt, els: Stmt): Cont = {
+      text("if") <+> "(" <> cond <> ")" <+> showBlock(thn) <> {
+        if (els.children.size == 0) nil
         else space <> "else" <+> showBlock(els)
       }
     }
     s match {
       case Assume(e) =>
-        "assume" <+> quantifyOverFreeTypeVars(e) <> char (';')
+        text("assume") <+> quantifyOverFreeTypeVars(e) <> char (';')
       case a@Assert(e, error) =>
-        "assert" <+>
+        text("assert") <+>
           "{:msg" <+> "\"  " <> showError(error, a.id) <> "\"}" <> line <>
           space <> space <> quantifyOverFreeTypeVars(e) <>
           char (';')
       case HavocImpl(vars) =>
-        "havoc" <+> commasep(vars) <> char (';')
+        text("havoc") <+> commasep(vars) <> char (';')
       case Goto(dests) =>
-        "goto" <+> ssep((dests map (x => ident2doc(x.name))).to[collection.immutable.Seq], char (',') <> space) <> char (';')
+        text("goto") <+> ssep((dests map (x => ident2doc(x.name))).to[collection.immutable.Seq], char (',') <> space) <> char (';')
       case Assign(lhs, rhs) =>
         show(lhs) <+> ":=" <+> show(rhs) <> char (';')
       case Label(lbl) =>
-        lbl.name <> char (':')
+        ident2doc(lbl.name) <> char (':')
       case If(cond, thn, els) =>
         showIf(show(cond), thn, els)
       case NondetIf(thn, els) =>
         showIf("*", thn, els)
       case Comment(c) =>
-        "//" <+> c
+        text("//") <+> c
       case CommentBlock(c, stmt) =>
         line <> show(Comment(s"-- $c")) <>
-          nest(
+          nest(defaultIndent,
             line <> showStmt(stmt)
           )
       case Seqn(ss) =>
         showStmts(ss)
-      case LocalVarWhereDecl(v, w) => empty
+      case LocalVarWhereDecl(v, w) => nil
     }
   }
 
@@ -150,14 +149,14 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
   }
 
   def showBlock(stmt: Stmt) = {
-    braces(nest(
-      (if (stmt.children.isEmpty) empty else line) <>
+    braces(nest(defaultIndent,
+      (if (stmt.children.isEmpty) nil else line) <>
         showStmt(stmt)
     ) <> line)
   }
 
-  def showBlock(d: Doc) = {
-    braces(nest(
+  def showBlock(d: Cont) = {
+    braces(nest(defaultIndent,
       line <> d
     ) <> line)
   }
@@ -178,7 +177,7 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
       showDecls(p.decls)
   }
 
-  def showDecls(ds: Seq[Decl], sep: Doc = line <> line): Doc = {
+  def showDecls(ds: Seq[Decl], sep: Cont = line <> line): Cont = {
     ssep(ds.to[collection.immutable.Seq] map show, sep)
   }
 
@@ -202,28 +201,28 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
   def showDecl(decl: Decl) = {
     decl match {
       case ConstDecl(name, typ, unique) =>
-        "const" <+>
-          (if (unique) "unique" <> space else empty) <>
+        text("const") <+>
+          (if (unique) text("unique") <> space else nil) <>
           name <>
           char (':') <+>
           show(typ) <>
           char (';')
       case TypeDecl(name) =>
-        "type" <+> show(name) <> char (';')
+        text("type") <+> show(name) <> char (';')
       case TypeAlias(name, definition) =>
-        "type" <+> show(name) <+> "=" <+> show(definition) <> char (';')
+        text("type") <+> show(name) <+> "=" <+> show(definition) <> char (';')
       case Func(name, args, typ) =>
         val typVars = (args map (_.typ)) ++ Seq(typ) flatMap (_.freeTypeVars)
-        "function" <+>
+        text("function") <+>
           name <>
           showTypeVars(typVars, endWithSpace = false) <>
           parens(commasep(args)) <>
           char (':') <+>
           show(typ) <> char (';')
       case GlobalVarDecl(name, typ) =>
-        "var" <+> name <> char (':') <+> show(typ) <> char (';')
+        text("var") <+> name <> char (':') <+> show(typ) <> char (';')
       case Axiom(exp) =>
-        "axiom" <+> quantifyOverFreeTypeVars(exp) <> char (';')
+        text("axiom") <+> quantifyOverFreeTypeVars(exp) <> char (';')
       case Procedure(name, ins, outs, body) =>
         // collect all where clauses
         whereMap.clear()
@@ -238,9 +237,9 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
         val body2 = show(body)
         val undecl = body.undeclLocalVars filter (v1 => (ins ++ outs).forall(v2 => v2.name != v1.name))
         val vars = undecl map (v => LocalVarDecl(v.name, v.typ, whereMap.get(v.name)))
-        val vars2 = vars map (v => "var" <+> show(v) <> ";")
-        val vars3 = ssep(vars2.to[collection.immutable.Seq], line) <> (if (vars2.size == 0) empty else line)
-        "procedure" <+>
+        val vars2 = vars map (v => text("var") <+> show(v) <> ";")
+        val vars3 = ssep(vars2.to[collection.immutable.Seq], line) <> (if (vars2.size == 0) nil else line)
+        text("procedure") <+>
           name <>
           parens(commasep(ins)) <+>
           "returns" <+>
@@ -249,19 +248,19 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
           "modifies" <+> ssep(modifies.to[collection.immutable.Seq], char (',') <> space) <> char (';')  <> line <>
           showBlock(vars3 <> body2)
       case CommentedDecl(s, d, size, nlines) =>
-        var linesep = empty
+        var linesep = nil
         for (i <- 1 to nlines) {
           linesep = line <> linesep
         }
         if (size > 1) {
           val sep = if (size == 3) "=" else "-"
-          "// " + sep * 50 <> line <>
+          text("// " + sep * 50) <> line <>
             "//" <+> value(s) <> line <>
             "// " + sep * 50 <> line <>
-            (if (size == 3) line else empty) <>
+            (if (size == 3) line else nil) <>
             showDecls(d, linesep)
         } else {
-          "//" <+> value(s) <> line <>
+          text("//") <+> value(s) <> line <>
             showDecls(d, linesep)
         }
       case DeclComment(s) =>
@@ -274,7 +273,7 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
   /**
    * Quantifies over the free type variables in 'exp' if necessary.
    */
-  def quantifyOverFreeTypeVars(exp: Exp): Doc = {
+  def quantifyOverFreeTypeVars(exp: Exp): Cont = {
     val t = collectFreeTypeVars(exp)
     val body = t match {
       case Nil => show(exp)
@@ -283,7 +282,7 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
           case Forall(vars, triggers, _body, tv) =>
             show(Forall(vars, triggers, _body, tv++t))
           case _ =>
-            parens("forall" <+> showTypeVars(t) <> "::" <+> show(exp)) // NOTE: no triggers selected! This should be changed, but requires trigger generation code on the level of the Boogie AST.
+            parens(text("forall") <+> showTypeVars(t) <> "::" <+> show(exp)) // NOTE: no triggers selected! This should be changed, but requires trigger generation code on the level of the Boogie AST.
         }
     }
     body
@@ -294,19 +293,18 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
   def commasep(ns: Seq[Node]) = ssep((ns map show).to[collection.immutable.Seq], char (',') <> space)
 
   def showVar(variable: LocalVarDecl) = {
-    variable.name <> ":" <+> showType(variable.typ,true) <>
+    ident2doc(variable.name) <> ":" <+> showType(variable.typ,true) <>
       (variable.where match {
         case Some(e) => space <> "where" <+> show(e)
-        case None => empty
+        case None => nil
       })
   }
 
   def showTrigger(t: Trigger) = {
-    "{" <+> commasep(t.exps) <+> "}"
+    text("{") <+> commasep(t.exps) <+> "}"
   }
 
-  // Note: pretty-printing expressions is mostly taken care of by Kiama
-  override def toParenDoc(e: PrettyExpression): Doc = {
+  override def toParenDoc(e: PrettyExpression): Cont = {
     e match {
       case IntLit(i) => value(i)
       case BoolLit(b) => value(b)
@@ -316,68 +314,68 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
          * separator would be a comma instead of a dot, e.g., "1,2345...".
          */
         value("%.9f".formatLocal(java.util.Locale.US, d))
-      case RealConv(exp) => "real" <> parens(show(exp))
+      case RealConv(exp) => text("real") <> parens(show(exp))
 //      case Forall(vars, triggers, exp, tv) if triggers.length > 1 => // expands foralls into conjunctions of foralls with single triggers each
 //        show(triggers.tail.foldLeft[Exp](Forall(vars, Seq(triggers.head), exp, tv))((soFar,nextTrig) => BinExp(soFar,And,Forall(vars, Seq(nextTrig), exp, tv))))
       case Forall(vars, triggers, exp, Nil) =>
-        parens("forall" <+>
+        parens(text("forall") <+>
           commasep(vars) <+>
           //("•" or "::") <+>
           "::" <>
-          nest(
+          nest(defaultIndent,
             line <>
               ssep((triggers map show).to[collection.immutable.Seq], space) <> line <>
               show(exp)
           ) <> line)
       case Forall(vars, triggers, exp, tv) =>
-        parens("forall" <+>
+        parens(text("forall") <+>
           "<" <> ssep((tv map show).to[collection.immutable.Seq], char (',') <> space) <> ">" <+>
           commasep(vars) <+>
           //("•" or "::") <+>
           "::" <>
-          nest(
+          nest(defaultIndent,
             line <>
               ssep((triggers map show).to[collection.immutable.Seq], space) <> line <>
               show(exp)
           ) <> line)
       case Exists(vars, exp) =>
-        parens("exists" <+>
+        parens(text("exists") <+>
           commasep(vars) <+>
           //("•" or "::") <+>
           "::" <>
-          nest(
+          nest(defaultIndent,
             line <> show(exp)
           ) <> line)
       case LocalVar(name, typ) => name
       case GlobalVar(name, typ) => name
       case Const(name) => name
-      case Old(exp) => "old" <> parens(show(exp))
+      case Old(exp) => text("old") <> parens(show(exp))
       case MapSelect(map, idxs) =>
         show(map) <> "[" <> commasep(idxs) <> "]"
       case f@FuncApp(name, args, typ) =>
         // if the return type of the function is generic, include a type annotation
         // also, if the FuncApp is explicitly flagged (showReturn
-        val fa = name <> parens(commasep(args))
+        val fa = ident2doc(name) <> parens(commasep(args))
         typ.freeTypeVars match {
           case Nil => if (f.showReturnType) parens(fa <> ":" <+> show(typ)) else fa
           case _ => parens(fa <> ":" <+> show(typ))
         }
       case CondExp(cond, e1, e2) =>
-        parens("if" <+> show(cond) <+> "then" <+> show(e1) <+> "else" <+> show(e2))
+        parens(text("if") <+> show(cond) <+> "then" <+> show(e1) <+> "else" <+> show(e2))
       case _: PrettyUnaryExpression | _: PrettyBinaryExpression => {
         e match {
           case b: PrettyBinaryExpression =>
             val ld =
               b.left match {
                 case l: PrettyOperatorExpression =>
-                  bracket(l, b, LeftAssoc)
+                  bracket(l, b, LeftAssociative)
                 case l =>
                   toParenDoc(l)
               }
             val rd =
               b.right match {
                 case r: PrettyOperatorExpression =>
-                  bracket(r, b, RightAssoc)
+                  bracket(r, b, RightAssociative)
                 case r =>
                   toParenDoc(r)
               }
@@ -387,7 +385,7 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
             val ed =
               u.exp match {
                 case e: PrettyOperatorExpression =>
-                  bracket(e, u, NonAssoc)
+                  bracket(e, u, NonAssociative)
                 case e =>
                   toParenDoc(e)
               }
@@ -405,10 +403,10 @@ class PrettyPrinter(n: Node) extends org.kiama.output.PrettyPrinter with ParenPr
   /**
    * Show free type variables (e.g. for a function, a map type or a quantification).
    */
-  def showTypeVars(typVars: Seq[TypeVar], endWithSpace: Boolean = true): Doc = {
+  def showTypeVars(typVars: Seq[TypeVar], endWithSpace: Boolean = true): Cont = {
     if (typVars.size > 0)
-      ("<") <> commasep(typVars.distinct) <> (">") <> // AJS: removed non-standard alternate symbols that editor could not display
-        (if (endWithSpace) space else empty)
-    else empty
+      text("<") <> commasep(typVars.distinct) <> (">") <> // AJS: removed non-standard alternate symbols that editor could not display
+        (if (endWithSpace) space else nil)
+    else nil
   }
 }

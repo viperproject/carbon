@@ -7,9 +7,7 @@
 
 package viper.carbon.boogie
 
-//import org.kiama.output._
 import UnicodeString.string2unicodestring
-import org.kiama.output._
 import viper.silver.ast.pretty._
 import viper.silver.verifier.VerificationError
 
@@ -70,7 +68,8 @@ sealed trait Node {
 
   /**
    * Performs substitution on the AST
-   * @param original The node to match against (and replace)
+    *
+    * @param original The node to match against (and replace)
    * @param replacement The node to replace all occurrences with
    * @return The result of the substitution
    */
@@ -129,7 +128,8 @@ case object Identifier {
 }
 /**
  * A namespace to make it easier to avoid duplicated entities in the Boogie output.
- * @param name The name of the namespace; only used for debugging purposes.
+  *
+  * @param name The name of the namespace; only used for debugging purposes.
  * @param id The ID of this namespace; used to identify the namespace.
  */
 case class Namespace(name: String, id: Int)
@@ -222,9 +222,9 @@ case class UnExp(unop: UnOp, exp: Exp) extends Exp with PrettyUnaryExpression {
 }
 
 sealed abstract class BinOp(val name: String, val priority: Int, val fixity: Fixity)
-sealed abstract class SumOp(override val name: String) extends BinOp(name, 12, Infix(LeftAssoc))
-sealed abstract class RelOp(override val name: String) extends BinOp(name, 13, Infix(NonAssoc))
-sealed abstract class ProdOp(override val name: String) extends BinOp(name, 11, Infix(LeftAssoc))
+sealed abstract class SumOp(override val name: String) extends BinOp(name, 12, Infix(LeftAssociative))
+sealed abstract class RelOp(override val name: String) extends BinOp(name, 13, Infix(NonAssociative))
+sealed abstract class ProdOp(override val name: String) extends BinOp(name, 11, Infix(LeftAssociative))
 
 case object Add extends SumOp("+")
 case object Sub extends SumOp("-")
@@ -241,10 +241,10 @@ case object EqCmp extends RelOp("==")
 case object NeCmp extends RelOp("!=")// removed non ASCII character alternative (can't display/edit)
 
 // Note: Boogie uses the same priority for 'and' and 'or'.
-case object Or extends BinOp("||", 23, Infix(NonAssoc))// removed non ASCII character alternative (can't display/edit)
-case object And extends BinOp("&&", 23, Infix(NonAssoc))// removed non ASCII character alternative (can't display/edit)
-case object Implies extends BinOp("==>", 24, Infix(RightAssoc))// removed non ASCII character alternative (can't display/edit)
-case object Equiv extends BinOp("<==>", 25, Infix(NonAssoc))// removed non ASCII character alternative (can't display/edit)
+case object Or extends BinOp("||", 23, Infix(NonAssociative))// removed non ASCII character alternative (can't display/edit)
+case object And extends BinOp("&&", 23, Infix(NonAssociative))// removed non ASCII character alternative (can't display/edit)
+case object Implies extends BinOp("==>", 24, Infix(RightAssociative))// removed non ASCII character alternative (can't display/edit)
+case object Equiv extends BinOp("<==>", 25, Infix(NonAssociative))// removed non ASCII character alternative (can't display/edit)
 
 sealed abstract class UnOp(val name: String, val priority: Int, val fixity: Fixity)
 case object Not extends UnOp("¬" or "!", 1, Prefix)
