@@ -180,7 +180,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           If(translateExp(cond),
             translateStmt(thn),
             translateStmt(els))
-      case sil.Label(name) => {
+      case sil.Label(name, invs) => {
         val (stmt, currentState) = stateModule.freshTempState("Label" + name)
         stateModule.stateRepositoryPut(name, stateModule.state)
         stateModule.replaceState(currentState)
