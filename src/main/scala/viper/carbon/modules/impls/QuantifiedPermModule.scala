@@ -475,8 +475,8 @@ class QuantifiedPermModule(val verifier: Verifier)
             //val notNull = Assert(Forall(translateLocalVarDecl(vFresh), Seq(), translatedCond && permissionPositive(translatedPerms) ==> checkNonNullReceiver(renamingFieldAccess)),
             //  error.dueTo(reasons.ReceiverNull(fieldAccess)))
 
-            //assumption that given the permission evaluates to true, the permission held should be greater than 0
-            val permPositive = Assert(Forall(translateLocalVarDecl(vFresh),tr1, translatedCond ==> permissionPositiveInternal(translatedPerms,None,true)),
+            //check that given the permission evaluates to true, the permission held should be greater than 0
+            val permPositive = Assert(Forall(translateLocalVarDecl(vFresh),tr1, (translatedCond && funcPredModule.dummyFuncApp(translateLocationAccess(translatedRecv, translatedLocation))) ==> permissionPositiveInternal(translatedPerms,None,true)),
               error.dueTo(reasons.NegativePermission(perms)))
 
             //define permission requirement
@@ -501,23 +501,23 @@ class QuantifiedPermModule(val verifier: Verifier)
               }
 
             //assumptions for locations that gain permission
-            val condTrueLocations = (condInv ==> (
+            val condTrueLocations = ((condInv && permGt(permInv, noPerm)) ==> ((rcvInv === obj.l) && (
               (if (!usingOldState) {
                 (  currentPermission(qpMask,obj.l,translatedLocation) === curPerm - permInv )
               } else {
                 currentPermission(qpMask,obj.l,translatedLocation) === curPerm
               } )
-              ) )
+              )) )
 
             //assumption for locations that don't gain permission
-            val condFalseLocations = (condInv.not ==> (currentPermission(qpMask,obj.l,translatedLocation) === curPerm))
+            val condFalseLocations = ((condInv && permGt(permInv, noPerm)).not ==> (currentPermission(qpMask,obj.l,translatedLocation) === curPerm))
 
             //assumption for locations that are definitely independent of any of the locations part of the QP (i.e. different
             //field)
             val independentLocations = Assume(Forall(Seq(obj,field), Trigger(currentPermission(obj.l,field.l))++
               Trigger(currentPermission(qpMask,obj.l,field.l)),(field.l !== translatedLocation) ==>
               (currentPermission(obj.l,field.l) === currentPermission(qpMask,obj.l,field.l))) )
-            val ts = Seq(Trigger(curPerm),Trigger(currentPermission(qpMask,obj.l,translatedLocation)),Trigger(invFunApp))
+            val ts = Seq(/*Trigger(curPerm),*/Trigger(currentPermission(qpMask,obj.l,translatedLocation)),Trigger(invFunApp))
 
             //injectivity assertion
             val v2 = LocalVarDecl(Identifier(translatedLocal.name.name), translatedLocal.typ)
@@ -602,10 +602,11 @@ class QuantifiedPermModule(val verifier: Verifier)
             val invAssm1 = Forall(translatedLocal, tr1, (translatedCond && permGt(translatedPerms, noPerm)) ==> (funApp === translatedLocal.l))
             //for each argument, define the second inverse function
             val eqExpr = (argsInv zip freshFormalBoogieVars).map(x => x._1 === x._2)
-            val invAssm2 = eqExpr.map(expr => Forall(freshFormalBoogieDecls, Trigger(invFunApp), (condInv && permGt(permInv, noPerm)) ==> expr))
+            val conjoinedInverseAssumptions = eqExpr.foldLeft(TrueLit():Exp)((soFar,exp) => BinExp(soFar,And,exp))
+            val invAssm2 = Forall(freshFormalBoogieDecls, Trigger(invFunApp), (condInv && permGt(permInv, noPerm)) ==> conjoinedInverseAssumptions)
 
             //check that the permission expression is positive for all predicates satisfying the condition
-            val permPositive = Assert(Forall(freshFormalBoogieDecls, Seq(), condInv ==> permissionPositive(permInv)),
+            val permPositive = Assert(Forall(freshFormalBoogieDecls, Trigger(invFunApp), condInv ==> permissionPositive(permInv)),
               error.dueTo(reasons.NegativePermission(perms)))
 
             //check that sufficient permission is held
@@ -632,8 +633,8 @@ class QuantifiedPermModule(val verifier: Verifier)
             val general_location = translateLocation(gl)
 
             //trigger:
-            val mapInvTrigger = Seq(Trigger(currentPermission(qpMask,translateNull, general_location)), Trigger(currentPermission(mask, translateNull, general_location)), Trigger(invFunApp))
-            val permissionsMap = Assume(Forall(freshFormalBoogieDecls,mapInvTrigger, condInv ==> (currentPermission(qpMask,translateNull, general_location) === currentPermission(translateNull, general_location) - permInv)))
+            val mapInvTrigger = Seq(Trigger(currentPermission(qpMask,translateNull, general_location)), /*Trigger(currentPermission(mask, translateNull, general_location)),*/ Trigger(invFunApp))
+            val permissionsMap = Assume(Forall(freshFormalBoogieDecls,mapInvTrigger, (condInv && permGt(permInv, noPerm)) ==> (conjoinedInverseAssumptions && (currentPermission(qpMask,translateNull, general_location) === currentPermission(translateNull, general_location) - permInv))))
 
             //Assume no change for independent locations: different predicate or no predicate
             val obj = LocalVarDecl(Identifier("o"), refType)
@@ -643,7 +644,7 @@ class QuantifiedPermModule(val verifier: Verifier)
               ((obj.l !== translateNull) ||  isPredicateField(fieldVar).not || (getPredicateId(fieldVar) !== IntLit(getPredicateId(predname)) ))  ==>
                 (currentPermission(obj.l,field.l) === currentPermission(qpMask,obj.l,field.l))))
             //same predicate, but not satisfying the condition
-            val independentPredicate = Assume(Forall(freshFormalBoogieDecls, mapInvTrigger, (condInv.not) ==> (currentPermission(qpMask,translateNull, general_location) === currentPermission(translateNull, general_location))))
+            val independentPredicate = Assume(Forall(freshFormalBoogieDecls, mapInvTrigger, ((condInv && permGt(permInv, noPerm)).not) ==> (currentPermission(qpMask,translateNull, general_location) === currentPermission(translateNull, general_location))))
 
 
 
@@ -658,9 +659,9 @@ class QuantifiedPermModule(val verifier: Verifier)
 
 
             val res1 = Havoc(qpMask) ++
-              MaybeComment("wild card assumtpions", stmts ++
+              MaybeComment("wildcard assumptions", stmts ++
               wildcardAssms) ++
-              CommentBlock("check that the permission amoutn is positive", permPositive) ++
+              CommentBlock("check that the permission amount is positive", permPositive) ++
               CommentBlock("check if receiver " + predAccPred.toString() + " is injective",injectiveAssertion) ++
               CommentBlock("check if sufficient permission is held", enoughPerm) ++
               CommentBlock("assumptions for inverse of receiver " + predAccPred.toString(), Assume(invAssm1)++ Assume(invAssm2)) ++
@@ -900,20 +901,21 @@ class QuantifiedPermModule(val verifier: Verifier)
              Assume(Forall(Seq(translatedLocal),tr1,(translatedCond && permissionPositiveInternal(translatedPerms, Some(renamingPerms), false)) ==>
                (translatedRecv !== translateNull) ))
 
+           val translatedLocalVarDecl = translateLocalVarDecl(vFresh)
            //permission should be >= 0 if the condition is satisfied
-           val permPositive = Assume(Forall(translateLocalVarDecl(vFresh), Seq(), translatedCond ==> permissionPositiveInternal(translatedPerms,None,true)))
+           val permPositive = Assume(Forall(translatedLocalVarDecl, Seq(Trigger(Seq(translateLocationAccess(translatedRecv , translatedLocation)))), translatedCond ==> permissionPositiveInternal(translatedPerms,None,true)))
 
            //Define Permission to all locations of field f for locations where condition applies: add permission defined
-           val condTrueLocations = (condInv ==> (
+           val condTrueLocations = ((condInv && permGt(permInv, noPerm)) ==> ((rcvInv === obj.l) && (
              (if (!usingOldState) {
                (  currentPermission(qpMask,obj.l,translatedLocation) === curPerm + permInv )
              } else {
                currentPermission(qpMask,obj.l,translatedLocation) === curPerm
              } )
-             ) )
+             )) )
 
            //Define Permission to all locations of field f for locations where condition does not applies: no change
-           val condFalseLocations = (condInv.not ==> (currentPermission(qpMask,obj.l,translatedLocation) === curPerm))
+           val condFalseLocations = ((condInv && permGt(permInv, noPerm)).not ==> (currentPermission(qpMask,obj.l,translatedLocation) === curPerm))
 
           //Define Permissions to all independent locations: no change
            val independentLocations = Assume(Forall(Seq(obj,field), Trigger(currentPermission(obj.l,field.l))++
@@ -1007,25 +1009,24 @@ class QuantifiedPermModule(val verifier: Verifier)
            val invAssm1 = Forall(translatedLocal, tr1, (translatedCond && permGt(translatedPerms, noPerm)) ==> (funApp === translatedLocal.l))
            //for each argument, define the second inverse function
            val eqExpr = (argsInv zip freshFormalBoogieVars).map(x => x._1 === x._2)
-           val invAssm2 = eqExpr.map(expr => Forall(freshFormalBoogieDecls, Trigger(invFunApp), (condInv && permGt(permInv, noPerm)) ==> expr))
+           val conjoinedInverseAssumptions = eqExpr.foldLeft(TrueLit():Exp)((soFar,exp) => BinExp(soFar,And,exp))
+           val invAssm2 = Forall(freshFormalBoogieDecls, Trigger(invFunApp), (condInv && permGt(permInv, noPerm)) ==> conjoinedInverseAssumptions)
 
 
 
            //define arguments needed to describe map updates
            val formalPredicate = new PredicateAccess(freshFormalVars, predname) (predicate.pos, predicate.info)
            val general_location = translateLocation(formalPredicate)
-           val condInv2 = translatedCond.replace(translatedLocal.l, invFunApp)
 
-           // condInv2 => condInv
            // mappedVars => freshFormalBoogieVars
            // vars => freshFormalBoogieDecls
 
             //trigger for both map descriptions
-           val mapTrigger = Seq(Trigger(currentPermission(qpMask,translateNull, general_location)), Trigger(currentPermission(mask, translateNull, general_location)), Trigger(invFunApp))
+           val mapTrigger = Seq(Trigger(currentPermission(qpMask,translateNull, general_location)), /*Trigger(currentPermission(mask, translateNull, general_location)),*/ Trigger(invFunApp))
            //assumptions for predicates that gain permission
-           val permissionsMap = Assume(Forall(freshFormalBoogieDecls,mapTrigger, condInv2 ==> (currentPermission(qpMask,translateNull, general_location) === currentPermission(translateNull, general_location) + permInv)))
+           val permissionsMap = Assume(Forall(freshFormalBoogieDecls,mapTrigger, (condInv && permGt(permInv, noPerm)) ==> (conjoinedInverseAssumptions && (currentPermission(qpMask,translateNull, general_location) === currentPermission(translateNull, general_location) + permInv))))
            //assumptions for predicates of the same type which do not gain permission
-           val independentPredicate = Assume(Forall(freshFormalBoogieDecls, mapTrigger, (condInv2.not) ==> (currentPermission(qpMask,translateNull, general_location) === currentPermission(translateNull, general_location))))
+           val independentPredicate = Assume(Forall(freshFormalBoogieDecls, mapTrigger, ((condInv && permGt(permInv, noPerm)).not) ==> (currentPermission(qpMask,translateNull, general_location) === currentPermission(translateNull, general_location))))
 
            /*
                 assumption for locations that are definitely independent of the locations defined by the quantified predicate permission. Independent locations include:
@@ -1064,7 +1065,7 @@ class QuantifiedPermModule(val verifier: Verifier)
            val res1 = Havoc(qpMask) ++
              stmts ++
              CommentBlock("Define Inverse Function", Assume(invAssm1) ++
-               invAssm2.map(Assume)) ++
+               Assume(invAssm2)) ++
              CommentBlock("Assume injectivity", injectiveAssumption) ++
              CommentBlock("Define updated permissions", permissionsMap) ++
              CommentBlock("Define independent locations", (independentLocations ++
@@ -1318,6 +1319,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   case class QPPComponents(v:LocalVarDecl, cond: Exp, predname:String, args:Seq[Exp], perm:Exp, predAcc:PredicateAccessPredicate)
 
 
+ /* This seems not to be used - check this:
   //checks if the receiver expression in qpcomp is injective
   def isInjective(qpcomp: QPComponents):Exp = {
     val QPComponents(v, cond, recv, perm) = qpcomp
@@ -1326,6 +1328,7 @@ class QuantifiedPermModule(val verifier: Verifier)
     Forall( v++vFresh,Seq(),
     (  (v.l !== vFresh.l) &&  cond && cond.replace(v.l, vFresh.l) && permGt(perm,noPerm) && permGt(perm.replace(v.l, vFresh.l),noPerm) ) ==> (recv !== recv.replace(v.l, vFresh.l)) )
   }
+  */
 
 
 
