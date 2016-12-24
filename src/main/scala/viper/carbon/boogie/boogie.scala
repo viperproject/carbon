@@ -222,9 +222,9 @@ case class UnExp(unop: UnOp, exp: Exp) extends Exp with PrettyUnaryExpression {
 }
 
 sealed abstract class BinOp(val name: String, val priority: Int, val fixity: Fixity)
-sealed abstract class SumOp(override val name: String) extends BinOp(name, 12, Infix(LeftAssociative))
-sealed abstract class RelOp(override val name: String) extends BinOp(name, 13, Infix(NonAssociative))
-sealed abstract class ProdOp(override val name: String) extends BinOp(name, 11, Infix(LeftAssociative))
+sealed abstract class SumOp(override val name: String) extends BinOp(name, 16, Infix(LeftAssociative))
+sealed abstract class RelOp(override val name: String) extends BinOp(name, 14, Infix(NonAssociative))
+sealed abstract class ProdOp(override val name: String) extends BinOp(name, 18, Infix(LeftAssociative))
 
 case object Add extends SumOp("+")
 case object Sub extends SumOp("-")
@@ -241,14 +241,14 @@ case object EqCmp extends RelOp("==")
 case object NeCmp extends RelOp("!=")// removed non ASCII character alternative (can't display/edit)
 
 // Note: Boogie uses the same priority for 'and' and 'or'.
-case object Or extends BinOp("||", 23, Infix(NonAssociative))// removed non ASCII character alternative (can't display/edit)
-case object And extends BinOp("&&", 23, Infix(NonAssociative))// removed non ASCII character alternative (can't display/edit)
-case object Implies extends BinOp("==>", 24, Infix(RightAssociative))// removed non ASCII character alternative (can't display/edit)
-case object Equiv extends BinOp("<==>", 25, Infix(NonAssociative))// removed non ASCII character alternative (can't display/edit)
+case object Or extends BinOp("||", 6, Infix(NonAssociative))// removed non ASCII character alternative (can't display/edit)
+case object And extends BinOp("&&", 6, Infix(NonAssociative))// removed non ASCII character alternative (can't display/edit)
+case object Implies extends BinOp("==>", 4, Infix(RightAssociative))// removed non ASCII character alternative (can't display/edit)
+case object Equiv extends BinOp("<==>", 2, Infix(NonAssociative))// removed non ASCII character alternative (can't display/edit)
 
 sealed abstract class UnOp(val name: String, val priority: Int, val fixity: Fixity)
-case object Not extends UnOp("¬" or "!", 1, Prefix)
-case object Minus extends UnOp("-", 1, Prefix)
+case object Not extends UnOp("¬" or "!", 20, Prefix)
+case object Minus extends UnOp("-", 20, Prefix)
 
 sealed trait QuantifiedExp extends Exp {
   def vars: Seq[LocalVarDecl]
