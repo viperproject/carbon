@@ -210,11 +210,13 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val funcApp = FuncApp(name, args map (_.l), Bool)
     val funcApp2 = FuncApp(name2, args map (_.l), Bool)
     val triggerFapp = triggerFuncApp(f , fargs map (_.l))
-    val dummyFuncApp = FuncApp(dummyTriggerName, Seq(triggerFapp), Bool)
+    val dummyFuncApplication = dummyFuncApp(triggerFapp)
     func ++ func2 ++
-      Axiom(Forall(args, Trigger(funcApp), funcApp === funcApp2 && dummyFuncApp)) ++
-      Axiom(Forall(args, Trigger(funcApp2), dummyFuncApp))
+      Axiom(Forall(args, Trigger(funcApp), funcApp === funcApp2 && dummyFuncApplication)) ++
+      Axiom(Forall(args, Trigger(funcApp2), dummyFuncApplication))
   }
+
+  override def dummyFuncApp(e: Exp): Exp = FuncApp(dummyTriggerName, Seq(e), Bool)
 
   override def translateFuncApp(fa: sil.FuncApp) = {
     translateFuncApp(fa.funcname, heapModule.currentStateExps ++ (fa.args map translateExp), fa.typ)
