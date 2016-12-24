@@ -663,7 +663,7 @@ class QuantifiedPermModule(val verifier: Verifier)
               CommentBlock("check that the permission amoutn is positive", permPositive) ++
               CommentBlock("check if receiver " + predAccPred.toString() + " is injective",injectiveAssertion) ++
               CommentBlock("check if sufficient permission is held", enoughPerm) ++
-              CommentBlock("assumptions for inverse of receiver " + predAccPred.toString(), Assume(invAssm1)++ invAssm2.map(Assume)) ++
+              CommentBlock("assumptions for inverse of receiver " + predAccPred.toString(), Assume(invAssm1)++ Assume(invAssm2)) ++
               CommentBlock("assume permission updates for predicte " + predicate.name, permissionsMap ++
               independentPredicate) ++
               CommentBlock("assume permission updates for independent locations ", independentLocations) ++
