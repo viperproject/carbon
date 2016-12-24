@@ -18,6 +18,9 @@ trait FuncPredModule extends Module {
 
   def translateFuncApp(fa: sil.FuncApp): Exp
 
+  // wrap an expression in a dummy function with "true" value (sometimes useful for triggering)
+  def dummyFuncApp(e: Exp): Exp
+
   def translatePredicate(p: sil.Predicate): Seq[Decl]
 
   def assumeAllFunctionDefinitions: Stmt
