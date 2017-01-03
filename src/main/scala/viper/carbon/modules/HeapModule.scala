@@ -76,10 +76,12 @@ trait HeapModule extends Module with CarbonStateComponent {
   def predicateGhostFieldDecl(f: sil.Predicate): Seq[Decl]
 
   /**
-   * Translation of a field read.
+   * Translation of a field read or predicate instance
    */
   def translateLocationAccess(f: sil.LocationAccess): Exp
-
+  /**
+    * Translation of a field read.
+    */
   def translateLocationAccess(rcv: Exp, loc:Exp):Exp
 
   def translateLocation(f: sil.LocationAccess): Exp
