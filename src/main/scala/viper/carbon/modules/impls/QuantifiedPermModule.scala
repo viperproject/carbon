@@ -931,7 +931,7 @@ class QuantifiedPermModule(val verifier: Verifier)
              (currentPermission(obj.l,field.l) === currentPermission(qpMask,obj.l,field.l))) )
 
 
-           val fieldLocationTrigger = Seq(Trigger(curPerm),Trigger(currentPermission(qpMask,obj.l,translatedLocation)),Trigger(invFunApp))
+           val fieldLocationTrigger = Seq(/*Trigger(curPerm),*/Trigger(currentPermission(qpMask,obj.l,translatedLocation)),Trigger(invFunApp))
 
 
 

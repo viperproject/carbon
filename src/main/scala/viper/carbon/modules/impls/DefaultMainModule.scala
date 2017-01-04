@@ -127,7 +127,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
 
     val reset = stateModule.resetBoogieState
 
-    // note that the order here matters - onlyExhalePosts should be computed with respect ot the reset state
+    // note that the order here matters - onlyExhalePosts should be computed with respect to the reset state
     val onlyExhalePosts: Seq[Stmt] = checkDefinednessOfExhaleSpecAndInhale(
     posts, {
       errors.ContractNotWellformed(_)
@@ -142,14 +142,14 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
         errors.ContractNotWellformed(_)
       })
 
-      NondetIf(
-        MaybeComment("Checked inhaling of postcondition to check definedness",
-          MaybeCommentBlock("Do welldefinedness check of the inhale part.",
-            NondetIf(onlyInhalePosts ++ Assume(FalseLit()))) ++
-            MaybeCommentBlock("Normally inhale the exhale part.",
-              onlyExhalePosts)
-        ) ++
-          MaybeComment("Stop execution", Assume(FalseLit()))
+          NondetIf(
+          MaybeComment("Checked inhaling of postcondition to check definedness",
+            MaybeCommentBlock("Do welldefinedness check of the inhale part.",
+              NondetIf(onlyInhalePosts ++ Assume(FalseLit()))) ++
+              MaybeCommentBlock("Normally inhale the exhale part.",
+                onlyExhalePosts)
+          ) ++
+            MaybeComment("Stop execution", Assume(FalseLit()))
       )
     }
     else {
