@@ -1520,7 +1520,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         case sil.CondExp(cond, thn, els) =>
           isFixedPerm(thn) && isFixedPerm(els) // note: this doesn't take account of condition (due to being a syntactic check) - in theory could be overly-restrictive
         //case _: sil.FuncLikeApp => true
-        case _ => false // conservative for local variables, field dereferences etc.
+        case _ => (currentAbstractReads.isEmpty) // if using abstract reads, we must be conservative for local variables, field dereferences etc.
       }
     }
 
@@ -1597,9 +1597,11 @@ class QuantifiedPermModule(val verifier: Verifier)
             sil.PermMul(b, a)()
         })
 
-        // collapse a*wildcard to just wildcard, if b is known to be positive
+        // collapse a*wildcard or wildcard*a to just wildcard, if a is known to be positive
         val e5a = e5.transform()(_ => true, {
           case sil.PermMul(a, wp@sil.WildcardPerm()) if conservativeStaticIsStrictlyPositivePerm(a) => done = false
+            sil.WildcardPerm()(wp.pos,wp.info)
+          case sil.PermMul(wp@sil.WildcardPerm(),a) if conservativeStaticIsStrictlyPositivePerm(a) => done = false
             sil.WildcardPerm()(wp.pos,wp.info)
         })
 
