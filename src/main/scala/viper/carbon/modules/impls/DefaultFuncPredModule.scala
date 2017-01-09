@@ -238,7 +238,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val heap = heapModule.staticStateContributions
     val args = f.formalArgs map translateLocalVarDecl
     val fapp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
-    val precondition : Exp = f.pres.map(p => translateExp(Expressions.asBooleanExp(p))) match {
+    val precondition : Exp = f.pres.map(p => translateExp(Expressions.asBooleanExp(p).whenExhaling)) match {
       case Seq() => TrueLit()
       case Seq(p) => p
       case ps => ps.tail.foldLeft(ps.head)((p,q) => BinExp(p,And,q))
@@ -303,7 +303,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val heap = heapModule.staticStateContributions
     val args = f.formalArgs map translateLocalVarDecl
     val fapp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
-    val precondition : Exp = f.pres.map(p => translateExp(Expressions.asBooleanExp(p))) match {
+    val precondition : Exp = f.pres.map(p => translateExp(Expressions.asBooleanExp(p).whenExhaling)) match {
       case Seq() => TrueLit()
       case Seq(p) => p
       case ps => ps.tail.foldLeft(ps.head)((p,q) => BinExp(p,And,q))
