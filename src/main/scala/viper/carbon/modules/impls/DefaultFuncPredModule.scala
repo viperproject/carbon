@@ -238,6 +238,11 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val heap = heapModule.staticStateContributions
     val args = f.formalArgs map translateLocalVarDecl
     val fapp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
+    val precondition : Exp = f.pres.map(translateExp(_)) match {
+      case Seq() => TrueLit()
+      case Seq(p) => p
+      case ps => ps.tail.foldLeft(ps.head)((p,q) => BinExp(p,And,q))
+    }
     val body = transformFuncAppsToLimitedOrTriggerForm(translateExp(f.body.get),height)
 
     // The idea here is that we can generate additional triggers for the function definition, which allow its definition to be triggered in any state in which the corresponding *predicate* has been folded or unfolded, in the following scenarios:
@@ -254,7 +259,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       stateModule.staticStateContributions ++ args,
       Seq(Trigger(Seq(staticGoodState,fapp))) ++ (if (predicateTriggers.isEmpty) Seq()  else Seq(Trigger(Seq(staticGoodState, triggerFuncApp(f,args map (_.l))) ++ predicateTriggers))),
       (staticGoodState && assumeFunctionsAbove(height)) ==>
-        (fapp === body)
+        (precondition ==> (fapp === body))
     ))
   }
 
@@ -298,6 +303,11 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val heap = heapModule.staticStateContributions
     val args = f.formalArgs map translateLocalVarDecl
     val fapp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
+    val precondition : Exp = f.pres.map(translateExp(_)) match {
+      case Seq() => TrueLit()
+      case Seq(p) => p
+      case ps => ps.tail.foldLeft(ps.head)((p,q) => BinExp(p,And,q))
+    }
     val limitedFapp = transformFuncAppsToLimitedOrTriggerForm(fapp)
     val res = translateResult(sil.Result()(f.typ))
     for (post <- f.posts) yield {
@@ -315,7 +325,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       Axiom(Forall(
         stateModule.staticStateContributions ++ args,
         Trigger(Seq(staticGoodState, limitedFapp)),
-        (staticGoodState && assumeFunctionsAbove(height)) ==> transformFuncAppsToLimitedOrTriggerForm(bPost)))
+        (staticGoodState && assumeFunctionsAbove(height)) ==> (precondition ==> transformFuncAppsToLimitedOrTriggerForm(bPost))))
     }
   }
 
