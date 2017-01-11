@@ -60,8 +60,8 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule with Stat
       case _ =>
         val stmt = components map (_.inhaleExp(e))
         if (stmt.children.isEmpty) sys.error(s"missing translation for inhaling of $e")
-        if (containsFunc(e)) assumeGoodState ++ stmt
-        else stmt
+        (if (containsFunc(e)) Seq(assumeGoodState) else Seq()) ++ stmt ++ (if (e.isPure) Seq() else Seq(assumeGoodState))
+        //(if (containsFunc(e)) assumeGoodState else Seq[Stmt]()) ++ stmt ++ (if (e.isPure) Seq[Stmt]() else assumeGoodState)
     }
   }
 
