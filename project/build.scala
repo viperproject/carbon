@@ -1,20 +1,16 @@
 import sbt._
 import Keys._
-import sbtassembly.Plugin._
-import AssemblyKeys._
+import sbtassembly.AssemblyPlugin.autoImport._
 
 object CarbonBuild extends Build {
-  lazy val baseSettings = (
-       Defaults.defaultSettings
-    ++ Seq(
-          organization := "viper",
-          version := "1.0-SNAPSHOT",
-          scalaVersion := "2.11.7",
-          scalacOptions in Compile ++= Seq("-deprecation", "-unchecked", "-feature"),
-          libraryDependencies += "org.rogach" %% "scallop" % "0.9.5",
-          libraryDependencies += "org.jgrapht" % "jgrapht-core" % "0.9.0"
-       )
-  )
+  lazy val baseSettings = Seq(
+      organization := "viper",
+      version := "1.0-SNAPSHOT",
+      scalaVersion := "2.11.8",
+      scalacOptions in Compile ++= Seq("-deprecation", "-unchecked", "-feature"),
+      libraryDependencies += "org.rogach" %% "scallop" % "2.0.7",
+      libraryDependencies += "org.jgrapht" % "jgrapht-core" % "0.9.1"
+   )
 
   lazy val carbon = {
     var p = Project(
@@ -22,7 +18,6 @@ object CarbonBuild extends Build {
       base = file("."),
       settings = (
            baseSettings
-        ++ assemblySettings
         ++ Seq(
               name := "Carbon",
               jarName in assembly := "carbon.jar",

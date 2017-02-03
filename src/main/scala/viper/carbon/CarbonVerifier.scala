@@ -70,13 +70,13 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
 
   /** The (resolved) path where Boogie is supposed to be located. */
 
-  def boogiePath = if (config != null) config.boogieExecutable.get match {
+  def boogiePath = if (config != null) config.boogieExecutable.toOption match {
     case Some(path) => new File(path).getAbsolutePath
     case None => boogieDefault
   } else boogieDefault
 
   /** The (resolved) path where Z3 is supposed to be located. */
-  def z3Path = if (config != null) config.Z3executable.get match {
+  def z3Path = if (config != null) config.Z3executable.toOption match {
     case Some(path) => {new File(path).getAbsolutePath}
     case None => z3Default
   } else z3Default
@@ -131,13 +131,13 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
       if (config == null) {
         Nil
       } else {
-        (config.boogieProverLog.get match {
+        (config.boogieProverLog.toOption match {
       case Some(l) =>
         List("/proverLog:" + l + " ")
       case None =>
         Nil
       }) ++
-        (config.boogieOpt.get match {
+        (config.boogieOpt.toOption match {
           case Some(l) =>
             l.split(" ")
           case None =>
@@ -148,7 +148,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
 
     if(config != null)
     {
-      config.boogieOut.get match {
+      config.boogieOut.toOption match {
         case Some(filename) =>
           // write Boogie program to the specified file
           val f = new File(filename)
