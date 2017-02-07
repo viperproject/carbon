@@ -427,11 +427,24 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         qpCondFuncs += res
         frameFragment(FuncApp(condName,(heap++args) map (_.l), Int))
       case sil.Implies(e0, e1) =>
-        frameFragment(CondExp(translateExp(e0), functionFrameHelper(e1,renaming,functionName,args), emptyFrame))
+        val fe1 = functionFrameHelper(e1,renaming,functionName,args)
+        val cnd = translateExp(e0)
+        if (fe1 == emptyFrame){
+          emptyFrame
+        }else{
+          frameFragment(CondExp(cnd, fe1, emptyFrame))
+        }
       case sil.And(e0, e1) =>
         combineFrames(functionFrameHelper(e0,renaming,functionName,args), functionFrameHelper(e1,renaming,functionName,args))
       case sil.CondExp(con, thn, els) =>
-        frameFragment(CondExp(translateExp(con), functionFrameHelper(thn,renaming,functionName,args), functionFrameHelper(els,renaming,functionName,args)))
+        val cnd = translateExp(con)
+        val fthn = functionFrameHelper(thn,renaming,functionName,args)
+        val fels = functionFrameHelper(els,renaming,functionName,args)
+        if (fthn == fels){
+          fthn
+        }else {
+          frameFragment(CondExp(cnd, fthn, fels))
+        }
       case sil.Unfolding(_, _) =>
         // the predicate of the unfolding expression needs to have been mentioned
         // already (framing check), so we can safely ignore it now
