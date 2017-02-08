@@ -317,15 +317,18 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       }
       def resultToFapp : PartialFunction[Exp,Option[Exp]] = {
         case e: LocalVar if e == res => Some(fapp)
-        case Forall(vs,ts,e,tvs) =>
-          Some(Forall(vs,ts map (_ match {case Trigger(trig) => Trigger(trig map (_ transform resultToPrimedFapp)) } ),
-            (e transform resultToFapp),tvs))
+        case Forall(vs, ts, e, tvs) =>
+          Some(Forall(vs, ts map (_ match {
+            case Trigger(trig) => Trigger(trig map (_ transform resultToPrimedFapp))
+          }),
+            (e transform resultToFapp), tvs))
       }
-      val bPost = translatedPost transform resultToFapp
+      val limitedPost = transformFuncAppsToLimitedOrTriggerForm(translatedPost)
+      val bLimitedPost = limitedPost transform resultToFapp
       Axiom(Forall(
         stateModule.staticStateContributions ++ args,
-        Trigger(Seq(staticGoodState, limitedFapp)),
-        (staticGoodState && assumeFunctionsAbove(height)) ==> (precondition ==> transformFuncAppsToLimitedOrTriggerForm(bPost))))
+        Trigger(Seq(staticGoodState, fapp)),
+        (staticGoodState && assumeFunctionsAbove(height)) ==> (precondition ==> bLimitedPost)))
     }
   }
 
