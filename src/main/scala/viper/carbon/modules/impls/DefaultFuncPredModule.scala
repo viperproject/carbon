@@ -325,7 +325,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       Axiom(Forall(
         stateModule.staticStateContributions ++ args,
         Trigger(Seq(staticGoodState, limitedFapp)),
-        (staticGoodState && assumeFunctionsAbove(height)) ==> (precondition ==> transformFuncAppsToLimitedOrTriggerForm(bPost))))
+        (staticGoodState && assumeFunctionsAbove(height)) ==> (precondition ==> transformFuncAppsToLimitedOrTriggerForm(bPost, height))))
     }
   }
 
