@@ -321,16 +321,11 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           Some(Forall(vs,ts map (_ match {case Trigger(trig) => Trigger(trig map (_ transform resultToPrimedFapp)) } ),
             (e transform resultToFapp),tvs))
       }
-      val limitedPost = if (f.isRecursive) {
-        transformFuncAppsToLimitedOrTriggerForm(translatedPost transform resultToFapp, height)
-      } else {
-        transformFuncAppsToLimitedOrTriggerForm(translatedPost, height) transform resultToFapp
-      }
-      val trigger = if (f.isRecursive) limitedFapp else fapp
+      val bPost = translatedPost transform resultToFapp
       Axiom(Forall(
         stateModule.staticStateContributions ++ args,
-        Trigger(Seq(staticGoodState, trigger)),
-        (staticGoodState && assumeFunctionsAbove(height)) ==> (precondition ==> limitedPost)))
+        Trigger(Seq(staticGoodState, limitedFapp)),
+        (staticGoodState && assumeFunctionsAbove(height)) ==> (precondition ==> transformFuncAppsToLimitedOrTriggerForm(bPost, height))))
     }
   }
 
