@@ -146,7 +146,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
               (w.writtenVars map (v => mainModule.allAssumptionsAboutValue(v.typ,mainModule.translateLocalVarSig(v.typ, v),false)))
           ) ++
           MaybeCommentBlock("Check definedness of invariant", NondetIf(
-            (invs map (inv => checkDefinednessOfSpecAndInhale(inv, errors.WhileFailed(w)))) ++
+            (invs map (inv => checkDefinednessOfSpecAndInhale(inv, errors.ContractNotWellformed(inv)))) ++
               Assume(FalseLit())
           )) ++
           MaybeCommentBlock("Check the loop body", NondetIf({
@@ -154,7 +154,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
             val stmts = MaybeComment("Reset state", freshStateStmt ++ stateModule.initBoogieState) ++
               MaybeComment("Inhale invariant", inhale(w.invs) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv)))) ++
               Comment("Check and assume guard") ++
-              checkDefinedness(cond, errors.WhileFailed(w)) ++
+              checkDefinedness(cond, errors.WhileFailed(w.cond)) ++
               Assume(guard) ++ stateModule.assumeGoodState ++
               MaybeComment("Havoc locals", Havoc((locals map (x => translateExp(x.localVar))).asInstanceOf[Seq[Var]])) ++
               MaybeCommentBlock("Translate loop body", translateStmt(body)) ++
