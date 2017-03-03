@@ -52,7 +52,13 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   implicit val fpNamespace = verifier.freshNamespace("funcpred")
 
-  private var heights: Map[viper.silver.ast.Function, Int] = null
+  /* Maps function names to their height.
+   * Previously mapped Function AST nodes to their height, but this prevents looking up functions
+   * with quantifiers whose triggers (i.e. via auto-triggering) have been changed in between
+   * populating the map and looking up a function height.
+   */
+  private var heights: Map[String, Int] = null
+
   private val assumeFunctionsAboveName = Identifier("AssumeFunctionsAbove")
   private val assumeFunctionsAbove: Const = Const(assumeFunctionsAboveName)
   private val specialRefName = Identifier("special_ref")
@@ -82,7 +88,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       val m = heights.values.max
       DeclComment("Function heights (higher height means its body is available earlier):") ++
         (for (i <- m to 0 by -1) yield {
-          val fs = heights.toSeq filter (p => p._2 == i) map (_._1.name)
+          val fs = heights filter (p => p._2 == i) map (_._1)
           DeclComment(s"- height $i: ${fs.mkString(", ")}")
         }) ++
         ConstDecl(assumeFunctionsAboveName, Int)
@@ -171,8 +177,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     exhaleModule.register(this, before = Seq(verifier.exhaleModule)) // this is because of inhaleExp definition, which tries to add extra information from executing the unfolding first
   }
 
-  override def reset() = {
-    heights = Functions.heights(verifier.program)
+  def reset() = {
+    heights = Functions.heights(verifier.program).map{case (f, h) => f.name -> h}
     tmpStateId = -1
     duringFold = false
     foldInfo = null
@@ -234,7 +240,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   }
 
   private def definitionalAxiom(f: sil.Function): Seq[Decl] = {
-    val height = heights(f)
+    val height = heights(f.name)
     val heap = heapModule.staticStateContributions
     val args = f.formalArgs map translateLocalVarDecl
     val fapp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
@@ -269,10 +275,10 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
    */
   private def transformFuncAppsToLimitedOrTriggerForm(exp: Exp, heightToSkip : Int = -1, triggerForm: Boolean = false): Exp = {
     def transformer: PartialFunction[Exp, Option[Exp]] = {
-      case FuncApp(recf, recargs, t) if recf.namespace == fpNamespace && (heightToSkip == -1 || heights(verifier.program.findFunction(recf.name)) <= heightToSkip) => {
+      case FuncApp(recf, recargs, t) if recf.namespace == fpNamespace && (heightToSkip == -1 || heights(recf.name) <= heightToSkip) =>
         // change all function applications to use the limited form, and still go through all arguments
         if (triggerForm)
-          {val func = verifier.program.findFunction(recf.name);
+          {val func = verifier.program.findFunction(recf.name)
             // This was an attempt to make triggering functions heap-independent.
             // But the problem is that, for soundness such a function cannot be equated with/substituted for
             // the original function application, and if nested inside further structure in a trigger, the
@@ -284,7 +290,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
             //
 
             // instead, we use the function frame function as the trigger:
-            val formalNames = func.formalArgs.map(_.localVar.name)
+            val formalNames = func.formalArgs.map(_.localVar.name) // TODO: formalNames is never used - problem?
             val frameExp : Exp = {
               getFunctionFrame(func, recargs drop heapModule.staticStateContributions.size)._1 // the declarations will be taken care of when the function is translated
               // replace formals with actuals
@@ -292,14 +298,14 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
             Some(FuncApp(Identifier(func.name + framePostfix), Seq(frameExp) ++ (recargs.tail /* drop Heap argument */ map (_.transform(transformer))), t))
 
           } else Some(FuncApp(Identifier(recf.name + limitedPostfix), recargs map (_.transform(transformer)), t))
-      }
+
       case fa@Forall(vs,ts,e,tvs) => Some(Forall(vs,ts,e.transform(transformer),tvs)) // avoid recursing into the triggers of nested foralls (which will typically get translated via another call to this anyway)
     }
     exp transform transformer
   }
 
   private def postconditionAxiom(f: sil.Function): Seq[Decl] = {
-    val height = heights(f)
+    val height = heights(f.name)
     val heap = heapModule.staticStateContributions
     val args = f.formalArgs map translateLocalVarDecl
     val fapp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
