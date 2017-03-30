@@ -395,9 +395,9 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     {
       case (frame, params, declarations) => {
         val paramVariables = params map (_.l)
-        val argumentSubstitution : (Exp => Exp) = (_.transform({ case l@LocalVar(_, _) if (paramVariables.contains(l)) =>
+        val argumentSubstitution : (Exp => Exp) = _.transform({ case l@LocalVar(_, _) if (paramVariables.contains(l)) =>
           Some(args(paramVariables.indexOf(l)))
-        }))
+        })
 
         (argumentSubstitution(frame), declarations )
       }
