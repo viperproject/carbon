@@ -187,6 +187,10 @@ class DefaultHeapModule(val verifier: Verifier)
   }
 
   override def getPredicateId(s:String): BigInt = {
+    if (!PredIdMap.contains(s)) {
+      val predId:BigInt = getNewPredId;
+      PredIdMap += (s -> predId)
+    }
     PredIdMap(s)
   }
 
@@ -212,8 +216,7 @@ class DefaultHeapModule(val verifier: Verifier)
     val pmT = predicateMaskFieldTypeOf(p)
     val varDecls = p.formalArgs map mainModule.translateLocalVarDecl
     val vars = varDecls map (_.l)
-    val predId:BigInt = getNewPredId;
-    PredIdMap += (p.name -> predId)
+    val predId:BigInt = getPredicateId(p.name)
     val f0 = FuncApp(predicate, vars, t)
     val f1 = predicateMaskField(f0)
     val f2 = FuncApp(pmField, vars, pmT)
