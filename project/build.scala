@@ -1,6 +1,7 @@
 import sbt._
 import Keys._
 import sbtassembly.AssemblyPlugin.autoImport._
+import com.typesafe.sbt.packager.archetypes.JavaAppPackaging
 
 object CarbonBuild extends Build {
   lazy val baseSettings = Seq(
@@ -33,7 +34,7 @@ object CarbonBuild extends Build {
     for (dep <- internalDep) {
       p = p.dependsOn(dep)
     }
-    p
+    p.enablePlugins(JavaAppPackaging)
   }
 
   // On the build-server, we cannot have all project in the same directory, and thus we use the publish-local mechanism for dependencies.
