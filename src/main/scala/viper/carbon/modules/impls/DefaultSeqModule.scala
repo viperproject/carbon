@@ -14,6 +14,9 @@ import viper.carbon.verifier.Verifier
 import viper.carbon.boogie.Implicits._
 import viper.carbon.modules.impls.dafny_axioms.SequenceAxiomatization
 import viper.carbon.modules.components.DefinednessComponent
+import viper.silver.ast.{SeqIndex, SeqLength}
+import viper.silver.ast.utility.Expressions
+import viper.silver.verifier.{PartialVerificationError, errors, reasons}
 
 /**
  * The default implementation of [[viper.carbon.modules.SeqModule]].
@@ -43,6 +46,10 @@ class DefaultSeqModule(val verifier: Verifier)
     } else {
       Nil
     }
+  }
+
+  override def start() {
+    expModule.register(this)
   }
 
   override def translateSeqExp(e: sil.Exp): Exp = {
@@ -96,6 +103,20 @@ class DefaultSeqModule(val verifier: Verifier)
   override def translateSeqType(seqType: sil.SeqType): Type = {
     used = true
     NamedType("Seq", translateType(seqType.elementType))
+  }
+
+
+  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
+    if(makeChecks)
+      e match {
+        case si@SeqIndex(s,idx) => {
+          val index = translateExp(idx)
+          val length = translateSeqExp(SeqLength(s)(s.pos,s.info))
+          Assert(BinExp(index,GeCmp,IntLit(0)),error.dueTo(reasons.SeqIndexNegative(s,si))) ++ Assert(BinExp(index,LtCmp,length),error.dueTo(reasons.SeqIndexExceedsLength(s,si)))
+        }
+        case _ => Nil
+      }
+    else Nil
   }
 
   /**
