@@ -29,13 +29,15 @@ class BoogieDependency(_location: String) extends Dependency {
 
 trait BoogieInterface {
 
-  def defaultOptions = Seq("/vcsCores:" + java.lang.Runtime.getRuntime.availableProcessors, "/errorTrace:0", "/noinfer", "/z3opt:smt.qi.max_multi_patterns=1000", s"/z3exe:$z3Path")
+  def defaultOptions = Seq("/vcsCores:" + java.lang.Runtime.getRuntime.availableProcessors, "/errorTrace:0", "/z3opt:smt.qi.max_multi_patterns=1000", s"/z3exe:$z3Path")
 
   /** The (resolved) path where Boogie is supposed to be located. */
   def boogiePath: String
 
   /** The (resolved) path where Z3 is supposed to be located. */
   def z3Path: String
+
+  private var _boogieProcess:Process = null
 
   var errormap: Map[Int, VerificationError] = Map()
   def invokeBoogie(program: Program, options: Seq[String]): (String,VerificationResult) = {
@@ -146,8 +148,16 @@ trait BoogieInterface {
 
     // Note: call exitValue to block until Boogie has finished
     // Note: we call boogie with an empty input "file" on stdin and parse the output
-    (Seq(boogiePath) ++ options ++ Seq(tmp.getAbsolutePath)).run(new ProcessIO(_.close(), out, err)).exitValue()
+    _boogieProcess = (Seq(boogiePath) ++ options ++ Seq(tmp.getAbsolutePath)).run(new ProcessIO(_.close(), out, err))
+    _boogieProcess.exitValue()
     reserr + res
+  }
+
+  def stopBoogie(){
+    if(_boogieProcess!= null){
+      _boogieProcess.destroy()
+      _boogieProcess.exitValue()
+    }
   }
 
   // TODO: investigate why passing the program directly does not work
