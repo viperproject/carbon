@@ -101,6 +101,7 @@ trait BoogieInterface {
           s"Internal error: $text"
 
         def withNode(offendingNode: PositionedNode = this.offendingNode) = this.clone().asInstanceOf[ErrorMessage]
+        def updateNode(offendingNode: PositionedNode) = this.clone().asInstanceOf[VerificationError]
       }
       errormap += (otherErrId -> internalError)
     }
