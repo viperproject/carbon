@@ -134,12 +134,6 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
 
     _translated = mainModule.translate(program)
 
-    if(_config.useCaching()) {
-      //fill in the entityHashes into the new AST
-      //TODO: how to get the entityHashes into the Error messages?
-      //_translated.computeEntityHashes()
-    }
-
     val options = {
       if (config == null) {
         Nil
