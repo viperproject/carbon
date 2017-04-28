@@ -11,7 +11,7 @@ import sys.process._
 import java.io._
 import viper.carbon.boogie._
 import viper.silver.verifier.Failure
-import viper.silver.verifier.errors.PositionedNode
+import viper.silver.verifier.errors.ErrorNode
 import viper.silver.verifier.reasons.InternalReason
 import viper.carbon.boogie.Assert
 import viper.carbon.boogie.Program
@@ -88,7 +88,7 @@ trait BoogieInterface {
 
           def offendingNode = null
 
-          def withNode(offendingNode: PositionedNode = this.offendingNode) = this.clone().asInstanceOf[ErrorReason]
+          def withNode(offendingNode: ErrorNode = this.offendingNode) = this.clone().asInstanceOf[ErrorReason]
         }
 
         def offendingNode = null
@@ -98,7 +98,8 @@ trait BoogieInterface {
         override def readableMessage(withId: Boolean, withPosition: Boolean) =
           s"Internal error: $text"
 
-        def withNode(offendingNode: PositionedNode = this.offendingNode) = this.clone().asInstanceOf[ErrorMessage]
+        def withNode(offendingNode: ErrorNode = this.offendingNode) = this.clone().asInstanceOf[ErrorMessage]
+        def withReason(reason: ErrorReason = this.reason) = this.clone().asInstanceOf[AbstractVerificationError]
       }
       errormap += (otherErrId -> internalError)
     }
@@ -139,7 +140,7 @@ trait BoogieInterface {
     }
     // write program to a temporary file
     val tmp = File.createTempFile("carbon", ".bpl")
-    tmp.deleteOnExit() 
+    tmp.deleteOnExit()
     val stream = new BufferedOutputStream(new FileOutputStream(tmp))
     stream.write(input.getBytes)
     stream.close()
