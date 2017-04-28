@@ -13,12 +13,14 @@ import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
 import java.text.SimpleDateFormat
 import java.util.Date
+
 import viper.carbon.boogie.CommentedDecl
 import viper.carbon.boogie.Procedure
 import viper.carbon.boogie.Program
 import viper.carbon.verifier.Environment
 import viper.silver.verifier.errors
 import viper.carbon.verifier.Verifier
+import viper.silver.ast.utility.Rewriter.Traverse
 
 /**
  * The default implementation of a [[viper.carbon.modules.MainModule]].
@@ -48,10 +50,9 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
   override def translate(p: sil.Program): Program = {
 
     verifier.replaceProgram(
-      p.transform({
-        case f: sil.Forall =>
-          f.autoTrigger
-      })((_) => true)
+      p.transform(
+        { case f: sil.Forall => f.autoTrigger },
+        Traverse.TopDown)
     )
 
     val output = verifier.program match {

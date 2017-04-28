@@ -118,11 +118,11 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           }
         })
         val neededRenamings : Seq[(sil.AbstractLocalVar, sil.Exp)] = actualArgs.filter((_._3.isDefined)).map(element => (element._1.asInstanceOf[sil.LocalVar],element._3.get))
-        val removingTriggers: (errors.PositionedNode => errors.PositionedNode) =
-          ((n: errors.PositionedNode) => n.transform{case q: sil.Forall => q.copy(triggers = Nil)(q.pos, q.info)}())
-        val renamingArguments : (errors.PositionedNode => errors.PositionedNode) = ((n:errors.PositionedNode) => removingTriggers(n).transform({
+        val removingTriggers: (errors.ErrorNode => errors.ErrorNode) =
+          ((n: errors.ErrorNode) => n.transform{case q: sil.Forall => q.copy(triggers = Nil)(q.pos, q.info, q.errT)})
+        val renamingArguments : (errors.ErrorNode => errors.ErrorNode) = ((n:errors.ErrorNode) => removingTriggers(n).transform({
           case e:sil.Exp => Expressions.instantiateVariables[sil.Exp](e,neededRenamings map (_._1), neededRenamings map (_._2))
-        })())
+        }))
 
         val pres = method.pres map (e => Expressions.instantiateVariables(e, method.formalArgs ++ method.formalReturns, (actualArgs map (_._1)) ++ targets))
         val posts = method.posts map (e => Expressions.instantiateVariables(e, method.formalArgs ++ method.formalReturns, (actualArgs map (_._1)) ++ targets))

@@ -614,7 +614,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
 
         /*transform the predicate such that the arguments are now the variables */
         val predAccTransformed = sil.PredicateAccessPredicate(
-          sil.PredicateAccess(localEvalArgs, loc.predicateName)(loc.pos, loc.info), newPerm)(acc.pos, acc.info)
+          sil.PredicateAccess(localEvalArgs, loc.predicateName)(loc.pos, loc.info, loc.errT), newPerm)(acc.pos, acc.info)
 
         (localEvalArgs, predAccTransformed, assignStmt)
     }
