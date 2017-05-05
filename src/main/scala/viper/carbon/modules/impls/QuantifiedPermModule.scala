@@ -30,7 +30,7 @@ import viper.carbon.boogie.Assert
 import viper.carbon.boogie.ConstDecl
 import viper.carbon.boogie.Const
 import viper.carbon.boogie.LocalVar
-import viper.silver.ast.{NoPerm, PermGtCmp}
+import viper.silver.ast.{NoPerm, PermGtCmp, PermMul, PredicateAccess, PredicateAccessPredicate, WildcardPerm}
 import viper.carbon.boogie.Forall
 import viper.carbon.boogie.Assign
 import viper.carbon.boogie.Func
@@ -38,7 +38,6 @@ import viper.carbon.boogie.TypeAlias
 import viper.carbon.boogie.FuncApp
 import viper.carbon.verifier.Verifier
 import viper.silver.ast.utility.Rewriter.Traverse
-import viper.silver.ast.{PredicateAccess, PredicateAccessPredicate, WildcardPerm}
 
 import scala.collection.mutable.ListBuffer
 
@@ -360,6 +359,15 @@ class QuantifiedPermModule(val verifier: Verifier)
                                               obj:Exp,
                                               field:Exp)
 
+  private def conservativeIsWildcardPermission(perm: sil.Exp) : Boolean = {
+    perm match {
+      case WildcardPerm() | PermMul(WildcardPerm(), WildcardPerm()) => true
+      case PermMul(e, WildcardPerm()) => conservativeIsPositivePerm(e)
+      case PermMul(WildcardPerm(), e)  => conservativeIsPositivePerm(e)
+      case _ => false
+    }
+  }
+
   /**
     * translates given quantified field access predicate to Boogie components needed for translation of the statement
     */
@@ -379,7 +387,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         //translate Permission and create Stmts and Local Variable if wildcard permission
         var isWildcard = false
         val (translatedPerms, stmts, wildcard) = {
-          if (perms.isInstanceOf[sil.WildcardPerm]) {
+          if (conservativeIsWildcardPermission(perms)) {
             isWildcard = true
             val w = LocalVar(Identifier("wildcard"), Real)
             (w, LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil, w)
@@ -412,7 +420,7 @@ class QuantifiedPermModule(val verifier: Verifier)
             val (translatedCond, translatedRecv) = (translateExp(renamingCond), translateExp(renamingRecv))
             val translatedLocal = translateLocalVarDecl(vFresh)
             val (translatedPerms, stmts, wildcard) = {
-              if (perms.isInstanceOf[WildcardPerm]) {
+              if (conservativeIsWildcardPermission(perms)) {
                 isWildcard = true
                 val w = LocalVar(Identifier("wildcard"), Real)
                 (w, LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil, w)
@@ -539,7 +547,7 @@ class QuantifiedPermModule(val verifier: Verifier)
             val translatedCond = translateExp(renamedCond)
             val translatedArgs = args.map(translateExp)
             val (translatedPerms, stmts, wildcard) = {
-              if (perms.isInstanceOf[WildcardPerm]) {
+              if (conservativeIsWildcardPermission(perms)) {
                 isWildcard = true
                 val w = LocalVar(Identifier("wildcard"), Real)
                 (w, LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil, w)
@@ -837,7 +845,7 @@ class QuantifiedPermModule(val verifier: Verifier)
            val translatedLocal = translateLocalVarDecl(vFresh)
            val (translatedPerms, stmts) = {
              //define wildcard if necessary
-             if (perms.isInstanceOf[WildcardPerm]) {
+             if (conservativeIsWildcardPermission(perms)) {
                val w = LocalVar(Identifier("wildcard"), Real)
                (w, LocalVarWhereDecl(w.name, w > noPerm) :: Havoc(w) :: Nil)
              } else {
@@ -940,7 +948,7 @@ class QuantifiedPermModule(val verifier: Verifier)
            val translatedCond = translateExp(renamedCond)
            val translatedArgs = args.map(translateExp)
            val (translatedPerms, stmts, wildcard) = {
-             if (perms.isInstanceOf[WildcardPerm]) {
+             if (conservativeIsWildcardPermission(perms)) {
                isWildcard = true
                val w = LocalVar(Identifier("wildcard"), Real)
                (w, LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil, w)
