@@ -30,14 +30,14 @@ import viper.carbon.boogie.Assert
 import viper.carbon.boogie.ConstDecl
 import viper.carbon.boogie.Const
 import viper.carbon.boogie.LocalVar
-import viper.silver.ast.{NoPerm, PermGtCmp}
+import viper.silver.ast.{NoPerm, PermGtCmp, PermMul, PredicateAccess, PredicateAccessPredicate, WildcardPerm}
 import viper.carbon.boogie.Forall
 import viper.carbon.boogie.Assign
 import viper.carbon.boogie.Func
 import viper.carbon.boogie.TypeAlias
 import viper.carbon.boogie.FuncApp
 import viper.carbon.verifier.Verifier
-import viper.silver.ast.{WildcardPerm, PredicateAccess, PredicateAccessPredicate}
+import viper.silver.ast.utility.Rewriter.Traverse
 
 import scala.collection.mutable.ListBuffer
 
@@ -195,7 +195,7 @@ class QuantifiedPermModule(val verifier: Verifier)
     } ++ {
       MaybeCommentedDecl("Functions used as inverse of receiver expressions in quantified permissions during inhale and exhale",
         inverseFuncs)
-    } 
+    }
   }
 
   def permType = NamedType(permTypeName)
@@ -359,6 +359,15 @@ class QuantifiedPermModule(val verifier: Verifier)
                                               obj:Exp,
                                               field:Exp)
 
+  private def conservativeIsWildcardPermission(perm: sil.Exp) : Boolean = {
+    perm match {
+      case WildcardPerm() | PermMul(WildcardPerm(), WildcardPerm()) => true
+      case PermMul(e, WildcardPerm()) => conservativeIsPositivePerm(e)
+      case PermMul(WildcardPerm(), e)  => conservativeIsPositivePerm(e)
+      case _ => false
+    }
+  }
+
   /**
     * translates given quantified field access predicate to Boogie components needed for translation of the statement
     */
@@ -378,7 +387,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         //translate Permission and create Stmts and Local Variable if wildcard permission
         var isWildcard = false
         val (translatedPerms, stmts, wildcard) = {
-          if (perms.isInstanceOf[sil.WildcardPerm]) {
+          if (conservativeIsWildcardPermission(perms)) {
             isWildcard = true
             val w = LocalVar(Identifier("wildcard"), Real)
             (w, LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil, w)
@@ -411,7 +420,7 @@ class QuantifiedPermModule(val verifier: Verifier)
             val (translatedCond, translatedRecv) = (translateExp(renamingCond), translateExp(renamingRecv))
             val translatedLocal = translateLocalVarDecl(vFresh)
             val (translatedPerms, stmts, wildcard) = {
-              if (perms.isInstanceOf[WildcardPerm]) {
+              if (conservativeIsWildcardPermission(perms)) {
                 isWildcard = true
                 val w = LocalVar(Identifier("wildcard"), Real)
                 (w, LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil, w)
@@ -538,7 +547,7 @@ class QuantifiedPermModule(val verifier: Verifier)
             val translatedCond = translateExp(renamedCond)
             val translatedArgs = args.map(translateExp)
             val (translatedPerms, stmts, wildcard) = {
-              if (perms.isInstanceOf[WildcardPerm]) {
+              if (conservativeIsWildcardPermission(perms)) {
                 isWildcard = true
                 val w = LocalVar(Identifier("wildcard"), Real)
                 (w, LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil, w)
@@ -613,7 +622,7 @@ class QuantifiedPermModule(val verifier: Verifier)
               }
 
             //Assume map update for affected locations
-            val gl = new PredicateAccess(freshFormalVars, predname) (predicate.pos, predicate.info)
+            val gl = new PredicateAccess(freshFormalVars, predname) (predicate.pos, predicate.info, predicate.errT)
             val general_location = translateLocation(gl)
 
             //trigger:
@@ -836,7 +845,7 @@ class QuantifiedPermModule(val verifier: Verifier)
            val translatedLocal = translateLocalVarDecl(vFresh)
            val (translatedPerms, stmts) = {
              //define wildcard if necessary
-             if (perms.isInstanceOf[WildcardPerm]) {
+             if (conservativeIsWildcardPermission(perms)) {
                val w = LocalVar(Identifier("wildcard"), Real)
                (w, LocalVarWhereDecl(w.name, w > noPerm) :: Havoc(w) :: Nil)
              } else {
@@ -939,7 +948,7 @@ class QuantifiedPermModule(val verifier: Verifier)
            val translatedCond = translateExp(renamedCond)
            val translatedArgs = args.map(translateExp)
            val (translatedPerms, stmts, wildcard) = {
-             if (perms.isInstanceOf[WildcardPerm]) {
+             if (conservativeIsWildcardPermission(perms)) {
                isWildcard = true
                val w = LocalVar(Identifier("wildcard"), Real)
                (w, LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil, w)
@@ -988,7 +997,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
 
            //define arguments needed to describe map updates
-           val formalPredicate = new PredicateAccess(freshFormalVars, predname) (predicate.pos, predicate.info)
+           val formalPredicate = new PredicateAccess(freshFormalVars, predname) (predicate.pos, predicate.info, predicate.errT)
            val general_location = translateLocation(formalPredicate)
 
            // mappedVars => freshFormalBoogieVars
@@ -1502,61 +1511,63 @@ class QuantifiedPermModule(val verifier: Verifier)
         (true, e0)
       } else {
         // remove permission subtraction
-        val e1 = e0.transform()(_ => true, {
-          case sil.PermSub(left, right) => done = false
-            sil.PermAdd(left, sil.IntPermMul(sil.IntLit(-1)(), right)())()
-        })
+        val e1 =
+          e0.transform(
+            { case sil.PermSub(left, right) => done = false
+                sil.PermAdd(left, sil.IntPermMul(sil.IntLit(-1)(), right)())() },
+            Traverse.BottomUp)
 
         // remove unary minus
-        val e1a = e1.transform()(_ => true, {
-          case sil.PermMinus(a) => done = false
-            sil.IntPermMul(sil.IntLit(-1)(), a)()
-        })
+        val e1a =
+          e1.transform(
+            { case sil.PermMinus(a) => done = false
+                sil.IntPermMul(sil.IntLit(-1)(), a)() },
+            Traverse.BottomUp)
 
         // move permission multiplications all the way to the inside
-        val e2 = e1a.transform()(_ => true, {
+        val e2 = e1a.transform({
           case sil.PermMul(sil.PermAdd(a, b), c) => done = false
             sil.PermAdd(sil.PermMul(a, c)(), sil.PermMul(b, c)())()
           case sil.PermMul(a, sil.PermAdd(b, c)) => done = false
             sil.PermAdd(sil.PermMul(a, b)(), sil.PermMul(a, c)())()
-        })
+        }, Traverse.BottomUp)
 
         // move permission divisions all the way to the inside
-        val e2b = e2.transform()(_ => true, {
+        val e2b = e2.transform({
           case sil.PermDiv(sil.PermAdd(a, b), n) => done = false
             sil.PermAdd(sil.PermDiv(a,n)(),sil.PermDiv(b,n)())()
-        })
+        }, Traverse.BottomUp)
 
         // move integer permission multiplications all the way to the inside
-        val e3 = e2b.transform()(_ => true, {
+        val e3 = e2b.transform({
           case x@sil.IntPermMul(a, sil.PermAdd(b, c)) => done = false
             sil.PermAdd(sil.IntPermMul(a, b)(), sil.IntPermMul(a, c)())()
           case sil.IntPermMul(a, sil.PermMul(b, c)) => done = false
             sil.PermMul(b, sil.IntPermMul(a, c)())()
-        })
+        }, Traverse.BottomUp)
 
         // group integer permission multiplications
-        val e4 = e3.transform()(_ => true, {
+        val e4 = e3.transform({
           case sil.IntPermMul(a, sil.IntPermMul(b, c)) => done = false
             sil.IntPermMul(sil.Mul(a, b)(), c)()
-        })
+        }, Traverse.BottomUp)
 
         // move non-fixed part of permission multiplication to right-hand side
-        val e5 = e4.transform()(_ => true, {
+        val e5 = e4.transform({
           case sil.PermMul(a, b) if isFixedPerm(b) && !isFixedPerm(a) => done = false
             sil.PermMul(b, a)()
-        })
+        }, Traverse.BottomUp)
 
         // collapse a*wildcard or wildcard*a to just wildcard, if a is known to be positive
-        val e5a = e5.transform()(_ => true, {
+        val e5a = e5.transform({
           case sil.PermMul(a, wp@sil.WildcardPerm()) if conservativeStaticIsStrictlyPositivePerm(a) => done = false
             sil.WildcardPerm()(wp.pos,wp.info)
           case sil.PermMul(wp@sil.WildcardPerm(),a) if conservativeStaticIsStrictlyPositivePerm(a) => done = false
             sil.WildcardPerm()(wp.pos,wp.info)
-        })
+        }, Traverse.BottomUp)
 
         // propagate multiplication and division into conditional expressions
-        val e6 = e5a.transform()(_ => true, {
+        val e6 = e5a.transform({
           case sil.IntPermMul(a, sil.CondExp(cond, thn, els)) => done = false
             sil.CondExp(cond, sil.IntPermMul(a,thn)(), sil.IntPermMul(a,els)())()
           case sil.IntPermMul(sil.CondExp(cond, thn, els),a) => done = false
@@ -1567,15 +1578,15 @@ class QuantifiedPermModule(val verifier: Verifier)
             sil.CondExp(cond, sil.PermMul(thn,a)(), sil.PermMul(els,a)())()
           case sil.PermDiv(sil.CondExp(cond, thn, els),n) => done = false
             sil.CondExp(cond, sil.PermDiv(thn,n)(), sil.PermDiv(els,n)())()
-        })
+        }, Traverse.BottomUp)
 
         // propagate addition into conditional expressions
-        val e7 = e6.transform()(_ => true, {
+        val e7 = e6.transform({
           case sil.PermAdd(a, sil.CondExp(cond, thn, els)) => done = false
             sil.CondExp(cond, sil.PermAdd(a,thn)(), sil.PermAdd(a,els)())()
           case sil.PermAdd(sil.CondExp(cond, thn, els),a) => done = false
             sil.CondExp(cond, sil.PermAdd(thn,a)(), sil.PermAdd(els,a)())()
-        })
+        }, Traverse.BottomUp)
 
 
         (done, e7)

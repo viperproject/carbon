@@ -291,8 +291,16 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         checkDefinednessWand(w, error, makeChecks = makeChecks)
       case l@sil.Let(v, e, body) =>
         checkDefinednessImpl(e, error, makeChecks = makeChecks) ::
-          checkDefinednessImpl(body.replace(v.localVar, e), error, makeChecks = makeChecks) ::
-          Nil
+        {
+          val u = env.makeUniquelyNamed(v) // choose a fresh "v" binder
+          env.define(u.localVar)
+          Assign(translateLocalVar(u.localVar),translateExp(e)) ::
+          checkDefinednessImpl(body.replace(v.localVar, u.localVar), error, makeChecks = makeChecks) ::
+            {
+              env.undefine(u.localVar)
+              Nil
+            }
+        }
       case _ =>
         def translate: Seqn = {
           val checks = components map (_.partialCheckDefinedness(e, error, makeChecks = makeChecks))
