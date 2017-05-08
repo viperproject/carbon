@@ -175,6 +175,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     duringFold = false
     foldInfo = null
     duringUnfold = false
+    duringUnfolding = false
     duringUnfoldingExtraUnfold = false
     unfoldInfo = null
     exhaleTmpStateId = -1
@@ -633,7 +634,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         val tmpStateName = if (tmpStateId == 0) "Unfolding" else s"Unfolding$tmpStateId"
         val (stmt, state) = stateModule.freshTempState(tmpStateName)
         def before() = {
-          stmt ++ unfoldPredicate(acc, error)
+          stmt ++ unfoldPredicate(acc, error, true)
         }
         def after() = {
           tmpStateId -= 1
@@ -694,6 +695,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   }
 
   private var duringUnfold = false
+  private var duringUnfolding = false
   private var duringUnfoldingExtraUnfold = false // are we executing an extra unfold, to reflect the meaning of inhaling or exhaling an unfolding expression?
   private var unfoldInfo: sil.PredicateAccessPredicate = null
   override def translateUnfold(unfold: sil.Unfold): Stmt = {
@@ -701,16 +703,18 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       case sil.Unfold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(_, _), perm)) =>
         checkDefinedness(acc, errors.UnfoldFailed(unfold)) ++
           checkDefinedness(perm, errors.UnfoldFailed(unfold)) ++
-          unfoldPredicate(acc, errors.UnfoldFailed(unfold))
+          unfoldPredicate(acc, errors.UnfoldFailed(unfold), false)
     }
   }
 
-  private def unfoldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError): Stmt = {
+  private def unfoldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError, isUnfolding: Boolean): Stmt = {
     val oldDuringUnfold = duringUnfold
+    val oldDuringUnfolding = duringUnfolding
     val oldUnfoldInfo = unfoldInfo
     val oldDuringFold = duringFold
     duringFold = false
     duringUnfold = true
+    duringUnfolding = isUnfolding
     unfoldInfo = acc
     val stmt = Assume(predicateTrigger(heapModule.currentStateExps, acc.loc)) ++
       exhale(Seq((acc, error)), havocHeap = false) ++
@@ -718,6 +722,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     unfoldInfo = oldUnfoldInfo
     duringUnfold = oldDuringUnfold
     duringFold = oldDuringFold
+    duringUnfolding = oldDuringUnfolding
     stmt
   }
 
@@ -729,7 +734,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         tmpStateId += 1
         val tmpStateName = if (tmpStateId == 0) "Unfolding" else s"Unfolding$tmpStateId"
         val (stmt, state) = stateModule.freshTempState(tmpStateName)
-        val stmts = stmt ++ unfoldPredicate(acc, NullPartialVerificationError)
+        val stmts = stmt ++ unfoldPredicate(acc, NullPartialVerificationError, true)
         tmpStateId -= 1
         stateModule.replaceState(state)
         duringUnfoldingExtraUnfold = false
@@ -740,7 +745,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         val oldVersion = LocalVar(Identifier("oldVersion"), Int)
         val newVersion = LocalVar(Identifier("newVersion"), Int)
         val curVersion = translateExp(loc)
-        val stmt: Stmt = if (exhaleTmpStateId >= 0) Nil else (oldVersion := curVersion) ++
+        val stmt: Stmt = if (exhaleTmpStateId >= 0 || duringUnfolding) Nil else (oldVersion := curVersion) ++
           Havoc(Seq(newVersion)) ++
           Assume(oldVersion < newVersion) ++
           (curVersion := newVersion)
@@ -790,7 +795,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         tmpStateId += 1
         val tmpStateName = if (tmpStateId == 0) "Unfolding" else s"Unfolding$tmpStateId"
         val (stmt, state) = stateModule.freshTempState(tmpStateName)
-        val stmts = stmt ++ unfoldPredicate(acc, NullPartialVerificationError)
+        val stmts = stmt ++ unfoldPredicate(acc, NullPartialVerificationError, true)
         tmpStateId -= 1
         stateModule.replaceState(state)
         duringUnfoldingExtraUnfold = false
@@ -804,7 +809,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           extraUnfolding = false
           val tmpStateName = if (exhaleTmpStateId == 0) "ExtraUnfolding" else s"ExtraUnfolding$exhaleTmpStateId"
           val (stmt, state) = stateModule.freshTempState(tmpStateName)
-          val r = stmt ++ unfoldPredicate(pap, NullPartialVerificationError)
+          val r = stmt ++ unfoldPredicate(pap, NullPartialVerificationError, true)
           extraUnfolding = true
           exhaleTmpStateId -= 1
           stateModule.replaceState(state)
