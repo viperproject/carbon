@@ -349,11 +349,13 @@ class DefaultHeapModule(val verifier: Verifier)
           t =>
             Assume(validReference(t))
         }
-      case sil.Fold(sil.PredicateAccessPredicate(loc, perm)) =>
+      case sil.Fold(sil.PredicateAccessPredicate(loc, perm)) => // AS: this should really be taken care of in the FuncPredModule.
         val newVersion = LocalVar(Identifier("freshVersion"), Int)
-        (predicateMask(loc) := zeroPMask) ++
+        val resetPredicateInfo : Stmt = (predicateMask(loc) := zeroPMask) ++
           Havoc(newVersion) ++
-          (translateLocationAccess(loc) := newVersion) ++
+          (translateLocationAccess(loc) := newVersion)
+
+          If(UnExp(Not,hasDirectPerm(loc)), resetPredicateInfo, Nil) ++
           addPermissionToPMask(loc)
       case _ => Statements.EmptyStmt
     }
