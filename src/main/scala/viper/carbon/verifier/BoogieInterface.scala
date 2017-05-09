@@ -29,7 +29,7 @@ class BoogieDependency(_location: String) extends Dependency {
 
 trait BoogieInterface {
 
-  def defaultOptions = Seq("/vcsCores:" + java.lang.Runtime.getRuntime.availableProcessors, "/errorTrace:0", "/z3opt:smt.qi.max_multi_patterns=1000", s"/z3exe:$z3Path")
+  def defaultOptions = Seq("/vcsCores:" + java.lang.Runtime.getRuntime.availableProcessors, "/errorTrace:0", "/noinfer", "/z3opt:smt.qi.max_multi_patterns=1000", s"/z3exe:$z3Path")
 
   /** The (resolved) path where Boogie is supposed to be located. */
   def boogiePath: String
@@ -101,7 +101,6 @@ trait BoogieInterface {
           s"Internal error: $text"
 
         def withNode(offendingNode: ErrorNode = this.offendingNode) = this.clone().asInstanceOf[ErrorMessage]
-        def updateNode(offendingNode: ErrorNode, reasonOffendingNode: ErrorNode) = this.clone().asInstanceOf[VerificationError]
         def withReason(reason: ErrorReason = this.reason) = this.clone().asInstanceOf[AbstractVerificationError]
 
       }

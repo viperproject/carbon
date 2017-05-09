@@ -588,7 +588,7 @@ class QuantifiedPermModule(val verifier: Verifier)
             }
 
             fa.info match {
-              case info:sil.AutoTriggered => tr1 = tr0 ++ tr1 // add default trigger if triggers were generated automatically
+              case sil.AutoTriggered => tr1 = tr0 ++ tr1 // add default trigger if triggers were generated automatically
               case _ => {}
             }
 
@@ -986,7 +986,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
            lazy val providedTriggers : Seq[Trigger] = validateTriggers(Seq(translatedLocal), translatedTriggers)
            // add default trigger if triggers were generated automatically
-           val tr1: Seq[Trigger] = if (e.info.getUniqueInfo[sil.AutoTriggered].isDefined) tr0 ++ providedTriggers else providedTriggers
+           val tr1: Seq[Trigger] = if (e.info.getUniqueInfo[sil.AutoTriggered.type].isDefined) tr0 ++ providedTriggers else providedTriggers
 
            val invAssm1 = Forall(translatedLocal, tr1, (translatedCond && permGt(translatedPerms, noPerm)) ==> (funApp === translatedLocal.l))
            //for each argument, define the second inverse function
