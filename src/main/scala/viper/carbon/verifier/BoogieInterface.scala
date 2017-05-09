@@ -159,7 +159,7 @@ trait BoogieInterface {
   def stopBoogie(){
     if(_boogieProcess!= null){
       _boogieProcess.destroy()
-      _boogieProcess.exitValue()
+      _boogieProcess.exitValue() //TODO: this blocks if an underlying z3 instance remains running
     }
   }
 
