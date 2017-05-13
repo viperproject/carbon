@@ -114,28 +114,22 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       CommentedDecl("Function for recording enclosure of one predicate instance in another",
         Func(insidePredicateName,
           Seq(
-            LocalVarDecl(Identifier("x"), refType),
             LocalVarDecl(Identifier("p"), predicateVersionFieldType("A")),
             LocalVarDecl(Identifier("v"), Int),
-            LocalVarDecl(Identifier("y"), refType),
             LocalVarDecl(Identifier("q"), predicateVersionFieldType("B")),
             LocalVarDecl(Identifier("w"), Int)
           ),
           Bool), size = 1) ++
-      ConstDecl(specialRefName, refType, unique = true) ++
       CommentedDecl(s"Transitivity of ${insidePredicateName.name}", {
         val vars1 = Seq(
-          LocalVarDecl(Identifier("x"), refType),
           LocalVarDecl(Identifier("p"), predicateVersionFieldType("A")),
           LocalVarDecl(Identifier("v"), Int)
         )
         val vars2 = Seq(
-          LocalVarDecl(Identifier("y"), refType),
           LocalVarDecl(Identifier("q"), predicateVersionFieldType("B")),
           LocalVarDecl(Identifier("w"), Int)
         )
         val vars3 = Seq(
-          LocalVarDecl(Identifier("z"), refType),
           LocalVarDecl(Identifier("r"), predicateVersionFieldType("C")),
           LocalVarDecl(Identifier("u"), Int)
         )
@@ -153,10 +147,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       CommentedDecl(s"Knowledge that two identical instances of the same predicate cannot be inside each other", {
         val p = LocalVarDecl(Identifier("p"), predicateVersionFieldType())
         val vars = Seq(
-          LocalVarDecl(Identifier("x"), refType),
           p,
           LocalVarDecl(Identifier("v"), Int),
-          LocalVarDecl(Identifier("y"), refType),
           p,
           LocalVarDecl(Identifier("w"), Int)
         )
@@ -165,7 +157,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           Forall(
             vars.distinct,
             Trigger(f),
-            f ==> (vars(0).l !== vars(3).l)
+            UnExp(Not, f)
           )
         )
       }, size = 1)
@@ -183,6 +175,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     duringFold = false
     foldInfo = null
     duringUnfold = false
+    duringUnfolding = false
     duringUnfoldingExtraUnfold = false
     unfoldInfo = null
     exhaleTmpStateId = -1
@@ -641,7 +634,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         val tmpStateName = if (tmpStateId == 0) "Unfolding" else s"Unfolding$tmpStateId"
         val (stmt, state) = stateModule.freshTempState(tmpStateName)
         def before() = {
-          stmt ++ unfoldPredicate(acc, error)
+          stmt ++ unfoldPredicate(acc, error, true)
         }
         def after() = {
           tmpStateId -= 1
@@ -702,6 +695,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   }
 
   private var duringUnfold = false
+  private var duringUnfolding = false
   private var duringUnfoldingExtraUnfold = false // are we executing an extra unfold, to reflect the meaning of inhaling or exhaling an unfolding expression?
   private var unfoldInfo: sil.PredicateAccessPredicate = null
   override def translateUnfold(unfold: sil.Unfold): Stmt = {
@@ -709,16 +703,18 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       case sil.Unfold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(_, _), perm)) =>
         checkDefinedness(acc, errors.UnfoldFailed(unfold)) ++
           checkDefinedness(perm, errors.UnfoldFailed(unfold)) ++
-          unfoldPredicate(acc, errors.UnfoldFailed(unfold))
+          unfoldPredicate(acc, errors.UnfoldFailed(unfold), false)
     }
   }
 
-  private def unfoldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError): Stmt = {
+  private def unfoldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError, isUnfolding: Boolean): Stmt = {
     val oldDuringUnfold = duringUnfold
+    val oldDuringUnfolding = duringUnfolding
     val oldUnfoldInfo = unfoldInfo
     val oldDuringFold = duringFold
     duringFold = false
     duringUnfold = true
+    duringUnfolding = isUnfolding
     unfoldInfo = acc
     val stmt = Assume(predicateTrigger(heapModule.currentStateExps, acc.loc)) ++
       exhale(Seq((acc, error)), havocHeap = false) ++
@@ -726,6 +722,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     unfoldInfo = oldUnfoldInfo
     duringUnfold = oldDuringUnfold
     duringFold = oldDuringFold
+    duringUnfolding = oldDuringUnfolding
     stmt
   }
 
@@ -737,7 +734,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         tmpStateId += 1
         val tmpStateName = if (tmpStateId == 0) "Unfolding" else s"Unfolding$tmpStateId"
         val (stmt, state) = stateModule.freshTempState(tmpStateName)
-        val stmts = stmt ++ unfoldPredicate(acc, NullPartialVerificationError)
+        val stmts = stmt ++ unfoldPredicate(acc, NullPartialVerificationError, true)
         tmpStateId -= 1
         stateModule.replaceState(state)
         duringUnfoldingExtraUnfold = false
@@ -748,20 +745,24 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         val oldVersion = LocalVar(Identifier("oldVersion"), Int)
         val newVersion = LocalVar(Identifier("newVersion"), Int)
         val curVersion = translateExp(loc)
-        val stmt: Stmt = if (exhaleTmpStateId >= 0) Nil else (oldVersion := curVersion) ++
+        val stmt: Stmt = if (exhaleTmpStateId >= 0 || duringUnfolding) Nil else (oldVersion := curVersion) ++
           Havoc(Seq(newVersion)) ++
           Assume(oldVersion < newVersion) ++
           (curVersion := newVersion)
         MaybeCommentBlock("Update version of predicate",
-          If(hasDirectPerm(loc), stmt, Nil))
+          If(UnExp(Not,hasDirectPerm(loc)), stmt, Nil))
       case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(_, _), perm) if duringFold =>
         MaybeCommentBlock("Record predicate instance information",
           insidePredicate(foldInfo, pap))
+
       case _ => Nil
     }
   }
 
   private def insidePredicate(p1: sil.PredicateAccessPredicate, p2: sil.PredicateAccessPredicate): Stmt = {
+    Assume(FuncApp(insidePredicateName,Seq(translateLocation(verifier.program.findPredicate(p1.loc.predicateName), p1.loc.args.map(translateExp(_))),translateExp(p1.loc),translateLocation(verifier.program.findPredicate(p2.loc.predicateName), p2.loc.args.map(translateExp(_))),translateExp(p2.loc)),
+      Bool))
+    /*
     val allArgs1 = p1.loc.args.zipWithIndex
     val args1 = allArgs1 filter (x => x._1.typ == sil.Ref)
     val allArgs2 = p2.loc.args.zipWithIndex
@@ -781,7 +782,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           translateLocation(verifier.program.findPredicate(p2.loc.predicateName), newargs2),
           translateExp(p2.loc)),
         Bool))
-    }
+    }*/
   }
 
   var exhaleTmpStateId = -1
@@ -794,7 +795,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         tmpStateId += 1
         val tmpStateName = if (tmpStateId == 0) "Unfolding" else s"Unfolding$tmpStateId"
         val (stmt, state) = stateModule.freshTempState(tmpStateName)
-        val stmts = stmt ++ unfoldPredicate(acc, NullPartialVerificationError)
+        val stmts = stmt ++ unfoldPredicate(acc, NullPartialVerificationError, true)
         tmpStateId -= 1
         stateModule.replaceState(state)
         duringUnfoldingExtraUnfold = false
@@ -808,7 +809,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           extraUnfolding = false
           val tmpStateName = if (exhaleTmpStateId == 0) "ExtraUnfolding" else s"ExtraUnfolding$exhaleTmpStateId"
           val (stmt, state) = stateModule.freshTempState(tmpStateName)
-          val r = stmt ++ unfoldPredicate(pap, NullPartialVerificationError)
+          val r = stmt ++ unfoldPredicate(pap, NullPartialVerificationError, true)
           extraUnfolding = true
           exhaleTmpStateId -= 1
           stateModule.replaceState(state)
