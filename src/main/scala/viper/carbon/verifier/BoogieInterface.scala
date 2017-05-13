@@ -13,8 +13,7 @@ import java.io._
 
 import viper.carbon.boogie._
 import viper.silver.verifier.Failure
-import viper.silver.verifier.errors.{DummyNode, PositionedNode}
-import viper.silver.verifier.errors.ErrorNode
+import viper.silver.verifier.errors.{DummyNode,ErrorNode}
 import viper.silver.verifier.reasons.InternalReason
 import viper.carbon.boogie.Assert
 import viper.carbon.boogie.Program
