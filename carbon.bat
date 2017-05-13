@@ -25,7 +25,7 @@ for /f "delims=" %%x in (carbon_classpath.txt) do set CP=%%x
 cd %CURR_DIR%
 
 set JAVA_EXE=java
-set JVM_OPTS=-Dlog4j.configuration=file:"%BASE_DIR%\src\test\resources\log4j.properties" -Xss30m -Dfile.encoding=UTF-8
+set JVM_OPTS=-Xss30m -Dfile.encoding=UTF-8
 set CARBON_MAIN=viper.carbon.Carbon
 set CARBON_OPTS= %*
 set CMD=%JAVA_EXE% %JVM_OPTS% -cp "%CP%" %CARBON_MAIN% %CARBON_OPTS%
