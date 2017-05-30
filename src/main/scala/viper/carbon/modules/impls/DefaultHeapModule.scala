@@ -249,7 +249,7 @@ class DefaultHeapModule(val verifier: Verifier)
       }
   }
 
-  /** Return the identifier corresponding to a SIL location. */
+  /** Return the identifier corresponding to a Viper location. */
   private def locationIdentifier(f: sil.Location): Identifier = {
     Identifier(f.name)(fieldNamespace)
   }

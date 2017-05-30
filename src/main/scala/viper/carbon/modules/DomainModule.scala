@@ -10,7 +10,7 @@ import viper.silver.{ast => sil}
 import viper.carbon.boogie.{Type, Decl, Exp}
 
 /**
- * A module for translating SIL domains.
+ * A module for translating Viper domains.
 
  */
 trait DomainModule extends Module {

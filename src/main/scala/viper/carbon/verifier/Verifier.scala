@@ -11,7 +11,7 @@ import viper.carbon.modules._
 import viper.carbon.boogie.Namespace
 
 /**
- * A verifier for SIL in Carbon (defines what modules need to be available).
+ * A verifier for Viper in Carbon (defines what modules need to be available).
  */
 trait Verifier {
 

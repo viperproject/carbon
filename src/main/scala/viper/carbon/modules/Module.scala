@@ -39,7 +39,7 @@ trait Module extends LifetimeComponent with StatefulComponent with viper.carbon.
   /**
    * The Boogie code that this module will insert into the preamble (optional).
    *
-   * The convention is that the verifier will first translate the full SIL program, and only after the
+   * The convention is that the verifier will first translate the full Viper program, and only after the
    * translation ask all the modules to give preamble definitions.  This allows modules to first see
    * if certain features are needed, and only output parts of the preamble that are used.
    */

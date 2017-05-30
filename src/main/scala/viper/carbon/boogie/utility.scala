@@ -19,7 +19,7 @@ object Statements {
    * is, all statements except `Seqn`, including statements in the branches of
    * if's.
    *
-   * Taken from the SIL AST with minimal adaptation.
+   * Taken from the Viper AST with minimal adaptation.
    */
   def children(s: Stmt): Seq[Stmt] = {
     s match {
@@ -36,7 +36,7 @@ object Statements {
    * If the same local variable is used with different
    * types, an exception is thrown.
    *
-   * Taken from the SIL AST with minimal adaptation.
+   * Taken from the Viper AST with minimal adaptation.
    */
   def undeclLocalVars(s: Stmt): Seq[LocalVar] = {
     def extractLocal(n: Node, decls: Seq[LocalVarDecl]) = n match {
