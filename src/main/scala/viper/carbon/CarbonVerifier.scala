@@ -34,7 +34,14 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
   def config = _config
 
   def start() = {}
-  def stop() = {}
+  def stop() {
+    if (allModules != null) {
+      allModules foreach (m => {
+        m.stop()
+      })
+    }
+    stopBoogie()
+  }
 
   private var namespaceId = 0
   override def freshNamespace(name: String): Namespace = {
