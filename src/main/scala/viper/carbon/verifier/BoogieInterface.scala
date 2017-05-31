@@ -13,7 +13,7 @@ import java.io._
 
 import viper.carbon.boogie._
 import viper.silver.verifier.Failure
-import viper.silver.verifier.errors.{DummyNode,ErrorNode}
+import viper.silver.verifier.errors.{ErrorNode}
 import viper.silver.verifier.reasons.InternalReason
 import viper.carbon.boogie.Assert
 import viper.carbon.boogie.Program
@@ -38,6 +38,8 @@ trait BoogieInterface {
 
   /** The (resolved) path where Z3 is supposed to be located. */
   def z3Path: String
+
+  private var _boogieProcess:Process = null
 
   var errormap: Map[Int, VerificationError] = Map()
   def invokeBoogie(program: Program, options: Seq[String]): (String,VerificationResult) = {
@@ -81,17 +83,7 @@ trait BoogieInterface {
 
         def id: String = "boogie.unknown.output"
 
-        def reason: ErrorReason = new ErrorReason {
-          def pos: Position = NoPosition
-
-          def readableMessage: String = "?"
-
-          def id: String = "unknown"
-
-          def offendingNode = DummyNode
-
-          def withNode(offendingNode: ErrorNode = this.offendingNode) = this.clone().asInstanceOf[ErrorReason]
-        }
+        def reason: ErrorReason = DummyReason
 
         def offendingNode = DummyNode
 
@@ -102,6 +94,7 @@ trait BoogieInterface {
 
         def withNode(offendingNode: ErrorNode = this.offendingNode) = this.clone().asInstanceOf[ErrorMessage]
         def withReason(reason: ErrorReason = this.reason) = this.clone().asInstanceOf[AbstractVerificationError]
+
       }
       errormap += (otherErrId -> internalError)
     }
@@ -149,8 +142,16 @@ trait BoogieInterface {
 
     // Note: call exitValue to block until Boogie has finished
     // Note: we call boogie with an empty input "file" on stdin and parse the output
-    (Seq(boogiePath) ++ options ++ Seq(tmp.getAbsolutePath)).run(new ProcessIO(_.close(), out, err)).exitValue()
+    _boogieProcess = (Seq(boogiePath) ++ options ++ Seq(tmp.getAbsolutePath)).run(new ProcessIO(_.close(), out, err))
+    _boogieProcess.exitValue()
     reserr + res
+  }
+
+  def stopBoogie(){
+    if(_boogieProcess!= null){
+      _boogieProcess.destroy()
+      _boogieProcess.exitValue() //TODO: this blocks if an underlying z3 instance remains running
+    }
   }
 
   // TODO: investigate why passing the program directly does not work
