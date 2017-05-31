@@ -364,7 +364,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     * plus a sequence of information about quantified permissions encountered, which can be used to define functions
     * to define the footprints of the related QPs (when the function axioms are generated)
     *
-    * The generated frame includes freshly-genreated variables
+    * The generated frame includes freshly-generated variables
     */
   private def getFunctionFrame(fun: sil.Function, args: Seq[Exp]): (Exp, Seq[(Func, sil.Forall)]) = {
     qpCondFuncs = new ListBuffer[(Func, sil.Forall)]
