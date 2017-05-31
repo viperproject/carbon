@@ -13,7 +13,7 @@ import java.io._
 
 import viper.carbon.boogie._
 import viper.silver.verifier.Failure
-import viper.silver.verifier.errors.{DummyNode,ErrorNode}
+import viper.silver.verifier.errors.{ErrorNode}
 import viper.silver.verifier.reasons.InternalReason
 import viper.carbon.boogie.Assert
 import viper.carbon.boogie.Program
@@ -83,17 +83,7 @@ trait BoogieInterface {
 
         def id: String = "boogie.unknown.output"
 
-        def reason: ErrorReason = new ErrorReason {
-          def pos: Position = NoPosition
-
-          def readableMessage: String = "?"
-
-          def id: String = "unknown"
-
-          def offendingNode = DummyNode
-
-          def withNode(offendingNode: ErrorNode = this.offendingNode) = this.clone().asInstanceOf[ErrorReason]
-        }
+        def reason: ErrorReason = DummyReason
 
         def offendingNode = DummyNode
 
