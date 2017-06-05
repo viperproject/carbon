@@ -38,8 +38,8 @@ import viper.carbon.boogie.TypeAlias
 import viper.carbon.boogie.FuncApp
 import viper.carbon.verifier.Verifier
 import viper.silver.ast.utility.Rewriter.Traverse
-
 import scala.collection.mutable.ListBuffer
+import viper.silver.ast.utility.QuantifiedPermissions.SourceQuantifiedPermissionAssertion
 
 /**
  * An implementation of [[viper.carbon.modules.PermModule]] supporting quantified permissions.
@@ -405,7 +405,9 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   def translateExhale(fa: sil.Forall, error: PartialVerificationError): Stmt =  {
     val stmt = fa match {
-      case qp@sil.utility.QuantifiedPermissions.QuantifiedPermission(v, cond, expr)  =>
+      case SourceQuantifiedPermissionAssertion(forall, cond, expr)  =>
+        val v = forall.variables.head // TODO: Generalise to multiple quantified variables
+
         val res = expr match {
           case sil.FieldAccessPredicate(fieldAccess@sil.FieldAccess(recv, f), perms) =>
             // alpha renaming, to avoid clashes in context, use vFresh instead of v
@@ -830,7 +832,9 @@ class QuantifiedPermModule(val verifier: Verifier)
       translate inhaling a forall expressions
    */
   def translateInhale(e: sil.Forall): Stmt = e match{
-    case qp@sil.utility.QuantifiedPermissions.QuantifiedPermission(v, cond, expr) =>
+    case SourceQuantifiedPermissionAssertion(forall, cond, expr) =>
+      val v = forall.variables.head // TODO: Generalise to multiple quantified variables
+
        val res = expr match {
          //Quantified Field Permission
          case sil.FieldAccessPredicate(fieldAccess@sil.FieldAccess(recv, f), perms) =>
@@ -1076,7 +1080,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   //renamed Localvariable and Condition
   def getMapping(v: sil.LocalVarDecl, cond:sil.Exp, expr:sil.Exp): Seq[Exp] = {
     val res = expr match {
-      case qp@sil.utility.QuantifiedPermissions.QuantifiedPermission(v, cond, expr)  =>
+      case SourceQuantifiedPermissionAssertion(forall, cond, expr)  =>
         Nil
       case sil.FieldAccessPredicate(fa@sil.FieldAccess(rcvr, f), gain) =>
         Nil

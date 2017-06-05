@@ -16,6 +16,7 @@ import viper.carbon.boogie.Implicits._
 import viper.silver.verifier.{PartialVerificationError, reasons}
 import viper.carbon.verifier.Verifier
 import viper.silver.ast.NullLit
+import viper.silver.ast.utility.QuantifiedPermissions.QuantifiedPermissionAssertion
 
 /**
  * The default implementation of a [[viper.carbon.modules.HeapModule]].
@@ -381,7 +382,10 @@ class DefaultHeapModule(val verifier: Verifier)
    */
   private def addPermissionToPMaskHelper(e: sil.Exp, loc: sil.PredicateAccess, pmask: Exp): Stmt = {
     e match {
-      case sil.utility.QuantifiedPermissions.QPForall(v,cond,recv,fld,perms,forall,fieldAccess) =>
+      case QuantifiedPermissionAssertion(forall, cond, acc: sil.FieldAccessPredicate) =>
+        val v = forall.variables.head // TODO: Generalise to multiple quantified variables
+        val fieldAccess = acc.loc
+
         // alpha renaming, to avoid clashes in context
         val vFresh = env.makeUniquelyNamed(v);
         env.define(vFresh.localVar);
