@@ -21,17 +21,17 @@ import viper.carbon.boogie.Trigger
 import viper.carbon.boogie.TypeVar
 import viper.carbon.modules._
 import viper.silver.ast.{FuncApp => silverFuncApp}
-import viper.silver.ast.utility.Expressions.{whenExhaling, whenInhaling, contains}
-import viper.silver.ast.{PredicateAccess, PredicateAccessPredicate, Unfolding, PermGtCmp, NoPerm}
+import viper.silver.ast.utility.Expressions.{contains, whenExhaling, whenInhaling}
+import viper.silver.ast.{NoPerm, PermGtCmp, PredicateAccess, PredicateAccessPredicate, Unfolding}
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.{Environment, Verifier}
 import viper.carbon.boogie.Implicits._
 import viper.silver.ast.utility._
-import viper.carbon.modules.components.{InhaleComponent, ExhaleComponent, DefinednessComponent}
-import viper.silver.verifier.{NullPartialVerificationError, errors, PartialVerificationError}
-
+import viper.carbon.modules.components.{DefinednessComponent, ExhaleComponent, InhaleComponent}
+import viper.silver.verifier.{NullPartialVerificationError, PartialVerificationError, errors}
 import scala.collection.mutable.ListBuffer
+import viper.silver.ast.utility.QuantifiedPermissions.QuantifiedPermissionAssertion
 
 /**
  * The default implementation of a [[viper.carbon.modules.FuncPredModule]].
@@ -364,7 +364,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     * plus a sequence of information about quantified permissions encountered, which can be used to define functions
     * to define the footprints of the related QPs (when the function axioms are generated)
     *
-    * The generated frame includes freshly-genreated variables
+    * The generated frame includes freshly-generated variables
     */
   private def getFunctionFrame(fun: sil.Function, args: Seq[Exp]): (Exp, Seq[(Func, sil.Forall)]) = {
     qpCondFuncs = new ListBuffer[(Func, sil.Forall)]
@@ -417,7 +417,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       case sil.AccessPredicate(la, perm) =>
         if (permModule.conservativeIsPositivePerm(perm)) frameFragment(translateLocationAccess(renaming(la).asInstanceOf[sil.LocationAccess])) else
         FuncApp(condFrameName, Seq(translatePerm(perm),frameFragment(translateLocationAccess(renaming(la).asInstanceOf[sil.LocationAccess]))),frameType)
-      case qp@sil.utility.QuantifiedPermissions.QPForall(lvd, condition, rcvr, f, gain, forall, fa) =>
+      case QuantifiedPermissionAssertion(forall, condition, acc: sil.FieldAccessPredicate) =>
         qpPrecondId = qpPrecondId+1
         val heap = heapModule.staticStateContributions
         val condName = Identifier(functionName + "#condqp" +qpPrecondId.toString)
@@ -447,7 +447,11 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
     (for ((condFunc,qp) <- qps) yield {
       qp match {
-        case sil.utility.QuantifiedPermissions.QPForall(lvd, condition, rcvr, f, perm, forall, fa) =>
+        case QuantifiedPermissionAssertion(forall, condition, acc: sil.FieldAccessPredicate) =>
+          val lvd = forall.variables.head // TODO: Generalise to multiple quantified variables
+          val perm = acc.perm
+          val fa = acc.loc
+
           val vFresh = env.makeUniquelyNamed(lvd);
           env.define(vFresh.localVar)
           def renaming(origExpr: sil.Exp) = Expressions.instantiateVariables(origExpr, Seq(lvd), vFresh.localVar)

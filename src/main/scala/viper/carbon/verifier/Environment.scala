@@ -11,7 +11,7 @@ import viper.carbon.boogie.{BoogieNameGenerator, Identifier, LocalVar}
 import viper.silver.ast.utility.Expressions
 
 /**
- * An environment that assigns unique names to SIL variables;  in SIL, loops can have
+ * An environment that assigns unique names to Viper variables;  in SIL, loops can have
  * local variables and thus a method might have two declarations of a local variable
  * with the same name (in different loops).  In Boogie on the other hand, all variables
  * need to be unique.
@@ -45,7 +45,7 @@ case class Environment(verifier: Verifier, member: sil.Node) {
   }
 
   /**
-   * Returns the Boogie variable for a given SIL variable (it has to be defined first,
+   * Returns the Boogie variable for a given Viper variable (it has to be defined first,
    * otherwise an error is thrown).
    */
   def get(variable: sil.LocalVar): LocalVar = {
@@ -56,7 +56,7 @@ case class Environment(verifier: Verifier, member: sil.Node) {
   }
 
   /**
-   * Defines a local variable in this environment for a given SIL variable, and returns the corresponding
+   * Defines a local variable in this environment for a given Viper variable, and returns the corresponding
    * Boogie variable.
    */
   def define(variable: sil.LocalVar): LocalVar = {

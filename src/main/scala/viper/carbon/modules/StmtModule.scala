@@ -11,7 +11,7 @@ import viper.silver.{ast => sil}
 import viper.carbon.boogie.Stmt
 
 /**
- * A module for translating SIL statements.
+ * A module for translating Viper statements.
 
  */
 trait StmtModule extends Module with ComponentRegistry[StmtComponent] {

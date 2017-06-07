@@ -13,7 +13,7 @@ import viper.carbon.modules.components.{ComponentRegistry, DefinednessComponent}
 import viper.silver.verifier.PartialVerificationError
 
 /**
- * A module for translating SIL expressions.
+ * A module for translating Viper expressions.
  */
 trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
   def translateExp(exp: sil.Exp): Exp
@@ -25,7 +25,7 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
   def allFreeAssumptions(e: sil.Exp): Stmt
 
   /**
-   * Check definedness of SIL expressions as they occur in the program.
+   * Check definedness of Viper expressions as they occur in the program.
    *
    * makeChecks provides the possibility of switching off most checks, to get 
    * only the side-effects (unfoldings) of unravelling the expression. Note that
@@ -34,7 +34,7 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
   def checkDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean = true): Stmt
 
   /**
-   * Check definedness of SIL assertions such as pre-/postconditions or invariants.
+   * Check definedness of Viper assertions such as pre-/postconditions or invariants.
    * The implementation works by inhaling 'e' and checking the necessary properties
    * along the way.
    */
@@ -61,7 +61,7 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
   }
 
   /**
-   * Check definedness of SIL assertions such as pre-/postconditions or invariants.
+   * Check definedness of Viper assertions such as pre-/postconditions or invariants.
    * The implementation works by exhaling 'e' and checking the necessary properties
    * along the way.
    */

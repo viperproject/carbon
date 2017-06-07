@@ -19,7 +19,7 @@ import java.io.{FileOutputStream, BufferedOutputStream, File}
 
 
 /**
- * The main class to perform verification of SIL programs.  Deals with command-line arguments, configuration
+ * The main class to perform verification of Viper programs.  Deals with command-line arguments, configuration
  * of modules and choosing which module implementations to use.
  *
  * Debug information can either be set using the constructor argument or the setter.
@@ -34,7 +34,14 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
   def config = _config
 
   def start() = {}
-  def stop() = {}
+  def stop() {
+    if (allModules != null) {
+      allModules foreach (m => {
+        m.stop()
+      })
+    }
+    stopBoogie()
+  }
 
   private var namespaceId = 0
   override def freshNamespace(name: String): Namespace = {

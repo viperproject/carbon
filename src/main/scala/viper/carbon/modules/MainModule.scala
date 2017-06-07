@@ -11,12 +11,12 @@ import viper.carbon.boogie._
 import viper.carbon.verifier.Environment
 
 /**
- * A module for translating SIL programs by invoking the right modules and
+ * A module for translating Viper programs by invoking the right modules and
  * gathering all the preambles, etc.
  */
 trait MainModule extends Module {
   /**
-   * Translate a SIL program into a Boogie program.
+   * Translate a Viper program into a Boogie program.
    */
   def translate(p: sil.Program): Program
 
@@ -33,7 +33,7 @@ trait MainModule extends Module {
   /** The current environment. */
   var env: Environment = null
 
-  /** The namespace for SIL local variables. */
+  /** The namespace for Viper local variables. */
   def silVarNamespace: Namespace
 
   /** Used to encode assumptions made about valid values of a given type (e.g. allocation of non-null references) */

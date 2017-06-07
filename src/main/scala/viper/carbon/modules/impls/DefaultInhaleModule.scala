@@ -44,7 +44,7 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule with Stat
   }
 
   /**
-   * Inhales SIL expression connectives (such as logical and/or) and forwards the
+   * Inhales Viper expression connectives (such as logical and/or) and forwards the
    * translation of other expressions to the inhale components.
    */
   private def inhaleConnective(e: sil.Exp): Stmt = {
