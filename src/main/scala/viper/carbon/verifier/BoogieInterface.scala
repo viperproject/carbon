@@ -13,7 +13,7 @@ import java.io._
 
 import viper.carbon.boogie._
 import viper.silver.verifier.Failure
-import viper.silver.verifier.errors.{ErrorNode}
+import viper.silver.verifier.errors.{ErrorNode, Internal}
 import viper.silver.verifier.reasons.InternalReason
 import viper.carbon.boogie.Assert
 import viper.carbon.boogie.Program
@@ -76,26 +76,8 @@ trait BoogieInterface {
 
     val unexpected : (String => Unit) = (msg:String) => {
       otherErrId -= 1
-
       errors += otherErrId
-      val internalError = new AbstractVerificationError {
-        protected def text: String = msg
-
-        def id: String = "boogie.unknown.output"
-
-        def reason: ErrorReason = DummyReason
-
-        def offendingNode = DummyNode
-
-        override def pos = NoPosition
-
-        override def readableMessage(withId: Boolean, withPosition: Boolean) =
-          s"Internal error: $text"
-
-        def withNode(offendingNode: ErrorNode = this.offendingNode) = this.clone().asInstanceOf[ErrorMessage]
-        def withReason(reason: ErrorReason = this.reason) = this.clone().asInstanceOf[AbstractVerificationError]
-
-      }
+      val internalError = Internal(InternalReason(DummyNode, msg))
       errormap += (otherErrId -> internalError)
     }
 
