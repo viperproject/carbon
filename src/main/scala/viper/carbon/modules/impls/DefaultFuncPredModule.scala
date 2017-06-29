@@ -424,7 +424,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         val condFunc = Func(condName, heap++args,Int)
         val res = (condFunc, forall)
         qpCondFuncs += res
-        frameFragment(FuncApp(condName,(heap++args) map (_.l), Int))
+        frameFragment(FuncApp(condName,heapModule.currentStateExps ++(args map (_.l)), Int))
       case sil.Implies(e0, e1) =>
         frameFragment(CondExp(translateExp(e0), functionFrameHelper(e1,renaming,functionName,args), emptyFrame))
       case sil.And(e0, e1) =>
