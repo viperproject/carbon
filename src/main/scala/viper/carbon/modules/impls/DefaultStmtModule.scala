@@ -192,9 +192,9 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
       }
       case sil.Goto(target) =>
         Goto(Lbl(Identifier(target)(lblNamespace)))
-      case pa@sil.Package(wand) =>
+      case pa@sil.Package(wand, _, _) => ???
       // checkDefinedness(wand, errors.MagicWandNotWellformed(wand))
-        translatePackage(pa,errors.PackageFailed(pa))
+        //translatePackage(pa,errors.PackageFailed(pa))
       case a@sil.Apply(wand) =>
         translateApply(a, errors.ApplyFailed(a))
       case _ =>

@@ -60,6 +60,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         translateLocationAccess(p)
       case sil.Unfolding(acc, exp) =>
         translateExp(exp)
+      case sil.Applying(wand, exp) => ???
       case sil.Old(exp) =>
         val prevState = stateModule.state
         stateModule.replaceState(stateModule.oldState)

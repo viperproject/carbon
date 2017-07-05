@@ -105,7 +105,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
     val maybeShape = wandToShapes.get(wand)
 
     //need to compute shape of wand
-    val ghostFreeWand = wand.withoutGhostOperations
+    val ghostFreeWand = wand//.withoutGhostOperations
 
     //get all the expressions which form the "holes" of the shape,
     val arguments = ghostFreeWand.subexpressionsToEvaluate(mainModule.verifier.program)
@@ -150,8 +150,8 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
 
   override def translatePackage(p: sil.Package,error: PartialVerificationError):Stmt = {
     p match {
-      case pa@sil.Package(wand) =>
-        wand match {
+      case pa@sil.Package(wand, _, _) => ???
+        /*wand match {
           case w@sil.MagicWand(left,right) =>
             mainError = error //set the default error to be used by all operations
 
@@ -169,7 +169,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
             stmt ++ addWand
 
           case _ => sys.error("Package only defined for wands.")
-        }
+        }*/
     }
   }
 
@@ -185,7 +185,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
    */
   def exec(states: List[StateRep], ops: StateRep, e:sil.Exp, allStateAssms: Exp):Stmt = {
     e match {
-      case fold@sil.FoldingGhostOp(acc,body) =>
+      /*case fold@sil.FoldingGhostOp(acc,body) =>
         val opsMask = permModule.currentMask
         val opsHeap = heapModule.currentHeap
         val (argsLocal, accTransformed, assignStmt) = evalArgsAccessPredicate(acc, None,mainError,None)
@@ -284,6 +284,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
 
         MaybeCommentBlock("Translating " + p.toString(),
           packaging ++ addWand ++ MaybeCommentBlock("Code for body " + body.toString() + " of " + p.toString(), exec(states,ops,body,allStateAssms)) )
+          */
 
       case sil.Let(letVarDecl, exp, body) =>
         val StateRep(_,bOps) = ops
