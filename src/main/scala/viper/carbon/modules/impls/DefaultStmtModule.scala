@@ -145,8 +145,8 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotEstablished(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotEstablished(e))))
         ) ++
           MaybeCommentBlock("Havoc loop written variables (except locals)", // this should perhaps be revisited when scopes are properly implemented
-            Havoc(((w.writtenVars diff (body.locals map (_.localVar))) map translateExp).asInstanceOf[Seq[Var]]) ++
-              ((w.writtenVars diff (body.locals map (_.localVar))) map (v => mainModule.allAssumptionsAboutValue(v.typ,mainModule.translateLocalVarSig(v.typ, v),false)))
+            Havoc(((w.writtenVars diff (body.transitiveLocals.collect {case l: sil.LocalVarDecl => l} map (_.localVar))) map translateExp).asInstanceOf[Seq[Var]]) ++
+              ((w.writtenVars diff (body.transitiveLocals.collect {case l: sil.LocalVarDecl => l} map (_.localVar))) map (v => mainModule.allAssumptionsAboutValue(v.typ,mainModule.translateLocalVarSig(v.typ, v),false)))
           ) ++
           MaybeCommentBlock("Check definedness of invariant", NondetIf(
             (invs map (inv => checkDefinednessOfSpecAndInhale(inv, errors.ContractNotWellformed(inv)))) ++
