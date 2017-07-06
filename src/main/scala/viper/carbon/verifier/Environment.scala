@@ -25,8 +25,8 @@ case class Environment(verifier: Verifier, member: sil.Node) {
 
   // register types from member
   member match {
-    case sil.Method(name, args, returns, pres, posts, locals, body) =>
-      for (v <- args ++ returns ++ locals) {
+    case sil.Method(name, args, returns, pres, posts, body) =>
+      for (v <- args ++ returns) {
         define(v.localVar)
       } 
     case f@sil.Function(name, args, typ, pres, posts, exp) =>

@@ -139,15 +139,14 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           res
         }
         res
-      case w@sil.While(cond, invs, locals, body) =>
+      case w@sil.While(cond, invs, body) =>
         val guard = translateExp(cond)
-        locals map (v => mainModule.env.define(v.localVar)) // add local variables to environment - this should be revisited when scopes are properly implemented
         MaybeCommentBlock("Exhale loop invariant before loop",
           executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotEstablished(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotEstablished(e))))
         ) ++
           MaybeCommentBlock("Havoc loop written variables (except locals)", // this should perhaps be revisited when scopes are properly implemented
-            Havoc(((w.writtenVars diff (locals map (_.localVar))) map translateExp).asInstanceOf[Seq[Var]]) ++
-              (w.writtenVars map (v => mainModule.allAssumptionsAboutValue(v.typ,mainModule.translateLocalVarSig(v.typ, v),false)))
+            Havoc(((w.writtenVars diff (body.locals map (_.localVar))) map translateExp).asInstanceOf[Seq[Var]]) ++
+              ((w.writtenVars diff (body.locals map (_.localVar))) map (v => mainModule.allAssumptionsAboutValue(v.typ,mainModule.translateLocalVarSig(v.typ, v),false)))
           ) ++
           MaybeCommentBlock("Check definedness of invariant", NondetIf(
             (invs map (inv => checkDefinednessOfSpecAndInhale(inv, errors.ContractNotWellformed(inv)))) ++
@@ -160,12 +159,10 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
               Comment("Check and assume guard") ++
               checkDefinedness(cond, errors.WhileFailed(w.cond)) ++
               Assume(guard) ++ stateModule.assumeGoodState ++
-              MaybeComment("Havoc locals", Havoc((locals map (x => translateExp(x.localVar))).asInstanceOf[Seq[Var]])) ++
               MaybeCommentBlock("Translate loop body", translateStmt(body)) ++
               MaybeComment("Exhale invariant", executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotPreserved(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e))))) ++
               MaybeComment("Terminate execution", Assume(FalseLit()))
             stateModule.replaceState(prevState)
-            locals map (v => mainModule.env.undefine(v.localVar)) // remove local variables from environment - this should be revisited when scopes are properly implemented
             stmts
           }
           )) ++
@@ -205,12 +202,17 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
   override def translateStmt(stmt: sil.Stmt): Stmt = {
     var comment = "Translating statement: " + stmt.toString.replace("\n", "\n  // ")
     stmt match {
-      case sil.Seqn(ss) =>
+      case sil.Seqn(ss, locals) =>
+        locals map (v => mainModule.env.define(v.localVar)) // add local variables to environment
+        val s = MaybeComment("Havoc locals", Havoc((locals map (x => translateExp(x.localVar))).asInstanceOf[Seq[Var]])) ++
+          MaybeCommentBlock("Assumptions about local variables", locals map (a => mainModule.allAssumptionsAboutValue(a.typ, mainModule.translateLocalVarDecl(a), true))) ++
+        Seqn(ss map translateStmt)
+        locals map (v => mainModule.env.undefine(v.localVar)) // remove local variables from environment
         // return to avoid adding a comment, and to avoid the extra 'assumeGoodState'
-        return Seqn(ss map translateStmt)
+        return s
       case sil.If(cond, thn, els) =>
         comment = s"Translating statement: if ($cond)"
-      case sil.While(cond, invs, local, body) =>
+      case sil.While(cond, invs, body) =>
         comment = s"Translating statement: while ($cond)"
       case fr@sil.Fresh(vars)  =>
         comment = s"Translating statement: fresh ${vars.mkString(", ")} "
