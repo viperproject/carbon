@@ -143,11 +143,12 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
         val guard = translateExp(cond)
         MaybeCommentBlock("Exhale loop invariant before loop",
           executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotEstablished(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotEstablished(e))))
-        ) ++
-          MaybeCommentBlock("Havoc loop written variables (except locals)", // this should perhaps be revisited when scopes are properly implemented
-            Havoc(((w.writtenVars diff (body.transitiveLocals.collect {case l: sil.LocalVarDecl => l} map (_.localVar))) map translateExp).asInstanceOf[Seq[Var]]) ++
-              ((w.writtenVars diff (body.transitiveLocals.collect {case l: sil.LocalVarDecl => l} map (_.localVar))) map (v => mainModule.allAssumptionsAboutValue(v.typ,mainModule.translateLocalVarSig(v.typ, v),false)))
-          ) ++
+        ) ++ {
+          val writtenVars = w.writtenVars diff (body.transitiveScopedDecls.collect {case l: sil.LocalVarDecl => l} map (_.localVar))
+          MaybeCommentBlock("Havoc loop written variables (except locals)",
+            Havoc((writtenVars map translateExp).asInstanceOf[Seq[Var]]) ++
+              (writtenVars map (v => mainModule.allAssumptionsAboutValue(v.typ,mainModule.translateLocalVarSig(v.typ, v),false)))
+          )} ++
           MaybeCommentBlock("Check definedness of invariant", NondetIf(
             (invs map (inv => checkDefinednessOfSpecAndInhale(inv, errors.ContractNotWellformed(inv)))) ++
               Assume(FalseLit())
@@ -204,9 +205,9 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
     stmt match {
       case sil.Seqn(ss, locals) =>
         locals map (v => mainModule.env.define(v.localVar)) // add local variables to environment
-        val s = MaybeComment("Havoc locals", Havoc((locals map (x => translateExp(x.localVar))).asInstanceOf[Seq[Var]])) ++
+        val s =
           MaybeCommentBlock("Assumptions about local variables", locals map (a => mainModule.allAssumptionsAboutValue(a.typ, mainModule.translateLocalVarDecl(a), true))) ++
-        Seqn(ss map translateStmt)
+          Seqn(ss map translateStmt)
         locals map (v => mainModule.env.undefine(v.localVar)) // remove local variables from environment
         // return to avoid adding a comment, and to avoid the extra 'assumeGoodState'
         return s
