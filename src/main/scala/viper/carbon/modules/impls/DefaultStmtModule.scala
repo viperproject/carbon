@@ -203,7 +203,8 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
   override def translateStmt(stmt: sil.Stmt): Stmt = {
     var comment = "Translating statement: " + stmt.toString.replace("\n", "\n  // ")
     stmt match {
-      case sil.Seqn(ss, locals) =>
+      case sil.Seqn(ss, scopedDecls) =>
+        val locals = scopedDecls.collect {case l: sil.LocalVarDecl => l}
         locals map (v => mainModule.env.define(v.localVar)) // add local variables to environment
         val s =
           MaybeCommentBlock("Assumptions about local variables", locals map (a => mainModule.allAssumptionsAboutValue(a.typ, mainModule.translateLocalVarDecl(a), true))) ++
