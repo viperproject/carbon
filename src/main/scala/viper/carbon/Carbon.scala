@@ -7,12 +7,13 @@
 package viper.carbon
 
 import viper.silver.frontend.{SilFrontend, SilFrontendConfig}
-import viper.silver.verifier.{Success => SilSuccess, Failure => SilFailure}
+import viper.silver.reporter.{Reporter, StdIOReporter}
+import viper.silver.verifier.{Failure => SilFailure, Success => SilSuccess}
 
 /**
  * The main object for Carbon containing the execution start-point.
  */
-object Carbon extends CarbonFrontend {
+object Carbon extends CarbonFrontend(new StdIOReporter("carbon")) {
   def main(args: Array[String]) {
     execute(args)
 
@@ -23,7 +24,7 @@ object Carbon extends CarbonFrontend {
   }
 }
 
-class CarbonFrontend extends SilFrontend {
+class CarbonFrontend(override val reporter: Reporter) extends SilFrontend {
   private var carbonInstance: CarbonVerifier = _
 
   def createVerifier(fullCmd: String) = {
