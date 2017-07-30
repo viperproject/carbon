@@ -150,7 +150,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
 
   override def translatePackage(p: sil.Package,error: PartialVerificationError):Stmt = {
     p match {
-      case pa@sil.Package(wand, _, _) => ???
+      case pa@sil.Package(wand, _) => ???
         /*wand match {
           case w@sil.MagicWand(left,right) =>
             mainError = error //set the default error to be used by all operations
