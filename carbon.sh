@@ -12,6 +12,7 @@
 # Alternatively you could also just set the BOOGIE_EXE and Z3_EXE to point o
 # the executable files
 
+set -e
 
 BOOGIE_EXE="${BOOGIE_EXE:-$BOOGIE_HOME/Boogie.exe}"
 Z3_EXE="${Z3_EXE:-$BOOGIE_HOME/z3.exe}"
