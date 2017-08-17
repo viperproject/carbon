@@ -8,7 +8,7 @@ import viper.carbon.verifier.Verifier
 import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
 import viper.silver.ast.utility.Expressions
-import viper.silver.ast.{FullPerm, MagicWand}
+import viper.silver.ast.{FullPerm, MagicWand, MagicWandStructure}
 import viper.silver.verifier.{errors, reasons, PartialVerificationError}
 import viper.silver.{ast => sil}
 
@@ -30,8 +30,8 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
   val wandNamespace = verifier.freshNamespace("wands")
   //wands stored
   type WandShape = Func
-  var wandToShapes: java.util.HashMap[sil.MagicWand, WandShape] = new java.util.HashMap[sil.MagicWand, WandShape]
-  var wandShapes: ListBuffer[(sil.MagicWand,WandShape, Type)] = new ListBuffer[(sil.MagicWand, WandShape,Type)]();
+  //This needs to be resettable, which is why "lazy val" is not used. See also: wandToShapes method
+  private var lazyWandToShapes: Option[Map[MagicWandStructure.MagicWandStructure, WandShape]] = None
   /** CONSTANTS FOR TRANSFER START**/
 
   /* denotes amount of permission to add/remove during a specific transfer */
@@ -72,19 +72,45 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
 
   def name = "Wand Module"
 
+  def wandToShapes: Map[MagicWandStructure.MagicWandStructure, DefaultWandModule.this.WandShape] = {
+    val result = lazyWandToShapes match {
+      case Some(m) => m
+      case None =>
+        mainModule.verifier.program.magicWandStructures.map(wandStructure => {
+          val wandName = names.createUniqueIdentifier("wand")
+          val wandType = heapModule.wandFieldType(wandName)
+          //get all the expressions which form the "holes" of the shape,
+          val arguments = wandStructure.subexpressionsToEvaluate(mainModule.verifier.program)
+
+          //for each expression which is a "hole" in the shape we create a local variable declaration which will be used
+          //for the function corresponding to the wand shape
+          var i = 0
+          val argsWand = (for (arg <- arguments) yield {
+            i = i + 1
+            LocalVarDecl(Identifier("arg" + i)(wandNamespace), typeModule.translateType(arg.typ), None)
+          })
+
+          val wandFun = Func(Identifier(wandName)(wandNamespace), argsWand, wandType)
+
+          (wandStructure -> wandFun)
+        }).toMap
+    }
+    lazyWandToShapes = Some(result)
+    result
+  }
+
   override def reset() = {
-    wandToShapes = new java.util.HashMap[sil.MagicWand, WandShape]
-    wandShapes = new ListBuffer[(sil.MagicWand, WandShape,Type)]()
+    lazyWandToShapes = None
 
     mainError  = null
   }
 
 
-  override def preamble = {
-    (for ((wand,fun@Func(name,args,typ),wandType) <- wandShapes.result()) yield {
+  override def preamble = wandToShapes.values.collect({
+    case fun@Func(name,args,typ) =>
       val vars = args.map(decl => decl.l)
       val f0 = FuncApp(name,vars,typ)
-      val typeDecl:Seq[TypeDecl] = wandType match {
+      val typeDecl: Seq[TypeDecl] = heapModule.wandBasicType(name.preferredName) match {
         case named: NamedType => TypeDecl(named)
         case _ => Nil
       }
@@ -92,17 +118,13 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
         fun ++
         Axiom(MaybeForall(args, Trigger(f0),heapModule.isWandField(f0))) ++
         Axiom(MaybeForall(args, Trigger(f0),heapModule.isPredicateField(f0).not))
-    }).flatten
-  }
-
+    }).flatten[Decl].toSeq
 
   /*
    * method returns the boogie predicate which corresponds to the magic wand shape of the given wand
    * if the shape hasn't yet been recorded yet then it will be stored
    */
   def getWandRepresentation(wand: sil.MagicWand):Exp = {
-    //first check if the shape to this wand has already been computed earlier
-    val maybeShape = wandToShapes.get(wand)
 
     //need to compute shape of wand
     val ghostFreeWand = wand//.withoutGhostOperations
@@ -110,41 +132,10 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
     //get all the expressions which form the "holes" of the shape,
     val arguments = ghostFreeWand.subexpressionsToEvaluate(mainModule.verifier.program)
 
-    val shape:WandShape =
-      if (maybeShape != null) {
-        maybeShape
-      } else {
-        //check if shape of wand corresponds to an already computed shape
-        val findShape = wandShapes.find(wand_pred =>
-          ghostFreeWand.structurallyMatches(wand_pred._1, mainModule.verifier.program))
-        val newShape = findShape match {
-          case None =>
-            //new shape was found
-            val wandName = names.createUniqueIdentifier("wand")
-            val wandType = heapModule.wandFieldType(wandName)
-
-            //for each expression which is a "hole" in the shape we create a local variable declaration which will be used
-            //for the function corresponding to the wand shape
-            var i = 0
-            val argsWand = (for (arg <- arguments) yield {
-              i = i + 1
-              LocalVarDecl(Identifier("arg" + i)(wandNamespace), typeModule.translateType(arg.typ), None)
-            })
-            val wandFun = Func(Identifier(wandName)(wandNamespace), argsWand, wandType)
-            val res = (ghostFreeWand, wandFun, heapModule.wandBasicType(wandName))
-            //add new shape
-            wandShapes += res
-            wandFun
-          case Some((_, wandFun, _)) =>
-            //computed shape already corresponded to an earlier computed shape
-            wandFun
-        }
-        wandToShapes.put(wand, newShape)
-        newShape
-      }
+    val shape:WandShape = wandToShapes(wand.structure(mainModule.verifier.program))
 
     shape match {
-      case Func(name, args,typ) => FuncApp(name, arguments.map(arg => expModule.translateExp(arg)), typ)
+      case Func(name, _, typ) => FuncApp(name, arguments.map(arg => expModule.translateExp(arg)), typ)
     }
   }
 
