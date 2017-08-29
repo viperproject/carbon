@@ -127,7 +127,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
   def getWandRepresentation(wand: sil.MagicWand):Exp = {
 
     //need to compute shape of wand
-    val ghostFreeWand = wand//.withoutGhostOperations
+    val ghostFreeWand = wand
 
     //get all the expressions which form the "holes" of the shape,
     val arguments = ghostFreeWand.subexpressionsToEvaluate(mainModule.verifier.program)
@@ -142,6 +142,8 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
   override def translatePackage(p: sil.Package,error: PartialVerificationError):Stmt = {
     p match {
       case pa@sil.Package(wand, _) => ???
+        //this is the implementation of the package statement in the old magic wand syntax, which might serve
+        //as inspiration for the implementation of the new syntax
         /*wand match {
           case w@sil.MagicWand(left,right) =>
             mainError = error //set the default error to be used by all operations
@@ -176,6 +178,8 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
    */
   def exec(states: List[StateRep], ops: StateRep, e:sil.Exp, allStateAssms: Exp):Stmt = {
     e match {
+      //the ghost operations below (and their AST nodes) no longer exist in the new magic wand syntax
+      //parts of the orignal implementation may however be useful when implementing the new syntax.
       /*case fold@sil.FoldingGhostOp(acc,body) =>
         val opsMask = permModule.currentMask
         val opsHeap = heapModule.currentHeap
