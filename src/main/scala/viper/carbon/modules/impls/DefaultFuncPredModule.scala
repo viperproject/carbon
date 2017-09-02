@@ -662,7 +662,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     env = Environment(verifier, p)
     val args = p.formalArgs
     val translatedArgs = p.formalArgs map translateLocalVarDecl
-    val predAcc = sil.PredicateAccess(args map (_.localVar),p)(p.pos,p.info)
+    val predAcc = sil.PredicateAccess(args map (_.localVar),p)(p.pos,p.info,p.errT)
     val trigger = predicateTrigger(heapModule.staticStateContributions map (_.l), predAcc)
     val anystate = predicateTrigger(Seq(), predAcc, true)
     val res = MaybeCommentedDecl(s"Translation of predicate ${p.name}",

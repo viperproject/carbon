@@ -115,7 +115,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         val perLocFilter: sil.Location => (Exp, Trigger) = loc => {
           val locAccess: LocationAccess = loc match {
             case f: sil.Field => sil.FieldAccess(renamedVar.localVar, f)(loc.pos, loc.info)
-            case p: sil.Predicate => sil.PredicateAccess(Seq(renamedVar.localVar), p)(loc.pos, loc.info)
+            case p: sil.Predicate => sil.PredicateAccess(Seq(renamedVar.localVar), p)(loc.pos, loc.info, loc.errT)
           }
           (hasDirectPerm(locAccess), Trigger(permissionLookup(locAccess)))
         }
@@ -333,7 +333,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             val bound_var = eAsForallRef.variable
             val perLocFilter: sil.Location => LocationAccess = loc => loc match {
               case f: sil.Field => sil.FieldAccess(bound_var.localVar, f)(loc.pos, loc.info)
-              case p: sil.Predicate => sil.PredicateAccess(Seq(bound_var.localVar), p)(loc.pos, loc.info)
+              case p: sil.Predicate => sil.PredicateAccess(Seq(bound_var.localVar), p)(loc.pos, loc.info, loc.errT)
             }
             val filter: Exp = eAsForallRef.accessList.foldLeft[Exp](BoolLit(false))((soFar, loc) => BinExp(soFar, Or, hasDirectPerm(perLocFilter(loc))))
 
