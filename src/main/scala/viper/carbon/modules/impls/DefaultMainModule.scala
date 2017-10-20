@@ -94,7 +94,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
   def translateMethodDecl(m: sil.Method): Seq[Decl] = {
     env = Environment(verifier, m)
         val res = m match {
-          case sil.Method(name, formalArgs, formalReturns, pres, posts, b) =>
+          case method @ sil.Method(name, formalArgs, formalReturns, pres, posts, _) =>
             val initOldStateComment = "Initializing of old state"
             val ins: Seq[LocalVarDecl] = formalArgs map translateLocalVarDecl
             val outs: Seq[LocalVarDecl] = formalReturns map translateLocalVarDecl
@@ -108,7 +108,8 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
             else Nil
             val postsWithErrors = posts map (p => (p, errors.PostconditionViolated(p, m)))
             val exhalePost = MaybeCommentBlock("Exhaling postcondition", exhale(postsWithErrors))
-            val body: Stmt = translateStmt(b)
+            val body: Stmt = translateStmt(method.bodyOrAssumeFalse)
+              /* TODO: Might be worth special-casing on methods with empty bodies */
             val proc = Procedure(Identifier(name), ins, outs,
               Seq(init,
                 MaybeCommentBlock("Assumptions about method arguments", paramAssumptions),
