@@ -416,7 +416,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         val fragment = if (la.isInstanceOf[PredicateAccess]) fragmentBody else frameFragment(fragmentBody)
         if (permModule.conservativeIsPositivePerm(perm)) fragment else
         FuncApp(condFrameName, Seq(translatePerm(perm),fragment),frameType)
-      case QuantifiedPermissionAssertion(forall, _, _) =>
+      case QuantifiedPermissionAssertion(forall, _, _ : sil.FieldAccessPredicate) => // NOTE the restriction to FieldAccessPredicates here
         qpPrecondId = qpPrecondId+1
         val heap = heapModule.staticStateContributions
         val condName = Identifier(name + "#condqp" +qpPrecondId.toString)
@@ -436,7 +436,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         emptyFrame
       case e if e.isPure =>
         emptyFrame
-      // no default case! Some should be added - e.g. let expressions (see issue 222)
+      // should be no default case! Some explicit cases should be added - e.g. let expressions (see issue 222)
     }
   }
 
