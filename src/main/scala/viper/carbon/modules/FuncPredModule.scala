@@ -7,7 +7,7 @@
 package viper.carbon.modules
 
 import viper.silver.{ast => sil}
-import viper.carbon.boogie.{Stmt, Decl, Exp}
+import viper.carbon.boogie.{Stmt, Decl, Exp, Type}
 
 /**
  * A module for translating functions and predicates.
@@ -22,6 +22,8 @@ trait FuncPredModule extends Module {
   def dummyFuncApp(e: Exp): Exp
 
   def translatePredicate(p: sil.Predicate): Seq[Decl]
+
+  def predicateVersionType : Type
 
   def assumeAllFunctionDefinitions: Stmt
 

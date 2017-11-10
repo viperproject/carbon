@@ -115,23 +115,23 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         Func(insidePredicateName,
           Seq(
             LocalVarDecl(Identifier("p"), predicateVersionFieldType("A")),
-            LocalVarDecl(Identifier("v"), Int),
+            LocalVarDecl(Identifier("v"), predicateVersionType),
             LocalVarDecl(Identifier("q"), predicateVersionFieldType("B")),
-            LocalVarDecl(Identifier("w"), Int)
+            LocalVarDecl(Identifier("w"), predicateVersionType)
           ),
           Bool), size = 1) ++
       CommentedDecl(s"Transitivity of ${insidePredicateName.name}", {
         val vars1 = Seq(
           LocalVarDecl(Identifier("p"), predicateVersionFieldType("A")),
-          LocalVarDecl(Identifier("v"), Int)
+          LocalVarDecl(Identifier("v"), predicateVersionType)
         )
         val vars2 = Seq(
           LocalVarDecl(Identifier("q"), predicateVersionFieldType("B")),
-          LocalVarDecl(Identifier("w"), Int)
+          LocalVarDecl(Identifier("w"), predicateVersionType)
         )
         val vars3 = Seq(
           LocalVarDecl(Identifier("r"), predicateVersionFieldType("C")),
-          LocalVarDecl(Identifier("u"), Int)
+          LocalVarDecl(Identifier("u"), predicateVersionType)
         )
         val f1 = FuncApp(insidePredicateName, (vars1 ++ vars2) map (_.l), Bool)
         val f2 = FuncApp(insidePredicateName, (vars2 ++ vars3) map (_.l), Bool)
@@ -148,9 +148,9 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         val p = LocalVarDecl(Identifier("p"), predicateVersionFieldType())
         val vars = Seq(
           p,
-          LocalVarDecl(Identifier("v"), Int),
+          LocalVarDecl(Identifier("v"), predicateVersionType),
           p,
-          LocalVarDecl(Identifier("w"), Int)
+          LocalVarDecl(Identifier("w"), predicateVersionType)
         )
         val f = FuncApp(insidePredicateName, vars map (_.l), Bool)
         Axiom(
@@ -352,7 +352,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         stateModule.staticStateContributions ++ args,
         Seq(Trigger(Seq(staticGoodState, transformFuncAppsToLimitedOrTriggerForm(funcApp2)))) ++ (if (predicateTriggers.isEmpty) Seq()  else Seq(Trigger(Seq(staticGoodState, triggerFuncApp(f,args map (_.l))) ++ predicateTriggers))),
         staticGoodState ==> (transformFuncAppsToLimitedOrTriggerForm(funcApp2) === funcApp))) ) ++
-        translateCondAxioms(f,funcFrameInfo. _2)
+        translateCondAxioms(f,funcFrameInfo._2)
   }
 
   /** Generate an expression that represents the state a function can depend on
@@ -412,8 +412,10 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     }
     assertion match {
       case sil.AccessPredicate(la, perm) =>
-        if (permModule.conservativeIsPositivePerm(perm)) frameFragment(translateLocationAccess(renaming(la).asInstanceOf[sil.LocationAccess])) else
-        FuncApp(condFrameName, Seq(translatePerm(perm),frameFragment(translateLocationAccess(renaming(la).asInstanceOf[sil.LocationAccess]))),frameType)
+        val fragmentBody = translateLocationAccess(renaming(la).asInstanceOf[sil.LocationAccess])
+        val fragment = if (la.isInstanceOf[PredicateAccess]) fragmentBody else frameFragment(fragmentBody)
+        if (permModule.conservativeIsPositivePerm(perm)) fragment else
+        FuncApp(condFrameName, Seq(translatePerm(perm),fragment),frameType)
       case QuantifiedPermissionAssertion(forall, _, _) =>
         qpPrecondId = qpPrecondId+1
         val heap = heapModule.staticStateContributions
@@ -495,7 +497,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           env.undefine(vFresh.localVar)
           stateModule.replaceState(curState)
           res
-        case _ => sys.error("invalid quantified permission inputted into method")
+        case e => sys.error("invalid quantified permission inputted into method: got " + e)
       }
     }).flatten
   }
@@ -743,13 +745,13 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
         CommentBlock("Execute unfolding (for extra information)",stmts)
       }
-      case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(_, _), perm) if duringUnfold && currentPhaseId == 0 =>
-        val oldVersion = LocalVar(Identifier("oldVersion"), Int)
-        val newVersion = LocalVar(Identifier("newVersion"), Int)
+      case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(_, predicateName), perm) if duringUnfold && currentPhaseId == 0 =>
+        val oldVersion = LocalVar(Identifier("oldVersion"), predicateVersionType)
+        val newVersion = LocalVar(Identifier("newVersion"), predicateVersionType)
         val curVersion = translateExp(loc)
         val stmt: Stmt = if (exhaleTmpStateId >= 0 || duringUnfolding) Nil else (oldVersion := curVersion) ++
           Havoc(Seq(newVersion)) ++
-          Assume(oldVersion < newVersion) ++
+//          Assume(oldVersion < newVersion) ++ // this only made sense with integer versions. In the new model, we even want to allow the possibility of the new version being equal to the old
           (curVersion := newVersion)
         MaybeCommentBlock("Update version of predicate",
           If(UnExp(Not,hasDirectPerm(loc)), stmt, Nil))
@@ -759,6 +761,10 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
       case _ => Nil
     }
+  }
+
+  override def predicateVersionType : Type = {
+    frameType
   }
 
   private def insidePredicate(p1: sil.PredicateAccessPredicate, p2: sil.PredicateAccessPredicate): Stmt = {

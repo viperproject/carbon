@@ -7,7 +7,7 @@
 package viper.carbon.modules.impls
 
 import viper.carbon.modules._
-import viper.carbon.modules.components.{DefinednessComponent, ExhaleComponent, InhaleComponent, SimpleStmtComponent}
+import viper.carbon.modules.components.{DefinednessComponent, InhaleComponent, SimpleStmtComponent}
 import viper.silver.ast.utility.Expressions
 import viper.silver.components.StatefulComponent
 import viper.silver.{ast => sil}
@@ -53,10 +53,10 @@ class DefaultHeapModule(val verifier: Verifier)
   override def fieldTypeOf(t: Type) = NamedType(fieldTypeName, Seq(normalFieldType, t))
   override def fieldType = NamedType(fieldTypeName, Seq(TypeVar("A"), TypeVar("B")))
   override def predicateVersionFieldTypeOf(p: sil.Predicate) =
-    NamedType(fieldTypeName, Seq(predicateMetaTypeOf(p), Int))
+    NamedType(fieldTypeName, Seq(predicateMetaTypeOf(p), funcPredModule.predicateVersionType))
   private def predicateMetaTypeOf(p: sil.Predicate) = NamedType("PredicateType_" + p.name)
   override def predicateVersionFieldType(genericT: String = "A") =
-    NamedType(fieldTypeName, Seq(TypeVar(genericT), Int))
+    NamedType(fieldTypeName, Seq(TypeVar(genericT), funcPredModule.predicateVersionType))
   override def predicateMaskFieldType: Type =
     NamedType(fieldTypeName, Seq(TypeVar("A"), pmaskType))
   override def predicateMaskFieldTypeOf(p: sil.Predicate): Type =
@@ -182,7 +182,7 @@ class DefaultHeapModule(val verifier: Verifier)
     FuncApp(isWandFieldName, Seq(f), Bool)
   }
 
-  // returns predicat Id
+  // returns predicate Id
   override def getPredicateId(f:Exp): Exp = {
     FuncApp(getPredicateIdName,Seq(f), Int)
   }
@@ -209,7 +209,7 @@ class DefaultHeapModule(val verifier: Verifier)
   }
 
 
-
+// AS: Seems that many concerns here would be better addressed in / delegated to the FuncPredModule
   override def predicateGhostFieldDecl(p: sil.Predicate): Seq[Decl] = {
     val predicate = locationIdentifier(p)
     val pmField = predicateMaskIdentifer(p)
@@ -350,8 +350,8 @@ class DefaultHeapModule(val verifier: Verifier)
           t =>
             Assume(validReference(t))
         }
-      case sil.Fold(sil.PredicateAccessPredicate(loc, perm)) => // AS: this should really be taken care of in the FuncPredModule.
-        val newVersion = LocalVar(Identifier("freshVersion"), Int)
+      case sil.Fold(sil.PredicateAccessPredicate(loc, perm)) => // AS: this should really be taken care of in the FuncPredModule (and factored out to share code with unfolding case, if possible)
+        val newVersion = LocalVar(Identifier("freshVersion"), funcPredModule.predicateVersionType)
         val resetPredicateInfo : Stmt = (predicateMask(loc) := zeroPMask) ++
           Havoc(newVersion) ++
           (translateLocationAccess(loc) := newVersion)
@@ -364,7 +364,7 @@ class DefaultHeapModule(val verifier: Verifier)
 
   override def freeAssumptions(e: sil.Exp): Stmt = {
     e match {
-      case sil.Unfolding(sil.PredicateAccessPredicate(loc, perm), exp) if !usingOldState =>
+      case sil.Unfolding(sil.PredicateAccessPredicate(loc, _), _) if !usingOldState =>
         addPermissionToPMask(loc)
       case _ => Nil
     }
