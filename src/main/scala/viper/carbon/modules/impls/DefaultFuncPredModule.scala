@@ -80,11 +80,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private var qpPrecondId = 0
   private var qpCondFuncs: ListBuffer[(Func,sil.Forall)] = new ListBuffer[(Func, sil.Forall)]();
 
-  type FrameInfos = collection.mutable.HashMap[String,(Exp, Seq[LocalVarDecl], Seq[(Func, sil.Forall)])]
-  val FrameInfos = collection.mutable.HashMap
-
-  private var functionFrames : FrameInfos = FrameInfos();
-  private var predicateFrames: FrameInfos = FrameInfos();
+  private var frameFunctions = collection.mutable.HashMap[String,(Exp, Seq[LocalVarDecl], Seq[(Func, sil.Forall)])]();
 
   override def preamble = {
     val fp = if (verifier.program.functions.isEmpty) Nil
@@ -184,8 +180,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     unfoldInfo = null
     exhaleTmpStateId = -1
     extraUnfolding = false
-    functionFrames = collection.mutable.HashMap[String,(Exp, Seq[LocalVarDecl], Seq[(Func, sil.Forall)])]()
-    predicateFrames = collection.mutable.HashMap[String,(Exp, Seq[LocalVarDecl], Seq[(Func, sil.Forall)])]()
+    frameFunctions = collection.mutable.HashMap[String,(Exp, Seq[LocalVarDecl], Seq[(Func, sil.Forall)])]()
   }
 
     override def translateFunction(f: sil.Function): Seq[Decl] = {
@@ -361,20 +356,6 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         translateCondAxioms(f,funcFrameInfo._2)
   }
 
-  /** Generate an expression that represents a snapshot of a predicate's body, representing
-    * the heap locations it can depend on.
-    *
-    * Returns the Boogie expression representing the predicate frame (parameterised with function formal parameters),
-    * plus a sequence of information about quantified permissions encountered, which can be used to define functions
-    * to define the footprints of the related QPs (when the axioms are generated)
-    *
-    * The generated frame includes freshly-generated variables
-    */
-  private def getPredicateFrame(pred: sil.Predicate, args: Seq[Exp]): (Exp, Seq[(Func, sil.Forall)]) = {
-    getFrame(pred.name, pred.formalArgs, pred.body.get, predicateFrames, args)
-  }
-
-
   /** Generate an expression that represents the state a function can depend on
     * (as determined by examining the functions preconditions).
     *
@@ -385,35 +366,23 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     * The generated frame includes freshly-generated variables
     */
   private def getFunctionFrame(fun: sil.Function, args: Seq[Exp]): (Exp, Seq[(Func, sil.Forall)]) = {
-    getFrame(fun.name, fun.formalArgs, fun.pres, functionFrames, args)
-  }
-
-  /** Generate an expression that represents the state depended on by conjoined assertions,
-    * as a "snapshot", used for framing.
-    *
-    * Returns the Boogie expression representing the  frame (parameterised with provided formal parameters),
-    * plus a sequence of information about quantified permissions encountered, which can be used to define functions
-    * to define the footprints of the related QPs (when the axioms are generated)
-    *
-    * The generated frame includes freshly-generated variables
-    */
-  private def getFrame(name: String, formalArgs:Seq[sil.LocalVarDecl], assertions:Seq[sil.Exp], info: FrameInfos, args: Seq[Exp]): (Exp, Seq[(Func, sil.Forall)]) = {
     qpCondFuncs = new ListBuffer[(Func, sil.Forall)]
-    (info.get(name) match {
+    val functionName = fun.name
+    (frameFunctions.get(functionName) match {
       case Some(frameInfo) => frameInfo
       case None => {
-        val freshParamDeclarations = formalArgs map (env.makeUniquelyNamed(_))
+        val freshParamDeclarations = fun.formalArgs map (env.makeUniquelyNamed(_))
         val freshParams = freshParamDeclarations map (_.localVar)
         freshParams map (lv => env.define(lv))
         val freshBoogies = freshParamDeclarations map translateLocalVarDecl
-        val renaming = ((e:sil.Exp) => Expressions.instantiateVariables(e,formalArgs,freshParams))
-        val (frame, declarations) = computeFrame(assertions, renaming, name, freshBoogies)
-        info.put(name, (frame, freshBoogies, declarations))
+        val renaming = ((e:sil.Exp) => Expressions.instantiateVariables(e,fun.formalArgs,freshParams))
+        val (frame, declarations) = computeFrame(fun.pres, renaming, fun.name, freshBoogies)
+        frameFunctions.put(functionName, (frame, freshBoogies, declarations))
         freshParams map (lv => env.undefine(lv))
         (frame, freshBoogies, declarations)
       }
     })
-    match
+     match
     {
       case (frame, params, declarations) => {
         val paramVariables = params map (_.l)
@@ -425,7 +394,6 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       }
     }
   }
-
 
   private def computeFrame(conjuncts: Seq[sil.Exp], renaming : sil.Exp => sil.Exp, functionName: String, args:Seq[LocalVarDecl]): (Exp, Seq[(Func, sil.Forall)]) = {
     (conjuncts match {
@@ -444,9 +412,9 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       FuncApp(frameFragmentName, Seq(e), frameType)
     }
     assertion match {
-      case s@sil.AccessPredicate(la, perm) =>
+      case sil.AccessPredicate(la, perm) =>
         val fragmentBody = translateLocationAccess(renaming(la).asInstanceOf[sil.LocationAccess])
-        val fragment = if (s.isInstanceOf[PredicateAccessPredicate]) fragmentBody else frameFragment(fragmentBody)
+        val fragment = if (la.isInstanceOf[PredicateAccess]) fragmentBody else frameFragment(fragmentBody)
         if (permModule.conservativeIsPositivePerm(perm)) fragment else
         FuncApp(condFrameName, Seq(translatePerm(perm),fragment),frameType)
       case QuantifiedPermissionAssertion(forall, _, _ : sil.FieldAccessPredicate) => // NOTE the restriction to FieldAccessPredicates here
@@ -725,13 +693,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     foldInfo = acc
     val stmt = exhale(Seq((Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program).get,acc.perm), error)), havocHeap = false) ++
       inhale(acc)
-    val stmtLast =  Assume(predicateTrigger(heapModule.currentStateExps, acc.loc)) ++ {
-      val location = acc.loc
-      val predicate = verifier.program.findPredicate(location.predicateName)
-      val translatedArgs = location.args map translateExp
-      Assume(translateLocationAccess(location) === getPredicateFrame(predicate,translatedArgs)._1)
-    }
-
+    val stmtLast =  Assume(predicateTrigger(heapModule.currentStateExps, acc.loc))
     foldInfo = null
     duringFold = false
     (stmt,stmtLast)
@@ -760,12 +722,6 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     duringUnfolding = isUnfolding
     unfoldInfo = acc
     val stmt = Assume(predicateTrigger(heapModule.currentStateExps, acc.loc)) ++
-      {
-        val location = acc.loc
-        val predicate = verifier.program.findPredicate(location.predicateName)
-        val translatedArgs = location.args map translateExp
-        Assume(translateLocationAccess(location) === getPredicateFrame(predicate,translatedArgs)._1)
-      } ++
       exhale(Seq((acc, error)), havocHeap = false) ++
       inhale(Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program).get,acc.perm))
     unfoldInfo = oldUnfoldInfo
@@ -790,18 +746,17 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
         CommentBlock("Execute unfolding (for extra information)",stmts)
       }
-      case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(args, predicateName), _) if duringUnfold && currentPhaseId == 0 =>
+      case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(_, predicateName), perm) if duringUnfold && currentPhaseId == 0 =>
         val oldVersion = LocalVar(Identifier("oldVersion"), predicateVersionType)
         val newVersion = LocalVar(Identifier("newVersion"), predicateVersionType)
         val curVersion = translateExp(loc)
-        val stmt: Stmt = if (exhaleTmpStateId >= 0 || duringUnfolding) Nil else //(oldVersion := curVersion) ++
-           Havoc(Seq(newVersion)) ++
-              //          Assume(oldVersion < newVersion) ++ // this only made sense with integer versions. In the new model, we even want to allow the possibility of the new version being equal to the old
-              (curVersion := newVersion)
-
+        val stmt: Stmt = if (exhaleTmpStateId >= 0 || duringUnfolding) Nil else (oldVersion := curVersion) ++
+          Havoc(Seq(newVersion)) ++
+//          Assume(oldVersion < newVersion) ++ // this only made sense with integer versions. In the new model, we even want to allow the possibility of the new version being equal to the old
+          (curVersion := newVersion)
         MaybeCommentBlock("Update version of predicate",
           If(UnExp(Not,hasDirectPerm(loc)), stmt, Nil))
-      case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(_, _), _) if duringFold =>
+      case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(_, _), perm) if duringFold =>
         MaybeCommentBlock("Record predicate instance information",
           insidePredicate(foldInfo, pap))
 
@@ -816,6 +771,27 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private def insidePredicate(p1: sil.PredicateAccessPredicate, p2: sil.PredicateAccessPredicate): Stmt = {
     Assume(FuncApp(insidePredicateName,Seq(translateLocation(verifier.program.findPredicate(p1.loc.predicateName), p1.loc.args.map(translateExp(_))),translateExp(p1.loc),translateLocation(verifier.program.findPredicate(p2.loc.predicateName), p2.loc.args.map(translateExp(_))),translateExp(p2.loc)),
       Bool))
+    /*
+    val allArgs1 = p1.loc.args.zipWithIndex
+    val args1 = allArgs1 filter (x => x._1.typ == sil.Ref)
+    val allArgs2 = p2.loc.args.zipWithIndex
+    val args2 = allArgs2 filter (x => x._1.typ == sil.Ref)
+    // go through all combinations of ref-type arguments
+    for (a1 <- args1; a2 <- args2) yield {
+      val (arg1, idx1) = a1
+      val (arg2, idx2) = a2
+      // we replace the argument we are currently considering with 'specialRef'
+      val newargs1 = allArgs1 map (e => if (e._2 != idx1) translateExp(e._1) else specialRef)
+      val newargs2 = allArgs2 map (e => if (e._2 != idx2) translateExp(e._1) else specialRef)
+      Assume(FuncApp(insidePredicateName,
+        Seq(translateExp(arg1),
+          translateLocation(verifier.program.findPredicate(p1.loc.predicateName), newargs1),
+          translateExp(p1.loc),
+          translateExp(arg2),
+          translateLocation(verifier.program.findPredicate(p2.loc.predicateName), newargs2),
+          translateExp(p2.loc)),
+        Bool))
+    }*/
   }
 
   var exhaleTmpStateId = -1
