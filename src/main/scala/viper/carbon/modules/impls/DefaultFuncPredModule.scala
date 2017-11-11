@@ -80,7 +80,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private var qpPrecondId = 0
   private var qpCondFuncs: ListBuffer[(Func,sil.Forall)] = new ListBuffer[(Func, sil.Forall)]();
 
-  type FrameInfos = collection.mutable.HashMap[String,(Exp, Seq[LocalVarDecl], Seq[(Func, sil.Forall)])]
+  type FrameInfos = collection.mutable.HashMap[String,(Exp, StateSnapshot, Seq[LocalVarDecl], Seq[(Func, sil.Forall)])]
   val FrameInfos = collection.mutable.HashMap
 
   private var functionFrames : FrameInfos = FrameInfos();
@@ -371,7 +371,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     * The generated frame includes freshly-generated variables
     */
   private def getPredicateFrame(pred: sil.Predicate, args: Seq[Exp]): (Exp, Seq[(Func, sil.Forall)]) = {
-    getFrame(pred.name, pred.formalArgs, pred.body.get, predicateFrames, args)
+    getFrame(pred.name, pred.formalArgs, pred.body.get.whenExhaling, predicateFrames, args)
   }
 
 
@@ -385,7 +385,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     * The generated frame includes freshly-generated variables
     */
   private def getFunctionFrame(fun: sil.Function, args: Seq[Exp]): (Exp, Seq[(Func, sil.Forall)]) = {
-    getFrame(fun.name, fun.formalArgs, fun.pres, functionFrames, args)
+    getFrame(fun.name, fun.formalArgs, fun.pres map whenExhaling, functionFrames, args)
   }
 
   /** Generate an expression that represents the state depended on by conjoined assertions,
@@ -402,26 +402,29 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     (info.get(name) match {
       case Some(frameInfo) => frameInfo
       case None => {
+        val (_, state) = stateModule.freshTempState("Frame") // we ignore the initialisation statements, since these variables are just placeholders
+        val frameState = stateModule.state
         val freshParamDeclarations = formalArgs map (env.makeUniquelyNamed(_))
         val freshParams = freshParamDeclarations map (_.localVar)
         freshParams map (lv => env.define(lv))
         val freshBoogies = freshParamDeclarations map translateLocalVarDecl
         val renaming = ((e:sil.Exp) => Expressions.instantiateVariables(e,formalArgs,freshParams))
         val (frame, declarations) = computeFrame(assertions, renaming, name, freshBoogies)
-        info.put(name, (frame, freshBoogies, declarations))
+        info.put(name, (frame, frameState, freshBoogies, declarations))
         freshParams map (lv => env.undefine(lv))
-        (frame, freshBoogies, declarations)
+        stateModule.replaceState(state) // go back to the original state
+        (frame, frameState, freshBoogies, declarations)
       }
     })
     match
     {
-      case (frame, params, declarations) => {
+      case (frame, frameState, params, declarations) => {
         val paramVariables = params map (_.l)
-        val argumentSubstitution : (Exp => Exp) = _.transform({ case l@LocalVar(_, _) if (paramVariables.contains(l)) =>
-          Some(args(paramVariables.indexOf(l)))
+        val substitution : (Exp => Exp) = _.transform({
+          case l@LocalVar(_, _) if (paramVariables.contains(l)) => Some(args(paramVariables.indexOf(l)))
         })
 
-        (argumentSubstitution(frame), declarations )
+        (substitution(frame), declarations )
       }
     }
   }
