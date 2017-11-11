@@ -431,10 +431,6 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         combineFrames(computeFrameHelper(e0,renaming,name,args), computeFrameHelper(e1,renaming,name,args))
       case sil.CondExp(con, thn, els) =>
         frameFragment(CondExp(translateExp(con), computeFrameHelper(thn,renaming,name,args), computeFrameHelper(els,renaming,name,args)))
-      case sil.Unfolding(_, _) =>
-        // the predicate of the unfolding expression needs to have been mentioned
-        // already (framing check), so we can safely ignore it now
-        emptyFrame
       case e if e.isPure =>
         emptyFrame
       // should be no default case! Some explicit cases should be added - e.g. let expressions (see issue 222)
@@ -498,7 +494,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           env.undefine(vFresh.localVar)
           stateModule.replaceState(curState)
           res
-        case e => sys.error("invalid quantified permission inputted into method: got " + e)
+        case e => sys.error("invalid quantified permission input into method: got " + e)
       }
     }).flatten
   }
