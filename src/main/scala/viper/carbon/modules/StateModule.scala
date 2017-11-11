@@ -79,7 +79,15 @@ trait StateModule extends Module with ComponentRegistry[CarbonStateComponent] wi
    * be restored again at a later point.
    *
    * Replace the current state with a version named after the provided String (the returned Stmt includes the necessary setup code)
-   *
+   * The returned state is the *previous* state (useful for restoring this later)
+    *
+    * This code is typically used in the following pattern:
+    *   val tmpStateName = // choose some name
+    *   val (stmt, state) = stateModule.freshTempState(tmpStateName)
+    *   val resultingStatements = stmt ++ // something which generates a statement with respect to the temp state
+    *   stateModule.replaceState(state) // go back to the original state
+    *
+    *
    */
   def freshTempState(name: String, discardCurrent: Boolean = false, initialise: Boolean = false): (Stmt, StateSnapshot)
 
@@ -89,7 +97,7 @@ trait StateModule extends Module with ComponentRegistry[CarbonStateComponent] wi
    * components
    * Note: the current state is not affected by this in contrast to "freshTempState"
    *
-   * ALEX: to get rid of!
+   * ALEX: to get rid of - this seems redundant
    */
   def freshEmptyState(name: String,init:Boolean): (Stmt, StateSnapshot)
 
@@ -120,7 +128,9 @@ trait StateModule extends Module with ComponentRegistry[CarbonStateComponent] wi
    * returned copy is not affected.
    * Gaurav: I think "def state" should do this, since it doesn't make sense to me that the client sees updates of
    * the current state without making additional queries.
-   */
+    * ALEX: I agree, and in practice it does do this, I believe - the underlying map is reassigned before any updates, and the "state" method just returns an alias of this map.
+    * We could try refactoring this to just be one method (I'm not sure whether the explicit copy is necessary or not).
+    */
   def getCopyState:StateSnapshot
 
   /**
