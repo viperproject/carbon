@@ -426,7 +426,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           case l@LocalVar(_, _) if (paramVariables.contains(l)) => Some(args(paramVariables.indexOf(l)))
           case e if (frameStateExps.contains(e)) => Some(currentStateExps(frameStateExps.indexOf(e)))
         })
-        
+
         (substitution(frame), declarations )
       }
     }
@@ -455,7 +455,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         val fragment = if (s.isInstanceOf[PredicateAccessPredicate]) fragmentBody else frameFragment(fragmentBody)
         if (permModule.conservativeIsPositivePerm(perm)) fragment else
         FuncApp(condFrameName, Seq(translatePerm(renaming(perm)),fragment),frameType)
-      case QuantifiedPermissionAssertion(forall, _, _ : sil.FieldAccessPredicate) => // NOTE the restriction to FieldAccessPredicates here
+      case QuantifiedPermissionAssertion(forall, _, _ : sil.AccessPredicate) => // works the same for fields and predicates
         qpPrecondId = qpPrecondId+1
         val heap = heapModule.staticStateContributions
         val condName = Identifier(name + "#condqp" +qpPrecondId.toString)
@@ -481,10 +481,10 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
     (for ((condFunc,qp) <- qps) yield {
       qp match {
-        case QuantifiedPermissionAssertion(forall, condition, acc: sil.FieldAccessPredicate) =>
+        case QuantifiedPermissionAssertion(forall, condition, acc: sil.AccessPredicate) => // same works for field or predicate accesses!
           val lvd = forall.variables.head // TODO: Generalise to multiple quantified variables
           val perm = acc.perm
-          val fa = acc.loc
+          val locationAccess = acc.loc
 
           val vFresh = env.makeUniquelyNamed(lvd);
           env.define(vFresh.localVar)
@@ -502,7 +502,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
 
           val goodState1 = currentGoodState
-          val fieldAccess1 = translateLocationAccess(fa)
+          val locationAccess1 = translateLocationAccess(locationAccess)
           val translatedCond1 = translateExp(renamedCond) //condition just evaluated in one state
           val funApp1 = FuncApp(condFunc.name, (heap1++origArgs) map (_.l), condFunc.typ)
 
@@ -513,7 +513,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           val mask2 = permModule.currentStateContributions
 
           val goodState2 =  currentGoodState
-          val fieldAccess2 = translateLocationAccess(fa)
+          val locationAccess2 = translateLocationAccess(locationAccess)
           val translatedCond2 = translateExp(renamedCond)
 
           val funApp2 = FuncApp(condFunc.name, (heap2++origArgs) map (_.l), condFunc.typ)
@@ -525,7 +525,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
               Forall(heap1 ++ mask1 ++ heap2 ++ mask2 ++ origArgs, Seq(Trigger(Seq(funApp1, goodState1, goodState2, funApp2))),
                 (goodState1 && goodState2) ==>
                   (Forall(Seq(translateLocalVarDecl(vFresh)), Seq(),
-                    (translatedCond1 <==> translatedCond2) && (translatedCond1 ==> (fieldAccess1 === fieldAccess2))) ==> (funApp1 === funApp2))
+                    (translatedCond1 <==> translatedCond2) && (translatedCond1 ==> (locationAccess1 === locationAccess2))) ==> (funApp1 === funApp2))
                   ))
           );
           env.undefine(vFresh.localVar)
