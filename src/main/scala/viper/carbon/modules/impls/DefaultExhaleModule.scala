@@ -23,6 +23,7 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
   import expModule._
   import permModule._
   import heapModule._
+  import mainModule._
 
   def name = "Exhale module"
 
@@ -76,6 +77,17 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
         If(translateExp(e1), exhaleConnective(e2, error, phase), Statements.EmptyStmt)
       case sil.CondExp(c, e1, e2) =>
         If(translateExp(c), exhaleConnective(e1, error, phase), exhaleConnective(e2, error, phase))
+      case sil.Let(declared,boundTo,body) if !body.isPure =>
+      {
+        val u = env.makeUniquelyNamed(declared) // choose a fresh binder
+        env.define(u.localVar)
+        Assign(translateLocalVar(u.localVar),translateExp(boundTo)) ::
+          exhaleConnective(body.replace(declared.localVar, u.localVar),error,phase) ::
+          {
+            env.undefine(u.localVar)
+            Nil
+          }
+      }
       case _ if isInPhase(e, phase) =>
         components map (_.exhaleExp(e, error))
       case _ =>

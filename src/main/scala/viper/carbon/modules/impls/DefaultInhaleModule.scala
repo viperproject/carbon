@@ -21,6 +21,7 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule with Stat
   import verifier._
   import expModule._
   import stateModule._
+  import mainModule._
 
   def name = "Inhale module"
 
@@ -57,6 +58,17 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule with Stat
         If(translateExp(e1), inhaleConnective(e2), Statements.EmptyStmt)
       case sil.CondExp(c, e1, e2) =>
         If(translateExp(c), inhaleConnective(e1), inhaleConnective(e2))
+      case sil.Let(declared,boundTo,body) if !body.isPure =>
+      {
+        val u = env.makeUniquelyNamed(declared) // choose a fresh binder
+        env.define(u.localVar)
+        Assign(translateLocalVar(u.localVar),translateExp(boundTo)) ::
+          inhaleConnective(body.replace(declared.localVar, u.localVar)) ::
+          {
+            env.undefine(u.localVar)
+            Nil
+          }
+      }
       case _ =>
         val stmt = components map (_.inhaleExp(e))
         if (stmt.children.isEmpty) sys.error(s"missing translation for inhaling of $e")

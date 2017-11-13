@@ -469,6 +469,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         combineFrames(computeFrameHelper(e0,renaming,name,args), computeFrameHelper(e1,renaming,name,args))
       case sil.CondExp(con, thn, els) =>
         frameFragment(CondExp(translateExp(renaming(con)), computeFrameHelper(thn,renaming,name,args), computeFrameHelper(els,renaming,name,args)))
+      case sil.Let(varDeclared,boundTo,inBody) =>
+        computeFrameHelper(Expressions.instantiateVariables(inBody,varDeclared,boundTo),renaming,name,args)
       case e if e.isPure =>
         emptyFrame
       // should be no default case! Some explicit cases should be added - e.g. let expressions (see issue 222)

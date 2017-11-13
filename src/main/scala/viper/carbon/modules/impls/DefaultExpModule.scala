@@ -13,9 +13,8 @@ import viper.carbon.verifier.Verifier
 import viper.silver.verifier.{PartialVerificationError, reasons}
 import viper.carbon.boogie.Implicits._
 import viper.carbon.modules.components.DefinednessComponent
-import viper.silver.ast.{LocationAccess, QuantifiedExp}
+import viper.silver.ast.{LocationAccess}
 import viper.silver.ast.utility.Expressions
-import viper.silver.ast.utility.Expressions._
 
 /**
  * The default implementation of [[viper.carbon.modules.ExpModule]].
@@ -32,7 +31,6 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   import inhaleModule._
   import funcPredModule._
   import exhaleModule._
-  import stateModule.StateSnapshot
 
   override def start() {
     register(this)
