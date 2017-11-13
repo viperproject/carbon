@@ -61,18 +61,27 @@ trait StateModule extends Module with ComponentRegistry[CarbonStateComponent] wi
    */
   def staticStateContributions: Seq[LocalVarDecl]
 
+/* ALEX: It seems this function should be deprecated from the interface - it was never used anywhere!
   /**
+   *
    * The name and type of the current contribution of the state components associated with this module to the state.
    */
-  def currentStateContributions: Seq[LocalVarDecl]
+  def currentStateContributions: Seq[LocalVarDecl] = stateContributions(state)
+
+  def stateContributions(snap : StateSnapshot): Seq[LocalVarDecl]
+*/
 
   /**
    * The current values for all registered components' state contributions.  The number of elements
    * in the list and the types must correspond to the ones given in `stateContributions`.
+    *
+    * Compared to the currentStateContributions [ALEX: maybe to be deprecated], these expressions may include e.g. old(..) around a heap variable.
    */
-  def currentStateContributionValues: Seq[Exp]
+  def currentStateContributionValues: Seq[Exp] = stateContributionValues(state)
 
-  type StateSnapshot
+  def stateContributionValues(snap : StateSnapshot): Seq[Exp]
+
+  type StateSnapshot// used to abstractly capture the Boogie variables, old expressions etc. used to represent a current state in the translation
 
   /**
    * Backup the current state and return enough information such that it can
