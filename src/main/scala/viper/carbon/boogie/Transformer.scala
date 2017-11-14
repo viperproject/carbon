@@ -110,7 +110,7 @@ object DuplicatingTransformer {
 
     def goSeq[B <: Node](nodes: Seq[B]): Seq[Seq[B]] =
     {
-      if (nodes.isEmpty) Seq() else {
+      if (nodes.isEmpty) Seq() else if (nodes.size == 1) go(nodes.head) map (Seq(_)) else {
         val headResults = go(nodes.head)
         val tailResults = goSeq(nodes.tail)
         for { hd <- headResults; tl <- tailResults } yield (hd +: tl)

@@ -689,9 +689,12 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
 
   override def toExpressionsUsedInTriggers(inputs: Seq[Exp]): Seq[Seq[Exp]] = {
-    if (inputs.isEmpty) Seq() else
-      for {headResult <- toExpressionsUsedInTriggers(inputs.head); tailResult <- toExpressionsUsedInTriggers(inputs.tail)}
-      yield headResult +: tailResult
+    val res = if (inputs.isEmpty) Seq()
+      else if (inputs.size == 1) toExpressionsUsedInTriggers(inputs.head) map (Seq(_))
+      else
+        for {headResult <- toExpressionsUsedInTriggers(inputs.head); tailResult <- toExpressionsUsedInTriggers(inputs.tail)}
+          yield headResult +: tailResult
+    res
   }
 
   override def toExpressionsUsedInTriggers(e: Exp): Seq[Exp] = {
