@@ -13,7 +13,6 @@ import viper.carbon.boogie.Implicits._
 import viper.carbon.modules.components.CarbonStateComponent
 
 import scala.collection.mutable
-import collection.JavaConverters._
 
 /**
  * The default implementation of a [[viper.carbon.modules.StateModule]].
@@ -87,7 +86,12 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
 //  def currentStateContributions: Seq[LocalVarDecl] = components flatMap (_.currentStateContributions)
   def stateContributionValues(snap: StateSnapshot): Seq[Exp] = {
     var res : Seq[Exp] = Seq()
-    snap._1.values().asScala.foreach(vs => res ++= vs)
+    val hashMap = snap._1
+    for (c <- components) yield {
+      if (hashMap.containsKey(c)) {
+        res ++= hashMap.get(c)
+      }
+    }
     if(usingOldState) (res map (v => Old(v))) else res
   }
 
