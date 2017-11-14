@@ -34,5 +34,6 @@ trait FuncPredModule extends Module {
 
   def translateUnfold(unfold: sil.Unfold): Stmt
 
-  def toTriggers(e: Exp): Exp
+  def toExpressionsUsedInTriggers(e: Exp): Seq[Exp]
+  def toExpressionsUsedInTriggers(e: Seq[Exp]): Seq[Seq[Exp]]
 }

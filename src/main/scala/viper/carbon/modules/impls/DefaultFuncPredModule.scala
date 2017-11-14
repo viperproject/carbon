@@ -247,7 +247,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       case Seq(p) => p
       case ps => ps.tail.foldLeft(ps.head)((p,q) => BinExp(p,And,q))
     }
-    val body = transformFuncAppsToLimitedOrTriggerForm(translateExp(f.body.get),height)
+    val body = transformFuncAppsToLimitedForm(translateExp(f.body.get),height)
 
     // The idea here is that we can generate additional triggers for the function definition, which allow its definition to be triggered in any state in which the corresponding *predicate* has been folded or unfolded, in the following scenarios:
     // (a) if the function is recursive, and if the predicate is unfolded around the recursive call in the function body
@@ -268,8 +268,9 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     ))
   }
 
+  private def transformFuncAppsToLimitedForm(exp: Exp, heightToSkip : Int = -1): Exp =  transformFuncAppsToLimitedOrTriggerForm(exp, heightToSkip, false)
   /**
-   * Transform all function applications to their limited form.
+   * Transform all function applications to their limited form (or form used in triggers, if the "triggerForm" Boolean is passed as true.
    * If height is provided (i.e., non-negative), functions of above that height need not have their applications replaced with the limited form.
    */
   private def transformFuncAppsToLimitedOrTriggerForm(exp: Exp, heightToSkip : Int = -1, triggerForm: Boolean = false): Exp = {
@@ -311,7 +312,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       case Seq(p) => p
       case ps => ps.tail.foldLeft(ps.head)((p,q) => BinExp(p,And,q))
     }
-    val limitedFapp = transformFuncAppsToLimitedOrTriggerForm(fapp)
+    val limitedFapp = transformFuncAppsToLimitedForm(fapp)
     val res = translateResult(sil.Result()(f.typ))
     for (post <- f.posts) yield {
       val translatedPost = translateExp(whenInhaling(post))
@@ -328,7 +329,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       Axiom(Forall(
         stateModule.staticStateContributions ++ args,
         Trigger(Seq(staticGoodState, limitedFapp)),
-        (staticGoodState && assumeFunctionsAbove(height)) ==> (precondition ==> transformFuncAppsToLimitedOrTriggerForm(bPost, height))))
+        (staticGoodState && assumeFunctionsAbove(height)) ==> (precondition ==> transformFuncAppsToLimitedForm(bPost, height))))
     }
   }
 
@@ -356,8 +357,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     Seq(func) ++
       Seq(Axiom(Forall(
         stateModule.staticStateContributions ++ args,
-        Seq(Trigger(Seq(staticGoodState, transformFuncAppsToLimitedOrTriggerForm(funcApp2)))) ++ (if (predicateTriggers.isEmpty) Seq()  else Seq(Trigger(Seq(staticGoodState, triggerFuncApp(f,args map (_.l))) ++ predicateTriggers))),
-        staticGoodState ==> (transformFuncAppsToLimitedOrTriggerForm(funcApp2) === funcApp))) ) ++
+        Seq(Trigger(Seq(staticGoodState, transformFuncAppsToLimitedForm(funcApp2)))) ++ (if (predicateTriggers.isEmpty) Seq()  else Seq(Trigger(Seq(staticGoodState, triggerFuncApp(f,args map (_.l))) ++ predicateTriggers))),
+        staticGoodState ==> (transformFuncAppsToLimitedForm(funcApp2) === funcApp))) ) ++
         translateCondAxioms("function "+f.name, f.formalArgs, funcFrameInfo._2)
   }
 
@@ -687,8 +688,22 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   }
 
 
-  override def toTriggers(e: Exp): Exp = {
-    transformFuncAppsToLimitedOrTriggerForm(e,-1,true)
+  override def toExpressionsUsedInTriggers(inputs: Seq[Exp]): Seq[Seq[Exp]] = {
+    if (inputs.isEmpty) Seq() else
+      for {headResult <- toExpressionsUsedInTriggers(inputs.head); tailResult <- toExpressionsUsedInTriggers(inputs.tail)}
+      yield headResult +: tailResult
+  }
+
+  override def toExpressionsUsedInTriggers(e: Exp): Seq[Exp] = {
+    flattenConditionalsInTriggers(transformFuncAppsToLimitedOrTriggerForm(e,-1,true))
+  }
+
+  private def flattenConditionalsInTriggers(e: Exp) : Seq[Exp] =
+  {
+    DuplicatingTransformer.transform(node = e)(post = (_ match {
+      case CondExp(cond,thn,els) => Seq(thn,els)
+      case n => Seq(n)
+    }))
   }
 
   // --------------------------------------------
