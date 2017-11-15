@@ -698,7 +698,9 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   }
 
   override def toExpressionsUsedInTriggers(e: Exp): Seq[Exp] = {
-    flattenConditionalsInTriggers(transformFuncAppsToLimitedOrTriggerForm(e,-1,true))
+    val inter = transformFuncAppsToLimitedOrTriggerForm(e,-1,true)
+    val res = flattenConditionalsInTriggers(inter)
+    res
   }
 
   private def flattenConditionalsInTriggers(e: Exp) : Seq[Exp] =
