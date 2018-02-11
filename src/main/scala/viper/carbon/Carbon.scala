@@ -8,7 +8,7 @@ package viper.carbon
 
 import viper.silver.frontend.{SilFrontend, SilFrontendConfig}
 import viper.silver.reporter.{Reporter, StdIOReporter}
-import viper.silver.verifier.{Failure => SilFailure, Success => SilSuccess}
+import viper.silver.verifier.{Failure => SilFailure, Success => SilSuccess, Verifier => SilVerifier}
 
 /**
  * The main object for Carbon containing the execution start-point.
@@ -37,6 +37,20 @@ class CarbonFrontend(override val reporter: Reporter) extends SilFrontend {
   	carbonInstance.parseCommandLine(args)
 
     carbonInstance.config
+  }
+
+  override def init(verifier: SilVerifier): Unit = {
+    verifier match {
+      case carbon: CarbonVerifier =>
+        carbonInstance = carbon
+      case _ =>
+        sys.error( "Expected verifier to be an instance of CarbonVerifier but got an instance " +
+                  s"of ${verifier.getClass}")
+    }
+
+    super.init(verifier)
+
+    _config = carbonInstance.config
   }
 }
 
