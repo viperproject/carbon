@@ -9,10 +9,10 @@ package viper.carbon
 import viper.silver.testing.SilSuite
 import viper.silver.verifier.Verifier
 import viper.silver.frontend.Frontend
-
 import java.nio.file.Path
 
-import viper.silver.reporter.StdIOReporter
+import viper.silver.logger.SilentLogger
+import viper.silver.reporter.NoopReporter
 
 /** All tests for carbon.
 
@@ -24,7 +24,7 @@ class AllTests extends SilSuite {
 
   override def frontend(verifier: Verifier, files: Seq[Path]): Frontend = {
     require(files.length == 1, "tests should consist of exactly one file")
-    val fe = new CarbonFrontend(new StdIOReporter("carbon_for_testing"))
+    val fe = new CarbonFrontend(NoopReporter, SilentLogger().get)
     fe.init(verifier)
     fe.reset(files.head)
     fe
