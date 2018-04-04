@@ -6,14 +6,16 @@
 
 package viper.carbon
 
+import ch.qos.logback.classic.Logger
 import viper.silver.frontend.{SilFrontend, SilFrontendConfig}
+import viper.silver.logger.ViperStdOutLogger
 import viper.silver.reporter.{Reporter, StdIOReporter}
 import viper.silver.verifier.{Failure => SilFailure, Success => SilSuccess, Verifier => SilVerifier}
 
 /**
  * The main object for Carbon containing the execution start-point.
  */
-object Carbon extends CarbonFrontend(new StdIOReporter("carbon")) {
+object Carbon extends CarbonFrontend(new StdIOReporter("carbon"), ViperStdOutLogger("Carbon", "ERROR").get) {
   def main(args: Array[String]) {
     execute(args)
 
@@ -24,7 +26,8 @@ object Carbon extends CarbonFrontend(new StdIOReporter("carbon")) {
   }
 }
 
-class CarbonFrontend(override val reporter: Reporter) extends SilFrontend {
+class CarbonFrontend(override val reporter: Reporter,
+                     override val logger: Logger) extends SilFrontend {
   private var carbonInstance: CarbonVerifier = _
 
   def createVerifier(fullCmd: String) = {
