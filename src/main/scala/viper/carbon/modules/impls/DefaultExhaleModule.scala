@@ -35,7 +35,7 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
     register(this)
   }
 
-  override def exhale(exps: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true): Stmt = {
+  override def exhale(exps: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true, isAssert: Boolean = false): Stmt = {
     val originalPhaseId = currentPhaseId // needed to get nested exhales (e.g. from unfolding expressions) correct
     val phases = for (phase <- 1 to numberOfPhases) yield {
       currentPhaseId = phase - 1
@@ -51,8 +51,9 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
 
     currentPhaseId = originalPhaseId
 
-    if ((exps map (_._1.isPure) forall identity) || !havocHeap) {
+    if ((exps map (_._1.isPure) forall identity) || !havocHeap || isAssert) {
       // if all expressions are pure, then there is no need for heap copies
+      // if this is a translation of an Assert statement, there is also no need for heap copies
       phases ++ assumptions
     } else {
       beginExhale ++

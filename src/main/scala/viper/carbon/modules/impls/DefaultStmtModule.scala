@@ -84,7 +84,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
         } else {
           // we create a temporary state to ignore the side-effects
           val (backup, snapshot) = freshTempState("Assert")
-          val exhaleStmt = exhale((transformedExp, errors.AssertFailed(a)))
+          val exhaleStmt = exhale((transformedExp, errors.AssertFailed(a)), isAssert =  true)
           replaceState(snapshot)
           checkDefinedness(transformedExp, errors.AssertFailed(a)) :: backup :: exhaleStmt :: Nil
         }

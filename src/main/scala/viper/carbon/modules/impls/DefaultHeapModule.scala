@@ -129,7 +129,7 @@ class DefaultHeapModule(val verifier: Verifier)
       // frame all locations with direct permission
       MaybeCommentedDecl("Frame all locations with direct permissions", Axiom(Forall(
         vars ++ Seq(obj, field),
-        Trigger(Seq(identicalFuncApp, lookup(h.l, obj.l, field.l))) ++
+//        Trigger(Seq(identicalFuncApp, lookup(h.l, obj.l, field.l))) ++
           Trigger(Seq(identicalFuncApp, lookup(eh.l, obj.l, field.l))),
         identicalFuncApp ==>
           (staticPermissionPositive(obj.l, field.l) ==>
