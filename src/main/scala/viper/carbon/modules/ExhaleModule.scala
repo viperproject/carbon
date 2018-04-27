@@ -23,6 +23,6 @@ import viper.silver.verifier.PartialVerificationError
 
  */
 trait ExhaleModule extends Module with ExhaleComponent with ComponentRegistry[ExhaleComponent] {
-  def exhale(exp: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true): Stmt
+  def exhale(exp: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true, isAssert: Boolean = false): Stmt
   def currentPhaseId: Int
 }
