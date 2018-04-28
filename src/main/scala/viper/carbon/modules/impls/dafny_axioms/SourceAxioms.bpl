@@ -338,10 +338,12 @@ axiom (forall<T> s: Seq T, m, n: int :: { Seq#Drop(Seq#Drop(s, m), n) } // ** NE
 // START CONTAINS
 
 function Seq#Skolem<T>(Seq T, T) : int; // skolem function for Seq#Contains
+function Seq#SkolemContainsDrop<T>(Seq T, int, T) : int; // skolem function for Seq#Contains over drop
+function Seq#SkolemContainsTake<T>(Seq T, int, T) : int; // skolem function for Seq#Contains over take
 
 function Seq#Contains<T>(Seq T, T): bool;
 axiom (forall<T> s: Seq T, x: T :: { Seq#Contains(s,x) }
-  Seq#Contains(s,x) ==> s != Seq#Empty() && Seq#Length(s) > 0 && 0 <= Seq#Skolem(s,x) && 
+  Seq#Contains(s,x) ==> s != Seq#Empty() && Seq#Length(s) > 0 && 0 <= Seq#Skolem(s,x) &&
     Seq#Skolem(s,x) < Seq#Length(s) && Seq#Index(s,Seq#Skolem(s,x)) == x);
 
 // AS: note: this is an unusual axiom, but is basically the original
@@ -367,14 +369,14 @@ axiom (forall<T> s: Seq T, v: T, x: T ::
 // AS: split axioms
 axiom (forall<T> s: Seq T, n: int, x: T ::
   { Seq#Contains(Seq#Take(s, n), x) }
-  Seq#Contains(Seq#Take(s, n), x) ==> 
-    (Seq#Take(s, n) != Seq#Empty() && Seq#Length(Seq#Take(s, n)) > 0 && 
-     0 <= Seq#Skolem(Seq#Take(s, n),x) && Seq#Skolem(Seq#Take(s, n),x) < n && 
-      Seq#Skolem(Seq#Take(s, n),x) < Seq#Length(s) && 
-      Seq#Index(s, Seq#Skolem(Seq#Take(s, n),x)) == x));
+  Seq#Contains(Seq#Take(s, n), x) ==>
+    (Seq#Take(s, n) != Seq#Empty() && Seq#Length(Seq#Take(s, n)) > 0 &&
+     0 <= Seq#SkolemContainsTake(s, n, x) && Seq#SkolemContainsTake(s, n, x) < n &&
+      Seq#SkolemContainsTake(s, n, x) < Seq#Length(s) &&
+      Seq#Index(s, Seq#SkolemContainsTake(s, n, x)) == x));
 
 axiom (forall<T> s: Seq T, n: int, x: T, i:int ::
-  { Seq#Contains(Seq#Take(s, n), x), Seq#Index(s, i) } 
+  { Seq#Contains(Seq#Take(s, n), x), Seq#Index(s, i) }
     0 <= i && i < n && i < Seq#Length(s) && Seq#Index(s, i) == x ==>
      Seq#Contains(Seq#Take(s, n), x));
 
@@ -382,9 +384,9 @@ axiom (forall<T> s: Seq T, n: int, x: T, i:int ::
 axiom (forall<T> s: Seq T, n: int, x: T ::
   { Seq#Contains(Seq#Drop(s, n), x) }
   Seq#Contains(Seq#Drop(s, n), x) ==>
-    ( 0 <= Seq#Skolem(Seq#Drop(s, n), x) && n <= Seq#Skolem(Seq#Drop(s, n), x) && 
-      Seq#Skolem(Seq#Drop(s, n), x) < Seq#Length(s) && 
-      Seq#Index(s, Seq#Skolem(Seq#Drop(s, n), x)) == x));
+    ( 0 <= Seq#SkolemContainsDrop(s, n, x) && n <= Seq#SkolemContainsDrop(s, n, x) &&
+      Seq#SkolemContainsDrop(s, n, x) < Seq#Length(s) &&
+      Seq#Index(s, Seq#SkolemContainsDrop(s, n, x)) == x));
 
 axiom (forall<T> s: Seq T, n: int, x: T, i:int ::
   { Seq#Contains(Seq#Drop(s, n), x), Seq#Index(s, i) }
