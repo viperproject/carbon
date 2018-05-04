@@ -9,9 +9,6 @@ object CarbonBuild extends Build {
       version := "1.0-SNAPSHOT",
       scalaVersion := "2.11.8",
       scalacOptions in Compile ++= Seq("-deprecation", "-unchecked", "-feature"),
-      excludeFilter in unmanagedResources := {
-        new SimpleFileFilter(_.getCanonicalPath endsWith "logback.xml")
-      },
       libraryDependencies += "org.rogach" %% "scallop" % "2.0.7",
       libraryDependencies += "org.jgrapht" % "jgrapht-core" % "0.9.1"
    )
