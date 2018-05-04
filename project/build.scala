@@ -21,13 +21,14 @@ object CarbonBuild extends Build {
            baseSettings
         ++ Seq(
               name := "Carbon",
-              jarName in assembly := "carbon.jar",
+              assemblyJarName in assembly := "carbon.jar",
               test in assembly := {},
               testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oD"),
               traceLevel := 20,
               maxErrors := 6,
               classDirectory in Test <<= classDirectory in Compile,
-              libraryDependencies ++= externalDep//,
+              libraryDependencies ++= externalDep,
+              fork in run := true
               //fork in Test := true
            ))
     )
