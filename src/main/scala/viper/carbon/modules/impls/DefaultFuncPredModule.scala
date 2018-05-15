@@ -649,8 +649,15 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private def translateResultDecl(r: sil.Result) = LocalVarDecl(resultName, translateType(r.typ))
   override def translateResult(r: sil.Result) = translateResultDecl(r).l
 
-  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
-    if(makeChecks)
+  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
+                                             statesStack: List[Any] = null, inWand: Boolean = false): Stmt = {
+
+    val currentState = stateModule.state
+    if(inWand) {
+      stateModule.replaceState(statesStack(0).asInstanceOf[StateRep].state)
+    }
+
+    val stmt: Stmt = if(makeChecks)
       e match {
         case fa@sil.FuncApp(f, args) => {
           val funct = verifier.program.findFunction(f);
@@ -665,6 +672,10 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         case _ => Nil
       }
     else Nil
+
+    if(inWand)
+      stateModule.replaceState(currentState)
+    stmt
   }
 
   private var tmpStateId = -1
@@ -730,11 +741,11 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     res
   }
 
-  override def translateFold(fold: sil.Fold): (Stmt,Stmt) = {
+  override def translateFold(fold: sil.Fold, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): (Stmt,Stmt) = {
     fold match {
       case sil.Fold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(_, _), perm)) => {
         {
-          val (foldFirst, foldLast) = foldPredicate(acc, errors.FoldFailed(fold))
+          val (foldFirst, foldLast) = foldPredicate(acc, errors.FoldFailed(fold), statesStack, allStateAssms, inWand)
           (checkDefinedness(acc, errors.FoldFailed(fold)) ++
             checkDefinedness(perm, errors.FoldFailed(fold)) ++
             foldFirst, foldLast)
@@ -745,11 +756,13 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   private var duringFold = false
   private var foldInfo: sil.PredicateAccessPredicate = null
-  private def foldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError): (Stmt,Stmt) = {
+  private def foldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError
+                           , statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): (Stmt,Stmt) = {
     duringFold = true
     foldInfo = acc
-    val stmt = exhale(Seq((Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program).get,acc.perm), error)), havocHeap = false) ++
-      inhale(acc)
+    val stmt = exhale(Seq((Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program).get,acc.perm), error)), havocHeap = false,
+      statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand) ++
+      inhale(acc, statesStack, inWand)
     val stmtLast =  Assume(predicateTrigger(heapModule.currentStateExps, acc.loc)) ++ {
       val location = acc.loc
       val predicate = verifier.program.findPredicate(location.predicateName)
@@ -766,16 +779,17 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private var duringUnfolding = false
   private var duringUnfoldingExtraUnfold = false // are we executing an extra unfold, to reflect the meaning of inhaling or exhaling an unfolding expression?
   private var unfoldInfo: sil.PredicateAccessPredicate = null
-  override def translateUnfold(unfold: sil.Unfold): Stmt = {
+  override def translateUnfold(unfold: sil.Unfold, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
     unfold match {
       case sil.Unfold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(_, _), perm)) =>
         checkDefinedness(acc, errors.UnfoldFailed(unfold)) ++
           checkDefinedness(perm, errors.UnfoldFailed(unfold)) ++
-          unfoldPredicate(acc, errors.UnfoldFailed(unfold), false)
+          unfoldPredicate(acc, errors.UnfoldFailed(unfold), false, statesStack, allStateAssms, inWand)
     }
   }
 
-  private def unfoldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError, isUnfolding: Boolean): Stmt = {
+  private def unfoldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError, isUnfolding: Boolean
+                             ,statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
     val oldDuringUnfold = duringUnfold
     val oldDuringUnfolding = duringUnfolding
     val oldUnfoldInfo = unfoldInfo
@@ -791,8 +805,9 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         val translatedArgs = location.args map translateExp
         Assume(translateLocationAccess(location) === getPredicateFrame(predicate,translatedArgs)._1)
       } ++
-      exhale(Seq((acc, error)), havocHeap = false) ++
-      inhale(Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program).get,acc.perm))
+      exhale(Seq((acc, error)), havocHeap = false, statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand) ++
+      inhale(Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program).get,acc.perm), statesStack = statesStack, inWand = inWand
+      )
     unfoldInfo = oldUnfoldInfo
     duringUnfold = oldDuringUnfold
     duringFold = oldDuringFold

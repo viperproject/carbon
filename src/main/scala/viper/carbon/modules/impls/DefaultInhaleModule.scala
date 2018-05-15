@@ -29,11 +29,32 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule with Stat
     register(this)
   }
 
-  override def inhale(exps: Seq[sil.Exp]): Stmt = {
-    (exps map (e => inhaleConnective(e.whenInhaling))) ++
-      MaybeCommentBlock("Free assumptions",
-        exps map (e => allFreeAssumptions(e))) ++
-      assumeGoodState
+  override def inhale(exps: Seq[sil.Exp], statesStack: List[Any] = null, inWand: Boolean = false): Stmt = {
+    // replace currentState with top State (ops_state)
+    val current_state = stateModule.state
+    var ops: StateRep = null
+    if(inWand){
+      ops = statesStack(0).asInstanceOf[StateRep]
+      stateModule.replaceState(ops.state)
+    }
+
+
+    val stmt =
+      (if (inWand){
+        (exps map (e => inhaleConnective(e.whenInhaling, ops.boolVar, inWand))) ++
+          MaybeCommentBlock("Free assumptions",
+            exps map (e => allFreeAssumptions(e))) ++
+          assumeGoodState
+      }else{
+        (exps map (e => inhaleConnective(e.whenInhaling, null, inWand))) ++
+          MaybeCommentBlock("Free assumptions",
+            exps map (e => allFreeAssumptions(e))) ++
+          assumeGoodState
+      })
+
+    if(inWand)
+      stateModule.replaceState(current_state)
+    stmt
   }
 
   def containsFunc(exp: sil.Exp): Boolean = {
@@ -48,22 +69,22 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule with Stat
    * Inhales Viper expression connectives (such as logical and/or) and forwards the
    * translation of other expressions to the inhale components.
    */
-  private def inhaleConnective(e: sil.Exp): Stmt = {
+  private def inhaleConnective(e: sil.Exp, opsAssms: LocalVar = null, inWand: Boolean = false): Stmt = {
     e match {
       case sil.And(e1, e2) =>
-        inhaleConnective(e1) ::
-          inhaleConnective(e2) ::
+        inhaleConnective(e1, opsAssms, inWand) ::
+          inhaleConnective(e2, opsAssms, inWand) ::
           Nil
       case sil.Implies(e1, e2) =>
-        If(translateExp(e1), inhaleConnective(e2), Statements.EmptyStmt)
+        If(translateExp(e1), inhaleConnective(e2, opsAssms, inWand), Statements.EmptyStmt)
       case sil.CondExp(c, e1, e2) =>
-        If(translateExp(c), inhaleConnective(e1), inhaleConnective(e2))
+        If(translateExp(c), inhaleConnective(e1, opsAssms, inWand), inhaleConnective(e2, opsAssms, inWand))
       case sil.Let(declared,boundTo,body) if !body.isPure =>
       {
         val u = env.makeUniquelyNamed(declared) // choose a fresh binder
         env.define(u.localVar)
         Assign(translateLocalVar(u.localVar),translateExp(boundTo)) ::
-          inhaleConnective(body.replace(declared.localVar, u.localVar)) ::
+          inhaleConnective(body.replace(declared.localVar, u.localVar), opsAssms, inWand) ::
           {
             env.undefine(u.localVar)
             Nil
@@ -72,8 +93,14 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule with Stat
       case _ =>
         val stmt = components map (_.inhaleExp(e))
         if (stmt.children.isEmpty) sys.error(s"missing translation for inhaling of $e")
-        (if (containsFunc(e)) Seq(assumeGoodState) else Seq()) ++ stmt ++ (if (e.isPure) Seq() else Seq(assumeGoodState))
+        val retStmt = (if (containsFunc(e)) Seq(assumeGoodState) else Seq()) ++ stmt ++ (if (e.isPure) Seq() else Seq(assumeGoodState))
         //(if (containsFunc(e)) assumeGoodState else Seq[Stmt]()) ++ stmt ++ (if (e.isPure) Seq[Stmt]() else assumeGoodState)
+
+        // if we are inside package statement, then all assumptions should be replaced with conjinctions with ops.boolVar
+        if(inWand)
+          wandModule.exchangeAssumesWithBoolean(retStmt, opsAssms)
+        else
+          retStmt
     }
   }
 

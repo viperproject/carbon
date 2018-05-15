@@ -328,7 +328,7 @@ class DefaultHeapModule(val verifier: Verifier)
     FuncApp(locationIdentifier(pred), args, t)
   }
 
-  override def simpleHandleStmt(stmt: sil.Stmt): Stmt = {
+  override def simpleHandleStmt(stmt: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
     stmt match {
       case sil.FieldAssign(lhs, rhs) =>
         translateLocationAccess(lhs) := translateExp(rhs)
@@ -466,6 +466,10 @@ class DefaultHeapModule(val verifier: Verifier)
 
   override def restoreState(s: Seq[Var]) {
     heap = s(0) // note: this should be accessed via heapVar or heapExp as appropriate (whether a variable is essential or not)
+  }
+
+  override def equate(s: Seq[Var]): Stmt ={
+    Assume(heap === s(0))
   }
 
   override def usingOldState = stateModuleIsUsingOldState

@@ -1225,7 +1225,7 @@ class QuantifiedPermModule(val verifier: Verifier)
       (bvs map (v => Assume((v > noPerm) && (v < fullPerm))))
   }
 
-  override def handleStmt(s: sil.Stmt) : (Stmt,Stmt) =
+  override def handleStmt(s: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false) : (Stmt,Stmt) =
     s match {
       case n@sil.NewStmt(target,fields) =>
         (Nil,for (field <- fields) yield {
@@ -1278,8 +1278,15 @@ class QuantifiedPermModule(val verifier: Verifier)
   // AS: this is a trick to avoid well-definedness checks for the outermost heap dereference in an AccessPredicate node (since it describes the location to which permission is provided).
   // The trick is somewhat fragile, in that it relies on the ordering of the calls to this method (but generally works out because of the recursive traversal of the assertion).
   private var allowLocationAccessWithoutPerm = false
-  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
-    if(makeChecks) (
+  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
+                                             statesStack: List[Any] = null, inWand: Boolean = false): Stmt = {
+
+    val currentState = stateModule.state
+    if(inWand) {
+      stateModule.replaceState(statesStack(0).asInstanceOf[StateRep].state)
+    }
+
+    val stmt: Stmt = if(makeChecks) (
       e match {
         case sil.CurrentPerm(loc) =>
           allowLocationAccessWithoutPerm = true
@@ -1299,6 +1306,10 @@ class QuantifiedPermModule(val verifier: Verifier)
         case _ => Nil
       }
       ) else Nil
+
+    if(inWand)
+      stateModule.replaceState(currentState)
+    stmt
   }
 
   /*For QP \forall x:T :: c(x) ==> acc(e(x),p(x)) this case class describes an instantiation of the QP where

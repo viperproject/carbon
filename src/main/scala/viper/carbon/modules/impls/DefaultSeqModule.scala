@@ -28,6 +28,7 @@ class DefaultSeqModule(val verifier: Verifier)
   import verifier._
   import typeModule._
   import expModule._
+  import stateModule._
 
   /**
    * Have sequences been used so far (to determine if we need to include
@@ -106,8 +107,15 @@ class DefaultSeqModule(val verifier: Verifier)
   }
 
 
-  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
-    if(makeChecks)
+  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
+                                             statesStack: List[Any] = null, inWand: Boolean = false): Stmt = {
+
+    val currentState = stateModule.state
+    if(inWand) {
+      stateModule.replaceState(statesStack(0).asInstanceOf[StateRep].state)
+    }
+
+    val stmt: Stmt = if(makeChecks)
       e match {
         case si@SeqIndex(s,idx) => {
           val index = translateExp(idx)
@@ -117,6 +125,11 @@ class DefaultSeqModule(val verifier: Verifier)
         case _ => Nil
       }
     else Nil
+
+    if(inWand)
+      stateModule.replaceState(currentState)
+
+    stmt
   }
 
   /**

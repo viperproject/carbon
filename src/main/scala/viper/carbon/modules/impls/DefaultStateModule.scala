@@ -18,6 +18,9 @@ import scala.collection.mutable
  * The default implementation of a [[viper.carbon.modules.StateModule]].
  */
 class DefaultStateModule(val verifier: Verifier) extends StateModule {
+  import verifier._
+  import heapModule._
+
   def name = "State module"
 
   private val isGoodState = "state"
@@ -151,6 +154,11 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     treatOldAsCurrent = snapshot._3
   }
 
+  override def equateHeaps(snapshot: StateSnapshot, c: CarbonStateComponent):Stmt =
+  {
+    heapModule.equate(snapshot._1.get(c))
+  }
+
   // initialisation in principle not needed - one should call initState
   var usingOldState = false
   var treatOldAsCurrent = false
@@ -178,4 +186,5 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
             }
     (currentCopy, usingOldState, treatOldAsCurrent)
   }
+
 }

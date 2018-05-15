@@ -23,7 +23,8 @@ trait DefinednessComponent extends Component {
   /**
    * Proof obligations for a given expression. See below for "makeChecks" description
    */
-  def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = Statements.EmptyStmt
+  def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
+                                    statesStack: List[Any] = null, inWand: Boolean = false): Stmt = Statements.EmptyStmt
 
   /**
    * Proof obligations for a given expression.  The first part of the result is used before

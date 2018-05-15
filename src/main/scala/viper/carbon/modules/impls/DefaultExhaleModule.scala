@@ -24,6 +24,7 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
   import permModule._
   import heapModule._
   import mainModule._
+  import stateModule._
 
   def name = "Exhale module"
 
@@ -35,11 +36,15 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
     register(this)
   }
 
-  override def exhale(exps: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true, isAssert: Boolean = false): Stmt = {
+  type StateRep2 <: stateModule.StateRep
+
+  override def exhale(exps: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true, isAssert: Boolean = false
+                      , statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
     val originalPhaseId = currentPhaseId // needed to get nested exhales (e.g. from unfolding expressions) correct
     val phases = for (phase <- 1 to numberOfPhases) yield {
       currentPhaseId = phase - 1
-      val stmts = exps map (e => exhaleConnective(e._1.whenExhaling, e._2, currentPhaseId))
+      val stmts = exps map (e => exhaleConnective(e._1.whenExhaling, e._2, currentPhaseId, havocHeap,
+        statesStack, allStateAssms, inWand, isAssert = isAssert))
       if (stmts.children.isEmpty) {
         Statements.EmptyStmt
       } else {
@@ -68,29 +73,52 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
    * Exhales Viper expression connectives (such as logical and/implication) and forwards the
    * translation of other expressions to the exhale components.
    */
-  private def exhaleConnective(e: sil.Exp, error: PartialVerificationError, phase: Int): Stmt = {
+  private def exhaleConnective(e: sil.Exp, error: PartialVerificationError, phase: Int, havocHeap: Boolean = true,
+                               statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false,
+                               isAssert: Boolean = false): Stmt = {
     e match {
       case sil.And(e1, e2) =>
-        exhaleConnective(e1, error, phase) ::
-          exhaleConnective(e2, error, phase) ::
+        exhaleConnective(e1, error, phase, havocHeap, statesStack, allStateAssms, inWand) ::
+          exhaleConnective(e2, error, phase, havocHeap, statesStack, allStateAssms, inWand) ::
           Nil
       case sil.Implies(e1, e2) =>
-        If(translateExp(e1), exhaleConnective(e2, error, phase), Statements.EmptyStmt)
+        If(translateExp(e1), exhaleConnective(e2, error, phase, havocHeap, statesStack, allStateAssms, inWand), Statements.EmptyStmt)
       case sil.CondExp(c, e1, e2) =>
-        If(translateExp(c), exhaleConnective(e1, error, phase), exhaleConnective(e2, error, phase))
+        If(translateExp(c), exhaleConnective(e1, error, phase, havocHeap, statesStack, allStateAssms, inWand),
+          exhaleConnective(e2, error, phase, havocHeap, statesStack, allStateAssms, inWand))
       case sil.Let(declared,boundTo,body) if !body.isPure =>
       {
         val u = env.makeUniquelyNamed(declared) // choose a fresh binder
         env.define(u.localVar)
         Assign(translateLocalVar(u.localVar),translateExp(boundTo)) ::
-          exhaleConnective(body.replace(declared.localVar, u.localVar),error,phase) ::
+          exhaleConnective(body.replace(declared.localVar, u.localVar),error,phase, havocHeap, statesStack, allStateAssms, inWand) ::
           {
             env.undefine(u.localVar)
             Nil
           }
       }
-      case _ if isInPhase(e, phase) =>
-        components map (_.exhaleExp(e, error))
+      case _ if isInPhase(e, phase) => {
+        if(inWand){
+          if(phase == 0) {
+            // here we create a new state temp (temp: stateRep, init: stmt)
+            val StateSetup(tempState, initStmt) = wandModule.createAndSetState(None);
+            var exhaleExtStmt = wandModule.exhaleExt(statesStack, tempState, e, allStateAssms)
+            val addAssumptions = (statesStack(0).asInstanceOf[StateRep].boolVar := statesStack(0).asInstanceOf[StateRep].boolVar && tempState.boolVar)
+            var equateH = equateHeaps(statesStack(0).asInstanceOf[StateRep].state, heapModule)
+            var assertTransfer: Stmt =
+              if(isAssert)
+                stmtModule.translateStmt(sil.Inhale(e)(e.pos, e.info), inWand = true, statesStack = statesStack)
+              else
+                Nil
+            if (!havocHeap)
+              initStmt ++ exhaleExtStmt ++ addAssumptions ++ equateH ++ assertTransfer
+            else
+              initStmt ++ exhaleExtStmt ++ addAssumptions ++ assertTransfer
+          }else Nil
+        }else{
+          components map (_.exhaleExp(e, error))
+        }
+      }
       case _ =>
         Nil // nothing to do in this phase
     }
@@ -101,7 +129,7 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
   /**
    * Handles only pure expressions - others will be dealt with by other modules
    */
-  override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt =  
+  override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt =
   {
     if (e.isPure) {
       Assert(translateExp(e), error.dueTo(AssertionFalse(e)))

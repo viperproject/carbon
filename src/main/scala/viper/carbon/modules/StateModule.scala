@@ -9,7 +9,7 @@ package viper.carbon.modules
 import components.{CarbonStateComponent, ComponentRegistry}
 import viper.silver.components.StatefulComponent
 import viper.silver.{ast => sil}
-import viper.carbon.boogie.{LocalVarDecl, Exp, Stmt}
+import viper.carbon.boogie.{Exp, LocalVar, LocalVarDecl, Stmt}
 
 /**
  * A module for dealing with the state of a program during execution.  Allows other modules
@@ -158,5 +158,14 @@ trait StateModule extends Module with ComponentRegistry[CarbonStateComponent] wi
    * Analogous get operation to the put above.
    */
   def stateRepositoryGet(name:String) : Option[StateSnapshot]
-}
 
+  /*
+   * is used to store relevant blocks needed to use a newly created state in executing package statement
+   */
+
+  def equateHeaps(snapshot: StateSnapshot, c: CarbonStateComponent):Stmt
+
+  case class StateRep(state: StateSnapshot, boolVar: LocalVar)
+
+  case class StateSetup(usedState: StateRep, initStmt: Stmt)
+}

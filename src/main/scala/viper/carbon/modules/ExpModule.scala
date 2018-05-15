@@ -31,20 +31,21 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
    * only the side-effects (unfoldings) of unravelling the expression. Note that
    * the parameter should be passed down through recursive calls (default true)
    */
-  def checkDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean = true): Stmt
+  def checkDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean = true, statesStack: List[Any] = null, inWand: Boolean = false): Stmt
 
   /**
    * Check definedness of Viper assertions such as pre-/postconditions or invariants.
    * The implementation works by inhaling 'e' and checking the necessary properties
    * along the way.
    */
-  def checkDefinednessOfSpecAndInhale(e: sil.Exp, error: PartialVerificationError): Stmt
+  def checkDefinednessOfSpecAndInhale(e: sil.Exp, error: PartialVerificationError, statesStack: List[Any] = null, inWand: Boolean = false): Stmt
 
   /**
    * Convert all InhaleExhale expressions to their exhale part and call checkDefinednessOfSpecAndInhale.
    */
   def checkDefinednessOfExhaleSpecAndInhale(expressions: Seq[sil.Exp],
-                                            errorConstructor: (sil.Exp) => PartialVerificationError): Seq[Stmt] = {
+                                            errorConstructor: (sil.Exp) => PartialVerificationError,
+                                            statesStack: List[Any] = null, inWand: Boolean = false): Seq[Stmt] = {
     expressions map (e => {
       checkDefinednessOfSpecAndInhale(whenExhaling(e), errorConstructor(e))
     })
@@ -54,7 +55,8 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
    * Convert all InhaleExhale expressions to their inhale part and call checkDefinednessOfSpecAndInhale.
    */
   def checkDefinednessOfInhaleSpecAndInhale(expressions: Seq[sil.Exp],
-                                            errorConstructor: (sil.Exp) => PartialVerificationError): Seq[Stmt] = {
+                                            errorConstructor: (sil.Exp) => PartialVerificationError
+                                           ,statesStack: List[Any] = null, inWand: Boolean = false): Seq[Stmt] = {
     expressions map (e => {
       checkDefinednessOfSpecAndInhale(whenInhaling(e), errorConstructor(e))
     })
@@ -65,5 +67,6 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
    * The implementation works by exhaling 'e' and checking the necessary properties
    * along the way.
    */
-  def checkDefinednessOfSpecAndExhale(e: sil.Exp, definednessError: PartialVerificationError, exhaleError: PartialVerificationError): Stmt
+  def checkDefinednessOfSpecAndExhale(e: sil.Exp, definednessError: PartialVerificationError, exhaleError: PartialVerificationError,
+                                      statesStack: List[Any] = null, inWand: Boolean = false): Stmt
 }

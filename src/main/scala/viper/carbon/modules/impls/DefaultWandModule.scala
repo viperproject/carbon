@@ -3,13 +3,12 @@ package viper.carbon.modules.impls
 
 import org.scalatest.GivenWhenThen
 import viper.carbon.modules._
-import viper.carbon.modules.components.{TransferComponent, DefinednessComponent}
 import viper.carbon.verifier.Verifier
 import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
 import viper.silver.ast.utility.Expressions
 import viper.silver.ast.{FullPerm, MagicWand, MagicWandStructure}
-import viper.silver.verifier.{errors, reasons, PartialVerificationError}
+import viper.silver.verifier.{PartialVerificationError, errors, reasons}
 import viper.silver.{ast => sil}
 
 import scala.collection.mutable.ListBuffer
@@ -139,12 +138,13 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
     }
   }
 
-  override def translatePackage(p: sil.Package,error: PartialVerificationError):Stmt = {
+  override def translatePackage(p: sil.Package, error: PartialVerificationError):Stmt = {
+    val proofScript = p.proofScript
     p match {
-      case pa@sil.Package(wand, _) => ???
+      case pa@sil.Package(wand, proof) =>
         //this is the implementation of the package statement in the old magic wand syntax, which might serve
         //as inspiration for the implementation of the new syntax
-        /*wand match {
+        wand match {
           case w@sil.MagicWand(left,right) =>
             mainError = error //set the default error to be used by all operations
 
@@ -155,16 +155,23 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
 
             val curStateBool = LocalVar(Identifier(names.createUniqueIdentifier("boolCur"))(transferNamespace),Bool)
             val stmt = initStmt++(curStateBool := TrueLit()) ++
-              exec(hypState :: StateRep(currentState, curStateBool) :: Nil, usedState, right, hypState.boolVar)
+              execBody(hypState :: StateRep(currentState, curStateBool) :: Nil, usedState, proofScript.ss , right, hypState.boolVar)
+
 
             stateModule.replaceState(currentState)
 
             stmt ++ addWand
 
           case _ => sys.error("Package only defined for wands.")
-        }*/
+        }
     }
   }
+
+  def execBody(states: List[StateRep], ops: StateRep, proofScript: Seq[sil.Stmt], right: sil.Exp, allStateAssms: Exp):Stmt = {
+    (proofScript map(s => stmtModule.translateStmt(s, ops::states, allStateAssms && ops.boolVar, true)))++
+    exec(states,ops, right, allStateAssms)
+  }
+
 
   /**
    * this function corresponds to the exec function described in the magic wand paper
@@ -300,7 +307,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
       case _ =>
         //no ghost operation
         val StateSetup(usedState, initStmt) = createAndSetState(None)
-        Comment("Translating exec of non-ghost operation" + e.toString())
+        Comment("Translating exec of non-ghost operation" + e.toString()) ++
         initStmt ++ exhaleExt(ops :: states, usedState,e,ops.boolVar&&allStateAssms)
     }
   }
@@ -314,7 +321,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
    * Postcondition: state is set to the "Used" state generated in the function
    */
   private def packageInit(wand:sil.MagicWand, boolVar: Option[LocalVar]):PackageSetup = {
-    val StateSetup(usedState, initStmt) = createAndSetState(boolVar, "Used", false)
+    val StateSetup(usedState, initStmt) = createAndSetState(boolVar, "Used", false).asInstanceOf[StateSetup]
 
     //inhale left hand side to initialize hypothetical state
     val hypName = names.createUniqueIdentifier("Hyp")
@@ -338,7 +345,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
    *             masks to ZeroMask), otherwise the states contain no information
    * @return  Structure which can be used at the beginning of many operations involved in the package
    */
-  private def createAndSetState(initBool:Option[Exp],usedString:String = "Used",setToNew:Boolean=true,
+  override def createAndSetState(initBool:Option[Exp],usedString:String = "Used",setToNew:Boolean=true,
                                 init:Boolean=true):StateSetup = {
     /**create a new boolean variable under which all assumptions belonging to the package are made
       *(which makes sure that the assumptions won't be part of the main state after the package)
@@ -410,8 +417,10 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
   /*generates code that transfers permissions from states to used such that e can be satisfied
     * Precondition: current state is set to the used state
     * */
-  def exhaleExt(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssms: Exp):Stmt = {
+  override def exhaleExt(statesObj: List[Any], usedObj:Any, e: sil.Exp, allStateAssms: Exp):Stmt = {
     Comment("exhale_ext of " + e.toString())
+    var states = statesObj.asInstanceOf[List[StateRep]]
+    var used = usedObj.asInstanceOf[StateRep]
     e match {
       case acc@sil.AccessPredicate(_,_) => transferMain(states,used, e, allStateAssms)
       case acc@sil.MagicWand(_,_) => transferMain(states, used,e,allStateAssms)
@@ -424,8 +433,12 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
 
   def exhaleExtExp(states: List[StateRep], used:StateRep, e: sil.Exp,allStateAssms:Exp):Stmt = {
     if(e.isPure) {
-      If(allStateAssms&&used.boolVar,expModule.checkDefinedness(e,mainError),Statements.EmptyStmt) ++
+      val currentState = stateModule.state
+      stateModule.replaceState(states(0).state);
+      val stmt = If(allStateAssms&&used.boolVar,expModule.checkDefinedness(e,mainError),Statements.EmptyStmt) ++
         Assert((allStateAssms&&used.boolVar) ==> expModule.translateExp(e), mainError.dueTo(reasons.AssertionFalse(e)))
+      stateModule.replaceState(currentState)
+      stmt
     } else {
       sys.error("impure expression not caught in exhaleExt")
     }
@@ -656,7 +669,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
     * Assume y >= 0 is transformed to:
     * b := (b && x!= null); b := (b && y >= 0);
     */
-  def exchangeAssumesWithBoolean(stmt: Stmt,boolVar: LocalVar):Stmt = {
+  override def exchangeAssumesWithBoolean(stmt: Stmt,boolVar: LocalVar):Stmt = {
     stmt match {
       case Assume(exp) =>
         boolVar := (boolVar && exp)
@@ -708,13 +721,4 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
    */
   case class PackageSetup(hypState: StateRep, usedState: StateRep, initStmt: Stmt)
 
-  /*
-   * is used to store relevant blocks needed to use a newly created state
-   */
-  case class StateSetup(usedState: StateRep, initStmt: Stmt)
-
-  case class StateRep(state: StateSnapshot, boolVar: LocalVar)
-
-
 }
-

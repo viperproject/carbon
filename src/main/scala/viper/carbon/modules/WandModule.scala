@@ -4,10 +4,11 @@ package viper.carbon.modules
  * Created by Gaurav on 06.03.2015.
  */
 
-import viper.carbon.modules.components.{TransferComponent, ComponentRegistry}
+import viper.carbon.modules.components.{ComponentRegistry, TransferComponent}
 import viper.silver.verifier.PartialVerificationError
 import viper.silver.{ast => sil}
-import viper.carbon.boogie.{Exp, Stmt}
+import viper.carbon.boogie.{Exp, LocalVar, Stmt}
+import viper.silver.ast.Seqn
 
 
 trait WandModule extends Module with ComponentRegistry[TransferComponent] {
@@ -17,4 +18,10 @@ trait WandModule extends Module with ComponentRegistry[TransferComponent] {
 
   def translateApply(p: sil.Apply, error: PartialVerificationError):Stmt
 
+  def exhaleExt(states: List[Any], used:Any, e: sil.Exp, allStateAssms: Exp):Stmt
+
+  def createAndSetState(initBool:Option[Exp],usedString:String = "Used",setToNew:Boolean=true,
+                        init:Boolean=true):Any
+
+  def exchangeAssumesWithBoolean(stmt: Stmt,boolVar: LocalVar):Stmt
 }

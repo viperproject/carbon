@@ -6,9 +6,9 @@
 
 package viper.carbon.modules
 
-import components.{ExhaleComponent, ComponentRegistry}
+import components.{ComponentRegistry, ExhaleComponent}
 import viper.silver.{ast => sil}
-import viper.carbon.boogie.{Stmt, Exp}
+import viper.carbon.boogie.{Exp, LocalVar, Stmt, TrueLit}
 import viper.silver.verifier.PartialVerificationError
 
 /**
@@ -23,6 +23,9 @@ import viper.silver.verifier.PartialVerificationError
 
  */
 trait ExhaleModule extends Module with ExhaleComponent with ComponentRegistry[ExhaleComponent] {
-  def exhale(exp: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true, isAssert: Boolean = false): Stmt
+
+  def exhale(exp: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true, isAssert: Boolean = false
+             , statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt
+
   def currentPhaseId: Int
 }
