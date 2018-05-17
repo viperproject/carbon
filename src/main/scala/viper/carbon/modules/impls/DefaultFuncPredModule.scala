@@ -650,7 +650,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   override def translateResult(r: sil.Result) = translateResultDecl(r).l
 
   override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
-                                             statesStack: List[Any] = null, inWand: Boolean = false): Stmt = {
+                                             statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
 
     val currentState = stateModule.state
     if(inWand) {
@@ -766,7 +766,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val stmtLast =  Assume(predicateTrigger(heapModule.currentStateExps, acc.loc)) ++ {
       val location = acc.loc
       val predicate = verifier.program.findPredicate(location.predicateName)
-      val translatedArgs = location.args map translateExp
+      val translatedArgs = location.args map (x => translateExpInWand(x, statesStack, allStateAssms, inWand))
       Assume(translateLocationAccess(location) === getPredicateFrame(predicate,translatedArgs)._1)
     }
 

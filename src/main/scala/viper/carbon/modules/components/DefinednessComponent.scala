@@ -6,7 +6,7 @@
 
 package viper.carbon.modules.components
 
-import viper.carbon.boogie.{Statements, Stmt}
+import viper.carbon.boogie.{Exp, Statements, Stmt, TrueLit}
 import viper.silver.{ast => sil}
 import viper.silver.verifier.PartialVerificationError
 
@@ -24,7 +24,7 @@ trait DefinednessComponent extends Component {
    * Proof obligations for a given expression. See below for "makeChecks" description
    */
   def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
-                                    statesStack: List[Any] = null, inWand: Boolean = false): Stmt = Statements.EmptyStmt
+                                    statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = Statements.EmptyStmt
 
   /**
    * Proof obligations for a given expression.  The first part of the result is used before

@@ -82,15 +82,22 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
           exhaleConnective(e2, error, phase, havocHeap, statesStack, allStateAssms, inWand) ::
           Nil
       case sil.Implies(e1, e2) =>
-        If(translateExp(e1), exhaleConnective(e2, error, phase, havocHeap, statesStack, allStateAssms, inWand), Statements.EmptyStmt)
+        if(inWand)
+          If(allStateAssms ==> translateExpInWand(e1, statesStack, allStateAssms, inWand), exhaleConnective(e2, error, phase, havocHeap, statesStack, allStateAssms, inWand), Statements.EmptyStmt)
+        else
+          If(translateExpInWand(e1, statesStack, allStateAssms, inWand), exhaleConnective(e2, error, phase, havocHeap, statesStack, allStateAssms, inWand), Statements.EmptyStmt)
       case sil.CondExp(c, e1, e2) =>
-        If(translateExp(c), exhaleConnective(e1, error, phase, havocHeap, statesStack, allStateAssms, inWand),
-          exhaleConnective(e2, error, phase, havocHeap, statesStack, allStateAssms, inWand))
+        if(inWand)
+          If(allStateAssms ==> translateExpInWand(c, statesStack, allStateAssms, inWand), exhaleConnective(e1, error, phase, havocHeap, statesStack, allStateAssms, inWand),
+            exhaleConnective(e2, error, phase, havocHeap, statesStack, allStateAssms, inWand))
+        else
+          If(translateExpInWand(c, statesStack, allStateAssms, inWand), exhaleConnective(e1, error, phase, havocHeap, statesStack, allStateAssms, inWand),
+            exhaleConnective(e2, error, phase, havocHeap, statesStack, allStateAssms, inWand))
       case sil.Let(declared,boundTo,body) if !body.isPure =>
       {
         val u = env.makeUniquelyNamed(declared) // choose a fresh binder
         env.define(u.localVar)
-        Assign(translateLocalVar(u.localVar),translateExp(boundTo)) ::
+        Assign(translateLocalVar(u.localVar),translateExpInWand(boundTo, statesStack, allStateAssms, inWand)) ::
           exhaleConnective(body.replace(declared.localVar, u.localVar),error,phase, havocHeap, statesStack, allStateAssms, inWand) ::
           {
             env.undefine(u.localVar)
@@ -99,22 +106,31 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
       }
       case _ if isInPhase(e, phase) => {
         if(inWand){
-          if(phase == 0) {
-            // here we create a new state temp (temp: stateRep, init: stmt)
-            val StateSetup(tempState, initStmt) = wandModule.createAndSetState(None);
-            var exhaleExtStmt = wandModule.exhaleExt(statesStack, tempState, e, allStateAssms)
-            val addAssumptions = (statesStack(0).asInstanceOf[StateRep].boolVar := statesStack(0).asInstanceOf[StateRep].boolVar && tempState.boolVar)
-            var equateH = equateHeaps(statesStack(0).asInstanceOf[StateRep].state, heapModule)
-            var assertTransfer: Stmt =
-              if(isAssert)
-                stmtModule.translateStmt(sil.Inhale(e)(e.pos, e.info), inWand = true, statesStack = statesStack)
-              else
-                Nil
-            if (!havocHeap)
-              initStmt ++ exhaleExtStmt ++ addAssumptions ++ equateH ++ assertTransfer
+          if(!permModule.getCurrentAbstractReads().isEmpty)
+            throw new RuntimeException()  // AG: To be changed to unsupportedFeatureException
+          else
+            if(permModule.containsWildCard(e))
+                  throw new ArrayIndexOutOfBoundsException() // AG: To be changed to unsupportedFeatureException
             else
-              initStmt ++ exhaleExtStmt ++ addAssumptions ++ assertTransfer
-          }else Nil
+            if(phase == 0) {
+              // here we create a new state temp (temp: stateRep, init: stmt)
+              val StateSetup(tempState, initStmt) = wandModule.createAndSetState(None);
+              var exhaleExtStmt = wandModule.exhaleExt(statesStack, tempState, e, allStateAssms)
+              val addAssumptions = (statesStack(0).asInstanceOf[StateRep].boolVar := statesStack(0).asInstanceOf[StateRep].boolVar && tempState.boolVar)
+              var equateH = wandModule.exchangeAssumesWithBoolean(equateHeaps(statesStack(0).asInstanceOf[StateRep].state, heapModule), statesStack(0).asInstanceOf[StateRep].boolVar)
+              var assertTransfer: Stmt =
+                if(isAssert)
+                  stmtModule.translateStmt(sil.Inhale(e)(e.pos, e.info), inWand = true, statesStack = statesStack)
+                else
+                  Nil
+              if (!havocHeap)
+                initStmt ++ exhaleExtStmt ++ addAssumptions ++ equateH ++ assertTransfer
+              else
+                initStmt ++ exhaleExtStmt ++ addAssumptions ++ assertTransfer
+            }else {
+              Nil
+            }
+
         }else{
           components map (_.exhaleExp(e, error))
         }

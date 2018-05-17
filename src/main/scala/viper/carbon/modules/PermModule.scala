@@ -119,4 +119,8 @@ trait PermModule extends Module with CarbonStateComponent {
       */
   def tempInitMask(rcv: Exp, loc:Exp):(Seq[Exp], Stmt)
 
+  def getCurrentAbstractReads(): collection.mutable.ListBuffer[String]
+
+  def containsWildCard(e: sil.Exp): Boolean
+
 }

@@ -138,7 +138,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
     }
   }
 
-  override def translatePackage(p: sil.Package, error: PartialVerificationError):Stmt = {
+  override def translatePackage(p: sil.Package, error: PartialVerificationError, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false):Stmt = {
     val proofScript = p.proofScript
     p match {
       case pa@sil.Package(wand, proof) =>
@@ -148,14 +148,19 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
           case w@sil.MagicWand(left,right) =>
             mainError = error //set the default error to be used by all operations
 
-            val addWand = inhaleModule.inhale(w)
+            val addWand = inhaleModule.inhale(w, statesStack, inWand)
             val currentState = stateModule.state
 
-            val PackageSetup(hypState, usedState, initStmt) = packageInit(wand, None)
+            val PackageSetup(opsState, usedState, initStmt) = packageInit(wand, None)
 
             val curStateBool = LocalVar(Identifier(names.createUniqueIdentifier("boolCur"))(transferNamespace),Bool)
+            val newStack =
+              if(inWand)
+                statesStack.asInstanceOf[List[StateRep]]
+              else
+                StateRep(currentState, curStateBool) :: Nil
             val stmt = initStmt++(curStateBool := TrueLit()) ++
-              execBody(hypState :: StateRep(currentState, curStateBool) :: Nil, usedState, proofScript.ss , right, hypState.boolVar)
+              execBody(newStack, opsState, proofScript.ss , right, opsState.boolVar && allStateAssms)
 
 
             stateModule.replaceState(currentState)
@@ -308,7 +313,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
         //no ghost operation
         val StateSetup(usedState, initStmt) = createAndSetState(None)
         Comment("Translating exec of non-ghost operation" + e.toString()) ++
-        initStmt ++ exhaleExt(ops :: states, usedState,e,ops.boolVar&&allStateAssms)
+        initStmt ++ exhaleExt(ops :: states, usedState,e,ops.boolVar&&allStateAssms, RHS = true)
     }
   }
 
@@ -324,11 +329,13 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
     val StateSetup(usedState, initStmt) = createAndSetState(boolVar, "Used", false).asInstanceOf[StateSetup]
 
     //inhale left hand side to initialize hypothetical state
-    val hypName = names.createUniqueIdentifier("Hyp")
-    val StateSetup(hypState,hypStmt) = createAndSetState(None,"Hyp")
+    val hypName = names.createUniqueIdentifier("Ops")
+    val StateSetup(hypState,hypStmt) = createAndSetState(None,"Ops")
 
     val inhaleLeft = MaybeComment("Inhaling left hand side of current wand into hypothetical state",
-      If(hypState.boolVar, expModule.checkDefinednessOfSpecAndInhale(wand.left, mainError), Statements.EmptyStmt))
+      exchangeAssumesWithBoolean(expModule.checkDefinednessOfSpecAndInhale(wand.left, mainError), hypState.boolVar))
+    // Vs     val inhaleLeft = MaybeComment("Inhaling left hand side of current wand into hypothetical state",
+    //      exchangeAssumesWithBoolean(If(hypState.boolVar, expModule.checkDefinednessOfSpecAndInhale(wand.left, mainError), Statements.EmptyStmt), hypState.boolVar))
 
     stateModule.replaceState(usedState.state)
 
@@ -417,28 +424,35 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
   /*generates code that transfers permissions from states to used such that e can be satisfied
     * Precondition: current state is set to the used state
     * */
-  override def exhaleExt(statesObj: List[Any], usedObj:Any, e: sil.Exp, allStateAssms: Exp):Stmt = {
+  override def exhaleExt(statesObj: List[Any], usedObj:Any, e: sil.Exp, allStateAssms: Exp, RHS: Boolean = false):Stmt = {
     Comment("exhale_ext of " + e.toString())
     var states = statesObj.asInstanceOf[List[StateRep]]
     var used = usedObj.asInstanceOf[StateRep]
     e match {
       case acc@sil.AccessPredicate(_,_) => transferMain(states,used, e, allStateAssms)
       case acc@sil.MagicWand(_,_) => transferMain(states, used,e,allStateAssms)
-      case acc@sil.And(e1,e2) => exhaleExt(states, used, e1,allStateAssms) :: exhaleExt(states,used,e2,allStateAssms) :: Nil
-      case acc@sil.Implies(e1,e2) => If(expModule.translateExp(e1), exhaleExt(states,used,e2,allStateAssms),Statements.EmptyStmt)
-      case acc@sil.CondExp(c,e1,e2) => If(expModule.translateExp(c), exhaleExt(states,used,e1,allStateAssms), exhaleExt(states,used,e2,allStateAssms))
-      case _ => exhaleExtExp(states,used,e,allStateAssms)
+      case acc@sil.And(e1,e2) => exhaleExt(states, used, e1,allStateAssms, RHS) :: exhaleExt(states,used,e2,allStateAssms, RHS) :: Nil
+      case acc@sil.Implies(e1,e2) => If(expModule.translateExp(e1), exhaleExt(states,used,e2,allStateAssms, RHS),Statements.EmptyStmt)
+      case acc@sil.CondExp(c,e1,e2) => If(expModule.translateExp(c), exhaleExt(states,used,e1,allStateAssms, RHS), exhaleExt(states,used,e2,allStateAssms, RHS))
+      case _ => exhaleExtExp(states,used,e,allStateAssms, RHS)
     }
   }
 
-  def exhaleExtExp(states: List[StateRep], used:StateRep, e: sil.Exp,allStateAssms:Exp):Stmt = {
+  def exhaleExtExp(states: List[StateRep], used:StateRep, e: sil.Exp,allStateAssms:Exp, RHS: Boolean = false):Stmt = {
     if(e.isPure) {
-      val currentState = stateModule.state
-      stateModule.replaceState(states(0).state);
-      val stmt = If(allStateAssms&&used.boolVar,expModule.checkDefinedness(e,mainError),Statements.EmptyStmt) ++
-        Assert((allStateAssms&&used.boolVar) ==> expModule.translateExp(e), mainError.dueTo(reasons.AssertionFalse(e)))
-      stateModule.replaceState(currentState)
-      stmt
+      if(RHS)
+        {
+          val stmt = If(allStateAssms&&used.boolVar,expModule.checkDefinedness(e,mainError, statesStack = used::states, allStateAssms = allStateAssms, inWand = true),Statements.EmptyStmt) ++
+            Assert((allStateAssms&&used.boolVar) ==> expModule.translateExp(e), mainError.dueTo(reasons.AssertionFalse(e)))
+          stmt
+        }else{
+          val currentState = stateModule.state
+          stateModule.replaceState(states(0).state);
+          val stmt = If(allStateAssms&&used.boolVar,expModule.checkDefinedness(e,mainError, statesStack = states, allStateAssms = allStateAssms, inWand = true),Statements.EmptyStmt) ++
+            Assert((allStateAssms&&used.boolVar) ==> expModule.translateExp(e), mainError.dueTo(reasons.AssertionFalse(e)))
+          stateModule.replaceState(currentState)
+          stmt
+      }
     } else {
       sys.error("impure expression not caught in exhaleExt")
     }
@@ -471,7 +485,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
       //}
 
     val definedness = MaybeCommentBlock("checking if access predicate defined in used state",
-      If(allStateAssms&&used.boolVar,expModule.checkDefinedness(e, mainError),Statements.EmptyStmt))
+      If(allStateAssms&&used.boolVar,expModule.checkDefinedness(e, mainError, statesStack = states, allStateAssms = allStateAssms, inWand = true),Statements.EmptyStmt))
 
     val transferRest = transferAcc(states,used, transferEntity,allStateAssms)
     val stmt = definedness++ initStmt /*++ nullCheck*/ ++ initPermVars ++  positivePerm ++ transferRest
@@ -566,22 +580,22 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
     }
   }
 
-  override def translateApply(app: sil.Apply, error: PartialVerificationError):Stmt = {
+  override def translateApply(app: sil.Apply, error: PartialVerificationError, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false):Stmt = {
     app.exp match {
-      case w@sil.MagicWand(left,right) => applyWand(w,error)
+      case w@sil.MagicWand(left,right) => applyWand(w,error, statesStack, allStateAssms, inWand)
       case _ => Nil
     }
   }
 
-  def applyWand(w: sil.MagicWand, error: PartialVerificationError):Stmt = {
+  def applyWand(w: sil.MagicWand, error: PartialVerificationError, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false):Stmt = {
     /** we first exhale without havocing heap locations to avoid the incompleteness issue which would otherwise
       * occur when the left and right hand side mention common heap locations.
       */
-    CommentBlock("check if wand is held and remove an instance",exhaleModule.exhale((w, error), false)) ++
+    CommentBlock("check if wand is held and remove an instance",exhaleModule.exhale((w, error), false, allStateAssms = allStateAssms, inWand = inWand, statesStack = statesStack)) ++
       stateModule.assumeGoodState ++
-      CommentBlock("check if LHS holds and remove permissions ", exhaleModule.exhale((w.left, error), false)) ++
+      CommentBlock("check if LHS holds and remove permissions ", exhaleModule.exhale((w.left, error), false, allStateAssms = allStateAssms, inWand = inWand, statesStack = statesStack)) ++
       stateModule.assumeGoodState ++
-      CommentBlock("inhale the RHS of the wand",inhaleModule.inhale(w.right)) ++
+      CommentBlock("inhale the RHS of the wand",inhaleModule.inhale(w.right, statesStack = statesStack, inWand = inWand)) ++
       heapModule.beginExhale ++ heapModule.endExhale ++
       stateModule.assumeGoodState
     //GP: using beginExhale, endExhale works now, but isn't intuitive, maybe should duplicate code to avoid this breaking

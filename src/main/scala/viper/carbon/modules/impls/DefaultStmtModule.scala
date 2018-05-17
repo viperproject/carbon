@@ -70,23 +70,23 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
       case unfold@sil.Unfold(e) =>
         translateUnfold(unfold, statesStack, allStateAssms, inWand)
       case inh@sil.Inhale(e) =>
-        checkDefinednessOfSpecAndInhale(whenInhaling(e), errors.InhaleFailed(inh), statesStack, inWand)
+        checkDefinednessOfSpecAndInhale(whenInhaling(e), errors.InhaleFailed(inh), statesStack, allStateAssms = allStateAssms, inWand)
       case exh@sil.Exhale(e) =>
         val transformedExp = whenExhaling(e)
-        checkDefinedness(transformedExp, errors.ExhaleFailed(exh), statesStack = statesStack, inWand = inWand)++
+        checkDefinedness(transformedExp, errors.ExhaleFailed(exh), statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand)++
         exhale((transformedExp, errors.ExhaleFailed(exh)), statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand)
       case a@sil.Assert(e) =>
         val transformedExp = whenExhaling(e)
         if (transformedExp.isPure) {
           // if e is pure, then assert and exhale are the same
-          checkDefinedness(transformedExp, errors.AssertFailed(a), statesStack = statesStack, inWand = inWand) ++
+          checkDefinedness(transformedExp, errors.AssertFailed(a), statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand) ++
             exhale((transformedExp, errors.AssertFailed(a)), statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand)
         } else {
           // we create a temporary state to ignore the side-effects
           val (backup, snapshot) = freshTempState("Assert")
           val exhaleStmt = exhale((transformedExp, errors.AssertFailed(a)), isAssert =  true, statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand, havocHeap = false)
           replaceState(snapshot)
-            checkDefinedness(transformedExp, errors.AssertFailed(a), statesStack = statesStack, inWand = inWand) :: backup :: exhaleStmt :: Nil
+            checkDefinedness(transformedExp, errors.AssertFailed(a), statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand) :: backup :: exhaleStmt :: Nil
         }
       case mc@sil.MethodCall(methodName, args, targets) =>
         val method = verifier.program.findMethod(methodName)
@@ -178,10 +178,20 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           translateStmt(body) ++
           MaybeCommentBlock(s"End of constraining(${vars.mkString(", ")})", components map (_.leaveConstrainingBlock(fb)))
       case i@sil.If(cond, thn, els) =>
-        checkDefinedness(cond, errors.IfFailed(cond)) ++
-          If(translateExp(cond),
-            translateStmt(thn),
-            translateStmt(els))
+//        val curState = stateModule.state
+//        if(inWand)
+//          stateModule.replaceState(statesStack.head.asInstanceOf[StateRep].state)
+//        val stmt =  checkDefinedness(cond, errors.IfFailed(cond), statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand) ++
+//          If((allStateAssms) ==> translateExp(cond),
+//            translateStmt(thn, statesStack, allStateAssms, inWand),
+//            translateStmt(els, statesStack, allStateAssms, inWand))
+//        if(inWand)
+//          stateModule.replaceState(curState)
+//        stmt
+        checkDefinedness(cond, errors.IfFailed(cond), statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand) ++
+        If((allStateAssms) ==> translateExpInWand(cond, statesStack, allStateAssms, inWand),
+          translateStmt(thn, statesStack, allStateAssms, inWand),
+          translateStmt(els, statesStack, allStateAssms, inWand))
       case sil.Label(name, invs) => {
         val (stmt, currentState) = stateModule.freshTempState("Label" + name)
         stateModule.stateRepositoryPut(name, stateModule.state)
@@ -191,11 +201,11 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
       case sil.Goto(target) =>
         Goto(Lbl(Identifier(target)(lblNamespace)))
       case pa@sil.Package(wand, proof) => {
-        checkDefinedness(wand, errors.MagicWandNotWellformed(wand))
-        translatePackage(pa, errors.PackageFailed(pa))
+        checkDefinedness(wand, errors.MagicWandNotWellformed(wand),  statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand)
+        translatePackage(pa, errors.PackageFailed(pa), statesStack, allStateAssms, inWand)
       }
       case a@sil.Apply(wand) =>
-        translateApply(a, errors.ApplyFailed(a))
+        translateApply(a, errors.ApplyFailed(a), statesStack, allStateAssms, inWand)
       case _ =>
         Nil
     }

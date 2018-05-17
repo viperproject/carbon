@@ -7,18 +7,18 @@ package viper.carbon.modules
 import viper.carbon.modules.components.{ComponentRegistry, TransferComponent}
 import viper.silver.verifier.PartialVerificationError
 import viper.silver.{ast => sil}
-import viper.carbon.boogie.{Exp, LocalVar, Stmt}
+import viper.carbon.boogie.{Exp, LocalVar, Stmt, TrueLit}
 import viper.silver.ast.Seqn
 
 
 trait WandModule extends Module with ComponentRegistry[TransferComponent] {
-  def translatePackage(p: sil.Package, error: PartialVerificationError):Stmt
+  def translatePackage(p: sil.Package, error: PartialVerificationError, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false):Stmt
 
   def getWandRepresentation(w: sil.MagicWand):Exp
 
-  def translateApply(p: sil.Apply, error: PartialVerificationError):Stmt
+  def translateApply(p: sil.Apply, error: PartialVerificationError, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false):Stmt
 
-  def exhaleExt(states: List[Any], used:Any, e: sil.Exp, allStateAssms: Exp):Stmt
+  def exhaleExt(states: List[Any], used:Any, e: sil.Exp, allStateAssms: Exp, RHS: Boolean = false):Stmt
 
   def createAndSetState(initBool:Option[Exp],usedString:String = "Used",setToNew:Boolean=true,
                         init:Boolean=true):Any

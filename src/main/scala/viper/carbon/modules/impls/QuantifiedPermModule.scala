@@ -279,6 +279,15 @@ class QuantifiedPermModule(val verifier: Verifier)
   def sumMask(summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp =
     FuncApp(sumMasks, currentMask++summandMask1++summandMask2,Bool)
 
+  override def containsWildCard(e: sil.Exp): Boolean = {
+    e match {
+      case sil.AccessPredicate(loc, prm) =>
+        val p = PermissionSplitter.normalizePerm(prm)
+        p.isInstanceOf[sil.WildcardPerm]
+      case _ => false
+    }
+  }
+
   override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
       case sil.AccessPredicate(loc, prm) =>
@@ -1199,6 +1208,10 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   val currentAbstractReads = collection.mutable.ListBuffer[String]()
 
+  override def getCurrentAbstractReads(): ListBuffer[String] = {
+    currentAbstractReads
+  }
+
   private def isAbstractRead(exp: sil.Exp) = {
     exp match {
       case sil.LocalVar(name) => currentAbstractReads.contains(name)
@@ -1279,7 +1292,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   // The trick is somewhat fragile, in that it relies on the ordering of the calls to this method (but generally works out because of the recursive traversal of the assertion).
   private var allowLocationAccessWithoutPerm = false
   override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
-                                             statesStack: List[Any] = null, inWand: Boolean = false): Stmt = {
+                                             statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
 
     val currentState = stateModule.state
     if(inWand) {
