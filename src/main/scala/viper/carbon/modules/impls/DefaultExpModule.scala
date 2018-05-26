@@ -39,10 +39,15 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
 
   def name = "Expression module"
 
-  override def translateExpInWand(e: sil.Exp, statesStack: List[Any], allStateAssms: Exp, inWand: Boolean): Exp = {
+  override def translateExpInWand(e: sil.Exp, statesStack: List[Any]= null, allStateAssms: Exp = TrueLit(), inWand: Boolean, union: Boolean, unionStateO: Any): Exp = {
     if(inWand){
       val curState = stateModule.state
-      stateModule.replaceState(statesStack.head.asInstanceOf[StateRep].state)
+
+      if(union)
+        stateModule.replaceState(unionStateO.asInstanceOf[StateRep].state)
+      else
+        stateModule.replaceState(statesStack.head.asInstanceOf[StateRep].state)
+
       val stmt = e match {
         case sil.CondExp(cond, thn, els) =>
           CondExp(allStateAssms ==> translateExp(cond), translateExp(thn), translateExp(els))
@@ -270,73 +275,95 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
                                              statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
 
-    val currentState = stateModule.state
-    if(inWand) {
-      stateModule.replaceState(statesStack(0).asInstanceOf[StateRep].state)
-    }
-
     val stmt: Stmt = (if (makeChecks)
       e match {
         case sil.Div(a, b) =>
-          Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
+//          if(inWand)
+//            Assert(allStateAssms ==> translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
+//          else
+            Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
         case sil.Mod(a, b) =>
-          Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
+//          if(inWand)
+//            Assert(allStateAssms ==> translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
+//          else
+            Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
         case sil.FractionalPerm(a, b) =>
-          Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
+//          if(inWand)
+//            Assert(allStateAssms ==> translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
+//          else
+            Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
         case _ => Nil
       }
     else Nil)
 
-    if(inWand) {
-      stateModule.replaceState(currentState)
-      If(allStateAssms, stmt, Statements.EmptyStmt)
-    }else stmt
+
+//    if(inWand) {
+//      If(allStateAssms, stmt, Statements.EmptyStmt)
+//    }else stmt
+    stmt
   }
 
-  override def checkDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
+  override def checkDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
+                                statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(),
+                                inWand: Boolean = false, ignore: Boolean = false, union: Boolean = false): Stmt = {
+    if(inWand && ignore)  // ignore the check
+      return Statements.EmptyStmt
+
+    var initStmt: Stmt = Statements.EmptyStmt // statement representing union of states if union is set to true
     val currentState = stateModule.state
     if(inWand) {
-      stateModule.replaceState(statesStack(0).asInstanceOf[StateRep].state)
+      if(union) { // replacing the current state by ops state or union between ops and temp states
+        var StateSetup(resultState, tmpInitStmt) = wandModule.createAndSetSumState(statesStack(0).asInstanceOf[StateRep].state,
+          statesStack(0).asInstanceOf[StateRep].boolVar, allStateAssms)
+        initStmt = tmpInitStmt ++
+          (statesStack.head.asInstanceOf[StateRep].boolVar :=  statesStack.head.asInstanceOf[StateRep].boolVar && resultState.boolVar)
+      }
+      else
+        stateModule.replaceState(statesStack(0).asInstanceOf[StateRep].state)
     }
 
-    var stmt = MaybeCommentBlock(s"Check definedness of $e",
-      MaybeStmt(checkDefinednessImpl(e, error, makeChecks = makeChecks),
+    var stmt = if(inWand)
+      MaybeCommentBlock(s"Check definedness of $e",
+      MaybeStmt(checkDefinednessImpl(e, error, makeChecks = makeChecks, statesStack, allStateAssms, inWand),
         stateModule.assumeGoodState))
+    else
+      MaybeCommentBlock(s"Check definedness of $e",
+        MaybeStmt(checkDefinednessImpl(e, error, makeChecks = makeChecks, statesStack, allStateAssms, inWand),
+          stateModule.assumeGoodState))
 
-//    stmt
     if(inWand) {
       stateModule.replaceState(currentState)
-      If(allStateAssms, stmt, Statements.EmptyStmt)
+      If(allStateAssms, initStmt ++ stmt, Statements.EmptyStmt)
     }else stmt
   }
 
-  private def checkDefinednessImpl(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
+  private def checkDefinednessImpl(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, statesStack: List[Any], allStateAssms: Exp, inWand: Boolean): Stmt = {
     e match {
       case sil.And(e1, e2) =>
-        checkDefinednessImpl(e1, error, makeChecks = makeChecks) ::
-          If(translateExp(Expressions.asBooleanExp(e1)), checkDefinednessImpl(e2, error, makeChecks = makeChecks), Statements.EmptyStmt) ::
+        checkDefinednessImpl(e1, error, makeChecks = makeChecks, statesStack, allStateAssms, inWand) ::
+          If(translateExp(Expressions.asBooleanExp(e1)), checkDefinednessImpl(e2, error, makeChecks = makeChecks, statesStack, allStateAssms, inWand), Statements.EmptyStmt) ::
           Nil
       case sil.Implies(e1, e2) =>
-        checkDefinednessImpl(e1, error, makeChecks = makeChecks) ::
-          If(translateExp(e1), checkDefinednessImpl(e2, error, makeChecks = makeChecks), Statements.EmptyStmt) ::
+        checkDefinednessImpl(e1, error, makeChecks = makeChecks, statesStack, allStateAssms, inWand) ::
+          If(translateExp(e1), checkDefinednessImpl(e2, error, makeChecks = makeChecks, statesStack, allStateAssms, inWand), Statements.EmptyStmt) ::
           Nil
       case sil.CondExp(c, e1, e2) =>
-        checkDefinednessImpl(c, error, makeChecks = makeChecks) ::
-          If(translateExp(c), checkDefinednessImpl(e1, error, makeChecks = makeChecks), checkDefinednessImpl(e2, error, makeChecks = makeChecks)) ::
+        checkDefinednessImpl(c, error, makeChecks = makeChecks, statesStack, allStateAssms, inWand) ::
+          If(translateExp(c), checkDefinednessImpl(e1, error, makeChecks = makeChecks, statesStack, allStateAssms, inWand), checkDefinednessImpl(e2, error, makeChecks = makeChecks, statesStack, allStateAssms, inWand)) ::
           Nil
       case sil.Or(e1, e2) =>
-        checkDefinednessImpl(e1, error, makeChecks = makeChecks) :: // short-circuiting evaluation:
-          If(UnExp(Not, translateExp(e1)), checkDefinednessImpl(e2, error, makeChecks = makeChecks), Statements.EmptyStmt) ::
+        checkDefinednessImpl(e1, error, makeChecks = makeChecks, statesStack, allStateAssms, inWand) :: // short-circuiting evaluation:
+          If(UnExp(Not, translateExp(e1)), checkDefinednessImpl(e2, error, makeChecks = makeChecks, statesStack, allStateAssms, inWand), Statements.EmptyStmt) ::
           Nil
       case w@sil.MagicWand(lhs, rhs) =>
-        checkDefinednessWand(w, error, makeChecks = makeChecks)
+        checkDefinednessWand(w, error, makeChecks = makeChecks) // AG: Does this need change to adapt to new design for eval in Wand
       case l@sil.Let(v, e, body) =>
-        checkDefinednessImpl(e, error, makeChecks = makeChecks) ::
+        checkDefinednessImpl(e, error, makeChecks = makeChecks, statesStack, allStateAssms, inWand) ::
         {
           val u = env.makeUniquelyNamed(v) // choose a fresh "v" binder
           env.define(u.localVar)
           Assign(translateLocalVar(u.localVar),translateExp(e)) ::
-          checkDefinednessImpl(body.replace(v.localVar, u.localVar), error, makeChecks = makeChecks) ::
+          checkDefinednessImpl(body.replace(v.localVar, u.localVar), error, makeChecks = makeChecks, statesStack, allStateAssms, inWand) ::
             {
               env.undefine(u.localVar)
               Nil
@@ -344,11 +371,11 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         }
       case _ =>
         def translate: Seqn = {
-          val checks = components map (_.partialCheckDefinedness(e, error, makeChecks = makeChecks))
+          val checks = components map (_.partialCheckDefinedness(e, error, makeChecks = makeChecks, statesStack = statesStack, allStateAssms = allStateAssms, inWand))
           val stmt = checks map (_._1())
           // AS: note that some implementations of the definedness checks rely on the order of these calls (i.e. parent nodes are checked before children, and children *are* always checked after parents.
           val stmt2 = for (sub <- e.subnodes if sub.isInstanceOf[sil.Exp]) yield {
-            checkDefinednessImpl(sub.asInstanceOf[sil.Exp], error, makeChecks = makeChecks)
+            checkDefinednessImpl(sub.asInstanceOf[sil.Exp], error, makeChecks = makeChecks, statesStack, allStateAssms, inWand)
           }
           val stmt3 = checks map (_._2())
 
@@ -458,16 +485,24 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             checkDefinednessOfSpecAndInhale(e2, error, statesStack, allStateAssms, inWand) ::
             Nil
         case sil.Implies(e1, e2) =>
-          checkDefinedness(e1, error) ++
-            If(translateExp(e1), checkDefinednessOfSpecAndInhale(e2, error, statesStack, allStateAssms, inWand), Statements.EmptyStmt)
+          checkDefinedness(e1, error, statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand) ++ {
+            if (inWand)
+              If(allStateAssms ==> translateExpInWand(e1, statesStack, allStateAssms, inWand), checkDefinednessOfSpecAndInhale(e2, error, statesStack, allStateAssms, inWand), Statements.EmptyStmt)
+            else
+              If(translateExp(e1), checkDefinednessOfSpecAndInhale(e2, error, statesStack, allStateAssms, inWand), Statements.EmptyStmt)
+          }
         case sil.CondExp(c, e1, e2) =>
-          checkDefinedness(c, error) ++
-            If(translateExp(c), checkDefinednessOfSpecAndInhale(e1, error, statesStack, allStateAssms, inWand), checkDefinednessOfSpecAndInhale(e2, error, statesStack, allStateAssms, inWand))
+          checkDefinedness(c, error,  statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand) ++ {
+            if (inWand)
+              If(allStateAssms ==> translateExpInWand(c, statesStack, allStateAssms, inWand), checkDefinednessOfSpecAndInhale(e1, error, statesStack, allStateAssms, inWand), checkDefinednessOfSpecAndInhale(e2, error, statesStack, allStateAssms, inWand))
+            else
+              If(translateExp(c), checkDefinednessOfSpecAndInhale(e1, error, statesStack, allStateAssms, inWand), checkDefinednessOfSpecAndInhale(e2, error, statesStack, allStateAssms, inWand))
+          }
         case fa@sil.Forall(vars, triggers, expr) =>
-          checkDefinedness(e, error) ++
+          checkDefinedness(e, error,  statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand) ++
             inhale(e, statesStack, inWand)
         case _ =>
-          checkDefinedness(e, error) ++
+          checkDefinedness(e, error,  statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand) ++
             inhale(e, statesStack, inWand)
       }
     }

@@ -165,6 +165,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
 
             stateModule.replaceState(currentState)
 
+
             stmt ++ addWand
 
           case _ => sys.error("Package only defined for wands.")
@@ -173,7 +174,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
   }
 
   def execBody(states: List[StateRep], ops: StateRep, proofScript: Seq[sil.Stmt], right: sil.Exp, allStateAssms: Exp):Stmt = {
-    (proofScript map(s => stmtModule.translateStmt(s, ops::states, allStateAssms && ops.boolVar, true)))++
+    (proofScript map(s => stmtModule.translateStmt(s, ops::states, allStateAssms , true)))++
     exec(states,ops, right, allStateAssms)
   }
 
@@ -313,7 +314,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
         //no ghost operation
         val StateSetup(usedState, initStmt) = createAndSetState(None)
         Comment("Translating exec of non-ghost operation" + e.toString()) ++
-        initStmt ++ exhaleExt(ops :: states, usedState,e,ops.boolVar&&allStateAssms, RHS = true)
+        initStmt ++  exhaleExt(ops :: states, usedState,e,ops.boolVar&&allStateAssms, RHS = true, ops)
     }
   }
 
@@ -333,9 +334,9 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
     val StateSetup(hypState,hypStmt) = createAndSetState(None,"Ops")
 
     val inhaleLeft = MaybeComment("Inhaling left hand side of current wand into hypothetical state",
-      exchangeAssumesWithBoolean(expModule.checkDefinednessOfSpecAndInhale(wand.left, mainError), hypState.boolVar))
+      exchangeAssumesWithBoolean(expModule.checkDefinednessOfSpecAndInhale(wand.left, mainError, hypState::Nil, hypState.boolVar, true), hypState.boolVar))
     // Vs     val inhaleLeft = MaybeComment("Inhaling left hand side of current wand into hypothetical state",
-    //      exchangeAssumesWithBoolean(If(hypState.boolVar, expModule.checkDefinednessOfSpecAndInhale(wand.left, mainError), Statements.EmptyStmt), hypState.boolVar))
+//          If(hypState.boolVar, expModule.checkDefinednessOfSpecAndInhale(wand.left, mainError), Statements.EmptyStmt))
 
     stateModule.replaceState(usedState.state)
 
@@ -371,6 +372,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
     //state which is used to check if the wand holds
     val usedName = names.createUniqueIdentifier(usedString)
 
+//    val (usedStmt, currentState) = stateModule.freshTempState(usedName,init)
     val (usedStmt, currentState) = stateModule.freshEmptyState(usedName,init)
     val usedState = stateModule.state
 
@@ -384,355 +386,377 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
     StateSetup(StateRep(usedState,b),usedStmt++boolStmt++goodState)
   }
 
-  /**
-   * only heap and mask of one summand state, while current state will be used as second summand
-   * @param heapOther heap representation of  summand state
-   * @param maskOther mask represenstation of  summand state
-   * @param boolOther bool containing facts for summand state
-   * @param boolCur bool containing facts for current state
-   * @return
-   */
-  private def createAndSetSumState(heapOther: Seq[Exp], maskOther: Seq[Exp],boolOther:Exp,boolCur:Exp):StateSetup = {
-    /*create a state Result which is the "sum" of the current  and Other states, i.e.:
- *1) at each heap location o.f the permission of the Result state is the sum of the permissions
- * for o.f in the current and Other state
- * 2) if the current state has some positive nonzero amount of permission for heap location o.f then the heap values for
- * o.f in the current state and Result state are the same
- * 3) point 2) also holds for the Other state in place of the current state
- *
- * Note: the boolean for the Result state is initialized to the conjunction of the booleans of the current state
-   *  and the other state and used (since all facts of each state is transferred)
+
+//create a state Result which is the "sum" of the current  and Other state
+override def createAndSetSumState(stateOtherO: Any ,boolOther:Exp,boolCur:Exp):StateSetup = {
+  // get heap and mask from other state
+  val stateOther = stateOtherO.asInstanceOf[StateSnapshot]
+  val currentState = stateModule.state
+  stateModule.replaceState(stateOther)
+  val heapOther = heapModule.currentHeap
+  val maskOther = permModule.currentMask
+  stateModule.replaceState(currentState)
+
+  createAndSetSumState(heapOther, maskOther, boolOther, boolCur)
+}
+
+/**
+ * only heap and mask of one summand state, while current state will be used as second summand
+ * @param heapOther heap representation of  summand state
+ * @param maskOther mask represenstation of  summand state
+ * @param boolOther bool containing facts for summand state
+ * @param boolCur bool containing facts for current state
+ * @return
+ */
+private def createAndSetSumState(heapOther: Seq[Exp], maskOther: Seq[Exp],boolOther:Exp,boolCur:Exp):StateSetup = {
+  /*create a state Result which is the "sum" of the current  and Other states, i.e.:
+*1) at each heap location o.f the permission of the Result state is the sum of the permissions
+* for o.f in the current and Other state
+* 2) if the current state has some positive nonzero amount of permission for heap location o.f then the heap values for
+* o.f in the current state and Result state are the same
+* 3) point 2) also holds for the Other state in place of the current state
+*
+* Note: the boolean for the Result state is initialized to the conjunction of the booleans of the current state
+ *  and the other state and used (since all facts of each state is transferred)
+*/
+  val curHeap = heapModule.currentHeap
+  val curMask = permModule.currentMask
+
+  val StateSetup(resultState, initStmtResult) =
+    createAndSetState(Some(boolOther && boolCur), "Result", true, false)
+
+  val boolRes = resultState.boolVar
+  val sumStates = (boolRes := boolRes && permModule.sumMask(maskOther, curMask))
+  val equateKnownValues = (boolRes := boolRes && heapModule.identicalOnKnownLocations(heapOther, maskOther) &&
+    heapModule.identicalOnKnownLocations(curHeap, curMask))
+  val goodState = exchangeAssumesWithBoolean(stateModule.assumeGoodState, boolRes)
+  val initStmt =CommentBlock("Creating state which is the sum of the two previously built up states",
+    initStmtResult ++ sumStates ++ equateKnownValues ++ goodState)
+
+  StateSetup(resultState, initStmt)
+
+}
+
+/*generates code that transfers permissions from states to used such that e can be satisfied
+  * Precondition: current state is set to the used state
+  * */
+override def exhaleExt(statesObj: List[Any], usedObj:Any, e: sil.Exp, allStateAssms: Exp, RHS: Boolean = false, unionState: Any):Stmt = {
+  Comment("exhale_ext of " + e.toString())
+  var states = statesObj.asInstanceOf[List[StateRep]]
+  var used = usedObj.asInstanceOf[StateRep]
+  e match {
+    case acc@sil.AccessPredicate(_,_) => transferMain(states,used, e, allStateAssms, unionState)
+    case acc@sil.MagicWand(_,_) => transferMain(states, used,e,allStateAssms, unionState)
+    case acc@sil.And(e1,e2) => exhaleExt(states, used, e1,allStateAssms, RHS, unionState) :: exhaleExt(states,used,e2,allStateAssms, RHS, unionState) :: Nil
+    case acc@sil.Implies(e1,e2) => If(expModule.translateExpInWand(e1, statesStack = states, allStateAssms, true, true, unionState), exhaleExt(states,used,e2,allStateAssms, RHS, unionState),Statements.EmptyStmt)
+    case acc@sil.CondExp(c,e1,e2) => If(expModule.translateExpInWand(c, statesStack = states, allStateAssms, true, true, unionState), exhaleExt(states,used,e1,allStateAssms, RHS, unionState), exhaleExt(states,used,e2,allStateAssms, RHS, unionState))
+    case _ => exhaleExtExp(states,used,e,allStateAssms, RHS)
+  }
+}
+
+def exhaleExtExp(states: List[StateRep], used:StateRep, e: sil.Exp,allStateAssms:Exp, RHS: Boolean = false):Stmt = {
+  if(e.isPure) {
+
+    // creating union of current state and ops state to be used in eval()
+    val currentState = stateModule.state
+    var StateSetup(resultState, unionStmt) = wandModule.createAndSetSumState(states(0).state,
+      states(0).boolVar, used.boolVar)
+    unionStmt = unionStmt ++
+      (states.head.boolVar :=  states.head.boolVar && resultState.boolVar)
+    stateModule.replaceState(currentState)
+
+    val stmt = if(RHS)
+      {
+        // AG: In the RHS part, should eval be evaluated in union of ops and used states, or just used?
+        If(allStateAssms&&used.boolVar,expModule.checkDefinedness(e,mainError, statesStack = states, allStateAssms = allStateAssms && used.boolVar, inWand = true, union = true),Statements.EmptyStmt) ++
+          Assert((allStateAssms&&used.boolVar) ==> expModule.translateExpInWand(e, statesStack = states, allStateAssms, true, true, resultState), mainError.dueTo(reasons.AssertionFalse(e)))
+
+      }else{
+        If(allStateAssms&&used.boolVar,expModule.checkDefinedness(e,mainError, statesStack = states, allStateAssms = allStateAssms && used.boolVar, inWand = true, union = true),Statements.EmptyStmt) ++
+          Assert((allStateAssms&&used.boolVar) ==> expModule.translateExpInWand(e, statesStack = states, allStateAssms, true, true, resultState), mainError.dueTo(reasons.AssertionFalse(e)))
+    }
+    unionStmt ++ stmt
+  } else {
+    sys.error("impure expression not caught in exhaleExt")
+  }
+}
+
+/*
+ * Precondition: current state is set to the used state
   */
-    val curHeap = heapModule.currentHeap
-    val curMask = permModule.currentMask
-
-    val StateSetup(resultState, initStmtResult) =
-      createAndSetState(Some(boolOther && boolCur), "Result", true, false)
-
-    val boolRes = resultState.boolVar
-    val sumStates = (boolRes := boolRes && permModule.sumMask(maskOther, curMask))
-    val equateKnownValues = (boolRes := boolRes && heapModule.identicalOnKnownLocations(heapOther, maskOther) &&
-      heapModule.identicalOnKnownLocations(curHeap, curMask))
-    val goodState = exchangeAssumesWithBoolean(stateModule.assumeGoodState, boolRes)
-    val initStmt =CommentBlock("Creating state which is the sum of the two previously built up states",
-      initStmtResult ++ sumStates ++ equateKnownValues ++ goodState)
-
-    StateSetup(resultState, initStmt)
-
-  }
-
-  /*generates code that transfers permissions from states to used such that e can be satisfied
-    * Precondition: current state is set to the used state
-    * */
-  override def exhaleExt(statesObj: List[Any], usedObj:Any, e: sil.Exp, allStateAssms: Exp, RHS: Boolean = false):Stmt = {
-    Comment("exhale_ext of " + e.toString())
-    var states = statesObj.asInstanceOf[List[StateRep]]
-    var used = usedObj.asInstanceOf[StateRep]
-    e match {
-      case acc@sil.AccessPredicate(_,_) => transferMain(states,used, e, allStateAssms)
-      case acc@sil.MagicWand(_,_) => transferMain(states, used,e,allStateAssms)
-      case acc@sil.And(e1,e2) => exhaleExt(states, used, e1,allStateAssms, RHS) :: exhaleExt(states,used,e2,allStateAssms, RHS) :: Nil
-      case acc@sil.Implies(e1,e2) => If(expModule.translateExp(e1), exhaleExt(states,used,e2,allStateAssms, RHS),Statements.EmptyStmt)
-      case acc@sil.CondExp(c,e1,e2) => If(expModule.translateExp(c), exhaleExt(states,used,e1,allStateAssms, RHS), exhaleExt(states,used,e2,allStateAssms, RHS))
-      case _ => exhaleExtExp(states,used,e,allStateAssms, RHS)
+def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssms: Exp, unionState: Any):Stmt = {
+  //store the permission to be transferred into a separate variable
+  val permAmount =
+    e   match {
+      case sil.MagicWand(left, right) => boogieFullPerm
+      case p@sil.AccessPredicate(loc, perm) => permModule.translatePerm(perm)
+      case _ => sys.error("only transfer of access predicates and magic wands supported")
     }
-  }
 
-  def exhaleExtExp(states: List[StateRep], used:StateRep, e: sil.Exp,allStateAssms:Exp, RHS: Boolean = false):Stmt = {
-    if(e.isPure) {
-      if(RHS)
-        {
-          val stmt = If(allStateAssms&&used.boolVar,expModule.checkDefinedness(e,mainError, statesStack = used::states, allStateAssms = allStateAssms, inWand = true),Statements.EmptyStmt) ++
-            Assert((allStateAssms&&used.boolVar) ==> expModule.translateExp(e), mainError.dueTo(reasons.AssertionFalse(e)))
-          stmt
-        }else{
-          val currentState = stateModule.state
-          stateModule.replaceState(states(0).state);
-          val stmt = If(allStateAssms&&used.boolVar,expModule.checkDefinedness(e,mainError, statesStack = states, allStateAssms = allStateAssms, inWand = true),Statements.EmptyStmt) ++
-            Assert((allStateAssms&&used.boolVar) ==> expModule.translateExp(e), mainError.dueTo(reasons.AssertionFalse(e)))
-          stateModule.replaceState(currentState)
-          stmt
-      }
-    } else {
-      sys.error("impure expression not caught in exhaleExt")
-    }
-  }
+  val (transferEntity, initStmt)  = setupTransferableEntity(e, transferAmountLocal, unionState)
+  val initPermVars = (neededLocal := permAmount) ++
+    (initNeededLocal := permModule.currentPermission(transferEntity.rcv, transferEntity.loc)+neededLocal)
 
-  /*
-   * Precondition: current state is set to the used state
-    */
-  def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssms: Exp):Stmt = {
-    //store the permission to be transferred into a separate variable
-    val permAmount =
-      e   match {
-        case sil.MagicWand(left, right) => boogieFullPerm
-        case p@sil.AccessPredicate(loc, perm) => permModule.translatePerm(perm)
-        case _ => sys.error("only transfer of access predicates and magic wands supported")
+
+  val positivePerm = Assert(neededLocal >= RealLit(0), mainError.dueTo(reasons.NegativePermission(e)))
+
+  //val nullCheck =
+    //transferEntity match {
+    //  case TransferableFieldAccessPred(rcv,loc,_,origAccessPred) =>
+    //    Assert((allStateAssms&&used.boolVar) ==> heapModule.checkNonNullReceiver(rcv),mainError.dueTo(reasons.ReceiverNull(origAccessPred.loc)))
+    //  case _ => Statements.EmptyStmt
+    //}
+
+
+  val definedness =
+    MaybeCommentBlock("checking if access predicate defined in used state",
+    If(allStateAssms&&used.boolVar,expModule.checkDefinedness(e, mainError, statesStack = states, allStateAssms = allStateAssms&&used.boolVar, inWand = true, union = true),Statements.EmptyStmt))
+
+  val transferRest = transferAcc(states,used, transferEntity,allStateAssms)
+  val stmt = definedness++ initStmt /*++ nullCheck*/ ++ initPermVars ++  positivePerm ++ transferRest
+
+  MaybeCommentBlock("Transfer of " + e.toString(), stmt)
+
+}
+
+/*
+ * Precondition: current state is set to the used state
+  */
+private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEntity, allStateAssms: Exp):Stmt = {
+  states match {
+    case (top :: xs) =>
+      //Compute all values needed from top state
+      stateModule.replaceState(top.state)
+      val isOriginalState: Boolean = xs.isEmpty
+
+      val topHeap = heapModule.currentHeap
+      val equateLHS:Option[Exp] = e match {
+        case TransferableAccessPred(rcv,loc,_,_) => Some(heapModule.translateLocationAccess(rcv,loc))
+        case _ => None
       }
 
-    val (transferEntity, initStmt)  = setupTransferableEntity(e, transferAmountLocal)
-    val initPermVars = (neededLocal := permAmount) ++
-      (initNeededLocal := permModule.currentPermission(transferEntity.rcv, transferEntity.loc)+neededLocal)
+      val definednessTop:Stmt = (boolTransferTop := TrueLit()) ++
+        (generateStmtCheck(components flatMap (_.transferValid(e)), boolTransferTop))
+      val minStmt = If(neededLocal <= curpermLocal,
+        transferAmountLocal := neededLocal, transferAmountLocal := curpermLocal)
 
+      val nofractionsStmt = (transferAmountLocal := RealLit(1.0))
 
-    val positivePerm = Assert(neededLocal >= RealLit(0), mainError.dueTo(reasons.NegativePermission(e)))
+      val curPermTop = permModule.currentPermission(e.rcv, e.loc)
+      val removeFromTop = heapModule.beginExhale ++
+        (components flatMap (_.transferRemove(e,used.boolVar))) ++
+        ( //if original state then don't need to guard assumptions
+          if(isOriginalState) {
+            heapModule.endExhale ++
+              stateModule.assumeGoodState
+          } else {
+            exchangeAssumesWithBoolean(heapModule.endExhale, top.boolVar) ++
+              (top.boolVar := top.boolVar && stateModule.currentGoodState)
+            /* exchangeAssumesWithBooleanImpl(heapModule.endExhale, top.boolVar) ++
+             Assume(top.boolVar ==> stateModule.currentGoodState) */
+          } )
 
-    //val nullCheck =
-      //transferEntity match {
-      //  case TransferableFieldAccessPred(rcv,loc,_,origAccessPred) =>
-      //    Assert((allStateAssms&&used.boolVar) ==> heapModule.checkNonNullReceiver(rcv),mainError.dueTo(reasons.ReceiverNull(origAccessPred.loc)))
-      //  case _ => Statements.EmptyStmt
-      //}
+      /*GP: need to formally prove that these two last statements are sound (since they are not
+       *explicitily accumulated in the boolean variable */
 
-    val definedness = MaybeCommentBlock("checking if access predicate defined in used state",
-      If(allStateAssms&&used.boolVar,expModule.checkDefinedness(e, mainError, statesStack = states, allStateAssms = allStateAssms, inWand = true),Statements.EmptyStmt))
+      //computed all values needed from used state
+      stateModule.replaceState(used.state)
 
-    val transferRest = transferAcc(states,used, transferEntity,allStateAssms)
-    val stmt = definedness++ initStmt /*++ nullCheck*/ ++ initPermVars ++  positivePerm ++ transferRest
+      val addToUsed = (components flatMap (_.transferAdd(e,used.boolVar))) ++
+        (used.boolVar := used.boolVar&&stateModule.currentGoodState)
 
+      val equateStmt:Stmt = e match {
+        case TransferableFieldAccessPred(rcv,loc,_,_) => (used.boolVar := used.boolVar&&(equateLHS.get === heapModule.translateLocationAccess(rcv,loc)))
+        case TransferablePredAccessPred(rcv,loc,_,_) =>
+          val (tempMask, initTMaskStmt) = permModule.tempInitMask(rcv,loc)
+          initTMaskStmt ++
+            (used.boolVar := used.boolVar&&heapModule.identicalOnKnownLocations(topHeap,tempMask))
+        case _ => Nil
+      }
 
-    MaybeCommentBlock("Transfer of " + e.toString(), stmt)
+      //transfer from top to used state
+      MaybeCommentBlock("transfer code for top state of stack",
+        Comment("accumulate constraints which need to be satisfied for transfer to occur") ++ definednessTop ++
+          Comment("actual code for the transfer from current state on stack") ++
+          If( (allStateAssms&&used.boolVar) && boolTransferTop && neededLocal > boogieNoPerm,
+            (curpermLocal := curPermTop) ++
+              minStmt ++
+              If(transferAmountLocal > boogieNoPerm,
+                (neededLocal := neededLocal - transferAmountLocal) ++
+                  addToUsed ++
+                  equateStmt ++
+                  removeFromTop,
 
+                Nil),
+
+            Nil
+          )
+      ) ++ transferAcc(xs,used,e,allStateAssms) //recurse over rest of states
+    case Nil =>
+      val curPermUsed = permModule.currentPermission(e.rcv,e.loc)
+      Assert((allStateAssms&&used.boolVar) ==> (neededLocal === boogieNoPerm && curPermUsed === initNeededLocal),
+        e.transferError(mainError))
+    /**
+     * actually only curPermUsed === permLocal would be sufficient if the transfer is written correctly, since
+     * the two conjuncts should be equivalent in theory, but to be safe we ask for the conjunction to hold
+     * in case of bugs
+     * */
   }
+}
 
-  /*
-   * Precondition: current state is set to the used state
+override def translateApply(app: sil.Apply, error: PartialVerificationError, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false):Stmt = {
+  app.exp match {
+    case w@sil.MagicWand(left,right) => applyWand(w,error, statesStack, allStateAssms, inWand)
+    case _ => Nil
+  }
+}
+
+def applyWand(w: sil.MagicWand, error: PartialVerificationError, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false):Stmt = {
+  /** we first exhale without havocing heap locations to avoid the incompleteness issue which would otherwise
+    * occur when the left and right hand side mention common heap locations.
     */
-  private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEntity, allStateAssms: Exp):Stmt = {
-    states match {
-      case (top :: xs) =>
-        //Compute all values needed from top state
-        stateModule.replaceState(top.state)
-        val isOriginalState: Boolean = xs.isEmpty
+  CommentBlock("check if wand is held and remove an instance",exhaleModule.exhale((w, error), false, allStateAssms = allStateAssms, inWand = inWand, statesStack = statesStack)) ++
+    stateModule.assumeGoodState ++
+    CommentBlock("check if LHS holds and remove permissions ", exhaleModule.exhale((w.left, error), false, allStateAssms = allStateAssms, inWand = inWand, statesStack = statesStack)) ++
+    stateModule.assumeGoodState ++
+    CommentBlock("inhale the RHS of the wand",inhaleModule.inhale(w.right, statesStack = statesStack, inWand = inWand)) ++
+    heapModule.beginExhale ++ heapModule.endExhale ++
+    stateModule.assumeGoodState
+  //GP: using beginExhale, endExhale works now, but isn't intuitive, maybe should duplicate code to avoid this breaking
+  //in the future when beginExhale and endExhale's implementations are changed
+}
 
-        val topHeap = heapModule.currentHeap
-        val equateLHS:Option[Exp] = e match {
-          case TransferableAccessPred(rcv,loc,_,_) => Some(heapModule.translateLocationAccess(rcv,loc))
-          case _ => None
-        }
+private def evalArgsAccessPredicate(acc: sil.AccessPredicate, permLocal: Option[sil.LocalVar],error: PartialVerificationError,
+                                    b: Option[LocalVar]):
+(Seq[sil.LocalVar],sil.AccessPredicate,Stmt) = {
 
-        val definednessTop:Stmt = (boolTransferTop := TrueLit()) ++
-          (generateStmtCheck(components flatMap (_.transferValid(e)), boolTransferTop))
-        val minStmt = If(neededLocal <= curpermLocal,
-          transferAmountLocal := neededLocal, transferAmountLocal := curpermLocal)
-
-        val nofractionsStmt = (transferAmountLocal := RealLit(1.0))
-
-        val curPermTop = permModule.currentPermission(e.rcv, e.loc)
-        val removeFromTop = heapModule.beginExhale ++
-          (components flatMap (_.transferRemove(e,used.boolVar))) ++
-          ( //if original state then don't need to guard assumptions
-            if(isOriginalState) {
-              heapModule.endExhale ++
-                stateModule.assumeGoodState
-            } else {
-              exchangeAssumesWithBoolean(heapModule.endExhale, top.boolVar) ++
-                (top.boolVar := top.boolVar && stateModule.currentGoodState)
-              /* exchangeAssumesWithBooleanImpl(heapModule.endExhale, top.boolVar) ++
-               Assume(top.boolVar ==> stateModule.currentGoodState) */
-            } )
-
-        /*GP: need to formally prove that these two last statements are sound (since they are not
-         *explicitily accumulated in the boolean variable */
-
-        //computed all values needed from used state
-        stateModule.replaceState(used.state)
-
-        val addToUsed = (components flatMap (_.transferAdd(e,used.boolVar))) ++
-          (used.boolVar := used.boolVar&&stateModule.currentGoodState)
-
-        val equateStmt:Stmt = e match {
-          case TransferableFieldAccessPred(rcv,loc,_,_) => (used.boolVar := used.boolVar&&(equateLHS.get === heapModule.translateLocationAccess(rcv,loc)))
-          case TransferablePredAccessPred(rcv,loc,_,_) =>
-            val (tempMask, initTMaskStmt) = permModule.tempInitMask(rcv,loc)
-            initTMaskStmt ++
-              (used.boolVar := used.boolVar&&heapModule.identicalOnKnownLocations(topHeap,tempMask))
-          case _ => Nil
-        }
-
-        //transfer from top to used state
-        MaybeCommentBlock("transfer code for top state of stack",
-          Comment("accumulate constraints which need to be satisfied for transfer to occur") ++ definednessTop ++
-            Comment("actual code for the transfer from current state on stack") ++
-            If( (allStateAssms&&used.boolVar) && boolTransferTop && neededLocal > boogieNoPerm,
-              (curpermLocal := curPermTop) ++
-                minStmt ++
-                If(transferAmountLocal > boogieNoPerm,
-                  (neededLocal := neededLocal - transferAmountLocal) ++
-                    addToUsed ++
-                    equateStmt ++
-                    removeFromTop,
-
-                  Nil),
-
-              Nil
-            )
-        ) ++ transferAcc(xs,used,e,allStateAssms) //recurse over rest of states
-      case Nil =>
-        val curPermUsed = permModule.currentPermission(e.rcv,e.loc)
-        Assert((allStateAssms&&used.boolVar) ==> (neededLocal === boogieNoPerm && curPermUsed === initNeededLocal),
-          e.transferError(mainError))
-      /**
-       * actually only curPermUsed === permLocal would be sufficient if the transfer is written correctly, since
-       * the two conjuncts should be equivalent in theory, but to be safe we ask for the conjunction to hold
-       * in case of bugs
-       * */
-    }
+  val newPerm = permLocal match {
+    case Some(p) => p
+    case None => acc.perm
   }
 
-  override def translateApply(app: sil.Apply, error: PartialVerificationError, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false):Stmt = {
-    app.exp match {
-      case w@sil.MagicWand(left,right) => applyWand(w,error, statesStack, allStateAssms, inWand)
-      case _ => Nil
-    }
+  acc match {
+    case sil.FieldAccessPredicate(loc,perm) =>
+      val SILrcvLocal = mainModule.env.makeUniquelyNamed(sil.LocalVarDecl("rcv", sil.Ref)(loc.rcv.pos,loc.rcv.info)).localVar
+      val rcvLocal = mainModule.env.define(SILrcvLocal) //bind Boogie to Silver variable
+      val assignStmt = rcvLocal := expModule.translateExp(loc.rcv)
+      val newLocation = sil.FieldAccess(SILrcvLocal, loc.field)(acc.pos,acc.info)
+      // AS: not convinced this nullCheck is necessary - in any case, the FieldAccessPredicate case for this code seems never to be used.
+      //val nullCheck:Stmt = Assert((b.get ==> heapModule.checkNonNullReceiver(newLocation)),error.dueTo(reasons.ReceiverNull(loc)))
+      (Seq(SILrcvLocal), sil.FieldAccessPredicate(newLocation,newPerm)(acc.pos,acc.info),assignStmt/*++nullCheck*/)
+
+    case sil.PredicateAccessPredicate(loc,perm) =>
+      /* for each argument create a variable and evaluate the argument in the used state */
+      val varsAndExprEval: Seq[(sil.LocalVar, Stmt)] = (for (arg <- loc.args) yield {
+        val decl = mainModule.env.makeUniquelyNamed(sil.LocalVarDecl("arg", arg.typ)(arg.pos, arg.info))
+        val localVar = decl.localVar
+        (localVar, mainModule.env.define(localVar) := expModule.translateExp(arg))
+      })
+
+      val assignStmt = for ((_,stmt) <- varsAndExprEval) yield {
+        stmt
+      }
+
+      val localEvalArgs = varsAndExprEval.map( x => x._1)
+
+      /*transform the predicate such that the arguments are now the variables */
+      val predAccTransformed = sil.PredicateAccessPredicate(
+        sil.PredicateAccess(localEvalArgs, loc.predicateName)(loc.pos, loc.info, loc.errT), newPerm)(acc.pos, acc.info)
+
+      (localEvalArgs, predAccTransformed, assignStmt)
   }
 
-  def applyWand(w: sil.MagicWand, error: PartialVerificationError, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false):Stmt = {
-    /** we first exhale without havocing heap locations to avoid the incompleteness issue which would otherwise
-      * occur when the left and right hand side mention common heap locations.
-      */
-    CommentBlock("check if wand is held and remove an instance",exhaleModule.exhale((w, error), false, allStateAssms = allStateAssms, inWand = inWand, statesStack = statesStack)) ++
-      stateModule.assumeGoodState ++
-      CommentBlock("check if LHS holds and remove permissions ", exhaleModule.exhale((w.left, error), false, allStateAssms = allStateAssms, inWand = inWand, statesStack = statesStack)) ++
-      stateModule.assumeGoodState ++
-      CommentBlock("inhale the RHS of the wand",inhaleModule.inhale(w.right, statesStack = statesStack, inWand = inWand)) ++
-      heapModule.beginExhale ++ heapModule.endExhale ++
-      stateModule.assumeGoodState
-    //GP: using beginExhale, endExhale works now, but isn't intuitive, maybe should duplicate code to avoid this breaking
-    //in the future when beginExhale and endExhale's implementations are changed
+}
+
+/**
+ * @param e expression to be transferred
+ * @param permTransfer  expression which denotes the permission amount to be transferred
+ * @return a TransferableEntity which can be handled by  all TransferComponents as well as a stmt that needs to be
+ *         in the Boogie program before the any translation concerning the TransferableEntity can be used
+ */
+private def setupTransferableEntity(e: sil.Exp, permTransfer: Exp, unionState: Any):(TransferableEntity,Stmt) = {
+  e match {
+    case fa@sil.FieldAccessPredicate(loc, perm) =>
+      val assignStmt = rcvLocal := expModule.translateExpInWand(loc.rcv, inWand = true, union = true, unionState = unionState)
+      val evalLoc = heapModule.translateLocation(loc)
+      (TransferableFieldAccessPred(rcvLocal, evalLoc, permTransfer,fa), assignStmt)
+
+    case p@sil.PredicateAccessPredicate(loc, perm) =>
+      val localsStmt: Seq[(LocalVar, Stmt)] = (for (arg <- loc.args) yield {
+        val v = LocalVar(Identifier(names.createUniqueIdentifier("arg"))(transferNamespace),
+          typeModule.translateType(arg.typ))
+        (v, v := expModule.translateExpInWand(arg, inWand = true, union = true, unionState = unionState))
+      })
+
+      val (locals, assignStmt) = localsStmt.unzip
+      val predTransformed = heapModule.translateLocation(p.loc.loc(verifier.program), locals)
+
+      (TransferablePredAccessPred(heapModule.translateNull, predTransformed, permTransfer,p), assignStmt)
+    case w:sil.MagicWand =>
+      val wandRep = getWandRepresentation(w)
+      //GP: maybe should store holes of wand first in local variables
+      (TransferableWand(heapModule.translateNull, wandRep, permTransfer, w),Nil)
   }
+}
 
-  private def evalArgsAccessPredicate(acc: sil.AccessPredicate, permLocal: Option[sil.LocalVar],error: PartialVerificationError,
-                                      b: Option[LocalVar]):
-  (Seq[sil.LocalVar],sil.AccessPredicate,Stmt) = {
-
-    val newPerm = permLocal match {
-      case Some(p) => p
-      case None => acc.perm
-    }
-
-    acc match {
-      case sil.FieldAccessPredicate(loc,perm) =>
-        val SILrcvLocal = mainModule.env.makeUniquelyNamed(sil.LocalVarDecl("rcv", sil.Ref)(loc.rcv.pos,loc.rcv.info)).localVar
-        val rcvLocal = mainModule.env.define(SILrcvLocal) //bind Boogie to Silver variable
-        val assignStmt = rcvLocal := expModule.translateExp(loc.rcv)
-        val newLocation = sil.FieldAccess(SILrcvLocal, loc.field)(acc.pos,acc.info)
-        // AS: not convinced this nullCheck is necessary - in any case, the FieldAccessPredicate case for this code seems never to be used.
-        //val nullCheck:Stmt = Assert((b.get ==> heapModule.checkNonNullReceiver(newLocation)),error.dueTo(reasons.ReceiverNull(loc)))
-        (Seq(SILrcvLocal), sil.FieldAccessPredicate(newLocation,newPerm)(acc.pos,acc.info),assignStmt/*++nullCheck*/)
-
-      case sil.PredicateAccessPredicate(loc,perm) =>
-        /* for each argument create a variable and evaluate the argument in the used state */
-        val varsAndExprEval: Seq[(sil.LocalVar, Stmt)] = (for (arg <- loc.args) yield {
-          val decl = mainModule.env.makeUniquelyNamed(sil.LocalVarDecl("arg", arg.typ)(arg.pos, arg.info))
-          val localVar = decl.localVar
-          (localVar, mainModule.env.define(localVar) := expModule.translateExp(arg))
-        })
-
-        val assignStmt = for ((_,stmt) <- varsAndExprEval) yield {
-          stmt
-        }
-
-        val localEvalArgs = varsAndExprEval.map( x => x._1)
-
-        /*transform the predicate such that the arguments are now the variables */
-        val predAccTransformed = sil.PredicateAccessPredicate(
-          sil.PredicateAccess(localEvalArgs, loc.predicateName)(loc.pos, loc.info, loc.errT), newPerm)(acc.pos, acc.info)
-
-        (localEvalArgs, predAccTransformed, assignStmt)
-    }
-
+/*
+  *transforms a statement such that it doesn't have any explicit assumptions anymore and all assumptions
+  * are accumulated in a single variable, i.e.:
+  *
+  * Assume x != null
+  * Assume y >= 0 is transformed to:
+  * b := (b && x!= null); b := (b && y >= 0);
+  */
+override def exchangeAssumesWithBoolean(stmt: Stmt,boolVar: LocalVar):Stmt = {
+  stmt match {
+    case Assume(exp) =>
+      boolVar := (boolVar && exp)
+    case Seqn(statements) =>
+      Seqn(statements.map(s => exchangeAssumesWithBoolean(s, boolVar)))
+    case If(c,thn,els) =>
+      If(c,exchangeAssumesWithBoolean(thn,boolVar),exchangeAssumesWithBoolean(els,boolVar))
+    case NondetIf(thn,els) =>
+      NondetIf(exchangeAssumesWithBoolean(thn,boolVar))
+    case CommentBlock(comment,s) =>
+      CommentBlock(comment, exchangeAssumesWithBoolean(s,boolVar))
+    case s => s
   }
+}
 
-  /**
-   * @param e expression to be transferred
-   * @param permTransfer  expression which denotes the permission amount to be transferred
-   * @return a TransferableEntity which can be handled by  all TransferComponents as well as a stmt that needs to be
-   *         in the Boogie program before the any translation concerning the TransferableEntity can be used
-   */
-  private def setupTransferableEntity(e: sil.Exp, permTransfer: Exp):(TransferableEntity,Stmt) = {
-    e match {
-      case fa@sil.FieldAccessPredicate(loc, perm) =>
-        val assignStmt = rcvLocal := expModule.translateExp(loc.rcv)
-        val evalLoc = heapModule.translateLocation(loc)
-        (TransferableFieldAccessPred(rcvLocal, evalLoc, permTransfer,fa), assignStmt)
-
-      case p@sil.PredicateAccessPredicate(loc, perm) =>
-        val localsStmt: Seq[(LocalVar, Stmt)] = (for (arg <- loc.args) yield {
-          val v = LocalVar(Identifier(names.createUniqueIdentifier("arg"))(transferNamespace),
-            typeModule.translateType(arg.typ))
-          (v, v := expModule.translateExp(arg))
-        })
-
-        val (locals, assignStmt) = localsStmt.unzip
-        val predTransformed = heapModule.translateLocation(p.loc.loc(verifier.program), locals)
-
-        (TransferablePredAccessPred(heapModule.translateNull, predTransformed, permTransfer,p), assignStmt)
-      case w:sil.MagicWand =>
-        val wandRep = getWandRepresentation(w)
-        //GP: maybe should store holes of wand first in local variables
-        (TransferableWand(heapModule.translateNull, wandRep, permTransfer, w),Nil)
-    }
+def exchangeAssumesWithBooleanImpl(stmt: Stmt,boolVar: LocalVar):Stmt = {
+  stmt match {
+    case Assume(exp) =>
+      Assume(boolVar ==> exp)
+    case Seqn(statements) =>
+      Seqn(statements.map(s => exchangeAssumesWithBoolean(s, boolVar)))
+    case If(c,thn,els) =>
+      If(c,exchangeAssumesWithBoolean(thn,boolVar),exchangeAssumesWithBoolean(els,boolVar))
+    case NondetIf(thn,els) =>
+      NondetIf(exchangeAssumesWithBoolean(thn,boolVar))
+    case CommentBlock(comment,s) =>
+      CommentBlock(comment, exchangeAssumesWithBoolean(s,boolVar))
+    case s => s
   }
+}
 
-  /*
-    *transforms a statement such that it doesn't have any explicit assumptions anymore and all assumptions
-    * are accumulated in a single variable, i.e.:
-    *
-    * Assume x != null
-    * Assume y >= 0 is transformed to:
-    * b := (b && x!= null); b := (b && y >= 0);
-    */
-  override def exchangeAssumesWithBoolean(stmt: Stmt,boolVar: LocalVar):Stmt = {
-    stmt match {
-      case Assume(exp) =>
-        boolVar := (boolVar && exp)
-      case Seqn(statements) =>
-        Seqn(statements.map(s => exchangeAssumesWithBoolean(s, boolVar)))
-      case If(c,thn,els) =>
-        If(c,exchangeAssumesWithBoolean(thn,boolVar),exchangeAssumesWithBoolean(els,boolVar))
-      case NondetIf(thn,els) =>
-        NondetIf(exchangeAssumesWithBoolean(thn,boolVar))
-      case CommentBlock(comment,s) =>
-        CommentBlock(comment, exchangeAssumesWithBoolean(s,boolVar))
-      case s => s
-    }
-  }
+/*
+ * Let the argument be a sequence [(s1,e1),(s2,e2)].
+ * Then the function returns:
+ * (s1; b := b&&e1; s2; b := b&&e2)
+ */
+def generateStmtCheck(x: Seq[(Stmt,Exp)], boolVar:LocalVar):Stmt = {
+  (x map (y => y._1 ++ (boolVar := boolVar&&y._2))).flatten
+}
 
-  def exchangeAssumesWithBooleanImpl(stmt: Stmt,boolVar: LocalVar):Stmt = {
-    stmt match {
-      case Assume(exp) =>
-        Assume(boolVar ==> exp)
-      case Seqn(statements) =>
-        Seqn(statements.map(s => exchangeAssumesWithBoolean(s, boolVar)))
-      case If(c,thn,els) =>
-        If(c,exchangeAssumesWithBoolean(thn,boolVar),exchangeAssumesWithBoolean(els,boolVar))
-      case NondetIf(thn,els) =>
-        NondetIf(exchangeAssumesWithBoolean(thn,boolVar))
-      case CommentBlock(comment,s) =>
-        CommentBlock(comment, exchangeAssumesWithBoolean(s,boolVar))
-      case s => s
-    }
-  }
+/*
+ *this class is used to group the local boogie variables used for the transfer which are potentially different
+ * for each transfer (in contrast to "neededLocal" which ist declared as a constant)
+ */
+case class TransferBoogieVars(transferAmount: LocalVar, boolVar: LocalVar)
 
-  /*
-   * Let the argument be a sequence [(s1,e1),(s2,e2)].
-   * Then the function returns:
-   * (s1; b := b&&e1; s2; b := b&&e2)
-   */
-  def generateStmtCheck(x: Seq[(Stmt,Exp)], boolVar:LocalVar):Stmt = {
-    (x map (y => y._1 ++ (boolVar := boolVar&&y._2))).flatten
-  }
-
-  /*
-   *this class is used to group the local boogie variables used for the transfer which are potentially different
-   * for each transfer (in contrast to "neededLocal" which ist declared as a constant)
-   */
-  case class TransferBoogieVars(transferAmount: LocalVar, boolVar: LocalVar)
-
-  /*
-   * is used to store relevant blocks needed to start an exec or package
-   */
-  case class PackageSetup(hypState: StateRep, usedState: StateRep, initStmt: Stmt)
+/*
+ * is used to store relevant blocks needed to start an exec or package
+ */
+case class PackageSetup(hypState: StateRep, usedState: StateRep, initStmt: Stmt)
 
 }

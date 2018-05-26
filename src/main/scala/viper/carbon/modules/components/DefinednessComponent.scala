@@ -35,6 +35,6 @@ trait DefinednessComponent extends Component {
    * corresponding unfoldings to be executed), but no other checks to actually be made. Note that this method
    * must be overridden for this parameter to be used.
    */
-  def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): (() => Stmt, () => Stmt) =
-    (() => simplePartialCheckDefinedness(e, error, makeChecks), () => Statements.EmptyStmt)
+  def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): (() => Stmt, () => Stmt) =
+    (() => simplePartialCheckDefinedness(e, error, makeChecks, statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand), () => Statements.EmptyStmt)
 }

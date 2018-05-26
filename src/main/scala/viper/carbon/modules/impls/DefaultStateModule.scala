@@ -125,6 +125,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
 
     curState = new StateComponentMapping() // essentially, the code below "clones" what curState should represent anyway. But, if we omit this line, we inadvertently alias the previous hash map.
 
+
     val s = for (c <- components) yield {
       val tmpExps = c.freshTempState(name)
       val curExps = c.currentStateExps // note: this will wrap them in "Old" as necessary for correct initialisation
@@ -135,8 +136,10 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
 
       (if (initialise) c.resetBoogieState else stmt)
     }
+
     treatOldAsCurrent = usingOldState
     usingOldState = false // we have now set up a temporary state in terms of "old" - this could happen when an unfolding expression is inside an "old"
+
     (s, previousState)
   }
 

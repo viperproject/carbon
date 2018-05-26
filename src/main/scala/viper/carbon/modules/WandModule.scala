@@ -18,10 +18,12 @@ trait WandModule extends Module with ComponentRegistry[TransferComponent] {
 
   def translateApply(p: sil.Apply, error: PartialVerificationError, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false):Stmt
 
-  def exhaleExt(states: List[Any], used:Any, e: sil.Exp, allStateAssms: Exp, RHS: Boolean = false):Stmt
+  def exhaleExt(states: List[Any], used:Any, e: sil.Exp, allStateAssms: Exp, RHS: Boolean = false, unionState: Any):Stmt
 
   def createAndSetState(initBool:Option[Exp],usedString:String = "Used",setToNew:Boolean=true,
                         init:Boolean=true):Any
 
   def exchangeAssumesWithBoolean(stmt: Stmt,boolVar: LocalVar):Stmt
-}
+
+  def createAndSetSumState(stateOther: Any ,boolOther:Exp,boolCur:Exp):Any
+  }

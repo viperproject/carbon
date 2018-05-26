@@ -288,14 +288,14 @@ class QuantifiedPermModule(val verifier: Verifier)
     }
   }
 
-  override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
+  override def exhaleExp(e: sil.Exp, error: PartialVerificationError, allStateAssms: Exp = TrueLit()): Stmt = {
     e match {
       case sil.AccessPredicate(loc, prm) =>
         val p = PermissionSplitter.normalizePerm(prm)
         val perms = PermissionSplitter.splitPerm(p) filter (x => x._1 - 1 == exhaleModule.currentPhaseId)
         (if (exhaleModule.currentPhaseId == 0)
           (if (!p.isInstanceOf[sil.WildcardPerm])
-            Assert(permissionPositiveInternal(translatePerm(p), Some(p), true), error.dueTo(reasons.NegativePermission(p))) else Nil: Stmt) ++ Nil // check amount is non-negative
+            Assert(allStateAssms ==> permissionPositiveInternal(translatePerm(p), Some(p), true), error.dueTo(reasons.NegativePermission(p))) else Nil: Stmt) ++ Nil // check amount is non-negative
         else Nil) ++
           (if (perms.size == 0) {
             Nil
@@ -317,7 +317,7 @@ class QuantifiedPermModule(val verifier: Verifier)
                   stmts ++
                     (permVar := permAdd(permVar, permVal)) ++
                     (if (perm.isInstanceOf[sil.WildcardPerm]) {
-                      (Assert(curPerm > noPerm, error.dueTo(reasons.InsufficientPermission(loc))) ++
+                      (Assert(allStateAssms ==> curPerm > noPerm, error.dueTo(reasons.InsufficientPermission(loc))) ++
                         Assume(wildcard < curPerm)): Stmt
                     } else {
                       Nil
@@ -326,11 +326,11 @@ class QuantifiedPermModule(val verifier: Verifier)
               }).flatten ++
               (if (onlyWildcard) Nil else if (exhaleModule.currentPhaseId + 1 == 2) {
                 If(permVar !== noPerm,
-                  (Assert(curPerm > noPerm, error.dueTo(reasons.InsufficientPermission(loc))) ++
+                  (Assert(allStateAssms ==> curPerm > noPerm, error.dueTo(reasons.InsufficientPermission(loc))) ++
                     Assume(permVar < curPerm)): Stmt, Nil)
               } else {
                 If(permVar !== noPerm,
-                  Assert(permLe(permVar, curPerm), error.dueTo(reasons.InsufficientPermission(loc))), Nil)
+                  Assert(allStateAssms ==> permLe(permVar, curPerm), error.dueTo(reasons.InsufficientPermission(loc))), Nil)
               }) ++
               (if (!usingOldState) curPerm := permSub(curPerm, permVar) else Nil)
           })
@@ -338,7 +338,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         val wandRep = wandModule.getWandRepresentation(w)
         val curPerm = currentPermission(translateNull, wandRep)
         Comment("permLe")++
-          Assert(permLe(fullPerm, curPerm), error.dueTo(reasons.MagicWandChunkNotFound(w))) ++
+          Assert(allStateAssms ==> permLe(fullPerm, curPerm), error.dueTo(reasons.MagicWandChunkNotFound(w))) ++
           (if (!usingOldState) curPerm := permSub(curPerm, fullPerm) else Nil)
 
       case fa@sil.Forall(v, cond, expr) =>
@@ -1294,11 +1294,6 @@ class QuantifiedPermModule(val verifier: Verifier)
   override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
                                              statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
 
-    val currentState = stateModule.state
-    if(inWand) {
-      stateModule.replaceState(statesStack(0).asInstanceOf[StateRep].state)
-    }
-
     val stmt: Stmt = if(makeChecks) (
       e match {
         case sil.CurrentPerm(loc) =>
@@ -1312,16 +1307,20 @@ class QuantifiedPermModule(val verifier: Verifier)
             allowLocationAccessWithoutPerm = false
             Nil
           } else {
-            Assert(hasDirectPerm(fa), error.dueTo(reasons.InsufficientPermission(fa)))
+            if(inWand)
+              Assert(allStateAssms ==> hasDirectPerm(fa), error.dueTo(reasons.InsufficientPermission(fa)))
+            else
+              Assert(allStateAssms ==> hasDirectPerm(fa), error.dueTo(reasons.InsufficientPermission(fa)))
           }
         case sil.PermDiv(a, b) =>
-          Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
+          if(inWand)
+            Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
+          else
+            Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
         case _ => Nil
       }
       ) else Nil
 
-    if(inWand)
-      stateModule.replaceState(currentState)
     stmt
   }
 

@@ -73,20 +73,20 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
         checkDefinednessOfSpecAndInhale(whenInhaling(e), errors.InhaleFailed(inh), statesStack, allStateAssms = allStateAssms, inWand)
       case exh@sil.Exhale(e) =>
         val transformedExp = whenExhaling(e)
-        checkDefinedness(transformedExp, errors.ExhaleFailed(exh), statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand)++
+        checkDefinedness(transformedExp, errors.ExhaleFailed(exh), statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand, ignore = true)++
         exhale((transformedExp, errors.ExhaleFailed(exh)), statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand)
       case a@sil.Assert(e) =>
         val transformedExp = whenExhaling(e)
         if (transformedExp.isPure) {
           // if e is pure, then assert and exhale are the same
-          checkDefinedness(transformedExp, errors.AssertFailed(a), statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand) ++
+          checkDefinedness(transformedExp, errors.AssertFailed(a), statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand, ignore = true) ++
             exhale((transformedExp, errors.AssertFailed(a)), statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand)
         } else {
           // we create a temporary state to ignore the side-effects
           val (backup, snapshot) = freshTempState("Assert")
           val exhaleStmt = exhale((transformedExp, errors.AssertFailed(a)), isAssert =  true, statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand, havocHeap = false)
           replaceState(snapshot)
-            checkDefinedness(transformedExp, errors.AssertFailed(a), statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand) :: backup :: exhaleStmt :: Nil
+            checkDefinedness(transformedExp, errors.AssertFailed(a), statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand, ignore = true) :: backup :: exhaleStmt :: Nil
         }
       case mc@sil.MethodCall(methodName, args, targets) =>
         val method = verifier.program.findMethod(methodName)
@@ -131,9 +131,11 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           (args map (e => checkDefinedness(e, errors.CallFailed(mc)))) ++
           (actualArgs map (_._2)) ++
           Havoc((targets map translateExp).asInstanceOf[Seq[Var]]) ++
-          MaybeCommentBlock("Exhaling precondition", executeUnfoldings(pres, (pre => errors.PreconditionInCallFalse(mc).withReasonNodeTransformed(renamingArguments))) ++ exhale(pres map (e => (e, errors.PreconditionInCallFalse(mc).withReasonNodeTransformed(renamingArguments))))) ++ {
+          MaybeCommentBlock("Exhaling precondition", executeUnfoldings(pres, (pre => errors.PreconditionInCallFalse(mc).withReasonNodeTransformed(renamingArguments))) ++
+            exhale(pres map (e => (e, errors.PreconditionInCallFalse(mc).withReasonNodeTransformed(renamingArguments))), statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand)) ++ {
           stateModule.replaceOldState(preCallState)
-          val res = MaybeCommentBlock("Inhaling postcondition", inhale(posts) ++ executeUnfoldings(posts, (post => errors.Internal(post).withReasonNodeTransformed(renamingArguments))))
+          val res = MaybeCommentBlock("Inhaling postcondition", inhale(posts, statesStack, inWand) ++
+            executeUnfoldings(posts, (post => errors.Internal(post).withReasonNodeTransformed(renamingArguments))))
           stateModule.replaceOldState(oldState)
           toUndefine map mainModule.env.undefine
           res
