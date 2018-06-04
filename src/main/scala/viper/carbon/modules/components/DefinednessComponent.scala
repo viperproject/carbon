@@ -24,7 +24,7 @@ trait DefinednessComponent extends Component {
    * Proof obligations for a given expression. See below for "makeChecks" description
    */
   def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
-                                    statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = Statements.EmptyStmt
+                                   allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = Statements.EmptyStmt
 
   /**
    * Proof obligations for a given expression.  The first part of the result is used before
@@ -35,6 +35,6 @@ trait DefinednessComponent extends Component {
    * corresponding unfoldings to be executed), but no other checks to actually be made. Note that this method
    * must be overridden for this parameter to be used.
    */
-  def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): (() => Stmt, () => Stmt) =
-    (() => simplePartialCheckDefinedness(e, error, makeChecks, statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand), () => Statements.EmptyStmt)
+  def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): (() => Stmt, () => Stmt) =
+    (() => simplePartialCheckDefinedness(e, error, makeChecks, allStateAssms = allStateAssms, inWand = inWand), () => Statements.EmptyStmt)
 }

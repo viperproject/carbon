@@ -18,7 +18,7 @@ import viper.silver.verifier.PartialVerificationError
 trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
   def translateExp(exp: sil.Exp): Exp
 
-  def translateExpInWand(exp: sil.Exp, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean, union: Boolean = false, unionState: Any = null): Exp
+  def translateExpInWand(exp: sil.Exp, allStateAssms: Exp = TrueLit(), inWand: Boolean): Exp
 
   def translateLocalVar(l: sil.LocalVar): LocalVar
 
@@ -35,8 +35,7 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
    * the parameter should be passed down through recursive calls (default true)
    */
   def checkDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean = true,
-                       statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(),
-                       inWand: Boolean = false, ignore: Boolean = false, union: Boolean = false): Stmt
+                       allStateAssms: Exp = TrueLit(), inWand: Boolean = false, ignore: Boolean = false): Stmt
 
   /**
    * Check definedness of Viper assertions such as pre-/postconditions or invariants.

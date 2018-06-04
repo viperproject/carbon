@@ -1292,7 +1292,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   // The trick is somewhat fragile, in that it relies on the ordering of the calls to this method (but generally works out because of the recursive traversal of the assertion).
   private var allowLocationAccessWithoutPerm = false
   override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
-                                             statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
+                                             allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
 
     val stmt: Stmt = if(makeChecks) (
       e match {
@@ -1308,9 +1308,9 @@ class QuantifiedPermModule(val verifier: Verifier)
             Nil
           } else {
             if(inWand)
-              Assert(allStateAssms ==> hasDirectPerm(fa), error.dueTo(reasons.InsufficientPermission(fa)))
+              Assert(hasDirectPerm(fa), error.dueTo(reasons.InsufficientPermission(fa)))
             else
-              Assert(allStateAssms ==> hasDirectPerm(fa), error.dueTo(reasons.InsufficientPermission(fa)))
+              Assert(hasDirectPerm(fa), error.dueTo(reasons.InsufficientPermission(fa)))
           }
         case sil.PermDiv(a, b) =>
           if(inWand)

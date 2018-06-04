@@ -52,8 +52,9 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule with Stat
           assumeGoodState
       })
 
-    if(inWand)
+    if(inWand) {
       stateModule.replaceState(current_state)
+    }
     stmt
   }
 

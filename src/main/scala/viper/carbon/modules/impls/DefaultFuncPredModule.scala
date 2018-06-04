@@ -650,7 +650,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   override def translateResult(r: sil.Result) = translateResultDecl(r).l
 
   override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
-                                             statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
+                                             allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
     if(makeChecks)
       e match {
         case fa@sil.FuncApp(f, args) => {
@@ -675,7 +675,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   }
 
   private var tmpStateId = -1
-  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): (() => Stmt, () => Stmt) = {
+  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): (() => Stmt, () => Stmt) = {
     e match {
       case u@sil.Unfolding(acc@sil.PredicateAccessPredicate(loc, perm), exp) =>
         tmpStateId += 1
@@ -690,7 +690,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           Nil
         }
         (before, after)
-      case _ => (() => simplePartialCheckDefinedness(e, error, makeChecks, statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand), () => Nil)
+      case _ => (() => simplePartialCheckDefinedness(e, error, makeChecks, allStateAssms = allStateAssms, inWand = inWand), () => Nil)
     }
   }
 
@@ -762,7 +762,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val stmtLast =  Assume(predicateTrigger(heapModule.currentStateExps, acc.loc)) ++ {
       val location = acc.loc
       val predicate = verifier.program.findPredicate(location.predicateName)
-      val translatedArgs = location.args map (x => translateExpInWand(x, statesStack, allStateAssms, inWand))
+      val translatedArgs = location.args map (x => translateExpInWand(x, allStateAssms, inWand))
       Assume(translateLocationAccess(location) === getPredicateFrame(predicate,translatedArgs)._1)
     }
 
@@ -778,7 +778,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   override def translateUnfold(unfold: sil.Unfold, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
     unfold match {
       case sil.Unfold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(_, _), perm)) =>
-        checkDefinedness(acc, errors.UnfoldFailed(unfold), statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand, union = true) ++
+        checkDefinedness(acc, errors.UnfoldFailed(unfold), allStateAssms = allStateAssms, inWand = inWand) ++
           checkDefinedness(perm, errors.UnfoldFailed(unfold)) ++
           unfoldPredicate(acc, errors.UnfoldFailed(unfold), false, statesStack, allStateAssms, inWand)
     }

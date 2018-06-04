@@ -108,7 +108,7 @@ class DefaultSeqModule(val verifier: Verifier)
 
 
   override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
-                                             statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
+                                             allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
 
     if(makeChecks)
       e match {
