@@ -409,8 +409,8 @@ class QuantifiedPermModule(val verifier: Verifier)
           stmts)
   }
 
-  def translateExhale(fa: sil.Forall, error: PartialVerificationError): Stmt =  {
-    val stmt = fa match {
+  def translateExhale(e: sil.Forall, error: PartialVerificationError): Stmt =  {
+    val stmt = e match {
       case SourceQuantifiedPermissionAssertion(forall, cond, expr)  =>
         val v = forall.variables.head // TODO: Generalise to multiple quantified variables
 
@@ -422,7 +422,7 @@ class QuantifiedPermModule(val verifier: Verifier)
             var isWildcard = false
             def renaming[E <: sil.Exp] = (e:E) => Expressions.renameVariables(e, v.localVar, vFresh.localVar)
             val (renamingCond, renamingRecv, renamingPerms, renamingFieldAccess) = (renaming(cond), renaming(recv), renaming(perms), renaming(fieldAccess))
-            val renamedTriggers:Seq[sil.Trigger] = fa.triggers.map(trigger => sil.Trigger(trigger.exps.map(x => renaming(x)))(trigger.pos, trigger.info))
+            val renamedTriggers:Seq[sil.Trigger] = e.triggers.map(trigger => sil.Trigger(trigger.exps.map(x => renaming(x)))(trigger.pos, trigger.info))
 
             //translate components
             val (translatedCond, translatedRecv) = (translateExp(renamingCond), translateExp(renamingRecv))
@@ -455,13 +455,17 @@ class QuantifiedPermModule(val verifier: Verifier)
             val permInv = translatedPerms.replace(env.get(vFresh.localVar), invFunApp)
 
 
-            //Trigger for first inverse function. It should be triggered for all location accesses via the permission map.
-            //All generated/user-given Triggers are included.
+            //Trigger for first inverse function. If user-defined triggers are provided, (only) these are used. Otherwise, those auto-generated + triggers corresponding to looking up the location are chosen
             val recvTrigger = Trigger(Seq(translatedRecv))
 
-            val tr1 : Seq[Trigger] = (if (validateTrigger(Seq(translatedLocal),recvTrigger).isEmpty) // if we can't use the receiver, maybe we can use H[recv,field] etc..
-              Seq(Trigger(Seq(translateLocationAccess(translatedRecv, translatedLocation))),Trigger(Seq(currentPermission(qpMask,translatedRecv , translatedLocation)))) else Seq(recvTrigger)
-              ) ++ validateTriggers(Seq(translatedLocal), translatedTriggers) // also keep all manually-specified triggers
+            lazy val candidateTriggers : Seq[Trigger] = if (validateTrigger(Seq(translatedLocal),recvTrigger).isEmpty) // if we can't use the receiver, maybe we can use H[recv,field] etc..
+              validateTriggers(Seq(translatedLocal),Seq(Trigger(Seq(translateLocationAccess(translatedRecv, translatedLocation))),Trigger(Seq(currentPermission(qpMask,translatedRecv , translatedLocation))))) else Seq(recvTrigger)
+
+            val providedTriggers : Seq[Trigger] = validateTriggers(Seq(translatedLocal), translatedTriggers)
+            // add default trigger if triggers were generated automatically
+            val tr1: Seq[Trigger] = if (e.info.getUniqueInfo[sil.AutoTriggered.type].isDefined) candidateTriggers ++ providedTriggers else providedTriggers
+
+
 
             //inverse assumptions
             // b(x) && p(x) > 0 ==> inv(e(x)) == x && range(e(x))
@@ -550,7 +554,7 @@ class QuantifiedPermModule(val verifier: Verifier)
             def renamingQuantifiedVar[E <: sil.Exp] = (e:E) => Expressions.renameVariables(e, v.localVar, vFresh.localVar)
             def renamingIncludingFormals[E <: sil.Exp] = (e:E) => Expressions.renameVariables(e, (v.localVar +: formals.map(_.localVar)), (vFresh.localVar +: freshFormalVars))
             val (renamedCond,renamedPerms) = (renamingQuantifiedVar(cond),renamingQuantifiedVar(perms))
-            var renamedTriggers = fa.triggers.map(trigger => sil.Trigger(trigger.exps.map(x => renamingQuantifiedVar(x)))(trigger.pos, trigger.info))
+            var renamedTriggers = e.triggers.map(trigger => sil.Trigger(trigger.exps.map(x => renamingQuantifiedVar(x)))(trigger.pos, trigger.info))
 
             //translate components
             val translatedLocal = translateLocalVarDecl(vFresh)  // quantified variable
@@ -587,19 +591,12 @@ class QuantifiedPermModule(val verifier: Verifier)
             val rangeFunRecvApp = FuncApp(rangeFun.name, translatedArgs, rangeFun.typ) // range(e(v),...)
 
             //define inverse functions
-            val tr0: Seq[Trigger] = validateTrigger(Seq(translatedLocal), Trigger(translateLocationAccess(predAccPred.loc))) ++ validateTrigger(Seq(translatedLocal), Trigger(currentPermission(translateNull, translatedLocation)))
-            var tr1: Seq[Trigger] = Seq()
+            lazy val candidateTriggers : Seq[Trigger] = validateTriggers(Seq(translatedLocal), Seq(Trigger(translateLocationAccess(predAccPred.loc)),Trigger(currentPermission(translateNull, translatedLocation))))
 
-            for (trigger <- translatedTriggers) {
-              if (!tr1.contains(trigger)) {
-                tr1 = tr1 ++ validateTrigger(Seq(translatedLocal), trigger)
-              }
-            }
+            val providedTriggers : Seq[Trigger] = validateTriggers(Seq(translatedLocal), translatedTriggers)
+            // add default trigger if triggers were generated automatically
+            val tr1: Seq[Trigger] = if (e.info.getUniqueInfo[sil.AutoTriggered.type].isDefined) candidateTriggers ++ providedTriggers else providedTriggers
 
-            fa.info match {
-              case sil.AutoTriggered => tr1 = tr0 ++ tr1 // add default trigger if triggers were generated automatically
-              case _ => {}
-            }
 
             val invAssm1 = Forall(translatedLocal, tr1, (translatedCond && permGt(translatedPerms, noPerm)) ==> ((funApp === translatedLocal.l) && rangeFunRecvApp))
             //for each argument, define the second inverse function
@@ -878,13 +875,18 @@ class QuantifiedPermModule(val verifier: Verifier)
            val (condInv, rcvInv, permInv) = (translatedCond.replace(env.get(vFresh.localVar), invFunApp),translatedRecv.replace(env.get(vFresh.localVar), invFunApp),translatedPerms.replace(env.get(vFresh.localVar), invFunApp) )
 
            //Define inverse Assumptions:
-           //Trigger for first inverse function. It should be triggered for all location accesses via the permission map.
-           //This cannot be done with the inverse function. All generated/user-given Triggers are included.
+           //Trigger for first inverse function. If user-defined triggers are provided, (only) these are used. Otherwise, those auto-generated + triggers corresponding to looking up the location are chosen
            val recvTrigger = Trigger(Seq(translatedRecv))
 
-           val tr1 : Seq[Trigger] = (if (validateTrigger(Seq(translatedLocal),recvTrigger).isEmpty) // if we can't use the receiver, maybe we can use H[recv,field] etc..
+           lazy val candidateTriggers : Seq[Trigger] = if (validateTrigger(Seq(translatedLocal),recvTrigger).isEmpty) // if we can't use the receiver, maybe we can use H[recv,field] etc..
              validateTriggers(Seq(translatedLocal),Seq(Trigger(Seq(translateLocationAccess(translatedRecv, translatedLocation))),Trigger(Seq(currentPermission(qpMask,translatedRecv , translatedLocation))))) else Seq(recvTrigger)
-             ) ++ validateTriggers(Seq(translatedLocal), translatedTriggers) // also keep all manually-specified triggers
+
+           val providedTriggers : Seq[Trigger] = validateTriggers(Seq(translatedLocal), translatedTriggers)
+           // add default trigger if triggers were generated automatically
+           val tr1: Seq[Trigger] = if (e.info.getUniqueInfo[sil.AutoTriggered.type].isDefined) candidateTriggers ++ providedTriggers else providedTriggers
+
+
+
 
            val invAssm1 = (Forall(Seq(translatedLocal), tr1, (translatedCond && permGt(translatedPerms, noPerm)) ==> ((FuncApp(invFun.name, Seq(translatedRecv), invFun.typ) === translatedLocal.l ) && rangeFunRecvApp)))
            val invAssm2 = Forall(Seq(obj), Seq(Trigger(FuncApp(invFun.name, Seq(obj.l), invFun.typ))), ((condInv && permGt(permInv, noPerm))&&rangeFunApp) ==> (rcvInv === obj.l) )
@@ -989,14 +991,13 @@ class QuantifiedPermModule(val verifier: Verifier)
            val rangeFunRecvApp = FuncApp(rangeFun.name, translatedArgs, rangeFun.typ) // range(e(v),...)
 
            //define inverse functions
-           lazy val candidateTriggers : Seq[Trigger] = Seq(Trigger(translateLocationAccess(predAccPred.loc)),Trigger(currentPermission(translateNull, translatedLocation)))
+           lazy val candidateTriggers : Seq[Trigger] = validateTriggers(Seq(translatedLocal), Seq(Trigger(translateLocationAccess(predAccPred.loc)),Trigger(currentPermission(translateNull, translatedLocation))))
 
-
-           lazy val tr0: Seq[Trigger] = validateTriggers(Seq(translatedLocal), candidateTriggers)
-
-           lazy val providedTriggers : Seq[Trigger] = validateTriggers(Seq(translatedLocal), translatedTriggers)
+           val providedTriggers : Seq[Trigger] = validateTriggers(Seq(translatedLocal), translatedTriggers)
            // add default trigger if triggers were generated automatically
-           val tr1: Seq[Trigger] = if (e.info.getUniqueInfo[sil.AutoTriggered.type].isDefined) tr0 ++ providedTriggers else providedTriggers
+           val tr1: Seq[Trigger] = if (e.info.getUniqueInfo[sil.AutoTriggered.type].isDefined) candidateTriggers ++ providedTriggers else providedTriggers
+
+
 
            val invAssm1 = Forall(translatedLocal, tr1, (translatedCond && permGt(translatedPerms, noPerm)) ==> ((funApp === translatedLocal.l) && rangeFunRecvApp))
            //for each argument, define the second inverse function
