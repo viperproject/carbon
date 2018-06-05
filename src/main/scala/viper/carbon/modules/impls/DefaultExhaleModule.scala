@@ -41,8 +41,13 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
 
     // creating a new temp state if we are inside a package statement
     val curState = stateModule.state
-    var tempState: StateRep = wandModule.tempCurState.asInstanceOf[StateRep]
     var initStmtWand: Stmt = Statements.EmptyStmt
+    if(inWand){
+      val StateSetup(tempState, initStmt) = wandModule.createAndSetState(None)
+      wandModule.tempCurState = tempState
+      initStmtWand = initStmt
+    }
+    var tempState: StateRep = wandModule.tempCurState.asInstanceOf[StateRep]
 
 
     val originalPhaseId = currentPhaseId // needed to get nested exhales (e.g. from unfolding expressions) correct
@@ -60,6 +65,7 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
       exps map (e => allFreeAssumptions(e._1)))
 
     currentPhaseId = originalPhaseId
+    stateModule.replaceState(curState)
 
     if ((exps map (_._1.isPure) forall identity) || !havocHeap || isAssert) {
       // if all expressions are pure, then there is no need for heap copies

@@ -166,6 +166,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
             locals map (v => mainModule.env.define(v.localVar)) // add local variables to environment
 
             val stmt = initStmt++(curStateBool := TrueLit()) ++
+              stmtModule.translateStmt(sil.Label("lhs", Nil)(p.pos, p.info)) ++
               MaybeCommentBlock("Assumptions about local variables", locals map (a => mainModule.allAssumptionsAboutValue(a.typ, mainModule.translateLocalVarDecl(a), true))) ++
               execBody(newStack, opsState, proofScript.ss , right, opsState.boolVar && allStateAssms, error)
 
@@ -189,11 +190,13 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
   def translateInWandStatement(states: List[StateRep], ops: StateRep, s: sil.Stmt, allStateAssms: Exp): Stmt =
   {
     UNIONState = OPS
-    val StateSetup(tempState, initStmt) = createAndSetState(None)
-    tempCurState = tempState
+    val initStmt: Stmt = Statements.EmptyStmt
+//    val StateSetup(tempState, initStmt) = createAndSetState(None)
+//    tempCurState = tempState
+    stateModule.replaceState(OPS.state)
     var equateStmt: Stmt = Statements.EmptyStmt
-    if(s.isInstanceOf[sil.Fold])
-      equateStmt = exchangeAssumesWithBoolean(equateHeaps(OPS.state, heapModule), OPS.boolVar)
+//    if(s.isInstanceOf[sil.Fold])
+//      equateStmt = exchangeAssumesWithBoolean(equateHeaps(OPS.state, heapModule), OPS.boolVar)
     initStmt ++ If(allStateAssms, stmtModule.translateStmt(s, ops::states, allStateAssms , true), Statements.EmptyStmt) ++ equateStmt
   }
 

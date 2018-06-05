@@ -476,7 +476,8 @@ class DefaultHeapModule(val verifier: Verifier)
 
 
   override def beginExhale: Stmt = {
-    Havoc(exhaleHeap)
+//    Havoc(exhaleHeap)
+    Statements.EmptyStmt
   }
 
   override def endExhale: Stmt = {
