@@ -38,8 +38,6 @@ class DefaultSeqModule(val verifier: Verifier)
   def name = "Sequence module"
   implicit val namespace = verifier.freshNamespace("seq")
 
-  override def freeAssumptions(e: sil.Exp): Stmt = Statements.EmptyStmt
-
   override def preamble = {
     if (used) {
       LiteralDecl(SequenceAxiomatization.value)
