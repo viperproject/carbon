@@ -883,7 +883,7 @@ class QuantifiedPermModule(val verifier: Verifier)
            val recvTrigger = Trigger(Seq(translatedRecv))
 
            val tr1 : Seq[Trigger] = (if (validateTrigger(Seq(translatedLocal),recvTrigger).isEmpty) // if we can't use the receiver, maybe we can use H[recv,field] etc..
-             Seq(Trigger(Seq(translateLocationAccess(translatedRecv, translatedLocation))),Trigger(Seq(currentPermission(qpMask,translatedRecv , translatedLocation)))) else Seq(recvTrigger)
+             validateTriggers(Seq(translatedLocal),Seq(Trigger(Seq(translateLocationAccess(translatedRecv, translatedLocation))),Trigger(Seq(currentPermission(qpMask,translatedRecv , translatedLocation))))) else Seq(recvTrigger)
              ) ++ validateTriggers(Seq(translatedLocal), translatedTriggers) // also keep all manually-specified triggers
 
            val invAssm1 = (Forall(Seq(translatedLocal), tr1, (translatedCond && permGt(translatedPerms, noPerm)) ==> ((FuncApp(invFun.name, Seq(translatedRecv), invFun.typ) === translatedLocal.l ) && rangeFunRecvApp)))
