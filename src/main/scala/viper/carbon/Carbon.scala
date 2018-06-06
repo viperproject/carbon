@@ -15,14 +15,11 @@ import viper.silver.verifier.{Failure => SilFailure, Success => SilSuccess, Veri
 /**
  * The main object for Carbon containing the execution start-point.
  */
-object Carbon extends CarbonFrontend(new StdIOReporter("carbon"), ViperStdOutLogger("Carbon", "ERROR").get) {
+object Carbon extends CarbonFrontend(StdIOReporter("carbon_reporter"), ViperStdOutLogger("Carbon", "INFO").get) {
   def main(args: Array[String]) {
     execute(args)
-
-    sys.exit(result match {
-      case SilSuccess => 0
-      case SilFailure(errors) => 1
-    })
+    specifyAppExitCode()
+    sys.exit(appExitCode)
   }
 }
 

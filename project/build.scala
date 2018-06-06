@@ -9,9 +9,6 @@ object CarbonBuild extends Build {
       version := "1.0-SNAPSHOT",
       scalaVersion := "2.11.8",
       scalacOptions in Compile ++= Seq("-deprecation", "-unchecked", "-feature"),
-      excludeFilter in unmanagedResources := {
-        new SimpleFileFilter(_.getCanonicalPath endsWith "logback.xml")
-      },
       libraryDependencies += "org.rogach" %% "scallop" % "2.0.7",
       libraryDependencies += "org.jgrapht" % "jgrapht-core" % "0.9.1"
    )
@@ -24,13 +21,14 @@ object CarbonBuild extends Build {
            baseSettings
         ++ Seq(
               name := "Carbon",
-              jarName in assembly := "carbon.jar",
+              assemblyJarName in assembly := "carbon.jar",
               test in assembly := {},
               testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oD"),
               traceLevel := 20,
               maxErrors := 6,
               classDirectory in Test <<= classDirectory in Compile,
-              libraryDependencies ++= externalDep//,
+              libraryDependencies ++= externalDep,
+              fork in run := true
               //fork in Test := true
            ))
     )

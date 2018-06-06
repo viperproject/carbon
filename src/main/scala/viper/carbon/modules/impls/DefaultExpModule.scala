@@ -612,6 +612,13 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         e match {
           case sil.MagicWand(_,_) => Nil
           case sil.Forall(_,_,_) => Nil
+          case sil.Let(v, e, body) => {
+            val u = env.makeUniquelyNamed(v) // choose a fresh "v" binder
+            env.define(u.localVar)
+            val stmts = Assign(translateLocalVar(u.localVar),translateExp(e)) ++ allFreeAssumptions(body.replace(v.localVar,u.localVar))
+            env.undefine(u.localVar)
+            stmts
+          }
           case _ =>
             for (sub <- e.subnodes if sub.isInstanceOf[sil.Exp]) yield {
               allFreeAssumptions(sub.asInstanceOf[sil.Exp])

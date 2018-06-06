@@ -4,7 +4,7 @@ set CURR_DIR=%cd%
 set BASE_DIR=%~dp0
 
 :: switch to repository root to check for classpath file and possibly call sbt.
-cd %BASE_DIR%
+cd /D %BASE_DIR%
 
 :: Only call sbt if the classpath file is missing.
 if not exist carbon_classpath.txt (
@@ -22,7 +22,7 @@ if not exist carbon_classpath.txt (
 for /f "delims=" %%x in (carbon_classpath.txt) do set CP=%%x
 
 :: switch back to original directory
-cd %CURR_DIR%
+cd /D %CURR_DIR%
 
 set JAVA_EXE=java
 set JVM_OPTS=-Xss30m -Dfile.encoding=UTF-8
