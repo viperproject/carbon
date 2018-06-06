@@ -463,7 +463,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
             val providedTriggers : Seq[Trigger] = validateTriggers(Seq(translatedLocal), translatedTriggers)
             // add default trigger if triggers were generated automatically
-            val tr1: Seq[Trigger] = if (e.info.getUniqueInfo[sil.AutoTriggered.type].isDefined) candidateTriggers ++ providedTriggers else providedTriggers
+            val tr1: Seq[Trigger] = /*if (e.info.getUniqueInfo[sil.AutoTriggered.type].isDefined)*/ candidateTriggers ++ providedTriggers /*else providedTriggers*/
 
 
 
@@ -595,7 +595,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
             val providedTriggers : Seq[Trigger] = validateTriggers(Seq(translatedLocal), translatedTriggers)
             // add default trigger if triggers were generated automatically
-            val tr1: Seq[Trigger] = if (e.info.getUniqueInfo[sil.AutoTriggered.type].isDefined) candidateTriggers ++ providedTriggers else providedTriggers
+            val tr1: Seq[Trigger] = /*if (e.info.getUniqueInfo[sil.AutoTriggered.type].isDefined)*/ candidateTriggers ++ providedTriggers /*else providedTriggers*/
 
 
             val invAssm1 = Forall(translatedLocal, tr1, (translatedCond && permGt(translatedPerms, noPerm)) ==> ((funApp === translatedLocal.l) && rangeFunRecvApp))
@@ -883,7 +883,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
            val providedTriggers : Seq[Trigger] = validateTriggers(Seq(translatedLocal), translatedTriggers)
            // add default trigger if triggers were generated automatically
-           val tr1: Seq[Trigger] = if (e.info.getUniqueInfo[sil.AutoTriggered.type].isDefined) candidateTriggers ++ providedTriggers else providedTriggers
+           val tr1: Seq[Trigger] = /*if (e.info.getUniqueInfo[sil.AutoTriggered.type].isDefined)*/ candidateTriggers ++ providedTriggers /*else providedTriggers*/
 
 
 
@@ -995,7 +995,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
            val providedTriggers : Seq[Trigger] = validateTriggers(Seq(translatedLocal), translatedTriggers)
            // add default trigger if triggers were generated automatically
-           val tr1: Seq[Trigger] = if (e.info.getUniqueInfo[sil.AutoTriggered.type].isDefined) candidateTriggers ++ providedTriggers else providedTriggers
+           val tr1: Seq[Trigger] = /*if (e.info.getUniqueInfo[sil.AutoTriggered.type].isDefined)*/ candidateTriggers ++ providedTriggers /*else providedTriggers*/
 
 
 
