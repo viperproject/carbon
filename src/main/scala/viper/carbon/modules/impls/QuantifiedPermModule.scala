@@ -30,7 +30,7 @@ import viper.carbon.boogie.Assert
 import viper.carbon.boogie.ConstDecl
 import viper.carbon.boogie.Const
 import viper.carbon.boogie.LocalVar
-import viper.silver.ast.{NoPerm, PermGtCmp, PermMul, PredicateAccess, PredicateAccessPredicate, WildcardPerm}
+import viper.silver.ast.{LocationAccess, NoPerm, PermGtCmp, PermMul, PredicateAccess, PredicateAccessPredicate, ResourceAccess, WildcardPerm}
 import viper.carbon.boogie.Forall
 import viper.carbon.boogie.Assign
 import viper.carbon.boogie.Func
@@ -38,6 +38,7 @@ import viper.carbon.boogie.TypeAlias
 import viper.carbon.boogie.FuncApp
 import viper.carbon.verifier.Verifier
 import viper.silver.ast.utility.Rewriter.Traverse
+
 import scala.collection.mutable.ListBuffer
 import viper.silver.ast.utility.QuantifiedPermissions.SourceQuantifiedPermissionAssertion
 
@@ -1164,8 +1165,11 @@ class QuantifiedPermModule(val verifier: Verifier)
         sys.error("cannot translate wildcard at an arbitrary position (should only occur directly in an accessibility predicate)")
       case sil.EpsilonPerm() =>
         sys.error("epsilon permissions are not supported by this permission module")
-      case sil.CurrentPerm(loc) =>
+      case sil.CurrentPerm(loc: LocationAccess) =>
         currentPermission(loc)
+      case sil.CurrentPerm(res: ResourceAccess) =>
+        //Magic wands
+        sys.error(s"cannot handle $res")
       case sil.FractionalPerm(left, right) =>
         BinExp(translateExp(left), Div, translateExp(right))
       case sil.PermMinus(a) =>

@@ -13,7 +13,7 @@ import viper.carbon.verifier.Verifier
 import viper.silver.verifier.{PartialVerificationError, reasons}
 import viper.carbon.boogie.Implicits._
 import viper.carbon.modules.components.DefinednessComponent
-import viper.silver.ast.{LocationAccess}
+import viper.silver.ast.{LocationAccess, MagicWand, PredicateAccess, Ref}
 import viper.silver.ast.utility.Expressions
 
 /**
@@ -105,7 +105,19 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         renamedVars map (v => env.undefine(v.localVar))
         res
       }
-      case sil.ForPerm(variable, locations, body) => {
+      case sil.ForPerm(variables, accessRes, body) => {
+
+        val variable = variables.head
+
+        if (variables.length != 1) sys.error("Carbon only supports a single quantified variable in forperm")
+        if (variable.typ != Ref) sys.error("Only Ref type is allowed in forperm")
+        if (accessRes.isInstanceOf[MagicWand]) sys.error("Magic wands are not allowed with forperm")
+        if (accessRes.isInstanceOf[PredicateAccess])
+          if (!(accessRes.asInstanceOf[PredicateAccess].loc(program).formalArgs.length == 1))
+            sys.error("Only predicates with a single argument are supported")
+
+        val locations = Seq(accessRes.asInstanceOf[LocationAccess].loc(program))
+
         // alpha renaming, to avoid clashes in context
         val renamedVar: sil.LocalVarDecl = {
           val v1 = env.makeUniquelyNamed(variable); env.define(v1.localVar); v1
@@ -330,12 +342,15 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           bound_vars map (v => env.define(v.localVar))
           val res = if (e.isInstanceOf[sil.ForPerm]) {
             val eAsForallRef = e.asInstanceOf[sil.ForPerm]
-            val bound_var = eAsForallRef.variable
+            if (eAsForallRef.variables.length != 1) sys.error("Carbon only supports a single quantified variable in forperm")
+            if (eAsForallRef.accessRes.isInstanceOf[MagicWand]) sys.error("Magic wands are not allowed with forperm")
+            val bound_var = eAsForallRef.variables.head
             val perLocFilter: sil.Location => LocationAccess = loc => loc match {
               case f: sil.Field => sil.FieldAccess(bound_var.localVar, f)(loc.pos, loc.info)
               case p: sil.Predicate => sil.PredicateAccess(Seq(bound_var.localVar), p)(loc.pos, loc.info, loc.errT)
             }
-            val filter: Exp = eAsForallRef.accessList.foldLeft[Exp](BoolLit(false))((soFar, loc) => BinExp(soFar, Or, hasDirectPerm(perLocFilter(loc))))
+            val filter: Exp = hasDirectPerm(eAsForallRef.accessRes.asInstanceOf[LocationAccess])
+              //eAsForallRef.accessList.foldLeft[Exp](BoolLit(false))((soFar, loc) => BinExp(soFar, Or, hasDirectPerm(loc.asInstanceOf[LocationAccess])))
 
             handleQuantifiedLocals(bound_vars, If(filter, translate, Nil))
           } else handleQuantifiedLocals(bound_vars, translate)
