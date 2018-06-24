@@ -17,6 +17,36 @@ object PrettyPrinter {
   def pretty(n: Node): String = {
     new PrettyPrinter(n).pretty
   }
+
+  def collectFreeTypeVars(exp: Exp): Seq[TypeVar] = {
+    val res = collection.mutable.ListBuffer[TypeVar]()
+    val not = collection.mutable.ListBuffer[TypeVar]()
+    exp visit {
+      case LocalVarDecl(_, t, _) =>
+        res ++= t.freeTypeVars
+      case FuncApp(_, _, t) =>
+        res ++= t.freeTypeVars
+      case Forall(_, _, _, tv) =>
+        not ++= tv
+    }
+    (res.toSet -- not.toSet).toSeq
+  }
+
+  def quantifyOverFreeTypeVars(exp: Exp): Exp = {
+    val t = collectFreeTypeVars(exp)
+    val body = t match {
+      case Nil => exp
+      case _ =>
+        exp match {
+          case Forall(vars, triggers, _body, tv) =>
+            Forall(vars, triggers, _body, tv++t)
+          case _ =>
+            //            parens(text("forall") <+> showTypeVars(t) <> "::" <+> show(exp)) // NOTE: no triggers selected! This should be changed, but requires trigger generation code on the level of the Boogie AST.
+            Forall(Seq(), Nil, exp, t)
+        }
+    }
+    body
+  }
 }
 
 /**
@@ -113,11 +143,11 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
     }
     s match {
       case Assume(e) =>
-        text("assume") <+> quantifyOverFreeTypeVars(e) <> char (';')
+        text("assume") <+> show(quantifyOverFreeTypeVars(e)) <> char (';')
       case a@Assert(e, error) =>
         text("assert") <+>
           "{:msg" <+> "\"  " <> showError(error, a.id) <> "\"}" <> line <>
-          space <> space <> quantifyOverFreeTypeVars(e) <>
+          space <> space <> show(quantifyOverFreeTypeVars(e)) <>
           char (';')
       case HavocImpl(vars) =>
         text("havoc") <+> commasep(vars) <> char (';')
@@ -222,7 +252,7 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
       case GlobalVarDecl(name, typ) =>
         text("var") <+> name <> char (':') <+> show(typ) <> char (';')
       case Axiom(exp) =>
-        text("axiom") <+> quantifyOverFreeTypeVars(exp) <> char (';')
+        text("axiom") <+> show(quantifyOverFreeTypeVars(exp)) <> char (';')
       case Procedure(name, ins, outs, body) =>
         // collect all where clauses
         whereMap.clear()
@@ -273,16 +303,17 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
   /**
    * Quantifies over the free type variables in 'exp' if necessary.
    */
-  def quantifyOverFreeTypeVars(exp: Exp): Cont = {
+  def quantifyOverFreeTypeVars(exp: Exp): Exp = {
     val t = collectFreeTypeVars(exp)
     val body = t match {
-      case Nil => show(exp)
+      case Nil => exp
       case _ =>
         exp match {
           case Forall(vars, triggers, _body, tv) =>
-            show(Forall(vars, triggers, _body, tv++t))
+            Forall(vars, triggers, _body, tv++t)
           case _ =>
-            parens(text("forall") <+> showTypeVars(t) <> "::" <+> show(exp)) // NOTE: no triggers selected! This should be changed, but requires trigger generation code on the level of the Boogie AST.
+//            parens(text("forall") <+> showTypeVars(t) <> "::" <+> show(exp)) // NOTE: no triggers selected! This should be changed, but requires trigger generation code on the level of the Boogie AST.
+            Forall(Seq(), Nil, exp, t)
         }
     }
     body

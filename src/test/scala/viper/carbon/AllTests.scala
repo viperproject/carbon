@@ -19,6 +19,7 @@ import viper.silver.reporter.NoopReporter
   */
 class AllTests extends SilSuite {
   override def testDirectories: Seq[String] = Vector("local", "all", "quantifiedpermissions", "quantifiedpredicates", "quantifiedcombinations", "wands", "examples"
+//  override def testDirectories: Seq[String] = Vector("wandsAhmed"
     //, "generated"
   )
 
