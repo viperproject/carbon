@@ -18,7 +18,10 @@ import viper.silver.verifier.PartialVerificationError
 trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
   def translateExp(exp: sil.Exp): Exp
 
-  def translateExpInWand(exp: sil.Exp, allStateAssms: Exp = TrueLit(), inWand: Boolean): Exp
+  /**
+    * Prepares the correct state in which translating expression takes place then calls translateExp
+    */
+  def translateExpInWand(exp: sil.Exp): Exp
 
   def translateLocalVar(l: sil.LocalVar): LocalVar
 
@@ -27,29 +30,31 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
    */
   def allFreeAssumptions(e: sil.Exp): Stmt
 
-  /**
-   * Check definedness of Viper expressions as they occur in the program.
-   *
-   * makeChecks provides the possibility of switching off most checks, to get 
-   * only the side-effects (unfoldings) of unravelling the expression. Note that
-   * the parameter should be passed down through recursive calls (default true)
-   */
+    /**
+      * Check definedness of Viper expressions as they occur in the program.
+      *
+      * makeChecks provides the possibility of switching off most checks, to get
+      * only the side-effects (unfoldings) of unravelling the expression. Note that
+      * the parameter should be passed down through recursive calls (default true)
+      *
+      * ignoreIfInWand gives the option to ignore the check for now as it will be
+      * evaluated later if we are inside pacakge statement
+      */
   def checkDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean = true,
-                       allStateAssms: Exp = TrueLit(), inWand: Boolean = false, ignore: Boolean = false): Stmt
+                        inWand: Boolean = false, ignoreIfInWand: Boolean = false): Stmt
 
   /**
    * Check definedness of Viper assertions such as pre-/postconditions or invariants.
    * The implementation works by inhaling 'e' and checking the necessary properties
    * along the way.
    */
-  def checkDefinednessOfSpecAndInhale(e: sil.Exp, error: PartialVerificationError, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt
+  def checkDefinednessOfSpecAndInhale(e: sil.Exp, error: PartialVerificationError, statesStack: List[Any] = null, inWand: Boolean = false): Stmt
 
   /**
    * Convert all InhaleExhale expressions to their exhale part and call checkDefinednessOfSpecAndInhale.
    */
   def checkDefinednessOfExhaleSpecAndInhale(expressions: Seq[sil.Exp],
-                                            errorConstructor: (sil.Exp) => PartialVerificationError,
-                                            statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Seq[Stmt] = {
+                                            errorConstructor: (sil.Exp) => PartialVerificationError): Seq[Stmt] = {
     expressions map (e => {
       checkDefinednessOfSpecAndInhale(whenExhaling(e), errorConstructor(e))
     })
@@ -59,8 +64,7 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
    * Convert all InhaleExhale expressions to their inhale part and call checkDefinednessOfSpecAndInhale.
    */
   def checkDefinednessOfInhaleSpecAndInhale(expressions: Seq[sil.Exp],
-                                            errorConstructor: (sil.Exp) => PartialVerificationError
-                                           ,statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Seq[Stmt] = {
+                                            errorConstructor: (sil.Exp) => PartialVerificationError): Seq[Stmt] = {
     expressions map (e => {
       checkDefinednessOfSpecAndInhale(whenInhaling(e), errorConstructor(e))
     })
@@ -72,5 +76,5 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
    * along the way.
    */
   def checkDefinednessOfSpecAndExhale(e: sil.Exp, definednessError: PartialVerificationError, exhaleError: PartialVerificationError,
-                                      statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt
+                                      statesStack: List[Any] = null, inWand: Boolean = false): Stmt
 }

@@ -19,5 +19,5 @@ trait ExhaleComponent extends Component {
   /**
    * Exhale a single expression.
    */
-  def exhaleExp(e: sil.Exp, error: PartialVerificationError, allStateAssms: Exp = TrueLit()): Stmt
+  def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt
 }

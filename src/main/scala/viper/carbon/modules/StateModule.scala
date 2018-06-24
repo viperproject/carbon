@@ -163,8 +163,15 @@ trait StateModule extends Module with ComponentRegistry[CarbonStateComponent] wi
    * is used to store relevant blocks needed to use a newly created state in executing package statement
    */
 
+  /**
+    * returns statement of equating heap represented by snapshot to current heap
+    * returns statement: Assume snapshot == heap
+    */
   def equateHeaps(snapshot: StateSnapshot, c: CarbonStateComponent):Stmt
 
+  /**
+    * Representation of state used in wandModule. Pair of stateSnapshot and boolean variable carrying assumptions about this state.
+    */
   case class StateRep(state: StateSnapshot, boolVar: LocalVar)
 
   case class StateSetup(usedState: StateRep, initStmt: Stmt)

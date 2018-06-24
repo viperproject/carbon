@@ -13,7 +13,6 @@ import viper.silver.{ast => sil}
 /**
  * The permission module determines the encoding of permissions and allows to add or remove
  * permission.
-
  */
 trait PermModule extends Module with CarbonStateComponent {
 
@@ -120,6 +119,10 @@ trait PermModule extends Module with CarbonStateComponent {
   def tempInitMask(rcv: Exp, loc:Exp):(Seq[Exp], Stmt)
 
   def getCurrentAbstractReads(): collection.mutable.ListBuffer[String]
+
+  /**
+    * Checks if expression e contains instances of wildcards
+    */
 
   def containsWildCard(e: sil.Exp): Boolean
 

@@ -159,7 +159,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
 
   override def equateHeaps(snapshot: StateSnapshot, c: CarbonStateComponent):Stmt =
   {
-    heapModule.equate(snapshot._1.get(c))
+    heapModule.equateWithCurrentHeap(snapshot._1.get(c))
   }
 
   // initialisation in principle not needed - one should call initState

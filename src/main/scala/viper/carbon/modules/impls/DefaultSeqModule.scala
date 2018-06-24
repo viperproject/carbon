@@ -105,18 +105,14 @@ class DefaultSeqModule(val verifier: Verifier)
   }
 
 
-  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
-                                             allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
+  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
 
     if(makeChecks)
       e match {
         case si@SeqIndex(s,idx) => {
           val index = translateExp(idx)
           val length = translateSeqExp(SeqLength(s)(s.pos,s.info))
-          if(inWand)
-            Assert(allStateAssms ==> BinExp(index,GeCmp,IntLit(0)),error.dueTo(reasons.SeqIndexNegative(s,si))) ++ Assert(BinExp(index,LtCmp,length),error.dueTo(reasons.SeqIndexExceedsLength(s,si)))
-          else
-            Assert(allStateAssms ==> BinExp(index,GeCmp,IntLit(0)),error.dueTo(reasons.SeqIndexNegative(s,si))) ++ Assert(BinExp(index,LtCmp,length),error.dueTo(reasons.SeqIndexExceedsLength(s,si)))
+          Assert(BinExp(index,GeCmp,IntLit(0)),error.dueTo(reasons.SeqIndexNegative(s,si))) ++ Assert(BinExp(index,LtCmp,length),error.dueTo(reasons.SeqIndexExceedsLength(s,si)))
         }
         case _ => Nil
       }

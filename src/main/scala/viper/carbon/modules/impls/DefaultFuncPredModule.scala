@@ -666,8 +666,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private def translateResultDecl(r: sil.Result) = LocalVarDecl(resultName, translateType(r.typ))
   override def translateResult(r: sil.Result) = translateResultDecl(r).l
 
-  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
-                                             allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
+  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
     val noStmt : Stmt = viper.carbon.boogie.Statements.EmptyStmt
     if(makeChecks)
       e match {
@@ -690,14 +689,14 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   }
 
   private var tmpStateId = -1
-  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): (() => Stmt, () => Stmt) = {
+  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): (() => Stmt, () => Stmt) = {
     e match {
       case u@sil.Unfolding(acc@sil.PredicateAccessPredicate(loc, perm), exp) =>
         tmpStateId += 1
         val tmpStateName = if (tmpStateId == 0) "Unfolding" else s"Unfolding$tmpStateId"
         val (stmt, state) = stateModule.freshTempState(tmpStateName)
         def before() = {
-          stmt ++ unfoldPredicate(acc, error, true, allStateAssms = allStateAssms)
+          stmt ++ unfoldPredicate(acc, error, true)
         }
         def after() = {
           tmpStateId -= 1
@@ -705,7 +704,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           Nil
         }
         (before, after)
-      case _ => (() => simplePartialCheckDefinedness(e, error, makeChecks, allStateAssms = allStateAssms, inWand = inWand), () => Nil)
+      case _ => (() => simplePartialCheckDefinedness(e, error, makeChecks), () => Nil)
     }
   }
 
@@ -752,13 +751,16 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     res
   }
 
-  override def translateFold(fold: sil.Fold, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): (Stmt,Stmt) = {
+  override def translateFold(fold: sil.Fold, statesStack: List[Any] = null, inWand: Boolean = false): (Stmt,Stmt) = {
     fold match {
       case sil.Fold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(_, _), perm)) => {
         {
-          val (foldFirst, foldLast) = foldPredicate(acc, errors.FoldFailed(fold), statesStack, allStateAssms, inWand)
-          (checkDefinedness(acc, errors.FoldFailed(fold)) ++
-            checkDefinedness(perm, errors.FoldFailed(fold)) ++
+          val (foldFirst, foldLast) = foldPredicate(acc, errors.FoldFailed(fold), statesStack, inWand)
+          if(inWand){
+            wandModule.prepareStmt()
+          }
+          (checkDefinedness(acc, errors.FoldFailed(fold), inWand = inWand) ++
+            checkDefinedness(perm, errors.FoldFailed(fold), inWand = inWand) ++
             foldFirst, foldLast)
         }
       }
@@ -768,16 +770,16 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private var duringFold = false
   private var foldInfo: sil.PredicateAccessPredicate = null
   private def foldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError
-                           , statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): (Stmt,Stmt) = {
+                           , statesStack: List[Any] = null, inWand: Boolean = false): (Stmt,Stmt) = {
     duringFold = true
     foldInfo = acc
     val stmt = exhale(Seq((Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program).get,acc.perm), error)), havocHeap = false,
-      statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand) ++
+      statesStack = statesStack, inWand = inWand) ++
       inhale(acc, statesStack, inWand)
     val stmtLast =  Assume(predicateTrigger(heapModule.currentStateExps, acc.loc)) ++ {
       val location = acc.loc
       val predicate = verifier.program.findPredicate(location.predicateName)
-      val translatedArgs = location.args map (x => translateExpInWand(x, allStateAssms, inWand))
+      val translatedArgs = location.args map (x => translateExpInWand(x))
       Assume(translateLocationAccess(location) === getPredicateFrame(predicate,translatedArgs)._1)
     }
 
@@ -786,21 +788,31 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     (stmt,stmtLast)
   }
 
+//  override def getTriggerStmt(acc: PredicateAccessPredicate, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
+//    val location = acc.loc
+//    val predicate = verifier.program.findPredicate(location.predicateName)
+//    if(predicate.body == null || predicate.body.isEmpty)
+//      return Nil
+//    val translatedArgs = location.args map (x => translateExpInWand(x))
+//    Assume(predicateTrigger(heapModule.currentStateExps, acc.loc)) ++
+//      Assume(translateLocationAccess(location) === getPredicateFrame(predicate,translatedArgs)._1)
+//  }
+
   private var duringUnfold = false
   private var duringUnfolding = false
   private var duringUnfoldingExtraUnfold = false // are we executing an extra unfold, to reflect the meaning of inhaling or exhaling an unfolding expression?
   private var unfoldInfo: sil.PredicateAccessPredicate = null
-  override def translateUnfold(unfold: sil.Unfold, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
+  override def translateUnfold(unfold: sil.Unfold, statesStack: List[Any] = null, inWand: Boolean = false): Stmt = {
     unfold match {
       case sil.Unfold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(_, _), perm)) =>
-        checkDefinedness(acc, errors.UnfoldFailed(unfold), allStateAssms = allStateAssms, inWand = inWand) ++
+        checkDefinedness(acc, errors.UnfoldFailed(unfold), inWand = inWand) ++
           checkDefinedness(perm, errors.UnfoldFailed(unfold)) ++
-          unfoldPredicate(acc, errors.UnfoldFailed(unfold), false, statesStack, allStateAssms, inWand)
+          unfoldPredicate(acc, errors.UnfoldFailed(unfold), false, statesStack, inWand)
     }
   }
 
   private def unfoldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError, isUnfolding: Boolean
-                             ,statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
+                             ,statesStack: List[Any] = null, inWand: Boolean = false): Stmt = {
     val oldDuringUnfold = duringUnfold
     val oldDuringUnfolding = duringUnfolding
     val oldUnfoldInfo = unfoldInfo
@@ -816,7 +828,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         val translatedArgs = location.args map translateExp
         Assume(translateLocationAccess(location) === getPredicateFrame(predicate,translatedArgs)._1)
       } ++
-      exhale(Seq((acc, error)), havocHeap = false, statesStack = statesStack, allStateAssms = allStateAssms, inWand = inWand) ++
+      exhale(Seq((acc, error)), havocHeap = false, statesStack = statesStack, inWand = inWand) ++
       inhale(Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program).get,acc.perm), statesStack = statesStack, inWand = inWand
       )
     unfoldInfo = oldUnfoldInfo
@@ -826,7 +838,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     stmt
   }
 
-  override def exhaleExp(e: sil.Exp, error: PartialVerificationError, allStateAssms: Exp = TrueLit()): Stmt = {
+  override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
       case sil.Unfolding(acc, _) => if (duringUnfoldingExtraUnfold) Nil else // execute the unfolding, since this may gain information
       {
@@ -834,7 +846,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         tmpStateId += 1
         val tmpStateName = if (tmpStateId == 0) "Unfolding" else s"Unfolding$tmpStateId"
         val (stmt, state) = stateModule.freshTempState(tmpStateName)
-        val stmts = stmt ++ unfoldPredicate(acc, NullPartialVerificationError, true, allStateAssms = allStateAssms)
+        val stmts = stmt ++ unfoldPredicate(acc, NullPartialVerificationError, true)
         tmpStateId -= 1
         stateModule.replaceState(state)
         duringUnfoldingExtraUnfold = false
@@ -850,7 +862,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
               //          Assume(oldVersion < newVersion) ++ // this only made sense with integer versions. In the new model, we even want to allow the possibility of the new version being equal to the old
               (curVersion := newVersion)
         MaybeCommentBlock("Update version of predicate",
-          If(allStateAssms ==> UnExp(Not,hasDirectPerm(loc)), stmt, Nil))
+          If(wandModule.getCurOpsBoolvar() ==> UnExp(Not,hasDirectPerm(loc)), stmt, Nil))
       case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(_, _), _) if duringFold =>
         MaybeCommentBlock("Record predicate instance information",
           insidePredicate(foldInfo, pap))

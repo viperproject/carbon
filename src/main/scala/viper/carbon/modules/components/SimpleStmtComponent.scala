@@ -7,7 +7,7 @@
 package viper.carbon.modules.components
 
 import viper.silver.{ast => sil}
-import viper.carbon.boogie.{Exp, Statements, Stmt, TrueLit}
+import viper.carbon.boogie._
 
 /**
  * A statement component that only contributes at the end.
@@ -22,5 +22,6 @@ trait SimpleStmtComponent extends StmtComponent {
    */
   def simpleHandleStmt(s: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt
 
-  override def handleStmt(s: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false) : (Stmt,Stmt) = (simpleHandleStmt(s),Statements.EmptyStmt )
+  override def handleStmt(s: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false) : (Seqn => Seqn)
+//  = (simpleHandleStmt(s),Statements.EmptyStmt )
 }

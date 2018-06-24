@@ -7,7 +7,7 @@
 package viper.carbon.modules.components
 
 import viper.silver.{ast => sil}
-import viper.carbon.boogie.{Exp, Statements, Stmt, TrueLit}
+import viper.carbon.boogie._
 import viper.silver.ast.LocalVar
 
 /**
@@ -23,7 +23,7 @@ trait StmtComponent extends Component {
    * The pair (a,b) is used as follows: a is used at the beginning of the translation so
    * far, and b at the end.
    */
-  def handleStmt(s: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): (Stmt, Stmt)
+  def handleStmt(s: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): (Seqn => Seqn)
 
   /**
    * This method is called when translating a "fresh" statement, and by default does nothing

@@ -24,8 +24,13 @@ import viper.silver.verifier.PartialVerificationError
  */
 trait ExhaleModule extends Module with ExhaleComponent with ComponentRegistry[ExhaleComponent] {
 
+  /**
+    * @param statesStack stack of states used in translating package statements (carries currentState and LHS of wands)
+    * @param inWand Boolean that represents whether this exhale is inside package statement or not
+    * @return
+    */
   def exhale(exp: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true, isAssert: Boolean = false
-             , statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt
+             , statesStack: List[Any] = null, inWand: Boolean = false): Stmt
 
   def currentPhaseId: Int
 }

@@ -143,5 +143,8 @@ trait HeapModule extends Module with CarbonStateComponent {
 
   def identicalOnKnownLocations(heap:Seq[Exp],mask:Seq[Exp]):Exp
 
-  def equate(s: Seq[Var]): Stmt
+  /**
+    * Adds assumption that current heap equals heap represented by s
+    */
+  def equateWithCurrentHeap(s: Seq[Var]): Stmt
 }

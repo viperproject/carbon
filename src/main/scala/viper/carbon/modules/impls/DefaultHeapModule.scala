@@ -328,6 +328,11 @@ class DefaultHeapModule(val verifier: Verifier)
     FuncApp(locationIdentifier(pred), args, t)
   }
 
+  override def handleStmt(s: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false) : (Seqn => Seqn) = {
+    val (bef:Stmt, aft:Stmt) = (simpleHandleStmt(s), Statements.EmptyStmt)
+    (stmts => bef ++ stmts ++ aft)
+  }
+
   override def simpleHandleStmt(stmt: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
     stmt match {
       case sil.FieldAssign(lhs, rhs) =>
@@ -468,7 +473,7 @@ class DefaultHeapModule(val verifier: Verifier)
     heap = s(0) // note: this should be accessed via heapVar or heapExp as appropriate (whether a variable is essential or not)
   }
 
-  override def equate(s: Seq[Var]): Stmt ={
+  def equateWithCurrentHeap(s: Seq[Var]): Stmt ={
     Assume(heap === s(0))
   }
 
