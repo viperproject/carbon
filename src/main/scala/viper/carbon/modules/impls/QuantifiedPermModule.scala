@@ -285,6 +285,15 @@ class QuantifiedPermModule(val verifier: Verifier)
   def sumMask(summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp =
     FuncApp(sumMasks, currentMask++summandMask1++summandMask2,Bool)
 
+  override def containsWildCard(e: sil.Exp): Boolean = {
+    e match {
+      case sil.AccessPredicate(loc, prm) =>
+        val p = PermissionSplitter.normalizePerm(prm)
+        p.isInstanceOf[sil.WildcardPerm]
+      case _ => false
+    }
+  }
+
   override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
       case sil.AccessPredicate(loc, prm) =>
@@ -292,7 +301,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         val perms = PermissionSplitter.splitPerm(p) filter (x => x._1 - 1 == exhaleModule.currentPhaseId)
         (if (exhaleModule.currentPhaseId == 0)
           (if (!p.isInstanceOf[sil.WildcardPerm])
-            Assert(permissionPositiveInternal(translatePerm(p), Some(p), true), error.dueTo(reasons.NegativePermission(p))) else Nil: Stmt) ++ Nil // check amount is non-negative
+            Assert(wandModule.getCurOpsBoolvar() ==> permissionPositiveInternal(translatePerm(p), Some(p), true), error.dueTo(reasons.NegativePermission(p))) else Nil: Stmt) ++ Nil // check amount is non-negative
         else Nil) ++
           (if (perms.size == 0) {
             Nil
@@ -314,7 +323,7 @@ class QuantifiedPermModule(val verifier: Verifier)
                   stmts ++
                     (permVar := permAdd(permVar, permVal)) ++
                     (if (perm.isInstanceOf[sil.WildcardPerm]) {
-                      (Assert(curPerm > noPerm, error.dueTo(reasons.InsufficientPermission(loc))) ++
+                      (Assert(wandModule.getCurOpsBoolvar() ==> curPerm > noPerm, error.dueTo(reasons.InsufficientPermission(loc))) ++
                         Assume(wildcard < curPerm)): Stmt
                     } else {
                       Nil
@@ -323,11 +332,11 @@ class QuantifiedPermModule(val verifier: Verifier)
               }).flatten ++
               (if (onlyWildcard) Nil else if (exhaleModule.currentPhaseId + 1 == 2) {
                 If(permVar !== noPerm,
-                  (Assert(curPerm > noPerm, error.dueTo(reasons.InsufficientPermission(loc))) ++
+                  (Assert(wandModule.getCurOpsBoolvar() ==> curPerm > noPerm, error.dueTo(reasons.InsufficientPermission(loc))) ++
                     Assume(permVar < curPerm)): Stmt, Nil)
               } else {
                 If(permVar !== noPerm,
-                  Assert(permLe(permVar, curPerm), error.dueTo(reasons.InsufficientPermission(loc))), Nil)
+                  Assert(wandModule.getCurOpsBoolvar() ==> permLe(permVar, curPerm), error.dueTo(reasons.InsufficientPermission(loc))), Nil)
               }) ++
               (if (!usingOldState) curPerm := permSub(curPerm, permVar) else Nil)
           })
@@ -335,7 +344,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         val wandRep = wandModule.getWandRepresentation(w)
         val curPerm = currentPermission(translateNull, wandRep)
         Comment("permLe")++
-          Assert(permLe(fullPerm, curPerm), error.dueTo(reasons.MagicWandChunkNotFound(w))) ++
+          Assert(wandModule.getCurOpsBoolvar() ==> permLe(fullPerm, curPerm), error.dueTo(reasons.MagicWandChunkNotFound(w))) ++
           (if (!usingOldState) curPerm := permSub(curPerm, fullPerm) else Nil)
 
       case fa@sil.Forall(v, cond, expr) =>
@@ -1206,6 +1215,10 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   val currentAbstractReads = collection.mutable.ListBuffer[String]()
 
+  override def getCurrentAbstractReads(): ListBuffer[String] = {
+    currentAbstractReads
+  }
+
   private def isAbstractRead(exp: sil.Exp) = {
     exp match {
       case sil.LocalVar(name) => currentAbstractReads.contains(name)
@@ -1232,16 +1245,20 @@ class QuantifiedPermModule(val verifier: Verifier)
       (bvs map (v => Assume((v > noPerm) && (v < fullPerm))))
   }
 
-  override def handleStmt(s: sil.Stmt) : (Stmt,Stmt) =
-    s match {
-      case n@sil.NewStmt(target,fields) =>
-        (Nil,for (field <- fields) yield {
-          Assign(currentPermission(sil.FieldAccess(target, field)()), fullPerm)
-        })
-      case assign@sil.FieldAssign(fa, rhs) =>
-        (Assert(permGe(currentPermission(fa), fullPerm, true), errors.AssignmentFailed(assign).dueTo(reasons.InsufficientPermission(fa))),Nil)
-      case _ => (Nil,Nil)
-    }
+  override def handleStmt(s: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false) : (Seqn => Seqn) = {
+    stmts =>
+      s match {
+        case n@sil.NewStmt(target, fields) =>
+          stmts ++ (for (field <- fields) yield {
+            Assign(currentPermission(sil.FieldAccess(target, field)()), fullPerm)
+          })
+        case assign@sil.FieldAssign(fa, rhs) =>
+          Assert(permGe(currentPermission(fa), fullPerm, true), errors.AssignmentFailed(assign).dueTo(reasons.InsufficientPermission(fa))) ++ stmts
+        case _ =>
+          //        (Nil, Nil)
+          stmts
+      }
+  }
 
   private def permEq(a: Exp, b: Exp): Exp = {
     a === b
@@ -1286,7 +1303,8 @@ class QuantifiedPermModule(val verifier: Verifier)
   // The trick is somewhat fragile, in that it relies on the ordering of the calls to this method (but generally works out because of the recursive traversal of the assertion).
   private var allowLocationAccessWithoutPerm = false
   override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
-    if(makeChecks) (
+
+    val stmt: Stmt = if(makeChecks) (
       e match {
         case sil.CurrentPerm(loc) =>
           allowLocationAccessWithoutPerm = true
@@ -1299,13 +1317,15 @@ class QuantifiedPermModule(val verifier: Verifier)
             allowLocationAccessWithoutPerm = false
             Nil
           } else {
-            Assert(hasDirectPerm(fa), error.dueTo(reasons.InsufficientPermission(fa)))
+              Assert(hasDirectPerm(fa), error.dueTo(reasons.InsufficientPermission(fa)))
           }
         case sil.PermDiv(a, b) =>
-          Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
+            Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
         case _ => Nil
       }
       ) else Nil
+
+    stmt
   }
 
   /*For QP \forall x:T :: c(x) ==> acc(e(x),p(x)) this case class describes an instantiation of the QP where

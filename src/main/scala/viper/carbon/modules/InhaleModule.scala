@@ -6,9 +6,9 @@
 
 package viper.carbon.modules
 
-import components.{InhaleComponent, ComponentRegistry}
+import components.{ComponentRegistry, InhaleComponent}
 import viper.silver.{ast => sil}
-import viper.carbon.boogie.{Stmt, Exp}
+import viper.carbon.boogie.{Exp, LocalVar, Stmt, TrueLit}
 
 /**
  * A module for translating inhale statements.  The module takes care of the basic
@@ -22,5 +22,5 @@ import viper.carbon.boogie.{Stmt, Exp}
 
  */
 trait InhaleModule extends Module with InhaleComponent with ComponentRegistry[InhaleComponent] {
-  def inhale(exp: Seq[sil.Exp]): Stmt
+  def inhale(exp: Seq[sil.Exp], statesStack: List[Any] = null, inWand: Boolean = false): Stmt
 }

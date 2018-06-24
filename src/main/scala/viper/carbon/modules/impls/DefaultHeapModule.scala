@@ -328,7 +328,12 @@ class DefaultHeapModule(val verifier: Verifier)
     FuncApp(locationIdentifier(pred), args, t)
   }
 
-  override def simpleHandleStmt(stmt: sil.Stmt): Stmt = {
+  override def handleStmt(s: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false) : (Seqn => Seqn) = {
+    val (bef:Stmt, aft:Stmt) = (simpleHandleStmt(s), Statements.EmptyStmt)
+    (stmts => bef ++ stmts ++ aft)
+  }
+
+  override def simpleHandleStmt(stmt: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
     stmt match {
       case sil.FieldAssign(lhs, rhs) =>
         translateLocationAccess(lhs) := translateExp(rhs)
@@ -468,15 +473,20 @@ class DefaultHeapModule(val verifier: Verifier)
     heap = s(0) // note: this should be accessed via heapVar or heapExp as appropriate (whether a variable is essential or not)
   }
 
+  def equateWithCurrentHeap(s: Seq[Var]): Stmt ={
+    Assume(heap === s(0))
+  }
+
   override def usingOldState = stateModuleIsUsingOldState
 
 
   override def beginExhale: Stmt = {
-    Havoc(exhaleHeap)
+//    Havoc(exhaleHeap)
+    Statements.EmptyStmt
   }
 
   override def endExhale: Stmt = {
-    if (!usingOldState) Assume(FuncApp(identicalOnKnownLocsName, Seq(heapExp, exhaleHeap) ++ currentMask, Bool)) ++
+    if (!usingOldState) Havoc(exhaleHeap) ++ Assume(FuncApp(identicalOnKnownLocsName, Seq(heapExp, exhaleHeap) ++ currentMask, Bool)) ++
       (heapVar := exhaleHeap)
     else Nil
   }

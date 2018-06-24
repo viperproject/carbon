@@ -51,42 +51,48 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
     (exps map (exp => (if (exp.existsDefined[Unit]({case sil.Unfolding(_,_) => })) checkDefinedness(exp, exp_error(exp), false) else Nil:Stmt)))
   }
 
-  override def handleStmt(s: sil.Stmt) : (Stmt,Stmt) =
-    s match {
-      case s : sil.Fold => translateFold(s)
-      case _ => (simpleHandleStmt(s),Statements.EmptyStmt) // put code *first*
-    }
+  override def handleStmt(s: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false) : (Seqn => Seqn) = {
+    val (bef, aft) =
+      s match {
+        case s: sil.Fold => translateFold(s, statesStack, inWand)
+        case _ => (simpleHandleStmt(s, statesStack, allStateAssms, inWand), Statements.EmptyStmt) // put code *first*
+      }
+    stmts => bef ++ stmts ++ aft
+  }
 
-  override def simpleHandleStmt(stmt: sil.Stmt): Stmt = {
+  override def simpleHandleStmt(stmt: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
     stmt match {
       case assign@sil.LocalVarAssign(lhs, rhs) =>
-        checkDefinedness(lhs, errors.AssignmentFailed(assign)) ++
-          checkDefinedness(rhs, errors.AssignmentFailed(assign)) ++
-          Assign(translateExp(lhs), translateExp(rhs))
+        checkDefinedness(lhs, errors.AssignmentFailed(assign), inWand = inWand) ++
+          checkDefinedness(rhs, errors.AssignmentFailed(assign), inWand = inWand) ++
+        {if(inWand)
+          Assign(translateExpInWand(lhs), translateExpInWand(rhs))
+        else
+          Assign(translateExp(lhs), translateExp(rhs))}
       case assign@sil.FieldAssign(lhs, rhs) =>
         checkDefinedness(lhs.rcv, errors.AssignmentFailed(assign)) ++
           checkDefinedness(rhs, errors.AssignmentFailed(assign))
       case fold@sil.Fold(e) => sys.error("Internal error: translation of fold statement cannot be handled by simpleHandleStmt code; found:" + fold.toString())
       case unfold@sil.Unfold(e) =>
-        translateUnfold(unfold)
+        translateUnfold(unfold, statesStack, inWand)
       case inh@sil.Inhale(e) =>
-        checkDefinednessOfSpecAndInhale(whenInhaling(e), errors.InhaleFailed(inh))
+        checkDefinednessOfSpecAndInhale(whenInhaling(e), errors.InhaleFailed(inh), statesStack, inWand)
       case exh@sil.Exhale(e) =>
         val transformedExp = whenExhaling(e)
-        checkDefinedness(transformedExp, errors.ExhaleFailed(exh)) ++
-          exhale((transformedExp, errors.ExhaleFailed(exh)))
+        checkDefinedness(transformedExp, errors.ExhaleFailed(exh), inWand = inWand, ignoreIfInWand = true)++
+        exhale((transformedExp, errors.ExhaleFailed(exh)), statesStack = statesStack, inWand = inWand)
       case a@sil.Assert(e) =>
         val transformedExp = whenExhaling(e)
         if (transformedExp.isPure) {
           // if e is pure, then assert and exhale are the same
-          checkDefinedness(transformedExp, errors.AssertFailed(a)) ++
-            exhale((transformedExp, errors.AssertFailed(a)))
+          checkDefinedness(transformedExp, errors.AssertFailed(a), inWand = inWand, ignoreIfInWand = true) ++
+            exhale((transformedExp, errors.AssertFailed(a)), statesStack = statesStack, inWand = inWand)
         } else {
           // we create a temporary state to ignore the side-effects
           val (backup, snapshot) = freshTempState("Assert")
-          val exhaleStmt = exhale((transformedExp, errors.AssertFailed(a)), isAssert =  true)
+          val exhaleStmt = exhale((transformedExp, errors.AssertFailed(a)), isAssert =  true, statesStack = statesStack, inWand = inWand, havocHeap = false)
           replaceState(snapshot)
-          checkDefinedness(transformedExp, errors.AssertFailed(a)) :: backup :: exhaleStmt :: Nil
+            checkDefinedness(transformedExp, errors.AssertFailed(a), inWand = inWand, ignoreIfInWand = true) :: backup :: exhaleStmt :: Nil
         }
       case mc@sil.MethodCall(methodName, args, targets) =>
         val method = verifier.program.findMethod(methodName)
@@ -127,13 +133,15 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
         val pres = method.pres map (e => Expressions.instantiateVariables(e, method.formalArgs ++ method.formalReturns, (actualArgs map (_._1)) ++ targets))
         val posts = method.posts map (e => Expressions.instantiateVariables(e, method.formalArgs ++ method.formalReturns, (actualArgs map (_._1)) ++ targets))
         val res = preCallStateStmt ++
-          (targets map (e => checkDefinedness(e, errors.CallFailed(mc)))) ++
-          (args map (e => checkDefinedness(e, errors.CallFailed(mc)))) ++
+          (targets map (e => checkDefinedness(e, errors.CallFailed(mc), inWand = inWand))) ++
+          (args map (e => checkDefinedness(e, errors.CallFailed(mc), inWand = inWand))) ++
           (actualArgs map (_._2)) ++
           Havoc((targets map translateExp).asInstanceOf[Seq[Var]]) ++
-          MaybeCommentBlock("Exhaling precondition", executeUnfoldings(pres, (pre => errors.PreconditionInCallFalse(mc).withReasonNodeTransformed(renamingArguments))) ++ exhale(pres map (e => (e, errors.PreconditionInCallFalse(mc).withReasonNodeTransformed(renamingArguments))))) ++ {
+          MaybeCommentBlock("Exhaling precondition", executeUnfoldings(pres, (pre => errors.PreconditionInCallFalse(mc).withReasonNodeTransformed(renamingArguments))) ++
+            exhale(pres map (e => (e, errors.PreconditionInCallFalse(mc).withReasonNodeTransformed(renamingArguments))), statesStack = statesStack, inWand = inWand)) ++ {
           stateModule.replaceOldState(preCallState)
-          val res = MaybeCommentBlock("Inhaling postcondition", inhale(posts) ++ executeUnfoldings(posts, (post => errors.Internal(post).withReasonNodeTransformed(renamingArguments))))
+          val res = MaybeCommentBlock("Inhaling postcondition", inhale(posts, statesStack, inWand) ++
+            executeUnfoldings(posts, (post => errors.Internal(post).withReasonNodeTransformed(renamingArguments))))
           stateModule.replaceOldState(oldState)
           toUndefine map mainModule.env.undefine
           res
@@ -178,10 +186,10 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           translateStmt(body) ++
           MaybeCommentBlock(s"End of constraining(${vars.mkString(", ")})", components map (_.leaveConstrainingBlock(fb)))
       case i@sil.If(cond, thn, els) =>
-        checkDefinedness(cond, errors.IfFailed(cond)) ++
-          If(translateExp(cond),
-            translateStmt(thn),
-            translateStmt(els))
+        checkDefinedness(cond, errors.IfFailed(cond), inWand = inWand) ++
+        If((allStateAssms) ==> translateExpInWand(cond),
+          translateStmt(thn, statesStack, allStateAssms, inWand),
+          translateStmt(els, statesStack, allStateAssms, inWand))
       case sil.Label(name, invs) => {
         val (stmt, currentState) = stateModule.freshTempState("Label" + name)
         stateModule.stateRepositoryPut(name, stateModule.state)
@@ -190,17 +198,21 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
       }
       case sil.Goto(target) =>
         Goto(Lbl(Identifier(target)(lblNamespace)))
-      case pa@sil.Package(wand, _) => ???
-      // checkDefinedness(wand, errors.MagicWandNotWellformed(wand))
-        //translatePackage(pa,errors.PackageFailed(pa))
+      case pa@sil.Package(wand, proof) => {
+        checkDefinedness(wand, errors.MagicWandNotWellformed(wand), inWand = inWand)
+        translatePackage(pa, errors.PackageFailed(pa), statesStack, allStateAssms, inWand)
+      }
       case a@sil.Apply(wand) =>
-        translateApply(a, errors.ApplyFailed(a))
+        translateApply(a, errors.ApplyFailed(a), statesStack, allStateAssms, inWand)
       case _ =>
         Nil
     }
   }
 
-  override def translateStmt(stmt: sil.Stmt): Stmt = {
+  override def translateStmt(stmt: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
+    if(inWand) {
+        wandModule.prepareStmt()
+      }
     var comment = "Translating statement: " + stmt.toString.replace("\n", "\n  // ")
     stmt match {
       case sil.Seqn(ss, scopedDecls) =>
@@ -208,7 +220,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
         locals map (v => mainModule.env.define(v.localVar)) // add local variables to environment
         val s =
           MaybeCommentBlock("Assumptions about local variables", locals map (a => mainModule.allAssumptionsAboutValue(a.typ, mainModule.translateLocalVarDecl(a), true))) ++
-          Seqn(ss map translateStmt)
+          Seqn(ss map (st => translateStmt(st, statesStack, allStateAssms, inWand)))
         locals map (v => mainModule.env.undefine(v.localVar)) // remove local variables from environment
         // return to avoid adding a comment, and to avoid the extra 'assumeGoodState'
         return s
@@ -234,14 +246,20 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
 
     var stmts = Seqn(Nil)
     for (c <- components) { // should be in reverse order, so that "first" component contributes first (outermost) code, but it seems the sorting is also currently reversed
-      val (before, after) = c.handleStmt(stmt)
-      stmts = before ++ stmts ++ after
+      //      val (before, after) = c.handleStmt(stmt, statesStack, allStateAssms, inWand)
+      //      stmts = before ++ stmts ++ after
+      val f = c.handleStmt(stmt, statesStack, allStateAssms, inWand)
+      stmts = f(stmts)
     }
     if (stmts.children.size == 0) {
       assert(assertion = false, "Translation of " + stmt + " is not defined")
     }
     val translation = stmts ::
-      assumeGoodState ::
+      (if(inWand){
+        exchangeAssumesWithBoolean(assumeGoodState, statesStack.head.asInstanceOf[StateRep].boolVar)
+      }else{
+        assumeGoodState
+      }) ::
       Nil
 
     CommentBlock(comment + s" -- ${stmt.pos}", translation)

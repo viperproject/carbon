@@ -340,7 +340,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   }
 
   private def triggerFunction(f: sil.Function): Seq[Decl] = {
-    Func(Identifier(f.name + triggerFuncPostfix), LocalVarDecl(Identifier("frame"), frameType) ++ (f.formalArgs map translateLocalVarDecl), Bool)
+  Func(Identifier(f.name + triggerFuncPostfix), LocalVarDecl(Identifier("frame"), frameType) ++ (f.formalArgs map translateLocalVarDecl), Bool)
   }
 
   private def triggerFuncApp(func: sil.Function, args:Seq[Exp]): Exp = {
@@ -371,7 +371,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     Seq(func) ++
       Seq(Axiom(Forall(
         stateModule.staticStateContributions ++ args,
-        Seq(Trigger(Seq(staticGoodState, transformFuncAppsToLimitedForm(funcApp2)))) ++ (if (predicateTriggers.isEmpty) Seq()  else Seq(Trigger(Seq(staticGoodState, triggerFuncStatelessApp(f,args map (_.l))) ++ predicateTriggers))),
+	Seq(Trigger(Seq(staticGoodState, transformFuncAppsToLimitedForm(funcApp2)))) ++ (if (predicateTriggers.isEmpty) Seq()  else Seq(Trigger(Seq(staticGoodState, triggerFuncStatelessApp(f,args map (_.l))) ++ predicateTriggers))),
         staticGoodState ==> (transformFuncAppsToLimitedForm(funcApp2) === funcApp))) ) ++
         translateCondAxioms("function "+f.name, f.formalArgs, funcFrameInfo._2)
   }
@@ -557,21 +557,21 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     checkingDefinednessOfFunction = Some(f.name)
     val args = f.formalArgs map translateLocalVarDecl
     val res = sil.Result()(f.typ)
-    val init : Stmt = MaybeCommentBlock("Initializing the state",
-      stateModule.initBoogieState ++ (f.formalArgs map (a => allAssumptionsAboutValue(a.typ,mainModule.translateLocalVarDecl(a),true))) ++ assumeFunctionsAt(heights(f.name)))
-    val initOld : Stmt = MaybeCommentBlock("Initializing the old state", stateModule.initOldState)
-    val checkPre : Stmt = checkFunctionPreconditionDefinedness(f)
-    val checkExp : Stmt = if (f.isAbstract) MaybeCommentBlock("(no definition for abstract function)",Nil) else
+      val init : Stmt = MaybeCommentBlock("Initializing the state",
+	stateModule.initBoogieState ++ (f.formalArgs map (a => allAssumptionsAboutValue(a.typ,mainModule.translateLocalVarDecl(a),true))) ++ assumeFunctionsAt(heights(f.name)))
+      val initOld : Stmt = MaybeCommentBlock("Initializing the old state", stateModule.initOldState)
+      val checkPre : Stmt = checkFunctionPreconditionDefinedness(f)
+      val checkExp : Stmt = if (f.isAbstract) MaybeCommentBlock("(no definition for abstract function)",Nil) else
       MaybeCommentBlock("Check definedness of function body",
       expModule.checkDefinedness(f.body.get, errors.FunctionNotWellformed(f)))
     val exp : Stmt = if (f.isAbstract) MaybeCommentBlock("(no definition for abstract function)",Nil) else
       MaybeCommentBlock("Translate function body",
       translateResult(res) := translateExp(f.body.get))
     val checkPost = checkFunctionPostconditionDefinedness(f)
-    val body : Stmt = Seq(init, initOld, checkPre, checkExp, exp, checkPost)
-    val definednessChecks = Procedure(Identifier(f.name + "#definedness"), args, translateResultDecl(res), body)
-    checkingDefinednessOfFunction = None
-    definednessChecks
+  val body : Stmt = Seq(init, initOld, checkPre, checkExp, exp, checkPost)
+  val definednessChecks = Procedure(Identifier(f.name + "#definedness"), args, translateResultDecl(res), body)
+  checkingDefinednessOfFunction = None
+  definednessChecks
   }
 
   private def checkFunctionPostconditionDefinedness(f: sil.Function): Stmt with Product with Serializable = {
@@ -675,13 +675,13 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           val pres = funct.pres map (e => Expressions.instantiateVariables(e, funct.formalArgs, args))
           //if (pres.isEmpty) noStmt // even for empty pres, the assumption made below is important
             NondetIf(
-              // This is where termination checks could/should be added
-              MaybeComment("Exhale precondition of function application", exhale(pres map (e => (e, errors.PreconditionInAppFalse(fa))))) ++
-                MaybeComment("Stop execution", Assume(FalseLit()))
-            , checkingDefinednessOfFunction match {
-              case Some(name) if name.equals(f) => MaybeComment("Enable postcondition for recursive call", Assume(triggerFuncApp(funct,args map translateExp)))
-              case _ => noStmt
-            })
+	    // This is where termination checks could/should be added
+	    MaybeComment("Exhale precondition of function application", exhale(pres map (e => (e, errors.PreconditionInAppFalse(fa))))) ++
+	      MaybeComment("Stop execution", Assume(FalseLit()))
+	  , checkingDefinednessOfFunction match {
+	    case Some(name) if name.equals(f) => MaybeComment("Enable postcondition for recursive call", Assume(triggerFuncApp(funct,args map translateExp)))
+	    case _ => noStmt
+	  })
         }
         case _ => Nil
       }
@@ -751,13 +751,16 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     res
   }
 
-  override def translateFold(fold: sil.Fold): (Stmt,Stmt) = {
+  override def translateFold(fold: sil.Fold, statesStack: List[Any] = null, inWand: Boolean = false): (Stmt,Stmt) = {
     fold match {
       case sil.Fold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(_, _), perm)) => {
         {
-          val (foldFirst, foldLast) = foldPredicate(acc, errors.FoldFailed(fold))
-          (checkDefinedness(acc, errors.FoldFailed(fold)) ++
-            checkDefinedness(perm, errors.FoldFailed(fold)) ++
+          val (foldFirst, foldLast) = foldPredicate(acc, errors.FoldFailed(fold), statesStack, inWand)
+          if(inWand){
+            wandModule.prepareStmt()
+          }
+          (checkDefinedness(acc, errors.FoldFailed(fold), inWand = inWand) ++
+            checkDefinedness(perm, errors.FoldFailed(fold), inWand = inWand) ++
             foldFirst, foldLast)
         }
       }
@@ -766,15 +769,17 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   private var duringFold = false
   private var foldInfo: sil.PredicateAccessPredicate = null
-  private def foldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError): (Stmt,Stmt) = {
+  private def foldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError
+                           , statesStack: List[Any] = null, inWand: Boolean = false): (Stmt,Stmt) = {
     duringFold = true
     foldInfo = acc
-    val stmt = exhale(Seq((Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program).get,acc.perm), error)), havocHeap = false) ++
-      inhale(acc)
+    val stmt = exhale(Seq((Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program).get,acc.perm), error)), havocHeap = false,
+      statesStack = statesStack, inWand = inWand) ++
+      inhale(acc, statesStack, inWand)
     val stmtLast =  Assume(predicateTrigger(heapModule.currentStateExps, acc.loc)) ++ {
       val location = acc.loc
       val predicate = verifier.program.findPredicate(location.predicateName)
-      val translatedArgs = location.args map translateExp
+      val translatedArgs = location.args map (x => translateExpInWand(x))
       Assume(translateLocationAccess(location) === getPredicateFrame(predicate,translatedArgs)._1)
     }
 
@@ -783,20 +788,31 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     (stmt,stmtLast)
   }
 
+//  override def getTriggerStmt(acc: PredicateAccessPredicate, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
+//    val location = acc.loc
+//    val predicate = verifier.program.findPredicate(location.predicateName)
+//    if(predicate.body == null || predicate.body.isEmpty)
+//      return Nil
+//    val translatedArgs = location.args map (x => translateExpInWand(x))
+//    Assume(predicateTrigger(heapModule.currentStateExps, acc.loc)) ++
+//      Assume(translateLocationAccess(location) === getPredicateFrame(predicate,translatedArgs)._1)
+//  }
+
   private var duringUnfold = false
   private var duringUnfolding = false
   private var duringUnfoldingExtraUnfold = false // are we executing an extra unfold, to reflect the meaning of inhaling or exhaling an unfolding expression?
   private var unfoldInfo: sil.PredicateAccessPredicate = null
-  override def translateUnfold(unfold: sil.Unfold): Stmt = {
+  override def translateUnfold(unfold: sil.Unfold, statesStack: List[Any] = null, inWand: Boolean = false): Stmt = {
     unfold match {
       case sil.Unfold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(_, _), perm)) =>
-        checkDefinedness(acc, errors.UnfoldFailed(unfold)) ++
+        checkDefinedness(acc, errors.UnfoldFailed(unfold), inWand = inWand) ++
           checkDefinedness(perm, errors.UnfoldFailed(unfold)) ++
-          unfoldPredicate(acc, errors.UnfoldFailed(unfold), false)
+          unfoldPredicate(acc, errors.UnfoldFailed(unfold), false, statesStack, inWand)
     }
   }
 
-  private def unfoldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError, isUnfolding: Boolean): Stmt = {
+  private def unfoldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError, isUnfolding: Boolean
+                             ,statesStack: List[Any] = null, inWand: Boolean = false): Stmt = {
     val oldDuringUnfold = duringUnfold
     val oldDuringUnfolding = duringUnfolding
     val oldUnfoldInfo = unfoldInfo
@@ -812,8 +828,9 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         val translatedArgs = location.args map translateExp
         Assume(translateLocationAccess(location) === getPredicateFrame(predicate,translatedArgs)._1)
       } ++
-      exhale(Seq((acc, error)), havocHeap = false) ++
-      inhale(Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program).get,acc.perm))
+      exhale(Seq((acc, error)), havocHeap = false, statesStack = statesStack, inWand = inWand) ++
+      inhale(Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program).get,acc.perm), statesStack = statesStack, inWand = inWand
+      )
     unfoldInfo = oldUnfoldInfo
     duringUnfold = oldDuringUnfold
     duringFold = oldDuringFold
@@ -844,9 +861,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
            Havoc(Seq(newVersion)) ++
               //          Assume(oldVersion < newVersion) ++ // this only made sense with integer versions. In the new model, we even want to allow the possibility of the new version being equal to the old
               (curVersion := newVersion)
-
         MaybeCommentBlock("Update version of predicate",
-          If(UnExp(Not,hasDirectPerm(loc)), stmt, Nil))
+          If(wandModule.getCurOpsBoolvar() ==> UnExp(Not,hasDirectPerm(loc)), stmt, Nil))
       case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(_, _), _) if duringFold =>
         MaybeCommentBlock("Record predicate instance information",
           insidePredicate(foldInfo, pap))

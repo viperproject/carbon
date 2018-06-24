@@ -18,6 +18,9 @@ import scala.collection.mutable
  * The default implementation of a [[viper.carbon.modules.StateModule]].
  */
 class DefaultStateModule(val verifier: Verifier) extends StateModule {
+  import verifier._
+  import heapModule._
+
   def name = "State module"
 
   private val isGoodState = "state"
@@ -122,6 +125,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
 
     curState = new StateComponentMapping() // essentially, the code below "clones" what curState should represent anyway. But, if we omit this line, we inadvertently alias the previous hash map.
 
+
     val s = for (c <- components) yield {
       val tmpExps = c.freshTempState(name)
       val curExps = c.currentStateExps // note: this will wrap them in "Old" as necessary for correct initialisation
@@ -132,8 +136,10 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
 
       (if (initialise) c.resetBoogieState else stmt)
     }
+
     treatOldAsCurrent = usingOldState
     usingOldState = false // we have now set up a temporary state in terms of "old" - this could happen when an unfolding expression is inside an "old"
+
     (s, previousState)
   }
 
@@ -149,6 +155,11 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     }
     usingOldState = snapshot._2
     treatOldAsCurrent = snapshot._3
+  }
+
+  override def equateHeaps(snapshot: StateSnapshot, c: CarbonStateComponent):Stmt =
+  {
+    heapModule.equateWithCurrentHeap(snapshot._1.get(c))
   }
 
   // initialisation in principle not needed - one should call initState
@@ -178,4 +189,5 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
             }
     (currentCopy, usingOldState, treatOldAsCurrent)
   }
+
 }

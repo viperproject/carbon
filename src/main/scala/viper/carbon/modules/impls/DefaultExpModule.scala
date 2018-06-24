@@ -31,12 +31,30 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   import inhaleModule._
   import funcPredModule._
   import exhaleModule._
+  import stateModule._
 
   override def start() {
     register(this)
   }
 
   def name = "Expression module"
+
+  override def translateExpInWand(e: sil.Exp): Exp = {
+    val inWand = wandModule.wandId > 0
+    if(inWand){
+      val oldCurState = stateModule.state
+      stateModule.replaceState(wandModule.UNIONState.asInstanceOf[StateRep].state)
+
+      val stmt = translateExp(e)
+
+      stateModule.replaceState(oldCurState)
+
+      stmt
+    }else{
+      translateExp(e)
+    }
+  }
+
 
   override def translateExp(e: sil.Exp): Exp = {
     e match {
@@ -58,7 +76,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         translateLocationAccess(p)
       case sil.Unfolding(acc, exp) =>
         translateExp(exp)
-      case sil.Applying(wand, exp) => ???
+      case sil.Applying(wand, exp) => translateExp(exp)
       case sil.Old(exp) =>
         val prevState = stateModule.state
         stateModule.replaceState(stateModule.oldState)
@@ -66,8 +84,11 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         stateModule.replaceState(prevState)
         res
       case sil.LabelledOld(exp, oldLabel) =>
+        var findLabel = oldLabel
+        if(findLabel.equals("lhs"))
+          findLabel = findLabel+wandModule.getActiveLhs()
         val prevState = stateModule.state
-        stateModule.replaceState(stateModule.stateRepositoryGet(oldLabel).get)
+        stateModule.replaceState(stateModule.stateRepositoryGet(findLabel).get)
         val res = translateExp(exp)
         stateModule.replaceState(prevState)
         res
@@ -251,23 +272,42 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   }
 
   override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
-    if (makeChecks)
+
+    val stmt: Stmt = (if (makeChecks)
       e match {
         case sil.Div(a, b) =>
-          Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
+            Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
         case sil.Mod(a, b) =>
-          Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
+            Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
         case sil.FractionalPerm(a, b) =>
-          Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
+            Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
         case _ => Nil
       }
-    else Nil
+    else Nil)
+
+    stmt
   }
 
-  override def checkDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
-    MaybeCommentBlock(s"Check definedness of $e",
+  override def checkDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
+                                inWand: Boolean = false, ignoreIfInWand: Boolean = false): Stmt = {
+
+    if(inWand && ignoreIfInWand)  // ignore the check
+      return Statements.EmptyStmt
+
+    val oldCurState = stateModule.state
+    if(inWand) {
+      stateModule.replaceState(wandModule.UNIONState.asInstanceOf[StateRep].state)
+    }
+
+    var stmt =
+      MaybeCommentBlock(s"Check definedness of $e",
       MaybeStmt(checkDefinednessImpl(e, error, makeChecks = makeChecks),
-        stateModule.assumeGoodState))
+        if(inWand) wandModule.exchangeAssumesWithBoolean(stateModule.assumeGoodState, wandModule.getCurOpsBoolvar()) else stateModule.assumeGoodState))
+
+    if(inWand) {
+      stateModule.replaceState(oldCurState)
+      If(wandModule.getCurOpsBoolvar(), stmt, Statements.EmptyStmt)
+    }else stmt
   }
 
   private def checkDefinednessImpl(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
@@ -289,7 +329,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           If(UnExp(Not, translateExp(e1)), checkDefinednessImpl(e2, error, makeChecks = makeChecks), Statements.EmptyStmt) ::
           Nil
       case w@sil.MagicWand(lhs, rhs) =>
-        checkDefinednessWand(w, error, makeChecks = makeChecks)
+        checkDefinednessWand(w, error, makeChecks = makeChecks) // AG: Does this need change to adapt to new design for eval in Wand
       case l@sil.Let(v, e, body) =>
         checkDefinednessImpl(e, error, makeChecks = makeChecks) ::
         {
@@ -349,8 +389,11 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             stateModule.replaceState(prevState)
             res
           case sil.LabelledOld(_, oldLabel) =>
+            var findLabel = oldLabel
+            if(findLabel.equals("lhs"))
+              findLabel = "lhs"+wandModule.getActiveLhs()
             val prevState = stateModule.state
-            stateModule.replaceState(stateModule.stateRepositoryGet(oldLabel).get)
+            stateModule.replaceState(stateModule.stateRepositoryGet(findLabel).get)
             val res = translate
             stateModule.replaceState(prevState)
             res
@@ -372,12 +415,14 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
 
     stateModule.replaceState(defStateLHS)
     val lhs = initStmtLHS ++ checkDefinednessOfSpecAndInhale(e.left, error)
-
+    val defineLHS = stmtModule.translateStmt(sil.Label("lhs"+wandModule.getLhsId(), Nil)(e.pos, e.info))
+    wandModule.pushLhsStack(wandModule.getLhsId())
+    wandModule.incLhsId()
     stateModule.replaceState(defStateRHS)
     val rhs = initStmtRHS ++ checkDefinednessOfSpecAndInhale(e.right, error)
-
+    wandModule.popLhsStack()
     stateModule.replaceState(curState)
-    NondetIf(lhs ++ rhs ++ Assume(FalseLit()))
+    NondetIf(lhs ++ defineLHS ++ rhs ++ Assume(FalseLit()))
   }
 
 
@@ -402,41 +447,60 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   }
 
 
-  override def checkDefinednessOfSpecAndInhale(e: sil.Exp, error: PartialVerificationError): Stmt = {
-    e match {
-      case sil.And(e1, e2) =>
-        checkDefinednessOfSpecAndInhale(e1, error) ::
-          checkDefinednessOfSpecAndInhale(e2, error) ::
-          Nil
-      case sil.Implies(e1, e2) =>
-        checkDefinedness(e1, error) ++
-          If(translateExp(e1), checkDefinednessOfSpecAndInhale(e2, error), Statements.EmptyStmt)
-      case sil.CondExp(c, e1, e2) =>
-        checkDefinedness(c, error) ++
-          If(translateExp(c), checkDefinednessOfSpecAndInhale(e1, error), checkDefinednessOfSpecAndInhale(e2, error))
-      case fa@sil.Forall(vars, triggers, expr) =>
-            checkDefinedness(e, error) ++
-              inhale(e)
-      case _ =>
-        checkDefinedness(e, error) ++
-          inhale(e)
+  override def checkDefinednessOfSpecAndInhale(e: sil.Exp, error: PartialVerificationError, statesStack: List[Any] = null, inWand: Boolean = false): Stmt = {
+
+    val stmt =
+    {
+      e match {
+        case sil.And(e1, e2) =>
+          checkDefinednessOfSpecAndInhale(e1, error, statesStack, inWand) ::
+            checkDefinednessOfSpecAndInhale(e2, error, statesStack, inWand) ::
+            Nil
+        case sil.Implies(e1, e2) =>
+          checkDefinedness(e1, error, inWand = inWand) ++ {
+            if (inWand)
+              If(wandModule.getCurOpsBoolvar() ==> translateExpInWand(e1), checkDefinednessOfSpecAndInhale(e2, error, statesStack, inWand), Statements.EmptyStmt)
+            else
+              If(translateExp(e1), checkDefinednessOfSpecAndInhale(e2, error, statesStack, inWand), Statements.EmptyStmt)
+          }
+        case sil.CondExp(c, e1, e2) =>
+          checkDefinedness(c, error, inWand = inWand) ++ {
+            if (inWand)
+              If(wandModule.getCurOpsBoolvar() ==> translateExpInWand(c), checkDefinednessOfSpecAndInhale(e1, error, statesStack, inWand), checkDefinednessOfSpecAndInhale(e2, error, statesStack, inWand))
+            else
+              If(translateExp(c), checkDefinednessOfSpecAndInhale(e1, error, statesStack, inWand), checkDefinednessOfSpecAndInhale(e2, error, statesStack, inWand))
+          }
+        case fa@sil.Forall(vars, triggers, expr) =>
+          checkDefinedness(e, error, inWand = inWand) ++
+            inhale(e, statesStack, inWand)
+        case _ =>
+          checkDefinedness(e, error, inWand = inWand) ++
+            inhale(e, statesStack, inWand)
+      }
     }
+
+    if(inWand) {
+      If(wandModule.getCurOpsBoolvar(), stmt, Statements.EmptyStmt)
+    }else stmt
   }
 
-  override def checkDefinednessOfSpecAndExhale(e: sil.Exp, definednessError: PartialVerificationError, exhaleError: PartialVerificationError): Stmt = {
-    e match {
+  override def checkDefinednessOfSpecAndExhale(e: sil.Exp, definednessError: PartialVerificationError, exhaleError: PartialVerificationError
+                                              ,statesStack: List[Any] = null, inWand: Boolean = false): Stmt = {
+
+    val stmt =
+      e match {
       case sil.And(e1, e2) =>
-        checkDefinednessOfSpecAndExhale(e1, definednessError, exhaleError) ::
-          checkDefinednessOfSpecAndExhale(e2, definednessError, exhaleError) ::
+        checkDefinednessOfSpecAndExhale(e1, definednessError, exhaleError, statesStack, inWand) ::
+          checkDefinednessOfSpecAndExhale(e2, definednessError, exhaleError, statesStack, inWand) ::
           Nil
       case sil.Implies(e1, e2) =>
         checkDefinedness(e1, definednessError) ++
-          If(translateExp(e1), checkDefinednessOfSpecAndExhale(e2, definednessError, exhaleError), Statements.EmptyStmt)
+          If(translateExp(e1), checkDefinednessOfSpecAndExhale(e2, definednessError, exhaleError, statesStack, inWand), Statements.EmptyStmt)
       case sil.CondExp(c, e1, e2) =>
         checkDefinedness(c, definednessError) ++
           If(translateExp(c),
-            checkDefinednessOfSpecAndExhale(e1, definednessError, exhaleError),
-            checkDefinednessOfSpecAndExhale(e2, definednessError, exhaleError))
+            checkDefinednessOfSpecAndExhale(e1, definednessError, exhaleError, statesStack, inWand),
+            checkDefinednessOfSpecAndExhale(e2, definednessError, exhaleError, statesStack, inWand))
       case fa@sil.Forall(vars, triggers, expr) =>
         checkDefinedness(e, definednessError) ++
           exhale(Seq((e, exhaleError)))
@@ -444,6 +508,10 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         checkDefinedness(e, definednessError) ++
           exhale(Seq((e, exhaleError)))
     }
+
+    if(inWand) {
+      If(wandModule.getCurOpsBoolvar(), stmt, Statements.EmptyStmt)
+    }else stmt
   }
 
   override def allFreeAssumptions(e: sil.Exp): Stmt = {

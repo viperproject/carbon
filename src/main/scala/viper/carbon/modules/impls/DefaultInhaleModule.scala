@@ -29,11 +29,25 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule with Stat
     register(this)
   }
 
-  override def inhale(exps: Seq[sil.Exp]): Stmt = {
-    (exps map (e => inhaleConnective(e.whenInhaling))) ++
-      MaybeCommentBlock("Free assumptions",
-        exps map (e => allFreeAssumptions(e))) ++
-      assumeGoodState
+  override def inhale(exps: Seq[sil.Exp], statesStack: List[Any] = null, inWand: Boolean = false): Stmt = {
+    // replace currentState with top State (ops_state)
+    val current_state = stateModule.state
+    if(inWand){
+      stateModule.replaceState(statesStack(0).asInstanceOf[StateRep].state)
+    }
+
+
+    val stmt =
+        (exps map (e => inhaleConnective(e.whenInhaling))) ++
+          MaybeCommentBlock("Free assumptions",
+            exps map (e => allFreeAssumptions(e))) ++
+          assumeGoodState
+
+    if(inWand) {
+      stateModule.replaceState(current_state)
+      wandModule.exchangeAssumesWithBoolean(stmt, statesStack.head.asInstanceOf[StateRep].boolVar)
+    }else
+      stmt
   }
 
   def containsFunc(exp: sil.Exp): Boolean = {
@@ -72,8 +86,11 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule with Stat
       case _ =>
         val stmt = components map (_.inhaleExp(e))
         if (stmt.children.isEmpty) sys.error(s"missing translation for inhaling of $e")
-        (if (containsFunc(e)) Seq(assumeGoodState) else Seq()) ++ stmt ++ (if (e.isPure) Seq() else Seq(assumeGoodState))
+        val retStmt = (if (containsFunc(e)) Seq(assumeGoodState) else Seq()) ++ stmt ++ (if (e.isPure) Seq() else Seq(assumeGoodState))
         //(if (containsFunc(e)) assumeGoodState else Seq[Stmt]()) ++ stmt ++ (if (e.isPure) Seq[Stmt]() else assumeGoodState)
+
+        // if we are inside package statement, then all assumptions should be replaced with conjinctions with ops.boolVar
+          retStmt
     }
   }
 

@@ -7,7 +7,8 @@
 package viper.carbon.modules
 
 import viper.silver.{ast => sil}
-import viper.carbon.boogie.{Stmt, Decl, Exp, Type}
+import viper.carbon.boogie._
+import viper.silver.ast.PredicateAccessPredicate
 
 /**
  * A module for translating functions and predicates.
@@ -30,9 +31,9 @@ trait FuncPredModule extends Module {
   def translateResult(r: sil.Result): Exp
 
   // code to go first, and code to go last (other modules may contribute in between)
-  def translateFold(fold: sil.Fold): (Stmt,Stmt)
+  def translateFold(fold: sil.Fold, statesStack: List[Any] = null, inWand: Boolean = false): (Stmt,Stmt)
 
-  def translateUnfold(unfold: sil.Unfold): Stmt
+  def translateUnfold(unfold: sil.Unfold, statesStack: List[Any] = null, inWand: Boolean = false): Stmt
 
   def toExpressionsUsedInTriggers(e: Exp): Seq[Exp]
   def toExpressionsUsedInTriggers(e: Seq[Exp]): Seq[Seq[Exp]]

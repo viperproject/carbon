@@ -6,7 +6,7 @@
 
 package viper.carbon.modules.components
 
-import viper.carbon.boogie.{Statements, Stmt}
+import viper.carbon.boogie.{Exp, Statements, Stmt, TrueLit}
 import viper.silver.{ast => sil}
 import viper.silver.verifier.PartialVerificationError
 

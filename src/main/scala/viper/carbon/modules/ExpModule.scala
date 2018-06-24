@@ -8,7 +8,7 @@ package viper.carbon.modules
 
 import viper.silver.{ast => sil}
 import viper.silver.ast.utility.Expressions.{whenExhaling, whenInhaling}
-import viper.carbon.boogie.{Stmt, LocalVar, Exp}
+import viper.carbon.boogie.{Exp, LocalVar, Stmt, TrueLit}
 import viper.carbon.modules.components.{ComponentRegistry, DefinednessComponent}
 import viper.silver.verifier.PartialVerificationError
 
@@ -17,6 +17,12 @@ import viper.silver.verifier.PartialVerificationError
  */
 trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
   def translateExp(exp: sil.Exp): Exp
+
+  /**
+    * Prepares the correct state in which translating expression takes place then calls translateExp
+    */
+  def translateExpInWand(exp: sil.Exp): Exp
+
   def translateLocalVar(l: sil.LocalVar): LocalVar
 
   /**
@@ -24,21 +30,25 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
    */
   def allFreeAssumptions(e: sil.Exp): Stmt
 
-  /**
-   * Check definedness of Viper expressions as they occur in the program.
-   *
-   * makeChecks provides the possibility of switching off most checks, to get 
-   * only the side-effects (unfoldings) of unravelling the expression. Note that
-   * the parameter should be passed down through recursive calls (default true)
-   */
-  def checkDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean = true): Stmt
+    /**
+      * Check definedness of Viper expressions as they occur in the program.
+      *
+      * makeChecks provides the possibility of switching off most checks, to get
+      * only the side-effects (unfoldings) of unravelling the expression. Note that
+      * the parameter should be passed down through recursive calls (default true)
+      *
+      * ignoreIfInWand gives the option to ignore the check for now as it will be
+      * evaluated later if we are inside pacakge statement
+      */
+  def checkDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean = true,
+                        inWand: Boolean = false, ignoreIfInWand: Boolean = false): Stmt
 
   /**
    * Check definedness of Viper assertions such as pre-/postconditions or invariants.
    * The implementation works by inhaling 'e' and checking the necessary properties
    * along the way.
    */
-  def checkDefinednessOfSpecAndInhale(e: sil.Exp, error: PartialVerificationError): Stmt
+  def checkDefinednessOfSpecAndInhale(e: sil.Exp, error: PartialVerificationError, statesStack: List[Any] = null, inWand: Boolean = false): Stmt
 
   /**
    * Convert all InhaleExhale expressions to their exhale part and call checkDefinednessOfSpecAndInhale.
@@ -65,5 +75,6 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
    * The implementation works by exhaling 'e' and checking the necessary properties
    * along the way.
    */
-  def checkDefinednessOfSpecAndExhale(e: sil.Exp, definednessError: PartialVerificationError, exhaleError: PartialVerificationError): Stmt
+  def checkDefinednessOfSpecAndExhale(e: sil.Exp, definednessError: PartialVerificationError, exhaleError: PartialVerificationError,
+                                      statesStack: List[Any] = null, inWand: Boolean = false): Stmt
 }

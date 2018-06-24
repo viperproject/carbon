@@ -6,14 +6,14 @@
 
 package viper.carbon.modules
 
-import viper.carbon.modules.components.{DefinednessComponent, StmtComponent, ComponentRegistry}
+import viper.carbon.modules.components.{ComponentRegistry, DefinednessComponent, StmtComponent}
 import viper.silver.{ast => sil}
-import viper.carbon.boogie.Stmt
+import viper.carbon.boogie.{Exp, Stmt, TrueLit}
 
 /**
  * A module for translating Viper statements.
 
  */
 trait StmtModule extends Module with ComponentRegistry[StmtComponent] {
-  def translateStmt(stmt: sil.Stmt): Stmt
+  def translateStmt(stmt: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt
 }
