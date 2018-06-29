@@ -131,7 +131,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
 
     // reset all modules
     allModules map (m => m.reset())
-    heapModule.enableAllocationEncoding = config != null && !config.disableAllocEncoding.supplied
+    heapModule.enableAllocationEncoding = config == null || !config.disableAllocEncoding.supplied // NOTE: config == null happens on the build server / via sbt test
     
     _translated = mainModule.translate(program)
 
