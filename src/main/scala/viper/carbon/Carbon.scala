@@ -85,5 +85,11 @@ class CarbonConfig(args: Seq[String]) extends SilFrontendConfig(args, "Carbon") 
     noshort = true
   )
 
+  val disableAllocEncoding = opt[Boolean]("disableAllocEncoding",
+    descr = "Disable Allocation-related assumptions (default: enabled)",
+    default = None,
+    noshort = true
+  )
+
   verify()
 }
