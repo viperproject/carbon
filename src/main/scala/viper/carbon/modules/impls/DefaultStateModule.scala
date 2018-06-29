@@ -29,7 +29,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   }
 
   override def preamble = {
-    Func(Identifier(isGoodState), staticStateContributions, Bool)
+    Func(Identifier(isGoodState), staticStateContributions(), Bool)
   }
 
   override def reset : Unit = {
@@ -82,7 +82,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   def setTreatOldAsCurrentState(b: Boolean) =
   { treatOldAsCurrent = b }
 
-  def staticStateContributions: Seq[LocalVarDecl] = components flatMap (_.staticStateContributions)
+  def staticStateContributions(withHeap : Boolean = true, withPermissions : Boolean = true) : Seq[LocalVarDecl] = components flatMap (_.staticStateContributions(withHeap, withPermissions))
 //  def currentStateContributions: Seq[LocalVarDecl] = components flatMap (_.currentStateContributions)
   def stateContributionValues(snap: StateSnapshot): Seq[Exp] = {
     var res : Seq[Exp] = Seq()
@@ -104,7 +104,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   private var curState: StateComponentMapping = null
 
   def staticGoodState: Exp = {
-    FuncApp(Identifier(isGoodState), staticStateContributions map (v => LocalVar(v.name, v.typ)), Bool)
+    FuncApp(Identifier(isGoodState), staticStateContributions() map (v => LocalVar(v.name, v.typ)), Bool)
   }
 
   def currentGoodState: Exp = {

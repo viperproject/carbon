@@ -153,11 +153,11 @@ class QuantifiedPermModule(val verifier: Verifier)
       Func(permConstructName, Seq(LocalVarDecl(Identifier("a"), Real), LocalVarDecl(Identifier("b"), Real)), permType) :: Nil ++
       // good mask
       Func(goodMaskName, LocalVarDecl(maskName, maskType), Bool) ++
-      Axiom(Forall(stateModule.staticStateContributions,
+      Axiom(Forall(stateModule.staticStateContributions(),
         Trigger(Seq(staticGoodState)),
         staticGoodState ==> staticGoodMask)) ++ {
       val perm = currentPermission(obj.l, field.l)
-      Axiom(Forall(staticStateContributions ++ obj ++ field,
+      Axiom(Forall(staticStateContributions(true, true) ++ obj ++ field,
         Trigger(Seq(staticGoodMask, perm)),
         // permissions are non-negative
         (staticGoodMask ==> ( perm >= noPerm &&
@@ -205,7 +205,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   def permType = NamedType(permTypeName)
 
-  def staticStateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(maskName, maskType))
+  def staticStateContributions(withHeap: Boolean, withPermissions: Boolean): Seq[LocalVarDecl] = if (withPermissions) Seq(LocalVarDecl(maskName, maskType)) else Seq()
   def currentStateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(mask.name, maskType))
   def currentStateVars : Seq[Var] = Seq(mask)
   def currentStateExps: Seq[Exp] = Seq(maskExp)
@@ -1236,7 +1236,7 @@ class QuantifiedPermModule(val verifier: Verifier)
     s match {
       case n@sil.NewStmt(target,fields) =>
         (Nil,for (field <- fields) yield {
-          Assign(currentPermission(sil.FieldAccess(target, field)()), fullPerm)
+          Assign(currentPermission(sil.FieldAccess(target, field)()), currentPermission(sil.FieldAccess(target, field)()) + fullPerm)
         })
       case assign@sil.FieldAssign(fa, rhs) =>
         (Assert(permGe(currentPermission(fa), fullPerm, true), errors.AssignmentFailed(assign).dueTo(reasons.InsufficientPermission(fa))),Nil)
