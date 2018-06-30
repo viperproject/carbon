@@ -585,6 +585,12 @@ override def exchangeAssumesWithBoolean(stmt: Stmt,boolVar: LocalVar):Stmt = {
   }
 }
 
+  /**
+    * Transforms all asserts and if conditions in the statement as following:
+    * Assert e is transformed to: Assert (boolVar => e)
+    * if(c) {...} else {...} is transformed to: if(boolVar){ if(c) {...} else {...} }
+    * where boolVar represents the boolean expression carrying assumptions about some states.
+    */
   def modifyAssert(stmt: Stmt,boolVar: LocalVar):Stmt = {
     stmt match {
       case Assert(exp, error) => Assert(boolVar ==> exp, error)
