@@ -862,7 +862,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
               //          Assume(oldVersion < newVersion) ++ // this only made sense with integer versions. In the new model, we even want to allow the possibility of the new version being equal to the old
               (curVersion := newVersion)
         MaybeCommentBlock("Update version of predicate",
-          If(wandModule.getCurOpsBoolvar() ==> UnExp(Not,hasDirectPerm(loc)), stmt, Nil))
+          If(UnExp(Not,hasDirectPerm(loc)), stmt, Nil))
       case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(_, _), _) if duringFold =>
         MaybeCommentBlock("Record predicate instance information",
           insidePredicate(foldInfo, pap))

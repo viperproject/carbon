@@ -176,7 +176,7 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
   override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt =
   {
     if (e.isPure) {
-      Assert(wandModule.getCurOpsBoolvar() ==> translateExp(e), error.dueTo(AssertionFalse(e)))
+      Assert(translateExp(e), error.dueTo(AssertionFalse(e)))
     } else {
       Nil
     }

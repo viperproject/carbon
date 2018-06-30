@@ -575,15 +575,30 @@ override def exchangeAssumesWithBoolean(stmt: Stmt,boolVar: LocalVar):Stmt = {
       boolVar := (boolVar && viper.carbon.boogie.PrettyPrinter.quantifyOverFreeTypeVars(exp))
     case Seqn(statements) =>
       Seqn(statements.map(s => exchangeAssumesWithBoolean(s, boolVar)))
-    case If(c,thn,els) =>
-      If(c,exchangeAssumesWithBoolean(thn,boolVar),exchangeAssumesWithBoolean(els,boolVar))
-    case NondetIf(thn,els) =>
-      NondetIf(exchangeAssumesWithBoolean(thn,boolVar))
-    case CommentBlock(comment,s) =>
-      CommentBlock(comment, exchangeAssumesWithBoolean(s,boolVar))
+    case If(c, thn, els) =>
+      If(c, exchangeAssumesWithBoolean(thn, boolVar), exchangeAssumesWithBoolean(els, boolVar))
+    case NondetIf(thn, els) =>
+      NondetIf(exchangeAssumesWithBoolean(thn, boolVar))
+    case CommentBlock(comment, s) =>
+      CommentBlock(comment, exchangeAssumesWithBoolean(s, boolVar))
     case s => s
   }
 }
+
+  def modifyAssert(stmt: Stmt,boolVar: LocalVar):Stmt = {
+    stmt match {
+      case Assert(exp, error) => Assert(boolVar ==> exp, error)
+      case Seqn(statements) =>
+        Seqn(statements.map(s => modifyAssert(s, boolVar)))
+      case If(c,thn,els) =>
+        If(boolVar, If(c,modifyAssert(thn,boolVar),modifyAssert(els,boolVar)), Statements.EmptyStmt)
+      case NondetIf(thn,els) =>
+        NondetIf(modifyAssert(thn,boolVar))
+      case CommentBlock(comment,s) =>
+        CommentBlock(comment, modifyAssert(s,boolVar))
+      case s => s
+    }
+  }
 
 /*
  * Let the argument be a sequence [(s1,e1),(s2,e2)].
@@ -618,8 +633,8 @@ case class PackageSetup(hypState: StateRep, usedState: StateRep, initStmt: Stmt)
     * Wraps all statements inside package statement inside If condition.
     */
   override  def handleStmt(s: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): (Seqn => Seqn) = {
-    if(inWand)
-      stmt => If(allStateAssms, stmt, Statements.EmptyStmt)::Nil
+    if(wandModule.wandId > 0)
+      stmt => If(allStateAssms, modifyAssert(stmt, OPS.boolVar), Statements.EmptyStmt)::Nil
     else
       stmt => stmt
   }
@@ -691,5 +706,9 @@ case class PackageSetup(hypState: StateRep, usedState: StateRep, initStmt: Stmt)
 
   override def getOps(): StateRep = {
     OPS
+  }
+
+  override def initTrueBool(): Stmt = {
+    (trueBool := TrueLit())
   }
 }
