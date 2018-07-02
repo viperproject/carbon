@@ -157,7 +157,7 @@ class DefaultHeapModule(val verifier: Verifier)
             (
               (staticPermissionPositive(nullLit, predField.l) && isPredicateField(predField.l)) ==>
                 Forall(Seq(obj2, field),
-                  Trigger(Seq(lookup(h.l, obj2.l, field.l))) ++
+                  //Trigger(Seq(lookup(h.l, obj2.l, field.l))) ++
                     Trigger(Seq(lookup(eh.l, obj2.l, field.l))),
                   (lookup(lookup(h.l, nullLit, predicateMaskField(predField.l)), obj2.l, field.l) ==>
                     (lookup(h.l, obj2.l, field.l) === lookup(eh.l, obj2.l, field.l))),

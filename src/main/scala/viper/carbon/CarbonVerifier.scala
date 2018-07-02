@@ -132,7 +132,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
     // reset all modules
     allModules map (m => m.reset())
     heapModule.enableAllocationEncoding = config != null && !config.disableAllocEncoding.supplied
-    
+
     _translated = mainModule.translate(program)
 
     val options = {
