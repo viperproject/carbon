@@ -666,28 +666,6 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private def translateResultDecl(r: sil.Result) = LocalVarDecl(resultName, translateType(r.typ))
   override def translateResult(r: sil.Result) = translateResultDecl(r).l
 
-  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
-    val noStmt : Stmt = viper.carbon.boogie.Statements.EmptyStmt
-    if(makeChecks)
-      e match {
-        case fa@sil.FuncApp(f, args) => {
-          val funct = verifier.program.findFunction(f);
-          val pres = funct.pres map (e => Expressions.instantiateVariables(e, funct.formalArgs, args))
-          //if (pres.isEmpty) noStmt // even for empty pres, the assumption made below is important
-            NondetIf(
-              // This is where termination checks could/should be added
-              MaybeComment("Exhale precondition of function application", exhale(pres map (e => (e, errors.PreconditionInAppFalse(fa))))) ++
-                MaybeComment("Stop execution", Assume(FalseLit()))
-            , checkingDefinednessOfFunction match {
-              case Some(name) if name.equals(f) => MaybeComment("Enable postcondition for recursive call", Assume(triggerFuncApp(funct,args map translateExp)))
-              case _ => noStmt
-            })
-        }
-        case _ => Nil
-      }
-    else Nil
-  }
-
   private var tmpStateId = -1
   override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): (() => Stmt, () => Stmt) = {
     e match {
@@ -704,6 +682,21 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           Nil
         }
         (before, after)
+      case fa@sil.FuncApp(f, args) => {
+        (() => Nil, if(makeChecks) () => {
+        val funct = verifier.program.findFunction(f);
+        val pres = funct.pres map (e => Expressions.instantiateVariables(e, funct.formalArgs, args))
+        //if (pres.isEmpty) noStmt // even for empty pres, the assumption made below is important
+        NondetIf(
+          // This is where termination checks could/should be added
+          MaybeComment("Exhale precondition of function application", exhale(pres map (e => (e, errors.PreconditionInAppFalse(fa))))) ++
+            MaybeComment("Stop execution", Assume(FalseLit()))
+          , checkingDefinednessOfFunction match {
+            case Some(name) if name.equals(f) => MaybeComment("Enable postcondition for recursive call", Assume(triggerFuncApp(funct,args map translateExp)))
+            case _ => Nil
+          })} else () => Nil
+        )
+      }
       case _ => (() => simplePartialCheckDefinedness(e, error, makeChecks), () => Nil)
     }
   }
