@@ -365,7 +365,7 @@ class DefaultHeapModule(val verifier: Verifier)
   override def freeAssumptions(e: sil.Exp): Stmt = {
     e match {
       case sil.Unfolding(sil.PredicateAccessPredicate(loc, _), _) if !usingOldState =>
-        addPermissionToPMask(loc)
+        addPermissionToPMask(loc) ++ assumeGoodState
       case _ => Nil
     }
   }
