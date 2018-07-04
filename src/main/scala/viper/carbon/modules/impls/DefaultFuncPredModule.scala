@@ -172,7 +172,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   override def start() {
     expModule.register(this)
     inhaleModule.register(this, before = Seq(verifier.inhaleModule)) // this is because of inhaleExp definition, which tries to add extra information from executing the unfolding first
-    exhaleModule.register(this, before = Seq(verifier.exhaleModule)) // this is because of inhaleExp definition, which tries to add extra information from executing the unfolding first
+    exhaleModule.register(this, before = Seq(verifier.exhaleModule)) // this is because of exhaleExp definition, which tries to add extra information from executing the unfolding first
   }
 
   def reset() = {

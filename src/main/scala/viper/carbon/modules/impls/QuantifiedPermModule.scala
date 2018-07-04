@@ -65,7 +65,7 @@ class QuantifiedPermModule(val verifier: Verifier)
     stateModule.register(this)
     exhaleModule.register(this)
     inhaleModule.register(this)
-    stmtModule.register(this, before = Seq(verifier.heapModule)) // check for field write permission should come before the operation itself (but adding permissions for new stmts is done afterwards - see handleStmt below)
+    stmtModule.register(this, after = Seq(verifier.heapModule)) // allows this module to wrap the code of the heap module:  checks for field write permission should come before the operation itself (but adding permissions for new stmts is done afterwards - see handleStmt below)
     expModule.register(this)
     wandModule.register(this)
   }

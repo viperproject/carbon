@@ -148,11 +148,12 @@ class DefaultHeapModule(val verifier: Verifier)
         // frame all locations with direct permission
         MaybeCommentedDecl("Frame all locations with known folded permissions", Axiom(Forall(
           vars ++ Seq(predField),
-          Trigger(Seq(identicalFuncApp, lookup(h.l, nullLit, predicateMaskField(predField.l)), isPredicateField(predField.l))) ++
+          //Trigger(Seq(identicalFuncApp, lookup(h.l, nullLit, predicateMaskField(predField.l)), isPredicateField(predField.l))) ++
+          Trigger(Seq(identicalFuncApp, lookup(eh.l, nullLit, predField.l), isPredicateField(predField.l))) /*++
             Trigger(Seq(identicalFuncApp, lookup(eh.l, nullLit, predicateMaskField(predField.l)), isPredicateField(predField.l))) ++
             (verifier.program.predicates map (pred =>
               Trigger(Seq(identicalFuncApp, predicateTriggerAnyState(pred, predField.l), isPredicateField(predField.l))))
-              ),
+              )*/,
           identicalFuncApp ==>
             (
               (staticPermissionPositive(nullLit, predField.l) && isPredicateField(predField.l)) ==>
@@ -330,6 +331,16 @@ class DefaultHeapModule(val verifier: Verifier)
     FuncApp(locationIdentifier(pred), args, t)
   }
 
+  override def handleStmt(stmt: sil.Stmt): (Stmt, Stmt) =
+    stmt match {
+      case sil.MethodCall(_, _, targets) if enableAllocationEncoding =>
+        (Nil, targets filter (_.typ == sil.Ref) map translateExp map {
+          t =>
+            Assume(validReference(t))
+        })
+      case _ => super.handleStmt(stmt)
+    }
+
   override def simpleHandleStmt(stmt: sil.Stmt): Stmt = {
     stmt match {
       case sil.FieldAssign(lhs, rhs) =>
@@ -345,11 +356,6 @@ class DefaultHeapModule(val verifier: Verifier)
           // for loops (see the StateModule implementation)
           Assume(if(enableAllocationEncoding) (freshObjectVar !== nullLit) && alloc(freshObjectVar).not else (freshObjectVar !== nullLit)) ::
           (if(enableAllocationEncoding) (alloc(freshObjectVar) := TrueLit()) :: (translateExp(target) := freshObjectVar) :: Nil else (translateExp(target) := freshObjectVar) :: Nil)
-      case sil.MethodCall(_, _, targets) if enableAllocationEncoding =>
-        targets filter (_.typ == sil.Ref) map translateExp map {
-          t =>
-            Assume(validReference(t))
-        }
       case sil.Fold(sil.PredicateAccessPredicate(loc, perm)) => // AS: this should really be taken care of in the FuncPredModule (and factored out to share code with unfolding case, if possible)
         val newVersion = LocalVar(Identifier("freshVersion"), funcPredModule.predicateVersionType)
         val resetPredicateInfo : Stmt = (predicateMask(loc) := zeroPMask) ++
@@ -357,7 +363,7 @@ class DefaultHeapModule(val verifier: Verifier)
           (translateLocationAccess(loc) := newVersion)
 
           If(UnExp(Not,hasDirectPerm(loc)), resetPredicateInfo, Nil) ++
-          addPermissionToPMask(loc)
+          addPermissionToPMask(loc) ++ stateModule.assumeGoodState
       case _ => Statements.EmptyStmt
     }
   }
