@@ -65,7 +65,7 @@ class QuantifiedPermModule(val verifier: Verifier)
     stateModule.register(this)
     exhaleModule.register(this)
     inhaleModule.register(this)
-    stmtModule.register(this, after = Seq(verifier.heapModule)) // allows this module to wrap the code of the heap module:  checks for field write permission should come before the operation itself (but adding permissions for new stmts is done afterwards - see handleStmt below)
+    stmtModule.register(this, before = Seq(verifier.heapModule)) // allows this module to make checks for field write permission should before the operation itself (but adding permissions for new stmts is done afterwards - this is handled by the Heap module injecting code earlier)
     expModule.register(this)
     wandModule.register(this)
   }
@@ -1239,7 +1239,7 @@ class QuantifiedPermModule(val verifier: Verifier)
           Assign(currentPermission(sil.FieldAccess(target, field)()), currentPermission(sil.FieldAccess(target, field)()) + fullPerm)
         })
       case assign@sil.FieldAssign(fa, rhs) =>
-        (Assert(permGe(currentPermission(fa), fullPerm, true), errors.AssignmentFailed(assign).dueTo(reasons.InsufficientPermission(fa))),Nil)
+        (Nil, Assert(permGe(currentPermission(fa), fullPerm, true), errors.AssignmentFailed(assign).dueTo(reasons.InsufficientPermission(fa)))) // add the check after the definedness checks for LHS/RHS (in heap module)
       case _ => (Nil,Nil)
     }
 

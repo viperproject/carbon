@@ -338,13 +338,21 @@ class DefaultHeapModule(val verifier: Verifier)
           t =>
             Assume(validReference(t))
         })
+      case sil.Fold(sil.PredicateAccessPredicate(loc, perm)) => // AS: this should really be taken care of in the FuncPredModule (and factored out to share code with unfolding case, if possible)
+        (Nil, {val newVersion = LocalVar(Identifier("freshVersion"), funcPredModule.predicateVersionType)
+        val resetPredicateInfo : Stmt = (predicateMask(loc) := zeroPMask) ++
+          Havoc(newVersion) ++
+          (translateLocationAccess(loc) := newVersion)
+
+        If(UnExp(Not,hasDirectPerm(loc)), resetPredicateInfo, Nil) ++
+          addPermissionToPMask(loc) ++ stateModule.assumeGoodState}  )
+      case sil.FieldAssign(lhs, rhs) =>
+        (Nil, translateLocationAccess(lhs) := translateExp(rhs) ) // after all checks
       case _ => super.handleStmt(stmt)
     }
 
   override def simpleHandleStmt(stmt: sil.Stmt): Stmt = {
     stmt match {
-      case sil.FieldAssign(lhs, rhs) =>
-        translateLocationAccess(lhs) := translateExp(rhs)
       case sil.NewStmt(target,fields) =>
         Havoc(freshObjectVar) ::
           // assume the fresh object is non-null and not allocated yet.
@@ -356,14 +364,6 @@ class DefaultHeapModule(val verifier: Verifier)
           // for loops (see the StateModule implementation)
           Assume(if(enableAllocationEncoding) (freshObjectVar !== nullLit) && alloc(freshObjectVar).not else (freshObjectVar !== nullLit)) ::
           (if(enableAllocationEncoding) (alloc(freshObjectVar) := TrueLit()) :: (translateExp(target) := freshObjectVar) :: Nil else (translateExp(target) := freshObjectVar) :: Nil)
-      case sil.Fold(sil.PredicateAccessPredicate(loc, perm)) => // AS: this should really be taken care of in the FuncPredModule (and factored out to share code with unfolding case, if possible)
-        val newVersion = LocalVar(Identifier("freshVersion"), funcPredModule.predicateVersionType)
-        val resetPredicateInfo : Stmt = (predicateMask(loc) := zeroPMask) ++
-          Havoc(newVersion) ++
-          (translateLocationAccess(loc) := newVersion)
-
-          If(UnExp(Not,hasDirectPerm(loc)), resetPredicateInfo, Nil) ++
-          addPermissionToPMask(loc) ++ stateModule.assumeGoodState
       case _ => Statements.EmptyStmt
     }
   }
