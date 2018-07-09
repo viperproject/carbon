@@ -16,6 +16,6 @@ class BoogieNameGenerator extends DefaultNameGenerator {
   def separator = "_"
   def reservedNames: Set[String] = Set("div", "const", "procedure", "type", "function", "uniqu", "complete", "if", "else", "free",
     "invariant", "goto", "break", "return", "call", "forall", "assert", "havoc", "assume", "returns", "var", "implementation",
-    "axiom", "exists", "old", "false", "real", "int", "true", "bool", "finite", "ensures", "requires", "where") ++
+    "axiom", "exists", "old", "false", "real", "int", "true", "bool", "finite", "ensures", "requires", "where", "par") ++
     Set("Set", "MultiSet", "Seq")
 }
