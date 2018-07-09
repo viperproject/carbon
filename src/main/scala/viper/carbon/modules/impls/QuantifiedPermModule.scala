@@ -778,7 +778,7 @@ class QuantifiedPermModule(val verifier: Verifier)
       /* BinExp should be refined to Add, Sub, Mul, Div, Mod. user-triggers will not be allowed invalid types.
          other triggers should not be generated.
       */
-      case BinExp(_, _, _) => true
+      //case BinExp(_, _, _) => false // operators cause unreliable behaviour in Z3
       case _ => false
     }
   }
@@ -801,7 +801,7 @@ class QuantifiedPermModule(val verifier: Verifier)
       if (!validTriggerTypes(expr)) {
         validType = false
       }
-      //map occuring LocalVars
+      //map occurring LocalVars
       containVars(expr)
     }
     var containsVars = (vars.map(x => varMap.contains(x.name))).reduce((var1, var2) => var1 && var2)
