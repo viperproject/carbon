@@ -111,7 +111,7 @@ class DefaultHeapModule(val verifier: Verifier)
           refField ++
           stateModule.staticStateContributions(withPermissions = false),
         Trigger(Seq(obj_refField)),
-        validReference(obj_refField))) else Nil) ++
+        validReference(obj.l) ==> validReference(obj_refField))) else Nil) ++
       Func(identicalOnKnownLocsName,
         Seq(LocalVarDecl(heapName, heapTyp), LocalVarDecl(exhaleHeapName, heapTyp)) ++ staticMask,
         Bool) ++
@@ -169,7 +169,7 @@ class DefaultHeapModule(val verifier: Verifier)
         (if(enableAllocationEncoding) // preserve "allocated" knowledge, where already true
         MaybeCommentedDecl("All previously-allocated references are still allocated", Axiom(Forall(
           vars ++ Seq(obj),
-          Trigger(Seq(identicalFuncApp, lookup(h.l, obj.l, Const(allocName)))) ++
+          /*Trigger(Seq(identicalFuncApp, lookup(h.l, obj.l, Const(allocName)))) ++*/
             Trigger(Seq(identicalFuncApp, lookup(eh.l, obj.l, Const(allocName)))),
           identicalFuncApp ==>
               (lookup(h.l, obj.l, Const(allocName)) ==> lookup(eh.l, obj.l, Const(allocName)))
@@ -443,7 +443,7 @@ class DefaultHeapModule(val verifier: Verifier)
   }
 
   private def validReference(exp: Exp): Exp = {
-    exp === nullLit || alloc(exp)
+    /*exp === nullLit ||*/ alloc(exp)
   }
 
   override def translateNull: Exp = nullLit
