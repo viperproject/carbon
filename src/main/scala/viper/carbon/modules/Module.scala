@@ -46,7 +46,7 @@ trait Module extends LifetimeComponent with StatefulComponent with viper.carbon.
   def preamble: Seq[Decl] = Nil
 
   /**
-   * The assumptions that can be made about a value of a given type (e.g. allocatedness of non-null references).
+   * The assumptions that can be made about a value of a given type (e.g. "isGoodMultiset" in the DefaultSetModule).
    * the "isParameter" flag can be used to select assumptions which only apply to parameters
    */
   def validValue(typ: sil.Type, variable: LocalVar, isParameter: Boolean): Option[Exp] = None

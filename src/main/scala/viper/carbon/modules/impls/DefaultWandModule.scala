@@ -713,8 +713,4 @@ case class PackageSetup(hypState: StateRep, usedState: StateRep, initStmt: Stmt)
   override def getOps(): StateRep = {
     OPS
   }
-
-  override def initTrueBool(): Stmt = {
-    (trueBool := TrueLit())
-  }
 }

@@ -18,6 +18,21 @@ object PrettyPrinter {
     new PrettyPrinter(n).pretty
   }
 
+  def quantifyOverFreeTypeVars(exp: Exp): Exp = {
+    val t = collectFreeTypeVars(exp)
+    val body = t match {
+      case Nil => exp
+      case _ =>
+        exp match {
+          case Forall(vars, triggers, _body, tv) =>
+            Forall(vars, triggers, _body, tv++t)
+          case _ =>
+            Forall(Seq(), Nil, exp, t) // NOTE: no triggers selected! This should be changed, but requires trigger generation code on the level of the Boogie AST.
+        }
+    }
+    body
+  }
+
   def collectFreeTypeVars(exp: Exp): Seq[TypeVar] = {
     val res = collection.mutable.ListBuffer[TypeVar]()
     val not = collection.mutable.ListBuffer[TypeVar]()
@@ -31,25 +46,10 @@ object PrettyPrinter {
     }
     (res.toSet -- not.toSet).toSeq
   }
-
-  def quantifyOverFreeTypeVars(exp: Exp): Exp = {
-    val t = collectFreeTypeVars(exp)
-    val body = t match {
-      case Nil => exp
-      case _ =>
-        exp match {
-          case Forall(vars, triggers, _body, tv) =>
-            Forall(vars, triggers, _body, tv++t)
-          case _ =>
-            //            parens(text("forall") <+> showTypeVars(t) <> "::" <+> show(exp)) // NOTE: no triggers selected! This should be changed, but requires trigger generation code on the level of the Boogie AST.
-            Forall(Seq(), Nil, exp, t)
-        }
-    }
-    body
-  }
 }
 
 /**
+**
  * The class that implements most of the pretty-printing functionality.
  */
 class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
@@ -312,8 +312,7 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
           case Forall(vars, triggers, _body, tv) =>
             Forall(vars, triggers, _body, tv++t)
           case _ =>
-//            parens(text("forall") <+> showTypeVars(t) <> "::" <+> show(exp)) // NOTE: no triggers selected! This should be changed, but requires trigger generation code on the level of the Boogie AST.
-            Forall(Seq(), Nil, exp, t)
+            Forall(Seq(), Nil, exp, t) // NOTE: no triggers selected! This should be changed, but requires trigger generation code on the level of the Boogie AST.
         }
     }
     body

@@ -32,7 +32,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   }
 
   override def preamble = {
-    Func(Identifier(isGoodState), staticStateContributions, Bool)
+    Func(Identifier(isGoodState), staticStateContributions(), Bool)
   }
 
   override def reset : Unit = {
@@ -47,7 +47,6 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     curState = new StateComponentMapping()
     // note: it is important that these are set before calling e.g. initState on components
     usingOldState = false
-    treatOldAsCurrent = false
 
     // initialize the state of all components and assume that afterwards the
     // whole state is good
@@ -60,7 +59,6 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   }
   def resetBoogieState: Stmt = {
     usingOldState = false
-    treatOldAsCurrent = false
     curState = new StateComponentMapping()
 
     // initialize the state of all components and assume that afterwards the
@@ -82,10 +80,8 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     }
   }
 
-  def setTreatOldAsCurrentState(b: Boolean) =
-  { treatOldAsCurrent = b }
 
-  def staticStateContributions: Seq[LocalVarDecl] = components flatMap (_.staticStateContributions)
+  def staticStateContributions(withHeap : Boolean = true, withPermissions : Boolean = true) : Seq[LocalVarDecl] = components flatMap (_.staticStateContributions(withHeap, withPermissions))
 //  def currentStateContributions: Seq[LocalVarDecl] = components flatMap (_.currentStateContributions)
   def stateContributionValues(snap: StateSnapshot): Seq[Exp] = {
     var res : Seq[Exp] = Seq()
@@ -107,7 +103,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   private var curState: StateComponentMapping = null
 
   def staticGoodState: Exp = {
-    FuncApp(Identifier(isGoodState), staticStateContributions map (v => LocalVar(v.name, v.typ)), Bool)
+    FuncApp(Identifier(isGoodState), staticStateContributions() map (v => LocalVar(v.name, v.typ)), Bool)
   }
 
   def currentGoodState: Exp = {
@@ -121,10 +117,9 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   override def stateRepositoryGet(name:String) : Option[StateSnapshot] = stateRepository.get(name)
 
   override def freshTempState(name: String, discardCurrent: Boolean = false, initialise: Boolean = false): (Stmt, StateSnapshot) = {
-    val previousState = new StateSnapshot(new StateComponentMapping(), usingOldState, treatOldAsCurrent)
+    val previousState = new StateSnapshot(new StateComponentMapping(), usingOldState, false)
 
     curState = new StateComponentMapping() // essentially, the code below "clones" what curState should represent anyway. But, if we omit this line, we inadvertently alias the previous hash map.
-
 
     val s = for (c <- components) yield {
       val tmpExps = c.freshTempState(name)
@@ -136,10 +131,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
 
       (if (initialise) c.resetBoogieState else stmt)
     }
-
-    treatOldAsCurrent = usingOldState
     usingOldState = false // we have now set up a temporary state in terms of "old" - this could happen when an unfolding expression is inside an "old"
-
     (s, previousState)
   }
 
@@ -154,7 +146,6 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
       c.restoreState(snapshot._1.get(c))
     }
     usingOldState = snapshot._2
-    treatOldAsCurrent = snapshot._3
   }
 
   override def equateHeaps(snapshot: StateSnapshot, c: CarbonStateComponent):Stmt =
@@ -164,14 +155,13 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
 
   // initialisation in principle not needed - one should call initState
   var usingOldState = false
-  var treatOldAsCurrent = false
 
   override def stateModuleIsUsingOldState: Boolean = {
     usingOldState
   }
 
   override def oldState: StateSnapshot = {
-    if (treatOldAsCurrent) state else (curOldState,true,false) // the chosen boolean values here seem sensible, but they probably shouldn't be used anyway
+    (curOldState,true,false) // the chosen boolean values here seem sensible, but they probably shouldn't be used anyway
   }
 
   override def replaceOldState(snapshot: StateSnapshot) {
@@ -179,7 +169,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   }
 
   override def state: StateSnapshot = {
-    (curState,usingOldState,treatOldAsCurrent)
+    (curState,usingOldState,false)
   }
 
   override def getCopyState:StateSnapshot = {
@@ -187,7 +177,6 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     val s = for (c <- components) yield {
                 currentCopy.put(c, c.currentStateVars)
             }
-    (currentCopy, usingOldState, treatOldAsCurrent)
+    (currentCopy, usingOldState, false)
   }
-
 }

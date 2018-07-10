@@ -65,7 +65,7 @@ class QuantifiedPermModule(val verifier: Verifier)
     stateModule.register(this)
     exhaleModule.register(this)
     inhaleModule.register(this)
-    stmtModule.register(this, before = Seq(verifier.heapModule)) // check for field write permission should come before the operation itself (but adding permissions for new stmts is done afterwards - see handleStmt below)
+    stmtModule.register(this, before = Seq(verifier.heapModule)) // allows this module to make checks for field write permission should before the operation itself (but adding permissions for new stmts is done afterwards - this is handled by the Heap module injecting code earlier)
     expModule.register(this)
     wandModule.register(this)
   }
@@ -153,11 +153,11 @@ class QuantifiedPermModule(val verifier: Verifier)
       Func(permConstructName, Seq(LocalVarDecl(Identifier("a"), Real), LocalVarDecl(Identifier("b"), Real)), permType) :: Nil ++
       // good mask
       Func(goodMaskName, LocalVarDecl(maskName, maskType), Bool) ++
-      Axiom(Forall(stateModule.staticStateContributions,
+      Axiom(Forall(stateModule.staticStateContributions(),
         Trigger(Seq(staticGoodState)),
         staticGoodState ==> staticGoodMask)) ++ {
       val perm = currentPermission(obj.l, field.l)
-      Axiom(Forall(staticStateContributions ++ obj ++ field,
+      Axiom(Forall(staticStateContributions(true, true) ++ obj ++ field,
         Trigger(Seq(staticGoodMask, perm)),
         // permissions are non-negative
         (staticGoodMask ==> ( perm >= noPerm &&
@@ -205,7 +205,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   def permType = NamedType(permTypeName)
 
-  def staticStateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(maskName, maskType))
+  def staticStateContributions(withHeap: Boolean, withPermissions: Boolean): Seq[LocalVarDecl] = if (withPermissions) Seq(LocalVarDecl(maskName, maskType)) else Seq()
   def currentStateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(mask.name, maskType))
   def currentStateVars : Seq[Var] = Seq(mask)
   def currentStateExps: Seq[Exp] = Seq(maskExp)
@@ -787,7 +787,7 @@ class QuantifiedPermModule(val verifier: Verifier)
       /* BinExp should be refined to Add, Sub, Mul, Div, Mod. user-triggers will not be allowed invalid types.
          other triggers should not be generated.
       */
-      case BinExp(_, _, _) => true
+      //case BinExp(_, _, _) => false // operators cause unreliable behaviour in Z3
       case _ => false
     }
   }
@@ -810,7 +810,7 @@ class QuantifiedPermModule(val verifier: Verifier)
       if (!validTriggerTypes(expr)) {
         validType = false
       }
-      //map occuring LocalVars
+      //map occurring LocalVars
       containVars(expr)
     }
     var containsVars = (vars.map(x => varMap.contains(x.name))).reduce((var1, var2) => var1 && var2)
@@ -1250,10 +1250,10 @@ class QuantifiedPermModule(val verifier: Verifier)
       s match {
         case n@sil.NewStmt(target, fields) =>
           stmts ++ (for (field <- fields) yield {
-            Assign(currentPermission(sil.FieldAccess(target, field)()), fullPerm)
+            Assign(currentPermission(sil.FieldAccess(target, field)()), currentPermission(sil.FieldAccess(target, field)()) + fullPerm)
           })
         case assign@sil.FieldAssign(fa, rhs) =>
-          Assert(permGe(currentPermission(fa), fullPerm, true), errors.AssignmentFailed(assign).dueTo(reasons.InsufficientPermission(fa))) ++ stmts
+           stmts ++ Assert(permGe(currentPermission(fa), fullPerm, true), errors.AssignmentFailed(assign).dueTo(reasons.InsufficientPermission(fa))) // add the check after the definedness checks for LHS/RHS (in heap module)
         case _ =>
           //        (Nil, Nil)
           stmts

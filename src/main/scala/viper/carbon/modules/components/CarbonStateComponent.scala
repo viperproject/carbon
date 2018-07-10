@@ -30,7 +30,7 @@ trait CarbonStateComponent extends Component {
    * The name and type of the static contribution of this component to the state. The returned value should remain the
    * same even if the state is changed.
    */
-  def staticStateContributions: Seq[LocalVarDecl]
+  def staticStateContributions(withHeap: Boolean, withPermissions: Boolean): Seq[LocalVarDecl]
 
 
   /**

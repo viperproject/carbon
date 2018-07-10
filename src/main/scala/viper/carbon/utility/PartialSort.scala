@@ -35,6 +35,6 @@ object PartialSort {
     while (topo.hasNext) {
       res += topo.next()
     }
-    res.toSeq
+    res
   }
 }
