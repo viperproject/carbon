@@ -69,11 +69,11 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
     m.start()
   })
 
-  /** The default location for Boogie (the environment variable ${BOOGIE_EXE}). */
-  lazy val boogieDefault: String = "/home/abdelzaher/Desktop/Viper/boogie/Binaries/boogie"
+   /** The default location for Boogie (the environment variable ${BOOGIE_EXE}). */
+  lazy val boogieDefault: String = new File(Paths.resolveEnvVars("${BOOGIE_EXE}")).getAbsolutePath
 
   /** The default location for Z3 (the environment variable ${Z3_EXE}). */
-  lazy val z3Default: String = "/home/abdelzaher/z3/z3/build/z3"
+  lazy val z3Default: String = new File(Paths.resolveEnvVars("${Z3_EXE}")).getAbsolutePath
 
   /** The (resolved) path where Boogie is supposed to be located. */
 
