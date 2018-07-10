@@ -22,5 +22,9 @@ import viper.carbon.boogie.{Exp, LocalVar, Stmt, TrueLit}
 
  */
 trait InhaleModule extends Module with InhaleComponent with ComponentRegistry[InhaleComponent] {
+  /**
+    * @param statesStack stack of states used in translating package statement (carries currentState and LHS of wands)
+    * @param inWand Boolean that represents whether this exhale is inside package statement or not
+    */
   def inhale(exp: Seq[sil.Exp], statesStack: List[Any] = null, inWand: Boolean = false): Stmt
 }

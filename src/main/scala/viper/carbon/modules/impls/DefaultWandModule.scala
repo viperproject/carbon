@@ -240,7 +240,10 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
    * @param wand wand to be packaged
    * @param boolVar boolean variable to which the newly generated boolean variable associated with the package should
    *                be set to in the beginning
-   * @return structure that contains all the necessary blocks to initiate a package
+   * @return Structure that contains all the necessary blocks to initiate a package.
+   *         These blocks are: LHS state
+   *                           Used state (which is a new fresh state that is set as current state)
+   *                           Statement with the necessary boogie code for package initiation
    *
    * Postcondition: state is set to the "Used" state generated in the function
    */
@@ -264,14 +267,13 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
 
     stateModule.replaceState(usedState.state)
 
-    PackageSetup(hypState, usedState, (trueBool := TrueLit()) ++ hypStmt ++ initStmt ++ inhaleLeft ++ defineLHS)
+    PackageSetup(hypState, usedState, hypStmt ++ initStmt ++ inhaleLeft ++ defineLHS)
   }
 
   override def createAndSetState(initBool:Option[Exp],usedString:String = "Used",setToNew:Boolean=true,
                                 init:Boolean=true):StateSetup = {
     /**create a new boolean variable under which all assumptions belonging to the package are made
       *(which makes sure that the assumptions won't be part of the main state after the package)
-      *
       */
 
     val b = LocalVar(Identifier(names.createUniqueIdentifier("b"))(transferNamespace), Bool)
@@ -286,7 +288,6 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
     //state which is used to check if the wand holds
     val usedName = names.createUniqueIdentifier(usedString)
 
-//    val (usedStmt, currentState) = stateModule.freshTempState(usedName,init)
     val (usedStmt, currentState) = stateModule.freshEmptyState(usedName,init)
     val usedState = stateModule.state
 
@@ -402,14 +403,6 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
 
   val positivePerm = Assert(neededLocal >= RealLit(0), mainError.dueTo(reasons.NegativePermission(e)))
 
-  //val nullCheck =
-    //transferEntity match {
-    //  case TransferableFieldAccessPred(rcv,loc,_,origAccessPred) =>
-    //    Assert((allStateAssms&&used.boolVar) ==> heapModule.checkNonNullReceiver(rcv),mainError.dueTo(reasons.ReceiverNull(origAccessPred.loc)))
-    //  case _ => Statements.EmptyStmt
-    //}
-
-
   val definedness =
     MaybeCommentBlock("checking if access predicate defined in used state",
     If(allStateAssms&&used.boolVar,expModule.checkDefinedness(e, mainError, inWand = true),Statements.EmptyStmt))
@@ -454,10 +447,11 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
             heapModule.endExhale ++
               stateModule.assumeGoodState
           } else if(top != OPS || havocHeap){
+            // We only havoc the heap that we remove the permission from if:
+            //      The translated statement requires havocing the heap
+            //      OR if the state from which the permission is removed is not OPS state
               exchangeAssumesWithBoolean(heapModule.endExhale, top.boolVar) ++
               (top.boolVar := top.boolVar && stateModule.currentGoodState)
-            /* exchangeAssumesWithBooleanImpl(heapModule.endExhale, top.boolVar) ++
-             Assume(top.boolVar ==> stateModule.currentGoodState) */
           }else
             top.boolVar := top.boolVar && stateModule.currentGoodState)
 
@@ -701,13 +695,8 @@ case class PackageSetup(hypState: StateRep, usedState: StateRep, initStmt: Stmt)
   }
 
 
-  var trueBool = LocalVar(Identifier(names.createUniqueIdentifier("boolTrue"))(transferNamespace),Bool)
-
   override def getCurOpsBoolvar(): LocalVar = {
-    if(wandId > 0)
       OPS.boolVar
-    else
-      trueBool
   }
 
   override def getOps(): StateRep = {

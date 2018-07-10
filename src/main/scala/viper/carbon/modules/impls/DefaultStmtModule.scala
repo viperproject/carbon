@@ -66,6 +66,11 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
     stmts => bef ++ stmts ++ aft
   }
 
+  /**
+    * @param statesStack stack of states used in translating package statements (carries currentState and LHS of wands)
+    * @param inWand Boolean that represents whether this exhale is inside package statement or not
+    * @param allStateAssms represents all assumptions about states on the statesStack (conjunction of boolvar of all states on statesStack)
+    */
   override def simpleHandleStmt(stmt: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
     stmt match {
       case assign@sil.LocalVarAssign(lhs, rhs) =>
@@ -215,6 +220,11 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
     }
   }
 
+  /**
+    * @param statesStack stack of states used in translating package statements (carries currentState and LHS of wands)
+    * @param inWand Boolean that represents whether this exhale is inside package statement or not
+    * @param allStateAssms represents all assumptions about states on the statesStack (conjunction of boolvar of all states on statesStack)
+    */
   override def translateStmt(stmt: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
     if(inWand) {
         wandModule.prepareStmt()

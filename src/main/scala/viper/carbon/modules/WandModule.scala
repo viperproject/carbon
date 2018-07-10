@@ -30,7 +30,8 @@ trait WandModule extends Module with ComponentRegistry[TransferComponent] {
     * @param setToNew the state is set to the generated state iff this is set to true
     * @param init if this is set to true then the stmt in UsedStateSetup will initialize the states (for example
     *             masks to ZeroMask), otherwise the states contain no information
-    * @return  Structure which can be used at the beginning of many operations involved in the package
+    * @return  Structure which can be used at the beginning of many operations involved in the package (Pair of
+    *          the created state and the statements needed to be added to the boogie code)
     */
   def createAndSetState(initBool:Option[Exp],usedString:String = "Used",setToNew:Boolean=true,
                         init:Boolean=true):Any
