@@ -32,8 +32,14 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
   import wandModule._
 
   override def start() {
-    // this is the main translation, so it should come at the beginning ?
-    register(this, before = Seq(verifier.heapModule,verifier.permModule)) // checks for field assignment should be made before the assignment itself
+    // this is the main translation, so it should come at the "beginning"; it defines the innermost code used in the translation; other modules can wrap this with their own code
+    register(this, before = Seq(verifier.heapModule,verifier.permModule))
+    // NOTE: this builds up the translation inside-out, so the *first* component defines the innermost code.
+    // This works as follows, for statement translation: StmtModule, then PermModule, then HeapModule
+    // For Fold statements: Heap module adds version/secondary mask code as a postfix to the main code from the StmtModule
+    // For Field assignments: Heap module (which goes last) adds the translation of the actual operation as a postfix the other code (which checks well-definedness)
+    // For MethodCall: assumptions about return values are added by the HeapModule as a postfix to the main translation in StmtModule
+    // For New: the operation translation (HeapModule) is added as a prefix to the code adding permissions (PermModule)
   }
 
   val lblNamespace = verifier.freshNamespace("stmt.lbl")
@@ -233,7 +239,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
     }
 
     var stmts = Seqn(Nil)
-    for (c <- components) { // should be in reverse order, so that "first" component contributes first (outermost) code, but it seems the sorting is also currently reversed
+    for (c <- components) { // NOTE: this builds up the translation inside-out, so the *first* component defines the innermost code.
       val (before, after) = c.handleStmt(stmt)
       stmts = before ++ stmts ++ after
     }

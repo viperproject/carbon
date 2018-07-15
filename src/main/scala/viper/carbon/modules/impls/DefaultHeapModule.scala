@@ -47,6 +47,8 @@ class DefaultHeapModule(val verifier: Verifier)
     inhaleModule.register(this)
   }
 
+  var enableAllocationEncoding : Boolean = true // note: this may be modified on configuration, so should only be used e.g. in method defs which will be called later (e.g. during verification)
+
   private val fieldTypeName = "Field"
   private val normalFieldTypeName = "NormalField"
   private val normalFieldType = NamedType(normalFieldTypeName)
@@ -77,7 +79,7 @@ class DefaultHeapModule(val verifier: Verifier)
   private val nullLit = Const(nullName)
   private val freshObjectName = Identifier("freshObj")
   private val freshObjectVar = LocalVar(freshObjectName, refType)
-  private val allocName = Identifier("$allocated")(fieldNamespace)
+  private lazy val allocName = if(enableAllocationEncoding) Identifier("$allocated")(fieldNamespace) else null
   private val identicalOnKnownLocsName = Identifier("IdenticalOnKnownLocations")
   private val isPredicateFieldName = Identifier("IsPredicateField")
   private var PredIdMap:Map[String, BigInt] = Map()
@@ -102,14 +104,14 @@ class DefaultHeapModule(val verifier: Verifier)
       TypeDecl(normalFieldType) ++
       // Heap Type Definition :
       TypeAlias(heapTyp, MapType(Seq(refType, fieldType), TypeVar("B"), Seq(TypeVar("A"), TypeVar("B")))) ++
-      ConstDecl(allocName, NamedType(fieldTypeName, Seq(normalFieldType, Bool)), unique = true) ++
+      (if(enableAllocationEncoding) ConstDecl(allocName, NamedType(fieldTypeName, Seq(normalFieldType, Bool)), unique = true) ++
       // all heap-lookups yield allocated objects or null
       Axiom(Forall(
         obj ++
           refField ++
-          stateModule.staticStateContributions,
-        Trigger(Seq(staticGoodState, obj_refField)),
-        validReference(obj_refField))) ++
+          stateModule.staticStateContributions(withPermissions = false),
+        Trigger(Seq(obj_refField)),
+        validReference(obj.l) ==> validReference(obj_refField))) else Nil) ++
       Func(identicalOnKnownLocsName,
         Seq(LocalVarDecl(heapName, heapTyp), LocalVarDecl(exhaleHeapName, heapTyp)) ++ staticMask,
         Bool) ++
@@ -146,16 +148,17 @@ class DefaultHeapModule(val verifier: Verifier)
         // frame all locations with direct permission
         MaybeCommentedDecl("Frame all locations with known folded permissions", Axiom(Forall(
           vars ++ Seq(predField),
-          Trigger(Seq(identicalFuncApp, lookup(h.l, nullLit, predicateMaskField(predField.l)), isPredicateField(predField.l))) ++
+          //Trigger(Seq(identicalFuncApp, lookup(h.l, nullLit, predicateMaskField(predField.l)), isPredicateField(predField.l))) ++
+          Trigger(Seq(identicalFuncApp, lookup(eh.l, nullLit, predField.l), isPredicateField(predField.l))) /*++
             Trigger(Seq(identicalFuncApp, lookup(eh.l, nullLit, predicateMaskField(predField.l)), isPredicateField(predField.l))) ++
             (verifier.program.predicates map (pred =>
               Trigger(Seq(identicalFuncApp, predicateTriggerAnyState(pred, predField.l), isPredicateField(predField.l))))
-              ),
+              )*/,
           identicalFuncApp ==>
             (
               (staticPermissionPositive(nullLit, predField.l) && isPredicateField(predField.l)) ==>
                 Forall(Seq(obj2, field),
-                  Trigger(Seq(lookup(h.l, obj2.l, field.l))) ++
+                  //Trigger(Seq(lookup(h.l, obj2.l, field.l))) ++
                     Trigger(Seq(lookup(eh.l, obj2.l, field.l))),
                   (lookup(lookup(h.l, nullLit, predicateMaskField(predField.l)), obj2.l, field.l) ==>
                     (lookup(h.l, obj2.l, field.l) === lookup(eh.l, obj2.l, field.l))),
@@ -163,14 +166,14 @@ class DefaultHeapModule(val verifier: Verifier)
                 )
               )
         )), size = 1)  ++
-        // preserve "allocated" knowledge, where already true
+        (if(enableAllocationEncoding) // preserve "allocated" knowledge, where already true
         MaybeCommentedDecl("All previously-allocated references are still allocated", Axiom(Forall(
           vars ++ Seq(obj),
-          Trigger(Seq(identicalFuncApp, lookup(h.l, obj.l, Const(allocName)))) ++
+          /*Trigger(Seq(identicalFuncApp, lookup(h.l, obj.l, Const(allocName)))) ++*/
             Trigger(Seq(identicalFuncApp, lookup(eh.l, obj.l, Const(allocName)))),
           identicalFuncApp ==>
               (lookup(h.l, obj.l, Const(allocName)) ==> lookup(eh.l, obj.l, Const(allocName)))
-        )), size = 1)
+        )), size = 1) else Nil)
     }
   }
 
@@ -328,10 +331,28 @@ class DefaultHeapModule(val verifier: Verifier)
     FuncApp(locationIdentifier(pred), args, t)
   }
 
+  override def handleStmt(stmt: sil.Stmt): (Stmt, Stmt) =
+    stmt match {
+      case sil.MethodCall(_, _, targets) if enableAllocationEncoding =>
+        (Nil, targets filter (_.typ == sil.Ref) map translateExp map {
+          t =>
+            Assume(validReference(t))
+        })
+      case sil.Fold(sil.PredicateAccessPredicate(loc, perm)) => // AS: this should really be taken care of in the FuncPredModule (and factored out to share code with unfolding case, if possible)
+        (Nil, {val newVersion = LocalVar(Identifier("freshVersion"), funcPredModule.predicateVersionType)
+        val resetPredicateInfo : Stmt = (predicateMask(loc) := zeroPMask) ++
+          Havoc(newVersion) ++
+          (translateLocationAccess(loc) := newVersion)
+
+        If(UnExp(Not,hasDirectPerm(loc)), resetPredicateInfo, Nil) ++
+          addPermissionToPMask(loc) ++ stateModule.assumeGoodState}  )
+      case sil.FieldAssign(lhs, rhs) =>
+        (Nil, translateLocationAccess(lhs) := translateExp(rhs) ) // after all checks
+      case _ => super.handleStmt(stmt)
+    }
+
   override def simpleHandleStmt(stmt: sil.Stmt): Stmt = {
     stmt match {
-      case sil.FieldAssign(lhs, rhs) =>
-        translateLocationAccess(lhs) := translateExp(rhs)
       case sil.NewStmt(target,fields) =>
         Havoc(freshObjectVar) ::
           // assume the fresh object is non-null and not allocated yet.
@@ -341,23 +362,8 @@ class DefaultHeapModule(val verifier: Verifier)
           // earlier. Note that "validReference" must be used in appropriate places
           // in the encoding to get this fact (e.g. below for method targets, and also
           // for loops (see the StateModule implementation)
-          Assume((freshObjectVar !== nullLit) && alloc(freshObjectVar).not) ::
-          (alloc(freshObjectVar) := TrueLit()) ::
-          (translateExp(target) := freshObjectVar) ::
-          Nil
-      case sil.MethodCall(_, _, targets) =>
-        targets filter (_.typ == sil.Ref) map translateExp map {
-          t =>
-            Assume(validReference(t))
-        }
-      case sil.Fold(sil.PredicateAccessPredicate(loc, perm)) => // AS: this should really be taken care of in the FuncPredModule (and factored out to share code with unfolding case, if possible)
-        val newVersion = LocalVar(Identifier("freshVersion"), funcPredModule.predicateVersionType)
-        val resetPredicateInfo : Stmt = (predicateMask(loc) := zeroPMask) ++
-          Havoc(newVersion) ++
-          (translateLocationAccess(loc) := newVersion)
-
-          If(UnExp(Not,hasDirectPerm(loc)), resetPredicateInfo, Nil) ++
-          addPermissionToPMask(loc)
+          Assume(if(enableAllocationEncoding) (freshObjectVar !== nullLit) && alloc(freshObjectVar).not else (freshObjectVar !== nullLit)) ::
+          (if(enableAllocationEncoding) (alloc(freshObjectVar) := TrueLit()) :: (translateExp(target) := freshObjectVar) :: Nil else (translateExp(target) := freshObjectVar) :: Nil)
       case _ => Statements.EmptyStmt
     }
   }
@@ -365,7 +371,7 @@ class DefaultHeapModule(val verifier: Verifier)
   override def freeAssumptions(e: sil.Exp): Stmt = {
     e match {
       case sil.Unfolding(sil.PredicateAccessPredicate(loc, _), _) if !usingOldState =>
-        addPermissionToPMask(loc)
+        addPermissionToPMask(loc) ++ assumeGoodState
       case _ => Nil
     }
   }
@@ -430,14 +436,14 @@ class DefaultHeapModule(val verifier: Verifier)
   }
 
   override def validValue(typ: sil.Type, variable: LocalVar, isParameter: Boolean): Option[Exp] = {
-    typ match {
+    if(enableAllocationEncoding) typ match {
       case sil.Ref => Some(validReference(variable))
       case _ => None
-    }
+    } else None
   }
 
   private def validReference(exp: Exp): Exp = {
-    exp === nullLit || alloc(exp)
+    /*exp === nullLit ||*/ alloc(exp)
   }
 
   override def translateNull: Exp = nullLit
@@ -454,7 +460,7 @@ class DefaultHeapModule(val verifier: Verifier)
     Assume(Old(hVar) === hVar)
   }
 
-  def staticStateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(heapName, heapTyp))
+  def staticStateContributions(withHeap: Boolean, withPermissions: Boolean): Seq[LocalVarDecl] = if(withHeap) Seq(LocalVarDecl(heapName, heapTyp)) else Seq()
   def currentStateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(heap.name, heapTyp))
   def currentStateVars: Seq[Var] = Seq(heap)
   def currentStateExps: Seq[Exp] = Seq(heapExp)

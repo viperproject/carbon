@@ -36,7 +36,7 @@ trait MainModule extends Module {
   /** The namespace for Viper local variables. */
   def silVarNamespace: Namespace
 
-  /** Used to encode assumptions made about valid values of a given type (e.g. allocation of non-null references) */
+  /** Used to encode assumptions made about valid values of a given type */
   /** the "isParameter" flag can be used to select assumptions which only apply to parameters */
   def allAssumptionsAboutValue(typ:sil.Type, arg: LocalVarDecl, isParameter: Boolean): Stmt
   def allAssumptionsAboutValue(arg:sil.LocalVarDecl, isParameter: Boolean) : Stmt = {

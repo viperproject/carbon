@@ -59,18 +59,7 @@ trait StateModule extends Module with ComponentRegistry[CarbonStateComponent] wi
    * The name and type of the static contribution of the state components registered with this module to the state. The returned value should remain the
    * same even if the state is changed.
    */
-  def staticStateContributions: Seq[LocalVarDecl]
-
-/* ALEX: It seems this function should be deprecated from the interface - it was never used anywhere!
-  /**
-   *
-   * The name and type of the current contribution of the state components associated with this module to the state.
-   */
-  def currentStateContributions: Seq[LocalVarDecl] = stateContributions(state)
-
-  def stateContributions(snap : StateSnapshot): Seq[LocalVarDecl]
-*/
-
+  def staticStateContributions(withHeap : Boolean = true, withPermissions : Boolean = true): Seq[LocalVarDecl]
   /**
    * The current values for all registered components' state contributions.  The number of elements
    * in the list and the types must correspond to the ones given in `stateContributions`.
@@ -124,8 +113,6 @@ trait StateModule extends Module with ComponentRegistry[CarbonStateComponent] wi
    * Replace the old state with a given snapshot.
    */
   def replaceOldState(snapshot: StateSnapshot)
-
-  def setTreatOldAsCurrentState(b: Boolean)
 
   /**
    * Get the current state.
