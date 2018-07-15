@@ -343,13 +343,13 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           val res = if (e.isInstanceOf[sil.ForPerm]) {
             val eAsForallRef = e.asInstanceOf[sil.ForPerm]
             if (eAsForallRef.variables.length != 1) sys.error("Carbon only supports a single quantified variable in forperm")
-            if (eAsForallRef.accessRes.isInstanceOf[MagicWand]) sys.error("Magic wands are not allowed with forperm")
+            if (eAsForallRef.resource.isInstanceOf[MagicWand]) sys.error("Magic wands are not allowed with forperm")
             val bound_var = eAsForallRef.variables.head
             val perLocFilter: sil.Location => LocationAccess = loc => loc match {
               case f: sil.Field => sil.FieldAccess(bound_var.localVar, f)(loc.pos, loc.info)
               case p: sil.Predicate => sil.PredicateAccess(Seq(bound_var.localVar), p)(loc.pos, loc.info, loc.errT)
             }
-            val filter: Exp = hasDirectPerm(eAsForallRef.accessRes.asInstanceOf[LocationAccess])
+            val filter: Exp = hasDirectPerm(eAsForallRef.resource.asInstanceOf[LocationAccess])
               //eAsForallRef.accessList.foldLeft[Exp](BoolLit(false))((soFar, loc) => BinExp(soFar, Or, hasDirectPerm(loc.asInstanceOf[LocationAccess])))
 
             handleQuantifiedLocals(bound_vars, If(filter, translate, Nil))
