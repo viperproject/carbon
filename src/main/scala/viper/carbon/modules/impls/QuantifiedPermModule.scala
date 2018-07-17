@@ -1169,7 +1169,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         currentPermission(loc)
       case sil.CurrentPerm(res: ResourceAccess) =>
         //Magic wands
-        sys.error(s"cannot handle $res")
+        sys.error("Carbon does not support magic wands in perm expressions, see Carbon issue #243")
       case sil.FractionalPerm(left, right) =>
         BinExp(translateExp(left), Div, translateExp(right))
       case sil.PermMinus(a) =>

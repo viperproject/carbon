@@ -109,12 +109,13 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
 
         val variable = variables.head
 
-        if (variables.length != 1) sys.error("Carbon only supports a single quantified variable in forperm")
-        if (variable.typ != Ref) sys.error("Only Ref type is allowed in forperm")
-        if (accessRes.isInstanceOf[MagicWand]) sys.error("Magic wands are not allowed with forperm")
-        if (accessRes.isInstanceOf[PredicateAccess])
-          if (!(accessRes.asInstanceOf[PredicateAccess].loc(program).formalArgs.length == 1))
-            sys.error("Only predicates with a single argument are supported")
+        if (variables.length != 1) sys.error("Carbon only supports a single quantified variable in forperm, see Carbon issue #243")
+        if (variable.typ != Ref) sys.error("Carbon only supports Ref type in forperm, see Carbon issue #243")
+        accessRes match {
+          case _: MagicWand => sys.error("Carbon does not support magic wands in forperm, see Carbon issue #243")
+          case p: PredicateAccess => if (p.loc(program).formalArgs.length != 1) sys.error("Carbon only supports predicates with a single argument in forperm, see Carbon issue #243")
+          case _ =>
+        }
 
         val locations = Seq(accessRes.asInstanceOf[LocationAccess].loc(program))
 
@@ -342,15 +343,21 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           bound_vars map (v => env.define(v.localVar))
           val res = if (e.isInstanceOf[sil.ForPerm]) {
             val eAsForallRef = e.asInstanceOf[sil.ForPerm]
-            if (eAsForallRef.variables.length != 1) sys.error("Carbon only supports a single quantified variable in forperm")
-            if (eAsForallRef.resource.isInstanceOf[MagicWand]) sys.error("Magic wands are not allowed with forperm")
+
+            if (eAsForallRef.variables.length != 1) sys.error("Carbon only supports a single quantified variable in forperm, see Carbon issue #243")
+            if (eAsForallRef.variables.head.typ != Ref) sys.error("Carbon only supports Ref type in forperm, see Carbon issue #243")
+            eAsForallRef.resource match {
+              case _: MagicWand => sys.error("Carbon does not support magic wands in forperm, see Carbon issue #243")
+              case p: PredicateAccess => if (p.loc(program).formalArgs.length != 1) sys.error("Carbon only supports predicates with a single argument in forperm, see Carbon issue #243")
+              case _ =>
+            }
+
             val bound_var = eAsForallRef.variables.head
             val perLocFilter: sil.Location => LocationAccess = loc => loc match {
               case f: sil.Field => sil.FieldAccess(bound_var.localVar, f)(loc.pos, loc.info)
               case p: sil.Predicate => sil.PredicateAccess(Seq(bound_var.localVar), p)(loc.pos, loc.info, loc.errT)
             }
             val filter: Exp = hasDirectPerm(eAsForallRef.resource.asInstanceOf[LocationAccess])
-              //eAsForallRef.accessList.foldLeft[Exp](BoolLit(false))((soFar, loc) => BinExp(soFar, Or, hasDirectPerm(loc.asInstanceOf[LocationAccess])))
 
             handleQuantifiedLocals(bound_vars, If(filter, translate, Nil))
           } else handleQuantifiedLocals(bound_vars, translate)
