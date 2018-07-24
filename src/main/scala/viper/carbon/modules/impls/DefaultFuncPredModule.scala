@@ -539,8 +539,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           val res = CommentedDecl("Function used for framing of quantified permission " + qp.toString() +  " in " + originalName,
             condFunc ++
             Axiom(
-              Forall(heap1 ++ mask1 ++ heap2 ++ mask2 ++ origArgs, Seq(Trigger(Seq(funApp1, goodState1, goodState2, funApp2))),
-                (goodState1 && goodState2) ==>
+              Forall(heap1 ++ /*mask1 ++*/ heap2 ++ /*mask2 ++*/ origArgs, Seq(Trigger(Seq(funApp1/*, goodState1, goodState2*/, funApp2))),
+                /*(goodState1 && goodState2) ==>*/
                   (Forall(Seq(translateLocalVarDecl(vFresh)), Seq(),
                     (translatedCond1 <==> translatedCond2) && (translatedCond1 ==> (locationAccess1 === locationAccess2))) ==> (funApp1 === funApp2))
                   ))
