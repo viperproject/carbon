@@ -432,13 +432,23 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           Nil
       case sil.Implies(e1, e2) =>
         checkDefinedness(e1, error) ++
-          If(translateExp(e1), checkDefinednessOfSpecAndInhale(e2, error), Statements.EmptyStmt)
+          If(cond = translateExp(e1), thn = checkDefinednessOfSpecAndInhale(e2, error), els = Statements.EmptyStmt)
       case sil.CondExp(c, e1, e2) =>
         checkDefinedness(c, error) ++
-          If(translateExp(c), checkDefinednessOfSpecAndInhale(e1, error), checkDefinednessOfSpecAndInhale(e2, error))
-      case fa@sil.Forall(vars, triggers, expr) =>
-            checkDefinedness(e, error) ++
-              inhale(e)
+          If(cond = translateExp(c), thn = checkDefinednessOfSpecAndInhale(e1, error), els = checkDefinednessOfSpecAndInhale(e2, error))
+      case l@sil.Let(v, exp, body) =>
+        checkDefinedness(exp, error, true) ::
+          {
+            val u = env.makeUniquelyNamed(v) // choose a fresh "v" binder
+            env.define(u.localVar)
+            Assign(translateLocalVar(u.localVar),translateExp(exp)) ::
+              checkDefinednessOfSpecAndInhale(body.replace(v.localVar, u.localVar), error) ::
+              {
+                env.undefine(u.localVar)
+                Nil
+              }
+          }
+      //      case fa@sil.Forall(vars, triggers, expr) => // NOTE: there's no need for a special case for QPs, since these are desugared, introducing conjunctions
       case _ =>
         checkDefinedness(e, error) ++
           inhale(e)
@@ -459,9 +469,18 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           If(translateExp(c),
             checkDefinednessOfSpecAndExhale(e1, definednessError, exhaleError),
             checkDefinednessOfSpecAndExhale(e2, definednessError, exhaleError))
-      case fa@sil.Forall(vars, triggers, expr) =>
-        checkDefinedness(e, definednessError) ++
-          exhale(Seq((e, exhaleError)))
+      case l@sil.Let(v, exp, body) =>
+        checkDefinedness(exp, definednessError, true) ::
+          {
+            val u = env.makeUniquelyNamed(v) // choose a fresh "v" binder
+            env.define(u.localVar)
+            Assign(translateLocalVar(u.localVar),translateExp(exp)) ::
+              checkDefinednessOfSpecAndExhale(body.replace(v.localVar, u.localVar), definednessError, exhaleError) ::
+              {
+                env.undefine(u.localVar)
+                Nil
+              }
+          }//      case fa@sil.Forall(vars, triggers, expr) => // NOTE: there's no need for a special case for QPs, since these are desugared, introducing conjunctions
       case _ =>
         checkDefinedness(e, definednessError) ++
           exhale(Seq((e, exhaleError)))
