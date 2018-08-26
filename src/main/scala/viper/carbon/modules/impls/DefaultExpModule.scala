@@ -31,6 +31,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   import inhaleModule._
   import funcPredModule._
   import exhaleModule._
+  import compModule._
 
   override def start() {
     register(this)
@@ -144,6 +145,10 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         env.undefine(renamedVar.localVar)
         res
       }
+      case sil.Comp(_, _, _, _, _) =>
+        translateComp(e)
+      case sil.Filter(_) =>
+        translateFilter(e)
       case sil.WildcardPerm() =>
         translatePerm(e)
       case sil.FullPerm() =>

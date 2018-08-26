@@ -9,12 +9,14 @@ package viper.carbon
 import boogie.Namespace
 import modules.impls._
 import viper._
-import viper.silver.ast.{Program,Method}
+import viper.silver.ast.{Method, Program}
 import viper.silver.components.StatefulComponent
 import viper.silver.utility.Paths
 import viper.silver.verifier.Dependency
-import verifier.{BoogieInterface, Verifier, BoogieDependency}
-import java.io.{FileOutputStream, BufferedOutputStream, File}
+import verifier.{BoogieDependency, BoogieInterface, Verifier}
+import java.io.{BufferedOutputStream, File, FileOutputStream}
+
+import viper.carbon.modules.ComprehensionModule
 
 
 
@@ -63,6 +65,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
   val seqModule = new DefaultSeqModule(this)
   val setModule = new DefaultSetModule(this)
   val wandModule = new DefaultWandModule(this)
+  val compModule = new DefaultComprehensionModule(this)
 
   // initialize all modules
   allModules foreach (m => {
