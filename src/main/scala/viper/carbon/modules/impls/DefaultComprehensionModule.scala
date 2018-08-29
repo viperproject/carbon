@@ -14,6 +14,8 @@ class DefaultComprehensionModule(verifier: Verifier) extends ComprehensionModule
 
   override def name: String = "Comprehension Module"
 
+  case class DefaultComprehension
+
   override def translateComp(e: sil.Exp): Exp = {
     e match {
       case c@sil.Comp(vars, filter, body, binary, unit) =>
@@ -37,7 +39,6 @@ class DefaultComprehensionModule(verifier: Verifier) extends ComprehensionModule
 
   override def detectComp(c: sil.Comp): Option[Comprehension] = {
     var comp: Option[Comprehension] = None
-    val
     comprehensions foreach { c =>  }
     comp
   }

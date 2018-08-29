@@ -10,9 +10,16 @@ import viper.carbon.boogie._
 trait ComprehensionModule extends Module {
 
   /**
-    * A class for describing a comprehension instance
+    * A case class for describing a comprehension instance.
     */
-  case class Comprehension(name: String, vars: Seq[LocalVarDecl], body: Exp, binary: String, unit: Exp, typ: Type)
+  trait Comprehension {
+    val name: String
+    val vars: Seq[LocalVarDecl]
+    val body: Exp
+    val binary: String
+    val unit: Exp
+    val typ: Type
+  }
 
   /**
     * A class for describing a filter instance
