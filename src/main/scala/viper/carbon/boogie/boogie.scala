@@ -378,7 +378,9 @@ case class TypeDecl(t: NamedType) extends Decl
 case class TypeAlias(name: NamedType, definition: Type) extends Decl
 case class Func(name: Identifier, args: Seq[LocalVarDecl], typ: Type) extends Decl
 case class Axiom(exp: Exp) extends Decl
-case class GlobalVarDecl(name: Identifier, typ: Type) extends Decl
+case class GlobalVarDecl(name: Identifier, typ: Type) extends Decl {
+  def g = GlobalVar(name, typ)
+}
 case class Procedure(name: Identifier, ins: Seq[LocalVarDecl], outs: Seq[LocalVarDecl], body: Stmt) extends Decl
 /**
  * nLines determines the number of lines between declarations (1 being only a single new-line, i.e. no space).

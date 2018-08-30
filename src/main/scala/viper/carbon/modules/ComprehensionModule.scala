@@ -4,75 +4,56 @@ import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 
 /**
-  * The comprehension module determines the encoding of comprehension calls and determines what comprehensions need
-  * to be created for all occurring calls.
+  * The comprehension module translates comprehension expressions.
+  * Before translating a statement which includes a comprehension expression, the [[startNextStatement]] method should
+  * be called first, then the statement should be translated, and afterwards the output of the [[filterPreamble]]
+  * method should be handled (and outputed) first, before outputing the translated statement.
+  * The reason for this is, that every filter needs to be axiomatized in the state in which it is used
+  * (mentioned in a comprehension expression).
   */
 trait ComprehensionModule extends Module {
 
   /**
-    * A case class for describing a comprehension instance.
+    * An exception that indicates, when someone tried to translate a comprehension expression without
+    * preparing the module for it with a [[startNextStatement]] call.
     */
-  trait Comprehension {
-    val name: String
-    val vars: Seq[LocalVarDecl]
-    val body: Exp
-    val binary: String
-    val unit: Exp
-    val typ: Type
-  }
+  class UnexpectedCompExprException extends Exception
 
   /**
-    * A class for describing a filter instance
+    * Translate a comprehension expression. This will throw a [[UnexpectedCompExprException]],
+    * if the translation was not prepared with a call to [[startNextStatement]]
     */
-  class Filter(name: String, body: Exp)
-
-  /**
-    * All comprehensions occurring in the program
-    */
-  protected val comprehensions: Seq[Comprehension] = Seq()
-
-  /**
-    * All filters occurring in the program
-    */
-  protected val filters: Seq[Filter] = Seq()
-
-  /**
-    * Translate a comprehension expression
-    */
+  @throws(classOf[UnexpectedCompExprException])
   def translateComp(e: sil.Exp): Exp
 
   /**
-    * Translate the body of a comprehension, i.e. the expression of the form e.v
+    * This method should be called, before a statement is translated, to start handling new occurring filters.
+    * The comprehension module tracks filters that occurr newly,
+    * that a respective preamble can be generated before the next statement to
+    * axiomatize (initialize) the used filter in the statement.
+    * @see [[filterPreamble]]
     */
-  def translateBody(e: sil.Exp): Exp
+  def startNextStatement()
 
   /**
-    * Translate the unit expression of a comprehension
-    */
-  def translateUnit(e: sil.Exp): Exp
-
-  /**
-    * Detects which comprehension of the currently available comprehensions (in [[comprehensions]]) is called by the
-    * expression.
+    * Outputs a list of boolean-typed expressions, which serve as axiomatizations for the translated filters.
+    * The module handling the current statement is responsible for inserting the axiomatizations (the returned list)
+    * in an appropriate way, e.g. within an assume statement.
+    * Since the comprehension module does not know, in which context a comprehension expression is translated,
+    * the output of the filter preamble must be the responsibility of the module handling the current statement.
     *
-    * @param c The call to a comprehension
-    * @return The comprehension used in the call, wrapped inside Some, or None, if there is no instance of the called
-    *         comprehension yet (a new instance has to be created).
-    */
-  def detectComp(c: sil.Comp): Option[Comprehension]
-
-  /**
-    * Detects which filter of the currently available filters (in [[filters]]) is used in the expression.
+    * Calling this method also disables the ability to translate a comprehension expression,
+    * until the [[startNextStatement]] method is called again.
     *
-    * @param f The filter expression to be checked against the available filter objects
-    * @return The filter object used in the expression, wrapped inside Some, or None, if there is no such instance yet.
+    * @see [[startNextStatement]]
     */
-  def detectFilter(f: sil.Filter): Option[Filter]
+  def filterPreamble(): Seq[Exp]
 
   /**
-    * Translate a filter, i.e. register the filter in the [[filters]] sequence to generate its axiomatization in the
-    * preamble and output the respective constant, which will be created in the preamble, as an expression to use in
-    * the comprehension call.
+    * Returns whether it is currently allowed to translate comprehensions,
+    * i.e. the [[startNextStatement]] method has been called after the previous call to [[filterPreamble]].
+    *
+    * @see [[startNextStatement]], [[filterPreamble]]
     */
-  def translateFilter(e: sil.Filter): Exp
+  def canTranslateComprehension: Boolean
 }
