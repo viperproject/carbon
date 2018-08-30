@@ -5,6 +5,8 @@ import viper.carbon.modules._
 import viper.carbon.verifier.Verifier
 import viper.silver.{ast => sil}
 
+import scala.util.parsing.combinator.token.StdTokens
+
 class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionModule {
 
   import verifier._
@@ -63,6 +65,11 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     * The boogie filter type
     */
   val filterType = NamedType("Filter")
+
+  /**
+    * The function declaration of the userCreated function
+    */
+  val userCreated = Func(Identifier("userCreated"), Seq(LocalVarDecl(Identifier("f"), filterType)), Bool)
 
 
   override def translateComp(e: sil.Exp): Exp = {
@@ -140,12 +147,16 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
 
   override def filterPreamble() = {
     readyForTranslation = false
+    // create the axiomatizations for every filter
     newFilters map { f =>
       val filtering = f.comp.filtering
       val filteringArgs: Seq[Exp] = filtering.args map {a => a.l}
       val filteringApp = FuncApp(filtering.name, filteringArgs, filtering.typ)
       val trigger = Trigger(Seq(filteringApp))
-      Forall(f.comp.filtering.args, Seq(trigger), filteringApp <==> f.exp)
+      // the axiomatization of the filter in terms of its filtering condition
+      Forall(f.comp.filtering.args, Seq(trigger), filteringApp <==> f.exp) &&
+      // the assumption of the userCreated function for the filter
+      FuncApp(userCreated.name, Seq(f.varDecl.g), userCreated.typ)
     }
   }
 }
