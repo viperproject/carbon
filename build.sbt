@@ -3,37 +3,44 @@
 ThisBuild / scalaVersion := "2.11.8" //? Not needed
 
 // Import Silver specific project settings
-lazy val silver = project in file("src/main/scala/silver")
+//lazy val silver = project in file("src/main/scala/silver") //? Also works
+lazy val silver = project in file("silver")
 
-// Carbon specific project settings
+// Carbon subproject settings
 lazy val carbon = (project in file("."))
     .dependsOn(silver % "compile->compile;test->test")
     .settings(
+        // General settings
         name := "Carbon",
-        organization := "viper",    //? Should those come from Silver?
-        version := "1.0-SNAPSHOT",  //? Should come from Silver?
+        organization := "viper",                     //? Should those come from Silver?
+        version := "1.0-SNAPSHOT",                   //? Should come from Silver?
+
+        // Testing
+        //? Test / classDirectory := (Compile / classDirectory).value,
+        //? Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-oD"),
+
+        // Assembly configuration
+        assembly / assemblyJarName := "carbon.jar",
+        assembly / mainClass := Some("viper.carbon.Carbon"),
+        assembly / test := {},  //? Check if necessary
+//        assembly / assemblyMergeStrategy := {       //? Should not be necessary, but there's no way if silver, carbon and silicon aren't neasted
+//            case "viper/silver/ast/FuncLikeApp.class" => MergeStrategy.last
+//            case x => (assembly / assemblyMergeStrategy).value(x)
+//        }
     )
 
 
 
 
-//import sbtassembly.AssemblyPlugin.autoImport._
-//import com.typesafe.sbt.packager.archetypes.JavaAppPackaging
-//
-//object CarbonBuild extends Build {
 //  lazy val baseSettings = Seq(
 //      scalacOptions in Compile ++= Seq("-deprecation", "-unchecked", "-feature"),
 //   )
 //
 //  lazy val carbon = {
 //    var p = Project(
-//      id = "carbon",
-//      base = file("."),
 //      settings = (
 //           baseSettings
 //        ++ Seq(
-//              assemblyJarName in assembly := "carbon.jar",
-//              test in assembly := {},
 //              testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oD"),
 //              traceLevel := 20,
 //              maxErrors := 6,
