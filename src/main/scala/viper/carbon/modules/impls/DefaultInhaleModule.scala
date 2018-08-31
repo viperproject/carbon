@@ -43,7 +43,8 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule with Stat
             exps map (e => allFreeAssumptions(e))) ++
           assumeGoodState
 
-    if(inWand) {
+    if(inWand) { // all the assumption made during packaging a wand (except assumptions about the global state before the package statement)
+                 // should be replaced conjunction to state booleans (see documentation for 'exchangeAssumesWithBoolean')
       stateModule.replaceState(current_state)
       wandModule.exchangeAssumesWithBoolean(stmt, statesStack.head.asInstanceOf[StateRep].boolVar)
     }else

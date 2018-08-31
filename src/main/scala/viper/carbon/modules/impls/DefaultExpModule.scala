@@ -329,7 +329,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           If(UnExp(Not, translateExp(e1)), checkDefinednessImpl(e2, error, makeChecks = makeChecks), Statements.EmptyStmt) ::
           Nil
       case w@sil.MagicWand(lhs, rhs) =>
-        checkDefinednessWand(w, error, makeChecks = makeChecks) // AG: Does this need change to adapt to new design for eval in Wand
+        checkDefinednessWand(w, error, makeChecks = makeChecks)
       case l@sil.Let(v, e, body) =>
         checkDefinednessImpl(e, error, makeChecks = makeChecks) ::
         {

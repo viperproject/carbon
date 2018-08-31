@@ -19,7 +19,8 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
   def translateExp(exp: sil.Exp): Exp
 
   /**
-    * Prepares the correct state in which translating expression takes place then calls translateExp
+    * Prepares the correct state in which translating an expression takes place then calls translateExp
+    * The states in which the expressions are evaluated during a package statement is 'wandModuel.UNIONState'
     */
   def translateExpInWand(exp: sil.Exp): Exp
 
@@ -37,8 +38,12 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
       * only the side-effects (unfoldings) of unravelling the expression. Note that
       * the parameter should be passed down through recursive calls (default true)
       *
-      * ignoreIfInWand gives the option to ignore the check for now as it will be
-      * evaluated later if we are inside pacakge statement
+      * ignoreIfInWand gives the option to ignore the definedness check if it is called during a package statement
+      *
+      * inWand distinguish when check definedness is called during a package statement.
+      * If 'inWand is true', the current state is replaced with the 'wandModule.UNIONState' state
+      * while checking definedness
+      *
       */
   def checkDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean = true,
                         inWand: Boolean = false, ignoreIfInWand: Boolean = false): Stmt
@@ -47,6 +52,12 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
    * Check definedness of Viper assertions such as pre-/postconditions or invariants.
    * The implementation works by inhaling 'e' and checking the necessary properties
    * along the way.
+    *
+    *
+    * inWand distinguishes whether check definedness is called during a package statement or not.
+    *
+    * statesStack is the stack of states used during packaging a magic wand (it carries the current state, left-hand side state).
+    * statesStack also carries the left-hand side states of the outer magic wands in case of nested package statements.
    */
   def checkDefinednessOfSpecAndInhale(e: sil.Exp, error: PartialVerificationError, statesStack: List[Any] = null, inWand: Boolean = false): Stmt
 
@@ -74,6 +85,12 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
    * Check definedness of Viper assertions such as pre-/postconditions or invariants.
    * The implementation works by exhaling 'e' and checking the necessary properties
    * along the way.
+   *
+   * inWand distinguishes whether check definedness is called during a package statement or not.
+   *
+   * statesStack is the stack of states used during packaging a magic wand (it carries the current state, left-hand side state).
+   * statesStack also carries the left-hand side states of the outer magic wands in case of nested package statements.
+   *
    */
   def checkDefinednessOfSpecAndExhale(e: sil.Exp, definednessError: PartialVerificationError, exhaleError: PartialVerificationError,
                                       statesStack: List[Any] = null, inWand: Boolean = false): Stmt
