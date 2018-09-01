@@ -20,8 +20,14 @@ trait ComprehensionModule extends Module {
   class UnexpectedCompExprException extends Exception
 
   /**
-    * Translate a comprehension expression. This will throw a [[UnexpectedCompExprException]],
-    * if the translation was not prepared with a call to [[startNextStatement]]
+    * An exception indicating, that a new statement was tried to be started, without requesting the filter preamble
+    * of the previous statement.
+    */
+  class UnexpectedStmtStartException extends Exception
+
+  /**
+    * Translate a comprehension expression.
+    * @throws UnexpectedCompExprException if the translation was not prepared with a call to [[startNextStatement]]
     */
   @throws(classOf[UnexpectedCompExprException])
   def translateComp(e: sil.Exp): Exp
@@ -32,7 +38,11 @@ trait ComprehensionModule extends Module {
     * that a respective preamble can be generated before the next statement to
     * axiomatize (initialize) the used filter in the statement.
     * @see [[filterPreamble]]
+    * @throws UnexpectedStmtStartException if this method is called before requesting the filter preamble of the
+    *                                      previously started statement, which means that the previous statement
+    *                                      wasn't handled correctly.
     */
+  @throws(classOf[UnexpectedStmtStartException])
   def startNextStatement()
 
   /**
@@ -48,6 +58,12 @@ trait ComprehensionModule extends Module {
     * @see [[startNextStatement]]
     */
   def filterPreamble(): Seq[Exp]
+
+  /**
+    * Outputs a list of identifiers, which are the identifiers for filters translated newly by this module for the
+    * current statement.
+    */
+  def filterPreambleIdentifiers(): Seq[Identifier]
 
   /**
     * Returns whether it is currently allowed to translate comprehensions,
