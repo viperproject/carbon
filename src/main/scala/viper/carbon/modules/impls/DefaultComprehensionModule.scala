@@ -4,8 +4,7 @@ import viper.carbon.boogie._
 import viper.carbon.modules._
 import viper.carbon.verifier.Verifier
 import viper.silver.{ast => sil}
-
-import scala.util.parsing.combinator.token.StdTokens
+import viper.carbon.boogie.Implicits._
 
 class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionModule {
 
@@ -19,55 +18,37 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
 
   override def name: String = "Comprehension Module"
 
-  /**
-    * A class for describing a comprehension instance.
-    */
+  /** A class for describing a comprehension instance. */
   class Comprehension(val ast: sil.Comp) {
-    /**
-      * The name of the comprehension
-      */
-    val name = "comp_"+ast.binary+"_"+comprehensions.size
-    /**
-      * The boogie translated local variable declarations
-      */
+    /** The name of the comprehension */
+    val name = "comp"+comprehensions.size
+    /** The boogie translated local variable declarations */
     val varDecls = {
       ast.variables map translateLocalVarDecl
     }
-    /**
-      * The boogie translated body of the comprehension
-      */
+    /** The boogie translated body of the comprehension */
     val body = translateExp(ast.body)
-    /**
-      * The boogie translated receiver of the body
-      */
+    /** The boogie translated receiver of the body */
     val receiver = translateExp(ast.body.rcv)
-    /**
-      * The identifier for the binary operator
-      */
+    /** The identifier for the binary operator */
     val binaryId = Identifier(ast.binary)
-    /**
-      * The boogie translated unit
-      */
+    /** The boogie translated unit */
     val unit = translateExp(ast.unit)
-    /**
-      * The boogie type of the comprehension
-      */
+    /** The boogie type of the comprehension */
     val typ = translateType(ast.unit.typ)
 
-    /**
-      * Returns a boogie function application of the binary opertor
-      */
-    def binary(lhs: Exp, rhs: Exp) = FuncApp(binaryId, Seq(lhs, rhs), typ)
+    val decl = Func(Identifier(name), hDecl ++ fDecl, typ)
+
+    /** Returns a boogie function application of the binary opertor */
+    def binary(lhs: Exp, rhs: Exp) = FuncApp(binaryId, lhs ++ rhs, typ)
 
     /**
       * The boogie function declaration of the filtering function of this comprehension.
       * It has the following signature: filtering_compName(a, f)
       * where a denotes the comprehension argument(s) and f denotes the filter
       */
-    val filtering = Func(Identifier("filtering_"+name), varDecls :+ LocalVarDecl(Identifier("f"), filterType), Bool)
-    /**
-      * A list of local variables emerging from the local variable declarations of this comprehension.
-      */
+    val filtering = Func(Identifier(name + "#filtering"), varDecls :+ LocalVarDecl(Identifier("f"), filterType), Bool)
+    /** A list of local variables emerging from the local variable declarations of this comprehension. */
     val localVars = varDecls map {v => v.l}
     /**
       * Applies the filtering function for the specified filter and [[localVars]].
@@ -77,53 +58,49 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     def applyFiltering(filter: Exp) = filtering.apply(localVars :+ filter)
   }
 
-  /**
-    * A class for describing a filter instance.
-    */
+  /** A class for describing a filter instance.*/
   class Filter(val ast: sil.Filter, val comp: Comprehension) {
-    /**
-      * The name of the filter
-      */
-    val name = "filter_"+filters.size
-    /**
-      * The boogie translated filtering condition
-      */
+    /** The name of the filter */
+    val name = "filter"+filters.size
+    /** The boogie translated filtering condition */
     val cond = translateExp(ast.exp)
-    /**
-      * The global variable declaration for this filter
-      */
+    /** The global variable declaration for this filter */
     val varDecl = GlobalVarDecl(Identifier(name), filterType)
   }
 
-  /**
-    * All comprehensions occurring in the program
-    */
+  /** All comprehensions occurring in the program */
   private val comprehensions: Seq[Comprehension] = Seq()
 
-  /**
-    * All filters occurring in the program
-    */
+  /** All filters occurring in the program */
   private val filters: Seq[Filter] = Seq()
 
-  /**
-    * All the filters translated in this statement so far.
-    */
+  /** All the filters translated in this statement so far. */
   private var newFilters: Seq[Filter] = Seq()
 
-  /**
-    * Indicates whether the module is ready for translation, i.e. the [[startNextStatement]] method was called.
-    */
+  /** Indicates whether the module is ready for translation, i.e. the [[startNextStatement]] method was called. */
   private var readyForTranslation = false
 
-  /**
-    * The boogie filter type
-    */
+  /** The boogie filter type */
   val filterType = NamedType("Filter")
 
-  /**
-    * The function declaration of the userCreated function
-    */
+  /** The function declaration of the userCreated function */
   val userCreated = Func(Identifier("userCreated"), Seq(LocalVarDecl(Identifier("f"), filterType)), Bool)
+
+  // practical constants for common variables for avoiding boilerplate code
+  private val fId = Identifier("f")
+  private val f1Id = Identifier("f1")
+  private val f2Id = Identifier("f2")
+  private val rId = Identifier("r")
+  private val fDecl = LocalVarDecl(fId, filterType)
+  private val f1Decl = LocalVarDecl(f1Id, filterType)
+  private val f2Decl = LocalVarDecl(f2Id, filterType)
+  private val rDecl = LocalVarDecl(rId, refType)
+  private val hDecl = staticStateContributions(withHeap = true, withPermissions = true).head // this is the variable declaration of the viper heap
+  private val f = fDecl.l
+  private val f1 = f1Decl.l
+  private val f2 = f2Decl.l
+  private val r = rDecl.l
+  private val h = hDecl.l
 
   override def translateComp(e: sil.Exp): Exp = {
     if (!readyForTranslation) {
@@ -141,7 +118,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
           case Some(obj) =>
             obj
         }
-        FuncApp(Identifier(comp.name), Seq(translateFilter(filter, comp)), comp.typ)
+        FuncApp(Identifier(comp.name), translateFilter(filter, comp), comp.typ)
     }
   }
 
@@ -202,11 +179,11 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
       val filtering = f.comp.filtering
       val filteringArgs: Seq[Exp] = filtering.args map {a => a.l}
       val filteringApp = FuncApp(filtering.name, filteringArgs, filtering.typ)
-      val trigger = Trigger(Seq(filteringApp))
+      val trigger = Trigger(filteringApp)
       // the axiomatization of the filter in terms of its filtering condition
-      Forall(f.comp.filtering.args, Seq(trigger), filteringApp <==> f.cond) &&
+      Forall(f.comp.filtering.args, trigger, filteringApp <==> f.cond) &&
       // the assumption of the userCreated function for the filter
-      FuncApp(userCreated.name, Seq(f.varDecl.g), userCreated.typ)
+      FuncApp(userCreated.name, f.varDecl.g, userCreated.typ)
     }
   }
 
@@ -216,27 +193,8 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     }
   }
 
-  /**
-    * Just to make the code cleaner
-    */
-  implicit def singletonSequence[A](a: A): Seq[A] = Seq(a)
-
   override def preamble: Seq[Decl] = {
     val out: Seq[Decl] = Seq()
-
-    // practical constants for avoiding boilerplate code
-    val fId = Identifier("f")
-    val f1Id = Identifier("f1")
-    val f2Id = Identifier("f2")
-    val rId = Identifier("r")
-    val fDecl = LocalVarDecl(fId, filterType)
-    val f1Decl = LocalVarDecl(f1Id, filterType)
-    val f2Decl = LocalVarDecl(f2Id, filterType)
-    val rDecl = LocalVarDecl(rId, refType)
-    val f = fDecl.l
-    val f1 = f1Decl.l
-    val f2 = f2Decl.l
-    val r = rDecl.l
 
     // generate comprehension independent axioms and declarations
 
@@ -244,82 +202,136 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     val filterTypeDecl = TypeDecl(filterType)
 
     // generate filter generating function declarations
-    val minus = Func(Identifier("minus"), Seq(f1Decl, f2Decl), filterType)
-    val intersect = Func(Identifier("intersect"), Seq(f1Decl, f2Decl), filterType)
-    val union = Func(Identifier("union"), Seq(f1Decl, f2Decl), filterType)
-    val narrow = Func(Identifier("narrow"), Seq(fDecl, rDecl), filterType)
-    val filterGeneratingFunDecl = CommentedDecl("Declaration of filter generating functions", Seq(minus, intersect, union, narrow), 1)
+    val minus = Func(Identifier("minus"), f1Decl ++ f2Decl, filterType)
+    val intersect = Func(Identifier("intersect"), f1Decl ++ f2Decl, filterType)
+    val union = Func(Identifier("union"), f1Decl ++ f2Decl, filterType)
+    val narrow = Func(Identifier("narrow"), f1Decl ++ f2Decl, filterType)
+    val filterGeneratingFunDecl = CommentedDecl("Declaration of filter generating functions", minus ++ intersect ++ union ++ narrow, 1)
 
     // generate filter property function declarations
     val empty = Func(Identifier("empty"), fDecl, Bool)
-    val subfilter = Func(Identifier("subfilter"), Seq(f1Decl, f2Decl), Bool)
-    val equivalent = Func(Identifier("equivalent"), Seq(f1Decl, f2Decl), Bool)
-    val filterPropertyFunDecl = CommentedDecl("Declaration of filter property functions", Seq(empty, subfilter, equivalent), 1)
+    val subfilter = Func(Identifier("subfilter"), f1Decl ++ f2Decl, Bool)
+    val equivalent = Func(Identifier("equivalent"), f1Decl ++ f2Decl, Bool)
+    val filterPropertyFunDecl = CommentedDecl("Declaration of filter property functions", empty ++ subfilter ++ equivalent, 1)
 
-    out :+ CommentedDecl("Comprehension independent declarations", Seq(filterTypeDecl, filterGeneratingFunDecl, filterPropertyFunDecl), 2)
+    // generate comprehension independent dummy functioons
+    val userCreated = Func(Identifier("userCreated"), fDecl, Bool)
+    val userMentioned = Func(Identifier("userMentioned"), rDecl, Bool)
+    val dummyFunDecl = CommentedDecl("Declaration of dummy functions", userCreated ++ userMentioned, 1)
+
+    out :+ CommentedDecl("Comprehension independent declarations", filterTypeDecl ++ filterGeneratingFunDecl ++ filterPropertyFunDecl ++ dummyFunDecl, 2)
 
     // generate filter property function axiomatizations
     val subfilterAxiom = Axiom(
-      subfilter.apply(Seq(f1, f2)) <==> empty.apply(minus.apply(Seq(f1, f2))) forall (
-        Seq(f1Decl, f2Decl),
-        Trigger(subfilter.apply(Seq(f1, f2)))
+      subfilter.apply(f1++f2) <==> empty.apply(minus.apply(f1++f2)) forall (
+        f1Decl ++ f2Decl,
+        Trigger(subfilter.apply(f1++f2))
       )
     )
     val equivalentAxiom = Axiom(
-      equivalent.apply(Seq(f1, f2)) <==> (subfilter.apply(Seq(f1, f2)) && subfilter.apply(Seq(f2, f1))) forall (
-        Seq(f1Decl, f2Decl),
-        Trigger(equivalent.apply(Seq(f1, f2)))
+      equivalent.apply(f1++f2) <==> (subfilter.apply(f1++f2) && subfilter.apply(f2++f1)) forall (
+        f1Decl ++ f2Decl,
+        Trigger(equivalent.apply(f1++f2))
       )
     )
-    val filterPopertyFunAx = CommentedDecl("Comprehension independent axiomatization of filter property functions", Seq(subfilterAxiom, equivalentAxiom), 1)
+    val filterPopertyFunAx = CommentedDecl("Comprehension independent axiomatization of filter property functions", subfilterAxiom ++ equivalentAxiom, 1)
 
-    out :+ CommentedDecl("Comprehension independent axioms", Seq(filterPopertyFunAx), 2)
+    out :+ CommentedDecl("Comprehension independent axioms", filterPopertyFunAx, 2)
 
 
     // generate the axiomatizations of the different comprehensions
     comprehensions foreach { c =>
+
+      // generate inverse function declaration and axiomatization
+      /** The inverse function declarations of all comprehension arguments along with the respective argument declaration */
+      val inv: Seq[(Func, LocalVarDecl)] = c.varDecls map { vDecl => (Func(Identifier(c.name + "#inv_"+vDecl.name.name), rDecl, vDecl.typ), vDecl)}
+      // inv(e(a)) == a
+      val invAxioms1 = inv map { tuple =>
+        Axiom(tuple._1.apply(c.receiver) === tuple._2.l forall (tuple._2, Trigger(c.receiver)))
+      }
+      // e(inv(r)) == r
+      val invAxioms2 = inv map { tuple =>
+        Axiom(c.receiver.replace(tuple._2.l, tuple._1.apply(r)) === r forall(rDecl, Trigger(tuple._1.apply(r))))
+      }
+
 
       // generate filtering axioms
       // filtering function declaration
       val filtering = c.filtering
       // filter generating function axiomatizations
       val minusAxiom = Axiom(
-        c.applyFiltering(minus.apply(Seq(f1, f2))) <==> (c.applyFiltering(f1) &&  c.applyFiltering(f2).not) forall (
-          Seq(f1Decl, f2Decl) ++ c.varDecls,
-          Trigger(c.applyFiltering(minus.apply(Seq(f1, f2))))
+        c.applyFiltering(minus.apply(f1++f2)) <==> (c.applyFiltering(f1) &&  c.applyFiltering(f2).not) forall (
+          f1Decl ++ f2Decl ++ c.varDecls,
+          Trigger(c.applyFiltering(minus.apply(f1++f2)))
         )
       )
       val intersectAxiom = Axiom(
-        c.applyFiltering(intersect.apply(Seq(f1, f2))) <==> (c.applyFiltering(f1) &&  c.applyFiltering(f2)) forall (
-          Seq(f1Decl, f2Decl) ++ c.varDecls,
-          Trigger(c.applyFiltering(intersect.apply(Seq(f1, f2))))
+        c.applyFiltering(intersect.apply(f1++f2)) <==> (c.applyFiltering(f1) &&  c.applyFiltering(f2)) forall (
+          f1Decl ++ f2Decl ++ c.varDecls,
+          Trigger(c.applyFiltering(intersect.apply(f1++f2)))
         )
       )
       val unionAxiom = Axiom(
-        c.applyFiltering(union.apply(Seq(f1, f2))) <==> (c.applyFiltering(f1) ||  c.applyFiltering(f2)) forall (
-          Seq(f1Decl, f2Decl) ++ c.varDecls,
-          Trigger(c.applyFiltering(union.apply(Seq(f1, f2))))
+        c.applyFiltering(union.apply(f1++f2)) <==> (c.applyFiltering(f1) ||  c.applyFiltering(f2)) forall (
+          f1Decl ++ f2Decl ++ c.varDecls,
+          Trigger(c.applyFiltering(union.apply(f1++f2)))
         )
       )
       val narrowAxiom = Axiom(
-        c.applyFiltering(narrow.apply(Seq(f, r))) <==> (c.applyFiltering(f) && (c.receiver !== r)) forall (
-          Seq(f1Decl, rDecl) ++ c.varDecls,
-          Trigger(c.applyFiltering(narrow.apply(Seq(f, r))))
+        c.applyFiltering(narrow.apply(f++r)) <==> (c.applyFiltering(f) && (c.receiver !== r)) forall (
+          fDecl ++ rDecl ++ c.varDecls,
+          Trigger(c.applyFiltering(narrow.apply(f++r)))
         )
       )
       // filter property function axiomatizations
-      val emptyAxiom = Axiom(
+      val emptyFilterAxiom = Axiom(
         empty.apply(f) <==> (c.applyFiltering(f).not forall (c.varDecls, Trigger(c.applyFiltering(f)))) forall (
           fDecl,
           Trigger(empty.apply(f))
         )
       )
-      val filterAxioms: Seq[Decl] = Seq(filtering, minusAxiom, intersectAxiom, unionAxiom, narrowAxiom, emptyAxiom, subfilterAxiom, equivalentAxiom)
+      val filterAxioms = filtering ++ minusAxiom ++ intersectAxiom ++ unionAxiom ++ narrowAxiom ++ emptyFilterAxiom ++ subfilterAxiom ++ equivalentAxiom
 
+      // generate dummy function
+      val dummy = Func(Identifier(c.name+"#dummy"), fDecl, Bool)
 
-      val axioms = Seq(
-        CommentedDecl("Declaration and axiomatization of filtering function", filterAxioms, 1)
+      // generate comprehension axioms
+      val dummyAxiom = Axiom(dummy.apply(f) forall (hDecl ++ fDecl, Trigger(c.decl.apply(h ++ f))))
+      val emptyAxiom = Axiom(empty.apply(f) ==> (c.decl.apply(h ++ f) === c.unit) forall (hDecl ++ fDecl, Trigger(c.decl.apply(h ++ f))))
+      val singletonAxiom = Axiom(
+        filtering.apply((inv map {tuple => tuple._1.apply(r)}) ++ f) ==>
+          c.binary(c.decl.apply(h ++ f) === c.decl.apply(h ++ narrow.apply(f ++ r)), c.body) forall (
+          hDecl ++ fDecl ++ rDecl,
+          Trigger(dummy.apply(f) ++ c.body ++ userMentioned.apply(r))
+        )
       )
+      val generalAxiom = Axiom(
+        (empty.apply(f).not && empty.apply(f1).not && subfilter.apply(f1++f) && equivalent.apply(f1++f).not) ==>
+          (c.decl.apply(h++f) === c.binary(c.decl.apply(h ++ minus.apply(f++f1)), c.decl.apply(h++f1))) forall (
+          hDecl ++ fDecl ++ f1Decl,
+          Trigger(dummy.apply(f) ++ c.decl.apply(h++f1) ++ userCreated.apply(f1))
+        )
+      )
+      val comprehensionAxioms = dummyAxiom ++ emptyAxiom ++ singletonAxiom ++ generalAxiom
+
+      //additional axioms
+      val equalAxiom = Axiom(equivalent.apply(f1++f2) ==> f1 === f2 forall (f1Decl++f2Decl, Trigger(dummy.apply(f1)++dummy.apply(f2))))
+      val filterUniteAxiom = Axiom(
+        (empty.apply(intersect.apply(f++f1)).not && empty.apply(intersect.apply(f++f2)).not && empty.apply(intersect.apply(f1++f2))) ==>
+          (dummy.apply(union.apply(f1++f2)) && userCreated.apply(union.apply(f1++f2))) forall (
+          fDecl++f1Decl++f2Decl,
+          Trigger(dummy.apply(f)++dummy.apply(f1)++dummy.apply(f2)++userCreated.apply(f1)++userCreated.apply(f2))
+        )
+      )
+      val additionalAxioms = equalAxiom ++ filterUniteAxiom
+
+      //definedness check
+
+
+      val axioms = CommentedDecl("Declaration and axiomatization of filtering function", filterAxioms, 1) ++
+        CommentedDecl("Declaration of comprehension dependent dummy functions", dummy, 1) ++
+        CommentedDecl("Comprehension axioms", comprehensionAxioms, 1) ++
+        CommentedDecl("Additional axioms", additionalAxioms, 1)
       out :+ CommentedDecl("Axiomatization of comprehension " + c.name, axioms, 2)
     }
     // generate the filter variables
