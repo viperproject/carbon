@@ -5,6 +5,9 @@ import viper.carbon.modules._
 import viper.carbon.verifier.Verifier
 import viper.silver.{ast => sil}
 import viper.carbon.boogie.Implicits._
+import viper.silver.verifier.{errors, reasons}
+
+import scala.util.parsing.combinator.token.StdTokens
 
 class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionModule {
 
@@ -87,14 +90,10 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
   val userCreated = Func(Identifier("userCreated"), Seq(LocalVarDecl(Identifier("f"), filterType)), Bool)
 
   // practical constants for common variables for avoiding boilerplate code
-  private val fId = Identifier("f")
-  private val f1Id = Identifier("f1")
-  private val f2Id = Identifier("f2")
-  private val rId = Identifier("r")
-  private val fDecl = LocalVarDecl(fId, filterType)
-  private val f1Decl = LocalVarDecl(f1Id, filterType)
-  private val f2Decl = LocalVarDecl(f2Id, filterType)
-  private val rDecl = LocalVarDecl(rId, refType)
+  private val fDecl = LocalVarDecl(Identifier("f"), filterType)
+  private val f1Decl = LocalVarDecl(Identifier("f1"), filterType)
+  private val f2Decl = LocalVarDecl(Identifier("f2"), filterType)
+  private val rDecl = LocalVarDecl(Identifier("r"), refType)
   private val hDecl = staticStateContributions(withHeap = true, withPermissions = true).head // this is the variable declaration of the viper heap
   private val f = fDecl.l
   private val f1 = f1Decl.l
@@ -253,6 +252,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
       val invAxioms2 = inv map { tuple =>
         Axiom(c.receiver.replace(tuple._2.l, tuple._1.apply(r)) === r forall(rDecl, Trigger(tuple._1.apply(r))))
       }
+      val inverseAxioms = (inv map {tuple=>tuple._1}) ++ invAxioms1 ++ invAxioms2
 
 
       // generate filtering axioms
@@ -326,12 +326,56 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
       val additionalAxioms = equalAxiom ++ filterUniteAxiom
 
       //definedness check
+      val error = errors.ComprehensionNotWellformed(c.ast)
+      // receiver injectivity check
+      /** second version of argument declarations for comparison */
+      val argDecl2 = c.varDecls map {vDec => LocalVarDecl(Identifier(vDec.name.name), vDec.typ)}
+      /** a sequence of tuples with the standard and second versions of the argument declarations */
+      val argZip = c.varDecls zip argDecl2
+      /** conjunction of the form: a1 != a1_1 && a2 != a2_1 && ... */
+      val notEqualConj = ((argZip map {tuple => tuple._1.l !== tuple._2.l}) :\ BoolLit(true).asInstanceOf[Exp])(_ && _)
+      /** the second version of the receiver */
+      var recv2 = (argZip :\ c.receiver)((tuple, rec) => rec.replace(tuple._1.l, tuple._2.l))
+      val injectiveCheck = Assert(
+        notEqualConj ==> (c.receiver !== recv2) forall (c.varDecls++argDecl2, Trigger(c.receiver) ++ Trigger(recv2)),
+        error.dueTo(reasons.ReceiverNotInjective(c.ast.body))
+      )
+      // unit check
+      val xDecl = LocalVarDecl(Identifier("x"), c.typ)
+      val x = xDecl.l
+      val unitCheck = Assert(
+        c.binary(x, c.unit) === x forall (xDecl, Trigger(c.binary(x, c.unit))),
+        error.dueTo(reasons.CompUnitNotUnit(c.ast.unit))
+      )
+      // binary commutative check
+      val yDecl = LocalVarDecl(Identifier("y"), c.typ)
+      val y = yDecl.l
+      val binaryCommCheck = Assert(
+        c.binary(x, y) === c.binary(y, x) forall (xDecl++yDecl, Trigger(c.binary(x, y))),
+        error.dueTo(reasons.CompBinaryNotCommutative(c.ast))
+      )
+      // binary associative check
+      val zDecl = LocalVarDecl(Identifier("z"), c.typ)
+      val z = zDecl.l
+      val binaryAssocCheck = Assert(
+        c.binary(x, c.binary(y, z)) === c.binary(c.binary(x, y), z) forall (xDecl++yDecl++zDecl, Trigger(c.binary(x, c.binary(y, z)))),
+        error.dueTo(reasons.CompBinaryNotAssociative(c.ast))
+      )
+      val definednessCheck: Stmt =
+        CommentBlock("Check for receiver injectivity", injectiveCheck) ++
+        CommentBlock("Check for unit", unitCheck) ++
+        CommentBlock("Check for commutativity of binary operator", binaryCommCheck) ++
+        CommentBlock("Check for associativity of binary operator", binaryAssocCheck)
+      val definednessProc = Procedure(Identifier(c.name+"#definedness"), Seq(), Seq(), definednessCheck)
 
 
-      val axioms = CommentedDecl("Declaration and axiomatization of filtering function", filterAxioms, 1) ++
+      val axioms =
+        CommentedDecl("Declaration and axiomatization of inverse functions", inverseAxioms, 1) ++
+        CommentedDecl("Declaration and axiomatization of filtering function", filterAxioms, 1) ++
         CommentedDecl("Declaration of comprehension dependent dummy functions", dummy, 1) ++
         CommentedDecl("Comprehension axioms", comprehensionAxioms, 1) ++
-        CommentedDecl("Additional axioms", additionalAxioms, 1)
+        CommentedDecl("Additional axioms", additionalAxioms, 1) ++
+        CommentedDecl("Definedness check", definednessProc, 1)
       out :+ CommentedDecl("Axiomatization of comprehension " + c.name, axioms, 2)
     }
     // generate the filter variables
