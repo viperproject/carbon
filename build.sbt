@@ -1,12 +1,7 @@
-//addCommandAlias("tt", "test-only * -- -n ")
-
-ThisBuild / scalaVersion := "2.11.8" //? Not needed
-
-// Import Silver specific project settings
-//lazy val silver = project in file("src/main/scala/silver") //? Also works
+// Import general settings from Silver
 lazy val silver = project in file("silver")
 
-// Carbon subproject settings
+// Carbon specific project settings
 lazy val carbon = (project in file("."))
     .dependsOn(silver % "compile->compile;test->test")
     .settings(
@@ -15,20 +10,11 @@ lazy val carbon = (project in file("."))
         organization := "viper",                     //? Should those come from Silver?
         version := "1.0-SNAPSHOT",                   //? Should come from Silver?
 
-        // Testing
-        //? Test / classDirectory := (Compile / classDirectory).value,
-        //? Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-oD"),
-
-        // Assembly configuration
-        assembly / assemblyJarName := "carbon.jar",
-        assembly / mainClass := Some("viper.carbon.Carbon"),
-        assembly / test := {},  //? Check if necessary
-//        assembly / assemblyMergeStrategy := {       //? Should not be necessary, but there's no way if silver, carbon and silicon aren't neasted
-//            case "viper/silver/ast/FuncLikeApp.class" => MergeStrategy.last
-//            case x => (assembly / assemblyMergeStrategy).value(x)
-//        }
+        // Assembly settings
+        assembly / assemblyJarName := "carbon.jar",             // JAR filename
+        assembly / mainClass := Some("viper.carbon.Carbon"),    // Define JAR's entry point
+        assembly / test := {},                                  // Prevent testing before packaging
     )
-
 
 
 
@@ -60,8 +46,3 @@ lazy val carbon = (project in file("."))
 //  def isBuildServer = sys.env.contains("BUILD_TAG") // should only be defined on the build server
 //  def internalDep = if (isBuildServer) Nil else Seq(dependencies.silSrc % "compile->compile;test->test")
 //  def externalDep = if (isBuildServer) Seq(dependencies.sil) else Nil
-//
-//  object dependencies {
-//    lazy val sil = "viper" %% "silver" %  "0.1-SNAPSHOT" % "compile->compile;test->test"
-//  }
-//}
