@@ -9,6 +9,7 @@ import viper.carbon.boogie.Implicits._
 import viper.carbon.modules.components.{DefinednessComponent, StmtComponent}
 import viper.silver.ast.utility.Expressions
 import viper.silver.ast.{FullPerm, MagicWand, MagicWandStructure, PredicateAccessPredicate}
+import viper.silver.cfg.silver.CfgGenerator.EmptyStmt
 import viper.silver.verifier.{PartialVerificationError, errors, reasons}
 import viper.silver.{ast => sil}
 
@@ -63,6 +64,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
   val boogieNoPerm:Exp = RealLit(0)
   val boogieFullPerm:Exp = RealLit(1)
 
+  var ww: MagicWand = null
 
   //use this to generate unique names for states
   private val names = new BoogieNameGenerator()
@@ -106,19 +108,26 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
     lazyWandToShapes = None
   }
 
-
   override def preamble = wandToShapes.values.collect({
     case fun@Func(name,args,typ) =>
       val vars = args.map(decl => decl.l)
       val f0 = FuncApp(name,vars,typ)
+      val f1 = FuncApp(heapModule.wandMaskIdentifier(name), vars, heapModule.predicateMaskFieldTypeOfWand(name.name)) // w#sm (wands secondary mask)
+      val f2 = FuncApp(heapModule.wandFtIdentifier(name), vars, heapModule.predicateVersionFieldTypeOfWand(name.name)) // w#ft (permission to w#fm is added when at the begining of a package statement)
+      val f3 = wandMaskField(f2) // wandMaskField (wandMaskField()w == w#sm)
       val typeDecl: Seq[TypeDecl] = heapModule.wandBasicType(name.preferredName) match {
         case named: NamedType => TypeDecl(named)
         case _ => Nil
       }
       typeDecl ++
         fun ++
-        Axiom(MaybeForall(args, Trigger(f0),heapModule.isWandField(f0))) ++
-        Axiom(MaybeForall(args, Trigger(f0),heapModule.isPredicateField(f0).not))
+        Func(heapModule.wandMaskIdentifier(name), args, heapModule.predicateMaskFieldTypeOfWand(name.name)) ++
+        Func(heapModule.wandFtIdentifier(name), args, heapModule.predicateVersionFieldTypeOfWand(name.name)) ++
+      Axiom(MaybeForall(args, Trigger(f0),heapModule.isWandField(f0))) ++
+        Axiom(MaybeForall(args, Trigger(f2),heapModule.isWandField(f2))) ++
+        Axiom(MaybeForall(args, Trigger(f0),heapModule.isPredicateField(f0).not)) ++
+        Axiom(MaybeForall(args, Trigger(f2),heapModule.isPredicateField(f2).not)) ++
+        Axiom(MaybeForall(args, Trigger(f3), f1 === f3))
     }).flatten[Decl].toSeq
 
   /*
@@ -140,14 +149,37 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
     }
   }
 
+  override def getWandFtSmRepresentation(wand: sil.MagicWand, ftsm: Int): Exp = {
+    //need to compute shape of wand
+    val ghostFreeWand = wand
+
+    //get all the expressions which form the "holes" of the shape,
+    val arguments = ghostFreeWand.subexpressionsToEvaluate(mainModule.verifier.program)
+
+    val shape:WandShape = wandToShapes(wand.structure(mainModule.verifier.program))
+
+    shape match {
+      case Func(name, _, typ) =>
+        if(ftsm == 0){
+          FuncApp(heapModule.wandFtIdentifier(name), arguments.map(arg => expModule.translateExp(arg)), typ)
+        }else if(ftsm == 1){
+          FuncApp(heapModule.wandMaskIdentifier(name), arguments.map(arg => expModule.translateExp(arg)), typ)
+        }else{
+          throw new RuntimeException()
+        }
+    }
+  }
+
   override def translatePackage(p: sil.Package, error: PartialVerificationError, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false):Stmt = {
     val proofScript = p.proofScript
     p match {
       case pa@sil.Package(wand, proof) =>
         wand match {
           case w@sil.MagicWand(left,right) =>
-
+            var oldW = ww
+            ww = w
             val addWand = inhaleModule.inhale(w, statesStack, inWand)
+
             val currentState = stateModule.state
 
             val oldOps = OPS
@@ -175,7 +207,9 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
             stateModule.replaceState(currentState)
             lhsStack = lhsStack.dropRight(1)
             wandId -= 1
-            stmt ++ addWand
+            val retStmt = permModule.inhaleWandFt(w) ++ stmt ++ addWand
+            ww = oldW
+            retStmt
 
           case _ => sys.error("Package only defined for wands.")
         }
@@ -442,6 +476,12 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
       val curPermTop = permModule.currentPermission(e.rcv, e.loc)
       val removeFromTop = heapModule.beginExhale ++
         (components flatMap (_.transferRemove(e,used.boolVar))) ++
+         {if(top != OPS){ // Sets the transferred field in secondary mask of the wand to true ,eg., Heap[null, w#sm\[x, f] := true
+           heapModule.addPermissionToWMask(getWandFtSmRepresentation(ww, 1), e.originalSILExp)
+          }else{
+           Statements.EmptyStmt
+         }
+         }
         ( //if original state then don't need to guard assumptions
           if(isOriginalState) {
             heapModule.endExhale ++
@@ -528,7 +568,7 @@ def applyWand(w: sil.MagicWand, error: PartialVerificationError, statesStack: Li
   //GP: using beginExhale, endExhale works now, but isn't intuitive, maybe should duplicate code to avoid this breaking
   //in the future when beginExhale and endExhale's implementations are changed
   popLhsStack()
-  ret
+  ret ++ permModule.exhaleWandFt(w)
 }
 
 

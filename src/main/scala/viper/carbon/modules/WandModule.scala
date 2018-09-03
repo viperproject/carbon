@@ -111,4 +111,7 @@ trait WandModule extends Module with ComponentRegistry[TransferComponent] {
     */
   var wandId: Int = 0
 
+  // ftsm == 0   ==>   returns ft representation
+  // ftsm == 1   ==>   returns sm representation
+  def getWandFtSmRepresentation(wand: sil.MagicWand, ftsm: Int): Exp
 }
