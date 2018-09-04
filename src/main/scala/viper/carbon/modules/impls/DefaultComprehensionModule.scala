@@ -188,7 +188,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
   }
 
   override def preamble: Seq[Decl] = {
-    val out: Seq[Decl] = Seq()
+    var out: Seq[Decl] = Seq()
 
     // generate comprehension independent axioms and declarations
 
@@ -213,7 +213,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     val userMentioned = Func(Identifier("userMentioned"), rDecl, Bool)
     val dummyFunDecl = CommentedDecl("Declaration of dummy functions", userCreated ++ userMentioned, 1)
 
-    out :+ CommentedDecl("Comprehension independent declarations", filterTypeDecl ++ filterGeneratingFunDecl ++ filterPropertyFunDecl ++ dummyFunDecl, 2)
+    out = out :+ CommentedDecl("Comprehension independent declarations", filterTypeDecl ++ filterGeneratingFunDecl ++ filterPropertyFunDecl ++ dummyFunDecl, 2)
 
     // generate filter property function axiomatizations
     val subfilterAxiom = Axiom(
@@ -230,7 +230,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     )
     val filterPopertyFunAx = CommentedDecl("Comprehension independent axiomatization of filter property functions", subfilterAxiom ++ equivalentAxiom, 1)
 
-    out :+ CommentedDecl("Comprehension independent axioms", filterPopertyFunAx, 2)
+    out = out :+ CommentedDecl("Comprehension independent axioms", filterPopertyFunAx, 2)
 
 
     // generate the axiomatizations of the different comprehensions
@@ -372,7 +372,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
         CommentedDecl("Comprehension axioms", comprehensionAxioms, 1) ++
         CommentedDecl("Additional axioms", additionalAxioms, 1) ++
         CommentedDecl("Definedness check", definednessProc, 1)
-      out :+ CommentedDecl("Axiomatization of comprehension " + c.name, axioms, 2)
+      out = out :+ CommentedDecl("Axiomatization of comprehension " + c.name, axioms, 2)
     }
 
     // generate the filter variables
@@ -393,10 +393,10 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
       f.decl match {
           // for function declarations, need to wrap in a outer quantifier, to quantify over the "outer variables"
         case Func(_, args, _) => Axiom(axiom forall (args, Trigger(f.exp)))
-        case GlobalVarDecl => Axiom(axiom)
+        case _: GlobalVarDecl => Axiom(axiom)
       }
     }
-    out :+ CommentedDecl("Translation of filter declarations", filterDeclarations, 2)
+    out = out :+ CommentedDecl("Translation of filter declarations", filterDeclarations, 2)
     out
   }
 }

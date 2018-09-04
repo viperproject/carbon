@@ -7,7 +7,7 @@
 package viper.carbon.modules.impls
 
 import viper.carbon.modules.{ExpModule, StatelessComponent}
-import viper.silver.{ast => sil}
+import viper.silver.{ast, ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.Verifier
 import viper.silver.verifier.{PartialVerificationError, reasons}
@@ -318,6 +318,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
               Nil
             }
         }
+      case c: sil.Comp =>
+        checkDefinednessComp(c, error, makeChecks)
       case _ =>
         def translate: Seqn = {
           val checks = components map (_.partialCheckDefinedness(e, error, makeChecks = makeChecks))
@@ -403,6 +405,23 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
 
     stateModule.replaceState(curState)
     NondetIf(lhs ++ rhs ++ Assume(FalseLit()))
+  }
+
+  /**
+    * Checks definedness of a comprehension, which is checking, whether there is permission to the field inside the specified filter.
+    */
+  private def checkDefinednessComp(e: sil.Comp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
+    // check children similar as for quantified expressions, but avoid the top-level field access in the body to be checked
+    e.variables map {v=>env.define(v.localVar)}
+    val stmts = handleQuantifiedLocals(e.variables, checkDefinednessImpl(e.filter.exp, error, makeChecks)) ++
+    handleQuantifiedLocals(e.variables, checkDefinednessImpl(e.unit, error, makeChecks)) ++
+    handleQuantifiedLocals(e.variables, checkDefinednessImpl(e.body.rcv, error, makeChecks))
+    // create a forall statement to check for permission
+    val fa = sil.Forall(e.variables, Seq(), e.body)(e.pos, e.info, e.errT)
+    Seqn(stmts ++ checkDefinedness(fa, error, makeChecks = makeChecks) ++ {
+      e.variables map {v=>env.undefine(v.localVar)}
+      Nil
+    })
   }
 
 
