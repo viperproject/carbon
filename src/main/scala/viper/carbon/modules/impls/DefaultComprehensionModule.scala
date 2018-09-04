@@ -7,8 +7,6 @@ import viper.silver.{ast => sil}
 import viper.carbon.boogie.Implicits._
 import viper.silver.verifier.{errors, reasons}
 
-import scala.util.parsing.combinator.token.StdTokens
-
 class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionModule {
 
   import verifier._
@@ -20,6 +18,15 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
   implicit val compNamespace: Namespace = verifier.freshNamespace("comp")
 
   override def name: String = "Comprehension Module"
+
+  override def start() = {}
+
+  override def stop() = {}
+
+  override def reset() = {
+    comprehensions = Seq()
+    filters = Seq()
+  }
 
   /** A class for describing a comprehension instance. */
   class Comprehension(val ast: sil.Comp) {
@@ -33,6 +40,8 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     val body = translateExp(ast.body)
     /** The boogie translated receiver of the body */
     val receiver = translateExp(ast.body.rcv)
+    /** The boogie translated value field of the body */
+    val value = translateLocation(ast.body)
     /** The identifier for the binary operator */
     val binaryId = Identifier(ast.binary)
     /** The boogie translated unit */
@@ -67,21 +76,41 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     val name = "filter"+filters.size
     /** The boogie translated filtering condition */
     val cond = translateExp(ast.exp)
-    /** The global variable declaration for this filter */
-    val varDecl = GlobalVarDecl(Identifier(name), filterType)
+    /**
+      * A list of variables which are defined outside the context of the comprehension of this filter,
+      * but which are mentioned in the filter condition
+      */
+    val outerVarDecls = cond reduce {(n: Node, varLists: Seq[Seq[LocalVar]]) =>
+      n match {
+        case l: LocalVar =>
+          val unit: Seq[LocalVar] = Seq()
+          val out = (varLists :\ unit)(_ ++ _)
+          if (!comp.localVars.contains(l) && !out.contains(l))
+            out :+ l
+          else
+            out
+      }
+    } map {l => LocalVarDecl(l.name, l.typ)}
+    /**
+      * The declaration of this filter,
+      * which is a global variable declaration, if the filter is context free (i.e. [[outerVarDecls]] is empty),
+      * or a function declaration if it depends on the context
+      */
+    val decl = if(outerVarDecls.isEmpty)
+      GlobalVarDecl(Identifier(name), filterType) else
+      Func(Identifier(name), outerVarDecls, filterType)
+    /** The boogie expression representing this filter */
+    val exp = decl match {
+      case f@Func(_, vars, _) => f.apply(vars map {_.l})
+      case g: GlobalVarDecl => g.g
+    }
   }
 
   /** All comprehensions occurring in the program */
-  private val comprehensions: Seq[Comprehension] = Seq()
+  private var comprehensions: Seq[Comprehension] = Seq()
 
   /** All filters occurring in the program */
-  private val filters: Seq[Filter] = Seq()
-
-  /** All the filters translated in this statement so far. */
-  private var newFilters: Seq[Filter] = Seq()
-
-  /** Indicates whether the module is ready for translation, i.e. the [[startNextStatement]] method was called. */
-  private var readyForTranslation = false
+  private var filters: Seq[Filter] = Seq()
 
   /** The boogie filter type */
   val filterType = NamedType("Filter")
@@ -102,9 +131,6 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
   private val h = hDecl.l
 
   override def translateComp(e: sil.Exp): Exp = {
-    if (!readyForTranslation) {
-      throw new UnexpectedCompExprException()
-    }
     e match {
       case c@sil.Comp(_, filter, _, _, _) =>
         // retrieve the comprehension object for the comprehension call
@@ -152,44 +178,13 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
   }
 
   /**
-    * Translates a filter, i.e. generate a new filter instance and enlist it in [[filters]], as well as in [[newFilters]],
-    * then return a variable representing the filter
+    * Translates a filter, i.e. generate a new filter instance and enlist it in [[filters]],
+    * then return a variable (or function call) representing the filter
     */
-  def translateFilter(f: sil.Filter, c: Comprehension): Exp = {
+  private def translateFilter(f: sil.Filter, c: Comprehension): Exp = {
     val filter = new Filter(f, c)
     filters :+ filter
-    filter.varDecl.g
-  }
-
-  override def startNextStatement() = {
-    if (!readyForTranslation) {
-      throw new UnexpectedStmtStartException()
-    }
-    readyForTranslation = true
-    newFilters = Seq()
-  }
-
-  override def canTranslateComprehension = readyForTranslation
-
-  override def filterPreamble() = {
-    readyForTranslation = false
-    // create the axiomatizations for every filter
-    newFilters map { f =>
-      val filtering = f.comp.filtering
-      val filteringArgs: Seq[Exp] = filtering.args map {a => a.l}
-      val filteringApp = FuncApp(filtering.name, filteringArgs, filtering.typ)
-      val trigger = Trigger(filteringApp)
-      // the axiomatization of the filter in terms of its filtering condition
-      Forall(f.comp.filtering.args, trigger, filteringApp <==> f.cond) &&
-      // the assumption of the userCreated function for the filter
-      FuncApp(userCreated.name, f.varDecl.g, userCreated.typ)
-    }
-  }
-
-  override def filterPreambleIdentifiers(): Seq[Identifier] = {
-    newFilters map { f =>
-      f.varDecl.name
-    }
+    filter.exp
   }
 
   override def preamble: Seq[Decl] = {
@@ -302,7 +297,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
         filtering.apply((inv map {tuple => tuple._1.apply(r)}) ++ f) ==>
           c.binary(c.decl.apply(h ++ f) === c.decl.apply(h ++ narrow.apply(f ++ r)), c.body) forall (
           hDecl ++ fDecl ++ rDecl,
-          Trigger(dummy.apply(f) ++ c.body ++ userMentioned.apply(r))
+          Trigger(dummy.apply(f) ++ MapSelect(h, r++c.value) ++ userMentioned.apply(r))
         )
       )
       val generalAxiom = Axiom(
@@ -370,6 +365,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
 
 
       val axioms =
+        CommentedDecl("Declaration of comprehension", c.decl, 1) ++
         CommentedDecl("Declaration and axiomatization of inverse functions", inverseAxioms, 1) ++
         CommentedDecl("Declaration and axiomatization of filtering function", filterAxioms, 1) ++
         CommentedDecl("Declaration of comprehension dependent dummy functions", dummy, 1) ++
@@ -378,9 +374,27 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
         CommentedDecl("Definedness check", definednessProc, 1)
       out :+ CommentedDecl("Axiomatization of comprehension " + c.name, axioms, 2)
     }
+
     // generate the filter variables
     val filterDeclarations = filters map { f =>
-      f.varDecl
+      f.decl
+    }
+    // axiomatize the filters
+    val filterAxioms = filters map { f =>
+      val filtering = f.comp.filtering
+      val filteringArgs: Seq[Exp] = filtering.args map {a => a.l}
+      val filteringApp = filtering.apply(filteringArgs)
+      val trigger = Trigger(filteringApp)
+      val axiom =
+        // the axiomatization of the filter in terms of its filtering condition
+        Forall(filtering.args, trigger, filteringApp <==> f.cond) &&
+          // the assumption of the userCreated function for the filter
+          FuncApp(userCreated.name, f.exp, userCreated.typ)
+      f.decl match {
+          // for function declarations, need to wrap in a outer quantifier, to quantify over the "outer variables"
+        case Func(_, args, _) => Axiom(axiom forall (args, Trigger(f.exp)))
+        case GlobalVarDecl => Axiom(axiom)
+      }
     }
     out :+ CommentedDecl("Translation of filter declarations", filterDeclarations, 2)
     out

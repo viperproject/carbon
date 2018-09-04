@@ -6,3 +6,4 @@ project/target
 target
 bin/**
 carbon_classpath.txt
+drafts

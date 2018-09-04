@@ -373,7 +373,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         stateModule.staticStateContributions() ++ args,
         Seq(Trigger(Seq(staticGoodState, transformFuncAppsToLimitedForm(funcApp2)))) ++ (if (predicateTriggers.isEmpty) Seq()  else Seq(Trigger(Seq(staticGoodState, triggerFuncStatelessApp(f,args map (_.l))) ++ predicateTriggers))),
         staticGoodState ==> (transformFuncAppsToLimitedForm(funcApp2) === funcApp))) ) ++
-        translateCondAxioms("function "+f.name, f.formalArgs, funcFrameInfo._2)
+      translateCondAxioms("function "+f.name, f.formalArgs, funcFrameInfo._2)
   }
 
   /** Generate an expression that represents a snapshot of a predicate's body, representing
@@ -503,7 +503,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           val perm = acc.perm
           val locationAccess = acc.loc
 
-          val vFresh = env.makeUniquelyNamed(lvd);
+          val vFresh = env.makeUniquelyNamed(lvd)
           env.define(vFresh.localVar)
           def renaming(origExpr: sil.Exp) = Expressions.instantiateVariables(origExpr, Seq(lvd), vFresh.localVar)
 
