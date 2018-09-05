@@ -418,7 +418,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
     handleQuantifiedLocals(e.variables, checkDefinednessImpl(e.body.rcv, error, makeChecks))
     e.variables map {v=>env.undefine(v.localVar)}
     // create a forall statement to check for permission
-    val fa = sil.Forall(e.variables, Seq(), e.body)(e.pos, e.info, e.errT)
+    val fa = sil.Forall(e.variables, Seq(), sil.Implies(e.filter.exp, e.body)(e.pos, e.info, e.errT))(e.pos, e.info, e.errT)
     Seqn(stmts ++ checkDefinedness(fa, error, makeChecks = makeChecks) ++ {
       Nil
     })

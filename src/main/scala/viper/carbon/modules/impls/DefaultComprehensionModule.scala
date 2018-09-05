@@ -93,6 +93,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
             out :+ l
           else
             out
+        case _ => Nil
       }
     } map {l => LocalVarDecl(l.name, l.typ)}
     /**
@@ -107,6 +108,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     val exp = decl match {
       case f@Func(_, vars, _) => f.apply(vars map {_.l})
       case g: GlobalVarDecl => g.g
+      case _ => BoolLit(false) // dummy value
     }
   }
 
@@ -118,9 +120,6 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
 
   /** The boogie filter type */
   val filterType = NamedType("Filter")
-
-  /** The function declaration of the userCreated function */
-  val userCreated = Func(Identifier("userCreated"), Seq(LocalVarDecl(Identifier("f"), filterType)), Bool)
 
   // practical constants for common variables for avoiding boilerplate code
   private val fDecl = LocalVarDecl(Identifier("f"), filterType)
@@ -144,22 +143,31 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
         e match {
           case c@sil.Comp (vars, filter, body, binary, unit) =>
             // retrieve the comprehension object for the comprehension call
-            val comp: Comprehension = detectComp (c) match {
-              case None =>
+            detectComp (c) match {
+              case (None, _, _) =>
                 // alpha renaming
-                var fresh = vars map { v => env.makeUniquelyNamed (v)}
+                val fresh = vars map { v => env.makeUniquelyNamed (v)}
                 fresh map { v => env.define (v.localVar)}
                 def renaming[E <: sil.Exp] = (e: E) => Expressions.renameVariables (e, vars map { v => v.localVar}, fresh map { v => v.localVar})
-                val (freshFilter, freshBody) = (renaming (filter), renaming (body) )
-                val out = new Comprehension (sil.Comp (fresh, freshFilter, freshBody, binary, unit) (c.typ, c.pos, c.info, c.errT) )
-                comprehensions :+ out
+                val (freshFilter, freshBody) = (sil.Filter(renaming(filter.exp))(filter.pos, filter.info, filter.errT), renaming(body) )
+                // created instance
+                val comp = new Comprehension (sil.Comp (fresh, freshFilter, freshBody, binary, unit) (c.typ, c.pos, c.info, c.errT) )
+                // translate filter
+                val translatedFilter = translateFilter(freshFilter, comp)
+                // add comprehension to list
+                comprehensions = comprehensions :+ comp
                 fresh map {v=>env.undefine(v.localVar)}
-                out
-              case Some (obj) =>
-                obj
+                comp.decl.apply(currentStateVars ++ translatedFilter)
+
+              case (Some(comp), old, fresh) =>
+                fresh map { v => env.define(v)}
+                // translate filter
+                val freshFilter = sil.Filter(Expressions.renameVariables(filter.exp, old, fresh))(filter.pos, filter.info, filter.errT)
+                val translatedFilter = translateFilter(freshFilter, comp)
+                fresh map {v=>env.undefine(v)}
+                comp.decl.apply(currentStateVars ++ translatedFilter)
             }
-            comp.decl.apply(currentStateVars ++ translateFilter(filter, comp))
-            FuncApp (Identifier (comp.name), translateFilter (filter, comp), comp.typ)
+          case _ => BoolLit(false) // dummy value
         }
     }
   }
@@ -172,13 +180,14 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     * @return The comprehension used in the call, wrapped inside Some, or None, if there is no instance of the called
     *         comprehension yet (a new instance has to be created).
     */
-  private def detectComp(exp: sil.Comp): Option[Comprehension] = {
+  private def detectComp(exp: sil.Comp): (Option[Comprehension], Seq[sil.LocalVar], Seq[sil.LocalVar]) = {
     /** The current variables of the body expression, in the order as they appear in the traversal */
     val oldVars = sil.utility.Expressions.collectVars(exp.body)
 
-    def detect(comps: Seq[Comprehension]): Option[Comprehension] = {
+    /** The recursive function to detect the comprehension */
+    def detect(comps: Seq[Comprehension]): (Option[Comprehension], Seq[sil.LocalVar], Seq[sil.LocalVar]) = {
       comps match {
-        case Seq() => None
+        case Seq() => (None, Nil, Nil)
         case s: Seq[Comprehension] =>
           val comp = s.head
           // unit and binary are static, so we can compare them directly
@@ -192,7 +201,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
             // the two bodies should be the same.
             val fresh = sil.utility.Expressions.collectVars(comp.ast.body)
             if (fresh.size == oldVars.size && Expressions.renameVariables(exp.body, oldVars, fresh) == comp.ast.body) {
-              return Some(comp)
+              return (Some(comp), oldVars, fresh)
             }
           }
           detect(s.tail)
@@ -208,7 +217,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     */
   private def translateFilter(f: sil.Filter, c: Comprehension): Exp = {
     val filter = new Filter(f, c)
-    filters :+ filter
+    filters = filters :+ filter
     filter.exp
   }
 
@@ -238,9 +247,9 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     val filterPropertyFunDecl = CommentedDecl("Declaration of filter property functions", empty ++ subfilter ++ equivalent, 1)
 
     // generate comprehension independent dummy functioons
-    val dummyFunDecl = CommentedDecl("Declaration of dummy functions", userCreated ++ userMentioned, 1)
+    val dummyFunDecl = CommentedDecl("Declaration of dummy functions", userCreated ++ userMentioned, 1, nLines = 2)
 
-    out = out :+ CommentedDecl("Comprehension independent declarations", filterTypeDecl ++ filterGeneratingFunDecl ++ filterPropertyFunDecl ++ dummyFunDecl, 2)
+    out = out :+ CommentedDecl("Comprehension independent declarations", filterTypeDecl ++ filterGeneratingFunDecl ++ filterPropertyFunDecl ++ dummyFunDecl, 2, nLines = 2)
 
     // generate filter property function axiomatizations
     val subfilterAxiom = Axiom(
@@ -257,7 +266,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     )
     val filterPopertyFunAx = CommentedDecl("Comprehension independent axiomatization of filter property functions", subfilterAxiom ++ equivalentAxiom, 1)
 
-    out = out :+ CommentedDecl("Comprehension independent axioms", filterPopertyFunAx, 2)
+    out = out :+ CommentedDecl("Comprehension independent axioms", filterPopertyFunAx, 2, nLines = 2)
 
 
     // generate the axiomatizations of the different comprehensions
@@ -399,7 +408,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
         CommentedDecl("Comprehension axioms", comprehensionAxioms, 1) ++
         CommentedDecl("Additional axioms", additionalAxioms, 1) ++
         CommentedDecl("Definedness check", definednessProc, 1)
-      out = out :+ CommentedDecl("Axiomatization of comprehension " + c.name, axioms, 2)
+      out = out :+ CommentedDecl("Axiomatization of comprehension " + c.name, axioms, 2, nLines = 2)
     }
 
     // generate the filter variables
@@ -421,9 +430,11 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
           // for function declarations, need to wrap in a outer quantifier, to quantify over the "outer variables"
         case Func(_, args, _) => Axiom(axiom forall (args, Trigger(f.exp)))
         case _: GlobalVarDecl => Axiom(axiom)
+        case _ => Axiom(BoolLit(false)) // dummy value
       }
     }
-    out = out :+ CommentedDecl("Translation of filter declarations", filterDeclarations, 2)
+    out = out ++ MaybeCommentedDecl("Translation of filter declarations", filterDeclarations, 2, nLines = 2)
+    out = out ++ MaybeCommentedDecl("Translation of filter axioms", filterAxioms, 2, nLines = 2)
     out
   }
 

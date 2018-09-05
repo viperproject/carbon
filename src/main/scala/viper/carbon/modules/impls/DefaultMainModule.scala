@@ -69,7 +69,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
         // get the preambles (only at the end, even if we add it at the beginning)
         val preambles = verifier.allModules flatMap {
           m =>
-            if (m.preamble.size > 0) Seq(CommentedDecl(s"Preamble of ${m.name}.", m.preamble))
+            if (m.preamble.size > 0) Seq(CommentedDecl(s"Preamble of ${m.name}.", m.preamble, nLines = 2))
             else Nil
         }
 
