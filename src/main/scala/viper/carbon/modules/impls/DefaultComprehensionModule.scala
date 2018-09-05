@@ -9,7 +9,6 @@ import viper.silver.ast.utility.Expressions
 import viper.silver.verifier.{errors, reasons}
 
 import scala.collection.mutable
-import scala.util.parsing.combinator.token.StdTokens
 
 class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionModule {
 
@@ -56,7 +55,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     val decl = Func(Identifier(name), hDecl ++ fDecl, typ)
 
     /** Returns a boogie function application of the binary opertor */
-    def binary(lhs: Exp, rhs: Exp) = translateFuncApp(ast.binary, lhs++rhs, ast.typ)
+    def binary(lhs: Exp, rhs: Exp) = translateFuncApp(ast.binary, h++lhs++rhs, ast.typ)
 
     /**
       * The boogie function declaration of the filtering function of this comprehension.
@@ -98,16 +97,16 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     } map {l => LocalVarDecl(l.name, l.typ)}
     /**
       * The declaration of this filter,
-      * which is a global variable declaration, if the filter is context free (i.e. [[outerVarDecls]] is empty),
+      * which is a constant declaration, if the filter is context free (i.e. [[outerVarDecls]] is empty),
       * or a function declaration if it depends on the context
       */
     val decl = if(outerVarDecls.isEmpty)
-      GlobalVarDecl(Identifier(name), filterType) else
+      ConstDecl(Identifier(name), filterType) else
       Func(Identifier(name), outerVarDecls, filterType)
     /** The boogie expression representing this filter */
     val exp = decl match {
       case f@Func(_, vars, _) => f.apply(vars map {_.l})
-      case g: GlobalVarDecl => g.g
+      case c: ConstDecl => Const(c.name)
       case _ => BoolLit(false) // dummy value
     }
   }
@@ -237,7 +236,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     val minus = Func(Identifier("minus"), f1Decl ++ f2Decl, filterType)
     val intersect = Func(Identifier("intersect"), f1Decl ++ f2Decl, filterType)
     val union = Func(Identifier("union"), f1Decl ++ f2Decl, filterType)
-    val narrow = Func(Identifier("narrow"), f1Decl ++ f2Decl, filterType)
+    val narrow = Func(Identifier("narrow"), fDecl ++ rDecl, filterType)
     val filterGeneratingFunDecl = CommentedDecl("Declaration of filter generating functions", minus ++ intersect ++ union ++ narrow, 1)
 
     // generate filter property function declarations
@@ -274,15 +273,12 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
 
       // generate inverse function declaration and axiomatization
       // if the receiver is a plain variable, the inverse is simply the variable itself, hence no function needed
-      /** The simple "inverse function" which is just the local variable, if the receiver is a local variable */
-      val simpleInv = c.receiver match {
-        case l: LocalVar => Some(l)
-        case _ => None
-      }
+      /** indicates, whether the receiver is a simple variable (of type ref) */
+      val recvIsVar = c.receiver.isInstanceOf[LocalVar]
       /** The inverse function declarations of all comprehension arguments along with the respective argument declaration */
       val inv: Seq[(Func, LocalVarDecl)] = c.varDecls map { vDecl => (Func(Identifier(c.name + "#inv_"+vDecl.name.name), rDecl, vDecl.typ), vDecl)}
       // only output the axioms if the receiver is not a variable
-      val inverseAxioms = if(simpleInv.isEmpty) {
+      val inverseAxioms = if(!recvIsVar) {
         // inv(e(a)) == a
         val invAxioms1 = inv map { tuple =>
           Axiom(tuple._1.apply(c.receiver) === tuple._2.l forall(tuple._2, Trigger(c.receiver)))
@@ -339,9 +335,11 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
       // generate comprehension axioms
       val dummyAxiom = Axiom(dummy.apply(f) forall (hDecl ++ fDecl, Trigger(c.decl.apply(h ++ f))))
       val emptyAxiom = Axiom(empty.apply(f) ==> (c.decl.apply(h ++ f) === c.unit) forall (hDecl ++ fDecl, Trigger(c.decl.apply(h ++ f))))
+      val locationAccess = c.body.replace(c.receiver, r)
+      val inverseVal: Seq[Exp] = if(!recvIsVar) {(inv map {tuple => tuple._1.apply(r)}) ++ f} else r
       val singletonAxiom = Axiom(
-        filtering.apply(if(simpleInv.isEmpty) {(inv map {tuple => tuple._1.apply(r)}) ++ f} else simpleInv.get) ==>
-          c.binary(c.decl.apply(h ++ f) === c.decl.apply(h ++ narrow.apply(f ++ r)), c.body) forall (
+        filtering.apply(inverseVal ++ f) ==>
+          (c.decl.apply(h ++ f) === c.binary(c.decl.apply(h ++ narrow.apply(f ++ r)), locationAccess)) forall (
           hDecl ++ fDecl ++ rDecl,
           Trigger(dummy.apply(f) ++ MapSelect(h, r++c.value) ++ userMentioned.apply(r))
         )
@@ -356,7 +354,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
       val comprehensionAxioms = dummyAxiom ++ emptyAxiom ++ singletonAxiom ++ generalAxiom
 
       //additional axioms
-      val equalAxiom = Axiom(equivalent.apply(f1++f2) ==> f1 === f2 forall (f1Decl++f2Decl, Trigger(dummy.apply(f1)++dummy.apply(f2))))
+      val equalAxiom = Axiom(equivalent.apply(f1++f2) ==> (f1 === f2) forall (f1Decl++f2Decl, Trigger(dummy.apply(f1)++dummy.apply(f2))))
       val filterUniteAxiom = Axiom(
         (empty.apply(intersect.apply(f++f1)).not && empty.apply(intersect.apply(f++f2)).not && empty.apply(intersect.apply(f1++f2))) ==>
           (dummy.apply(union.apply(f1++f2)) && userCreated.apply(union.apply(f1++f2))) forall (
@@ -377,7 +375,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
       val notEqualConj = ((argZip map {tuple => tuple._1.l !== tuple._2.l}) :\ BoolLit(true).asInstanceOf[Exp])(_ && _)
       /** the second version of the receiver */
       var recv2 = (argZip :\ c.receiver)((tuple, rec) => rec.replace(tuple._1.l, tuple._2.l))
-      val injectiveCheck = Assert(
+      val injectiveCheck: Seq[Stmt] = if(recvIsVar) Seq() else Assert( // if receiver is a variable, it is trivially injective
         notEqualConj ==> (c.receiver !== recv2) forall (c.varDecls++argDecl2, Trigger(c.receiver) ++ Trigger(recv2)),
         error.dueTo(reasons.ReceiverNotInjective(c.ast.body))
       )
@@ -385,25 +383,25 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
       val xDecl = LocalVarDecl(Identifier("x"), c.typ)
       val x = xDecl.l
       val unitCheck = Assert(
-        c.binary(x, c.unit) === x forall (xDecl, Trigger(c.binary(x, c.unit))),
+        c.binary(x, c.unit) === x forall (hDecl++xDecl, Trigger(c.binary(x, c.unit))),
         error.dueTo(reasons.CompUnitNotUnit(c.ast.unit))
       )
       // binary commutative check
       val yDecl = LocalVarDecl(Identifier("y"), c.typ)
       val y = yDecl.l
       val binaryCommCheck = Assert(
-        c.binary(x, y) === c.binary(y, x) forall (xDecl++yDecl, Trigger(c.binary(x, y))),
+        c.binary(x, y) === c.binary(y, x) forall (hDecl++xDecl++yDecl, Trigger(c.binary(x, y))),
         error.dueTo(reasons.CompBinaryNotCommutative(c.ast))
       )
       // binary associative check
       val zDecl = LocalVarDecl(Identifier("z"), c.typ)
       val z = zDecl.l
       val binaryAssocCheck = Assert(
-        c.binary(x, c.binary(y, z)) === c.binary(c.binary(x, y), z) forall (xDecl++yDecl++zDecl, Trigger(c.binary(x, c.binary(y, z)))),
+        c.binary(x, c.binary(y, z)) === c.binary(c.binary(x, y), z) forall (hDecl++xDecl++yDecl++zDecl, Trigger(c.binary(x, c.binary(y, z)))),
         error.dueTo(reasons.CompBinaryNotAssociative(c.ast))
       )
       val definednessCheck: Stmt =
-        CommentBlock("Check for receiver injectivity", injectiveCheck) ++
+        MaybeCommentBlock("Check for receiver injectivity", injectiveCheck) ++
         CommentBlock("Check for unit", unitCheck) ++
         CommentBlock("Check for commutativity of binary operator", binaryCommCheck) ++
         CommentBlock("Check for associativity of binary operator", binaryAssocCheck)
