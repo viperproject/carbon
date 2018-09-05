@@ -5,7 +5,10 @@ import viper.carbon.modules._
 import viper.carbon.verifier.Verifier
 import viper.silver.{ast => sil}
 import viper.carbon.boogie.Implicits._
+import viper.silver.ast.utility.Expressions
 import viper.silver.verifier.{errors, reasons}
+
+import scala.collection.mutable
 
 class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionModule {
 
@@ -24,6 +27,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
   override def stop() = {}
 
   override def reset() = {
+    buffer = new mutable.HashMap()
     comprehensions = Seq()
     filters = Seq()
   }
@@ -130,20 +134,33 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
   private val r = rDecl.l
   private val h = hDecl.l
 
+  private var buffer: mutable.HashMap[sil.Exp, Exp] = new mutable.HashMap()
+
   override def translateComp(e: sil.Exp): Exp = {
-    e match {
-      case c@sil.Comp(_, filter, _, _, _) =>
-        // retrieve the comprehension object for the comprehension call
-        val comp: Comprehension = detectComp(c) match {
-          case None =>
-            // TODO: Alpha renaming
-            val out = new Comprehension(c)
-            comprehensions :+ out
-            out
-          case Some(obj) =>
-            obj
+    // first check whether it was already translated
+    buffer.get(e) match {
+      case Some(x) => x
+      case None =>
+        e match {
+          case c@sil.Comp (vars, filter, body, binary, unit) =>
+            // retrieve the comprehension object for the comprehension call
+            val comp: Comprehension = detectComp (c) match {
+              case None =>
+                // alpha renaming
+                var fresh = vars map { v => env.makeUniquelyNamed (v)}
+                fresh map { v => env.define (v.localVar)}
+                def renaming[E <: sil.Exp] = (e: E) => Expressions.renameVariables (e, vars map { v => v.localVar}, fresh map { v => v.localVar})
+                val (freshFilter, freshBody) = (renaming (filter), renaming (body) )
+                val out = new Comprehension (sil.Comp (fresh, freshFilter, freshBody, binary, unit) (c.typ, c.pos, c.info, c.errT) )
+                comprehensions :+ out
+                fresh map {v=>env.undefine(v.localVar)}
+                out
+              case Some (obj) =>
+                obj
+            }
+            comp.decl.apply(currentStateVars ++ translateFilter(filter, comp))
+            FuncApp (Identifier (comp.name), translateFilter (filter, comp), comp.typ)
         }
-        FuncApp(Identifier(comp.name), translateFilter(filter, comp), comp.typ)
     }
   }
 
@@ -155,26 +172,34 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     * @return The comprehension used in the call, wrapped inside Some, or None, if there is no instance of the called
     *         comprehension yet (a new instance has to be created).
     */
-  def detectComp(exp: sil.Comp): Option[Comprehension] = {
-    // TODO: variable naming independent matching
-    // the output of the function, default is none
-    var out: Option[Comprehension] = None
-    // sort the variable list of exp
-    val varList = exp.variables sortBy {v => v.name}
-    comprehensions foreach { compare =>
-      // compare for syntactic equivalence of the original expressions, but without comparing the filter
-      // this means, look, whether the expression references the already known comprehension compObj
+  private def detectComp(exp: sil.Comp): Option[Comprehension] = {
+    /** The current variables of the body expression, in the order as they appear in the traversal */
+    val oldVars = sil.utility.Expressions.collectVars(exp.body)
 
-      // sort the val list of the current comprehension object for comparison
-      val compareVarList = compare.ast.variables sortBy {v => v.name}
-      if (varList == compareVarList &&
-        exp.body == compare.ast.body &&
-        exp.unit == compare.ast.unit &&
-        exp.binary == compare.ast.binary) {
-        out = Some(compare)
+    def detect(comps: Seq[Comprehension]): Option[Comprehension] = {
+      comps match {
+        case Seq() => None
+        case s: Seq[Comprehension] =>
+          val comp = s.head
+          // unit and binary are static, so we can compare them directly
+          if (exp.binary == comp.ast.binary && exp.unit == comp.ast.unit) {
+            // Compare the bodies.
+            // Since the order of traversal is always the same, we expect for equal bodies,
+            // that the collected variables during the traversal for two bodies are the same.
+            // For naming independence of the variables, we therefore get a equivalence mapping
+            // when collecting the variables for the two bodies.
+            // So if we substitute the variables of one body with the equivalent variables of the other body,
+            // the two bodies should be the same.
+            val fresh = sil.utility.Expressions.collectVars(comp.ast.body)
+            if (fresh.size == oldVars.size && Expressions.renameVariables(exp.body, oldVars, fresh) == comp.ast.body) {
+              return Some(comp)
+            }
+          }
+          detect(s.tail)
       }
     }
-    out
+
+    detect(comprehensions)
   }
 
   /**
@@ -186,6 +211,10 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     filters :+ filter
     filter.exp
   }
+
+  // dummy functions
+  val userCreated = Func(Identifier("userCreated"), fDecl, Bool)
+  val userMentioned = Func(Identifier("userMentioned"), rDecl, Bool)
 
   override def preamble: Seq[Decl] = {
     var out: Seq[Decl] = Seq()
@@ -209,8 +238,6 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     val filterPropertyFunDecl = CommentedDecl("Declaration of filter property functions", empty ++ subfilter ++ equivalent, 1)
 
     // generate comprehension independent dummy functioons
-    val userCreated = Func(Identifier("userCreated"), fDecl, Bool)
-    val userMentioned = Func(Identifier("userMentioned"), rDecl, Bool)
     val dummyFunDecl = CommentedDecl("Declaration of dummy functions", userCreated ++ userMentioned, 1)
 
     out = out :+ CommentedDecl("Comprehension independent declarations", filterTypeDecl ++ filterGeneratingFunDecl ++ filterPropertyFunDecl ++ dummyFunDecl, 2)
@@ -398,5 +425,13 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     }
     out = out :+ CommentedDecl("Translation of filter declarations", filterDeclarations, 2)
     out
+  }
+
+  override def validValue(typ: sil.Type, variable: LocalVar, isParameter: Boolean) = {
+    // assume userMentioned for all reference variables in the silver code
+    typ match {
+      case sil.Ref => Some(userMentioned.apply(variable))
+      case _ => None
+    }
   }
 }

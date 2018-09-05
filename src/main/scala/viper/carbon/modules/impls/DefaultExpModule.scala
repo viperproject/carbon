@@ -7,7 +7,7 @@
 package viper.carbon.modules.impls
 
 import viper.carbon.modules.{ExpModule, StatelessComponent}
-import viper.silver.{ast, ast => sil}
+import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.Verifier
 import viper.silver.verifier.{PartialVerificationError, reasons}
@@ -416,10 +416,10 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
     val stmts = handleQuantifiedLocals(e.variables, checkDefinednessImpl(e.filter.exp, error, makeChecks)) ++
     handleQuantifiedLocals(e.variables, checkDefinednessImpl(e.unit, error, makeChecks)) ++
     handleQuantifiedLocals(e.variables, checkDefinednessImpl(e.body.rcv, error, makeChecks))
+    e.variables map {v=>env.undefine(v.localVar)}
     // create a forall statement to check for permission
     val fa = sil.Forall(e.variables, Seq(), e.body)(e.pos, e.info, e.errT)
     Seqn(stmts ++ checkDefinedness(fa, error, makeChecks = makeChecks) ++ {
-      e.variables map {v=>env.undefine(v.localVar)}
       Nil
     })
   }
