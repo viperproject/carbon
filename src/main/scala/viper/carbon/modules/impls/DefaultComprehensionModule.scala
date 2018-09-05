@@ -9,6 +9,7 @@ import viper.silver.ast.utility.Expressions
 import viper.silver.verifier.{errors, reasons}
 
 import scala.collection.mutable
+import scala.util.parsing.combinator.token.StdTokens
 
 class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionModule {
 
@@ -17,6 +18,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
   import mainModule._
   import typeModule._
   import heapModule._
+  import funcPredModule._
 
   implicit val compNamespace: Namespace = verifier.freshNamespace("comp")
 
@@ -46,8 +48,6 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     val receiver = translateExp(ast.body.rcv)
     /** The boogie translated value field of the body */
     val value = translateLocation(ast.body)
-    /** The identifier for the binary operator */
-    val binaryId = Identifier(ast.binary)
     /** The boogie translated unit */
     val unit = translateExp(ast.unit)
     /** The boogie type of the comprehension */
@@ -56,7 +56,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     val decl = Func(Identifier(name), hDecl ++ fDecl, typ)
 
     /** Returns a boogie function application of the binary opertor */
-    def binary(lhs: Exp, rhs: Exp) = FuncApp(binaryId, lhs ++ rhs, typ)
+    def binary(lhs: Exp, rhs: Exp) = translateFuncApp(ast.binary, lhs++rhs, ast.typ)
 
     /**
       * The boogie function declaration of the filtering function of this comprehension.
@@ -273,17 +273,27 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     comprehensions foreach { c =>
 
       // generate inverse function declaration and axiomatization
+      // if the receiver is a plain variable, the inverse is simply the variable itself, hence no function needed
+      /** The simple "inverse function" which is just the local variable, if the receiver is a local variable */
+      val simpleInv = c.receiver match {
+        case l: LocalVar => Some(l)
+        case _ => None
+      }
       /** The inverse function declarations of all comprehension arguments along with the respective argument declaration */
       val inv: Seq[(Func, LocalVarDecl)] = c.varDecls map { vDecl => (Func(Identifier(c.name + "#inv_"+vDecl.name.name), rDecl, vDecl.typ), vDecl)}
-      // inv(e(a)) == a
-      val invAxioms1 = inv map { tuple =>
-        Axiom(tuple._1.apply(c.receiver) === tuple._2.l forall (tuple._2, Trigger(c.receiver)))
-      }
-      // e(inv(r)) == r
-      val invAxioms2 = inv map { tuple =>
-        Axiom(c.receiver.replace(tuple._2.l, tuple._1.apply(r)) === r forall(rDecl, Trigger(tuple._1.apply(r))))
-      }
-      val inverseAxioms = (inv map {tuple=>tuple._1}) ++ invAxioms1 ++ invAxioms2
+      // only output the axioms if the receiver is not a variable
+      val inverseAxioms = if(simpleInv.isEmpty) {
+        // inv(e(a)) == a
+        val invAxioms1 = inv map { tuple =>
+          Axiom(tuple._1.apply(c.receiver) === tuple._2.l forall(tuple._2, Trigger(c.receiver)))
+        }
+        // e(inv(r)) == r
+        val invAxioms2 = inv map { tuple =>
+          Axiom(c.receiver.replace(tuple._2.l, tuple._1.apply(r)) === r forall(rDecl, Trigger(tuple._1.apply(r))))
+        }
+        (inv map { tuple => tuple._1 }) ++ invAxioms1 ++ invAxioms2
+      } else
+        Seq()
 
 
       // generate filtering axioms
@@ -330,7 +340,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
       val dummyAxiom = Axiom(dummy.apply(f) forall (hDecl ++ fDecl, Trigger(c.decl.apply(h ++ f))))
       val emptyAxiom = Axiom(empty.apply(f) ==> (c.decl.apply(h ++ f) === c.unit) forall (hDecl ++ fDecl, Trigger(c.decl.apply(h ++ f))))
       val singletonAxiom = Axiom(
-        filtering.apply((inv map {tuple => tuple._1.apply(r)}) ++ f) ==>
+        filtering.apply(if(simpleInv.isEmpty) {(inv map {tuple => tuple._1.apply(r)}) ++ f} else simpleInv.get) ==>
           c.binary(c.decl.apply(h ++ f) === c.decl.apply(h ++ narrow.apply(f ++ r)), c.body) forall (
           hDecl ++ fDecl ++ rDecl,
           Trigger(dummy.apply(f) ++ MapSelect(h, r++c.value) ++ userMentioned.apply(r))
@@ -402,7 +412,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
 
       val axioms =
         CommentedDecl("Declaration of comprehension", c.decl, 1) ++
-        CommentedDecl("Declaration and axiomatization of inverse functions", inverseAxioms, 1) ++
+        MaybeCommentedDecl("Declaration and axiomatization of inverse functions", inverseAxioms, 1) ++
         CommentedDecl("Declaration and axiomatization of filtering function", filterAxioms, 1) ++
         CommentedDecl("Declaration of comprehension dependent dummy functions", dummy, 1) ++
         CommentedDecl("Comprehension axioms", comprehensionAxioms, 1) ++
