@@ -84,15 +84,15 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
       * but which are mentioned in the filter condition
       */
     val outerVarDecls = cond reduce {(n: Node, varLists: Seq[Seq[LocalVar]]) =>
+      val unit: Seq[LocalVar] = Seq()
+      val out = (varLists :\ unit)(_ ++ _)
       n match {
         case l: LocalVar =>
-          val unit: Seq[LocalVar] = Seq()
-          val out = (varLists :\ unit)(_ ++ _)
           if (!comp.localVars.contains(l) && !out.contains(l))
             out :+ l
           else
             out
-        case _ => Nil
+        case _ => out
       }
     } map {l => LocalVarDecl(l.name, l.typ)}
     /**
@@ -139,7 +139,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     buffer.get(e) match {
       case Some(x) => x
       case None =>
-        e match {
+        val out = e match {
           case c@sil.Comp (vars, filter, body, binary, unit) =>
             // retrieve the comprehension object for the comprehension call
             detectComp (c) match {
@@ -168,6 +168,9 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
             }
           case _ => BoolLit(false) // dummy value
         }
+        // enlist in buffer
+        buffer.put(e, out)
+        out
     }
   }
 
@@ -246,7 +249,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     val filterPropertyFunDecl = CommentedDecl("Declaration of filter property functions", empty ++ subfilter ++ equivalent, 1)
 
     // generate comprehension independent dummy functioons
-    val dummyFunDecl = CommentedDecl("Declaration of dummy functions", userCreated ++ userMentioned, 1, nLines = 2)
+    val dummyFunDecl = CommentedDecl("Declaration of dummy functions", userCreated ++ userMentioned, 1)
 
     out = out :+ CommentedDecl("Comprehension independent declarations", filterTypeDecl ++ filterGeneratingFunDecl ++ filterPropertyFunDecl ++ dummyFunDecl, 2, nLines = 2)
 
@@ -327,7 +330,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
           Trigger(empty.apply(f))
         )
       )
-      val filterAxioms = filtering ++ minusAxiom ++ intersectAxiom ++ unionAxiom ++ narrowAxiom ++ emptyFilterAxiom ++ subfilterAxiom ++ equivalentAxiom
+      val filterAxioms = filtering ++ minusAxiom ++ intersectAxiom ++ unionAxiom ++ narrowAxiom ++ emptyFilterAxiom
 
       // generate dummy function
       val dummy = Func(Identifier(c.name+"#dummy"), fDecl, Bool)
@@ -414,8 +417,9 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
         CommentedDecl("Declaration and axiomatization of filtering function", filterAxioms, 1) ++
         CommentedDecl("Declaration of comprehension dependent dummy functions", dummy, 1) ++
         CommentedDecl("Comprehension axioms", comprehensionAxioms, 1) ++
-        CommentedDecl("Additional axioms", additionalAxioms, 1) ++
+        //CommentedDecl("Additional axioms", additionalAxioms, 1) ++
         CommentedDecl("Definedness check", definednessProc, 1)
+        Seq()
       out = out :+ CommentedDecl("Axiomatization of comprehension " + c.name, axioms, 2, nLines = 2)
     }
 
@@ -437,7 +441,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
       f.decl match {
           // for function declarations, need to wrap in a outer quantifier, to quantify over the "outer variables"
         case Func(_, args, _) => Axiom(axiom forall (args, Trigger(f.exp)))
-        case _: GlobalVarDecl => Axiom(axiom)
+        case _: ConstDecl => Axiom(axiom)
         case _ => Axiom(BoolLit(false)) // dummy value
       }
     }
