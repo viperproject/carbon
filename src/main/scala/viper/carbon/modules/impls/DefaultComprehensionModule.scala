@@ -76,6 +76,8 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     }
     /** A list of local variables emerging from the local variable declarations of this comprehension. */
     val localVars = varDecls map {v => v.l}
+    /** A map from Ast local variables to their translations */
+    val localVarTranslation: Map[sil.LocalVar, LocalVar] = ((ast.variables zip varDecls) map {tuple => tuple._1.localVar -> tuple._2.l}).toMap
     /** The boogie translated body of the comprehension */
     val body = translateExp(ast.body)
     /** The boogie translated receiver of the body */
@@ -127,11 +129,10 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
 
 
   /** A class for describing a filter instance.*/
-  class Filter(val ast: sil.Filter, val comp: Comprehension) {
+  class Filter(ast: sil.Filter, val comp: Comprehension)(val cond: Exp = translateExp(ast.exp)) {
+
     /** The name of the filter */
     val name = "filter"+filters.size
-    /** The boogie translated filtering condition */
-    val cond = translateExp(ast.exp)
 
     /**
       * A list of variables which are defined outside the context of the comprehension of this filter,
@@ -213,19 +214,32 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
                 // created instance
                 val comp = new Comprehension (sil.Comp (fresh, freshFilter, freshBody, binary, unit) (c.typ, c.pos, c.info, c.errT) )
                 // translate filter
-                val translatedFilter = translateFilter(freshFilter, comp)
+                val filterInstance = new Filter(freshFilter, comp)()
+                filters = filters :+ filterInstance
+                val translatedFilter = filterInstance.exp
                 // add comprehension to list
                 comprehensions = comprehensions :+ comp
                 fresh map {v=>env.undefine(v.localVar)}
                 comp.decl.apply(currentStateVars ++ translatedFilter)
 
               case (Some(comp), old, fresh) =>
+                // define the fresh variables (the ast variables of the detected comprehension)
                 fresh map { v => env.define(v)}
                 // translate filter
+                // replace all variables in the ast to their corresponding ast variables of the comprehension
                 val freshFilter = sil.Filter(Expressions.renameVariables(filter.exp, old, fresh))(filter.pos, filter.info, filter.errT)
-                val translatedFilter = translateFilter(freshFilter, comp)
+                // create a temporary filter instance for translating the filtering condition
+                val tempInstance = new Filter(freshFilter, comp)()
+                // Replace the variables in the condition with the translated variables of the comprehension.
+                // Since the variables were newly defined in the environment, they won't be translated automatically to the
+                // corresponding ones of the comprehension.
+                val cond = (fresh :\ tempInstance.cond)((v, exp) => exp.replace(env.get(v), comp.localVarTranslation(v)))
+                // undefine the variables
                 fresh map {v=>env.undefine(v)}
-                comp.decl.apply(currentStateVars ++ translatedFilter)
+                // create a new intance with the correct condition
+                val filterInstance = new Filter(filter, comp)(cond)
+                filters = filters :+ filterInstance
+                comp.decl.apply(currentStateVars ++ filterInstance.exp)
             }
           case _ => sys.error("unexpected expression when translating comprehension")
         }
@@ -274,16 +288,6 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     }
 
     detect(comprehensions)
-  }
-
-  /**
-    * Translates a filter, i.e. generate a new filter instance and enlist it in [[filters]],
-    * then return a variable (or function call) representing the filter
-    */
-  private def translateFilter(f: sil.Filter, c: Comprehension): Exp = {
-    val filter = new Filter(f, c)
-    filters = filters :+ filter
-    filter.exp
   }
 
 
