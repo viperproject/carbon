@@ -339,7 +339,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
         CommentedDecl("Declaration of dummy function", c.dummy, 1) ++
         CommentedDecl("Comprehension axioms", comprehensionAxioms(c), 1) ++
         CommentedDecl("Framing axiom", framingAxiom(c), 1) ++
-        //CommentedDecl("Additional axioms", additionalAxioms(c), 1) ++
+        CommentedDecl("Additional axioms", additionalAxioms(c), 1) ++
         CommentedDecl("Definedness check", definednessCheck(c), 1)
 
       out = out :+ CommentedDecl("Axiomatization of comprehension " + c.name, axioms, 2, nLines = 2)
@@ -549,12 +549,12 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
 
   private def filterAxiomatization(f: Filter): Decl = {
     val filtering = f.comp.filtering
-    val filteringArgs: Seq[Exp] = filtering.args map {a => a.l}
+    val filteringArgs: Seq[Exp] = f.comp.localVars ++ f.exp
     val filteringApp = filtering.apply(filteringArgs)
     val trigger = Trigger(filteringApp)
     val axiom =
     // the axiomatization of the filter in terms of its filtering condition
-      Forall(filtering.args, trigger, filteringApp <==> f.cond) &&
+      Forall(f.comp.varDecls, trigger, filteringApp <==> f.cond) &&
         // the assumption of the userCreated function for the filter
         FuncApp(userCreated.name, f.exp, userCreated.typ)
     f.decl match {
