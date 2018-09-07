@@ -139,12 +139,12 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
       */
     val outerVarDecls = cond reduce {(n: Node, varLists: Seq[Seq[LocalVar]]) =>
       val unit: Seq[LocalVar] = Seq()
-      val out = (varLists :\ unit)(_ ++ _)
+      val out = (varLists :\ unit)((l, r) => (l ++ r).distinct)
       n match {
         case l: LocalVar =>
-          if (!comp.localVars.contains(l) && !out.contains(l))
+          if (!comp.localVars.contains(l) && !out.contains(l)) {
             out :+ l
-          else
+          }else
             out
         case _ => out
       }
@@ -163,7 +163,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     val exp = decl match {
       case f@Func(_, vars, _) => f.apply(vars map {_.l})
       case c: ConstDecl => Const(c.name)
-      case _ => BoolLit(false) // dummy value
+      case _ => sys.error("unexpected filter declaration")
     }
   }
 
@@ -227,7 +227,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
                 fresh map {v=>env.undefine(v)}
                 comp.decl.apply(currentStateVars ++ translatedFilter)
             }
-          case _ => BoolLit(false) // dummy value
+          case _ => sys.error("unexpected expression when translating comprehension")
         }
         // enlist in buffer
         buffer.put(e, out)
@@ -241,7 +241,9 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     *
     * @param exp The call to a comprehension
     * @return The comprehension used in the call, wrapped inside Some, or None, if there is no instance of the called
-    *         comprehension yet (a new instance has to be created).
+    *         comprehension yet (a new instance has to be created), together with a list of the old variables and
+    *         a list of the corresponding new variables, i.e. the variables of the comprehension instance in the
+    *         order, in which they should be replaced.
     */
   private def detectComp(exp: sil.Comp): (Option[Comprehension], Seq[sil.LocalVar], Seq[sil.LocalVar]) = {
     /** The current variables of the body expression, in the order as they appear in the traversal */
@@ -254,7 +256,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
         case s: Seq[Comprehension] =>
           val comp = s.head
           // unit and binary are static, so we can compare them directly
-          if (exp.binaryApp.func == comp.ast.binaryApp.func && exp.unit == comp.ast.unit) {
+          if (exp.binaryApp.funcname == comp.ast.binaryApp.funcname && exp.unit == comp.ast.unit) {
             // Compare the bodies.
             // Since the order of traversal is always the same, we expect for equal bodies,
             // that the collected variables during the traversal for two bodies are the same.
@@ -419,13 +421,12 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     // Therefore only output the axioms if the receiver is not a variable
     if(!c.recvIsVar) {
       // inv(e(a)) == a
-      val invAxioms1 = c.inv map { tuple =>
-        Axiom(tuple._1.apply(c.receiver) === tuple._2.l forall(tuple._2, Trigger(c.receiver)))
-      }
+      val lhsConjunct = c.inv map {tuple => tuple._1.apply(c.receiver) === tuple._2.l}
+      val invAxioms1 = Axiom(lhsConjunct.tail.foldLeft(lhsConjunct.head){_ && _} forall(c.varDecls, Trigger(c.receiver)))
       // e(inv(r)) == r
-      val invAxioms2 = c.inv map { tuple =>
-        Axiom(c.receiver.replace(tuple._2.l, tuple._1.apply(r)) === r forall(rDecl, Trigger(tuple._1.apply(r))))
-      }
+      val inverseApplications = c.invApply(Seq.fill(c.varDecls.size)(r))
+      val receiver = ((c.localVars zip inverseApplications) :\ c.receiver)((tuple, rcv) => rcv.replace(tuple._1, tuple._2))
+      val invAxioms2 = Axiom(receiver === r forall (rDecl, c.inv map { tuple =>Trigger(tuple._1.apply(r)) }))
       (c.inv map { tuple => tuple._1 }) ++ invAxioms1 ++ invAxioms2
     } else
       Seq()
@@ -436,7 +437,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     val dummyAxiom = Axiom(c.dummy.apply(f) forall (hDecl ++ fDecl, Trigger(c.decl.apply(h ++ f))))
     val emptyAxiom = Axiom(empty.apply(f) ==> (c.decl.apply(h ++ f) === c.unit) forall (hDecl ++ fDecl, Trigger(c.decl.apply(h ++ f))))
     val locationAccess = c.body.replace(c.receiver, r)
-    val inverseVal: Seq[Exp] = if(!c.recvIsVar) {(c.inv map {tuple => tuple._1.apply(r)}) ++ f} else r
+    val inverseVal: Seq[Exp] = if(!c.recvIsVar) c.invApply(Seq.fill(c.localVars.size)(r)) else r
     val singletonAxiom = Axiom(
       c.filtering.apply(inverseVal ++ f) ==>
         (c.decl.apply(h ++ f) === c.binary(c.decl.apply(h ++ narrow.apply(f ++ r)), locationAccess)) forall (
@@ -510,7 +511,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     /** the second version of the receiver */
     var recv2 = (argZip :\ c.receiver)((tuple, rec) => rec.replace(tuple._1.l, tuple._2.l))
     val injectiveCheck: Seq[Stmt] = if(c.recvIsVar) Seq() else Assert( // if receiver is a variable, it is trivially injective
-      notEqualConj ==> (c.receiver !== recv2) forall (c.varDecls++argDecl2, Trigger(c.receiver) ++ Trigger(recv2)),
+      notEqualConj ==> (c.receiver !== recv2) forall (c.varDecls++argDecl2, Trigger(c.receiver ++ recv2)),
       error.dueTo(reasons.ReceiverNotInjective(c.ast.body))
     )
     // unit check
@@ -561,7 +562,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
       // for function declarations, need to wrap in a outer quantifier, to quantify over the "outer variables"
       case Func(_, args, _) => Axiom(axiom forall (args, Trigger(f.exp)))
       case _: ConstDecl => Axiom(axiom)
-      case _ => Axiom(BoolLit(false)) // dummy value
+      case _ => sys.error("unexpected filter declaration")
     }
   }
 
