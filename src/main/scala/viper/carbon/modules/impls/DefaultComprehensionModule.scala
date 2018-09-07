@@ -114,6 +114,11 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     /** The inverse function declarations of all comprehension arguments along with the respective argument declaration.
       * Note, that this should not be used, when [[recvIsVar]]*/
     val inv: Seq[(Func, LocalVarDecl)] = varDecls map { vDecl => (Func(Identifier(name + "#inv_"+vDecl.name.name), rDecl, vDecl.typ), vDecl)}
+    /** Applies the inverse functions to the given arguments (and respecting the [[recvIsVar]] case).*/
+    def invApply(args: Seq[Exp]): Seq[Exp] = {
+      require(args.size == inv.size)
+      if (recvIsVar) args else inv.indices map {i => inv(i)._1.apply(args(i))}
+    }
 
     // dummy function
     /** The dummy function of this comprehension */
@@ -333,6 +338,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
         CommentedDecl("Declaration and axiomatization of filtering function", comprehensionDependentFilterAxioms(c), 1) ++
         CommentedDecl("Declaration of dummy function", c.dummy, 1) ++
         CommentedDecl("Comprehension axioms", comprehensionAxioms(c), 1) ++
+        CommentedDecl("Framing axiom", framingAxiom(c), 1) ++
         //CommentedDecl("Additional axioms", additionalAxioms(c), 1) ++
         CommentedDecl("Definedness check", definednessCheck(c), 1)
 
@@ -447,6 +453,30 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     )
 
     dummyAxiom ++ emptyAxiom ++ singletonAxiom ++ generalAxiom
+  }
+
+
+  private def framingAxiom(c: Comprehension): Seq[Decl] = {
+    val h = currentStateVars.head
+    val (_, curState) = stateModule.freshTempState("Heap1")
+    val h1 = currentStateContributions.head
+    val h1Var = h1.l
+    val access1 = c.body.replace(c.receiver, r).replace(h, h1Var)
+    stateModule.freshTempState("Heap2")
+    val h2 = currentStateContributions.head
+    val h2Var = h2.l
+    val access2 = c.body.replace(c.receiver, r).replace(h, h2Var)
+    val out = Axiom(
+      (c.filtering.apply(c.invApply(Seq.fill(c.inv.size)(r)) ++ f) ==> (access1 === access2) forall (
+        rDecl,
+        Trigger(access1 ++ access2)
+      )) ==> (c.decl.apply(h1Var ++ f) === c.decl.apply(h2Var ++ f)) forall (
+        fDecl++h1++h2,
+        Trigger(c.decl.apply(h1Var++f) ++ c.decl.apply(h2Var++f))
+      )
+    )
+    stateModule.replaceState(curState)
+    out
   }
 
 
