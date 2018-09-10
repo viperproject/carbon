@@ -5,8 +5,10 @@ import viper.carbon.modules._
 import viper.carbon.verifier.Verifier
 import viper.silver.{ast => sil}
 import viper.carbon.boogie.Implicits._
+import viper.carbon.modules.components.DefinednessComponent
 import viper.silver.ast.utility.Expressions
-import viper.silver.verifier.{errors, reasons}
+import viper.silver.cfg.silver.CfgGenerator.EmptyStmt
+import viper.silver.verifier.{PartialVerificationError, errors, reasons}
 
 import scala.collection.mutable
 
@@ -31,7 +33,7 @@ The preamble declares and axiomatizes the comprehensions and filters, gathered t
 The details for this are available in the thesis for comprehension support in Viper.
  */
 
-class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionModule {
+class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionModule with DefinednessComponent {
 
   import verifier._
   import expModule._
@@ -49,7 +51,9 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
 
   override def name: String = "Comprehension Module"
 
-  override def start() = {}
+  override def start() = {
+    expModule.register(this)
+  }
 
   override def stop() = {}
 
@@ -581,5 +585,21 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
       case sil.Ref => Some(userMentioned.apply(variable))
       case _ => None
     }
+  }
+
+  /** This variable is used for the userMentioned assumption generation to avoid userMentioned assumptions for
+    * expressions in quantifiers. It indicates, how many quantifiers surround the current expression.
+    */
+  private var quantifierLevel = 0
+
+  /** This method is 'misused' to output the userMentioned assumption for every reference-typed expression outside of a quantifier */
+  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): (() => Stmt, () => Stmt) = {
+    // avoid user mentioned assumptions for expressions in quantifiers (and comprehensions)
+    if(e.isInstanceOf[sil.QuantifiedExp] || e.isInstanceOf[sil.Comp]) {
+      (() => {quantifierLevel += 1; Statements.EmptyStmt}, () => {quantifierLevel -= 1; Statements.EmptyStmt})
+    } else if (e.typ == sil.Ref && quantifierLevel == 0) // assume user mentioned for reference-typed expressions
+        (() => Statements.EmptyStmt, () => Assume(userMentioned.apply(translateExp(e))))
+    else
+      (() => Statements.EmptyStmt, () => Statements.EmptyStmt)
   }
 }
