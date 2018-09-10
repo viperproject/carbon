@@ -228,7 +228,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   override def translateFuncApp(fa: sil.FuncApp) = {
     translateFuncApp(fa.funcname, heapModule.currentStateExps ++ (fa.args map translateExp), fa.typ)
   }
-  override def translateFuncApp(fname : String, args: Seq[Exp], typ: sil.Type) = {
+  def translateFuncApp(fname : String, args: Seq[Exp], typ: sil.Type) = {
     FuncApp(Identifier(fname), args, translateType(typ))
   }
 

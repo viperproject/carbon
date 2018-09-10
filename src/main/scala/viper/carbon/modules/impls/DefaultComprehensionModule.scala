@@ -7,7 +7,6 @@ import viper.silver.{ast => sil}
 import viper.carbon.boogie.Implicits._
 import viper.carbon.modules.components.DefinednessComponent
 import viper.silver.ast.utility.Expressions
-import viper.silver.cfg.silver.CfgGenerator.EmptyStmt
 import viper.silver.verifier.{PartialVerificationError, errors, reasons}
 
 import scala.collection.mutable
@@ -567,7 +566,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
         // the assumption of the userCreated function for the filter
         FuncApp(userCreated.name, f.exp, userCreated.typ)
     f.decl match {
-      // for function declarations, need to wrap in a outer quantifier, to quantify over the "outer variables"
+      // for function declarations, need to wrap in a quantifier, to quantify over the "outer variables"
       case Func(_, args, _) => Axiom(axiom forall (args, Trigger(f.exp)))
       case _: ConstDecl => Axiom(axiom)
       case _ => sys.error("unexpected filter declaration")
