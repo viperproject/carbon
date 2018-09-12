@@ -518,7 +518,6 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
 
 
-          val goodState1 = currentGoodState
           val locationAccess1 = translateLocationAccess(locationAccess)
           val translatedCond1 = translateExp(renamedCond) //condition just evaluated in one state
           val funApp1 = FuncApp(condFunc.name, (heap1++origArgs) map (_.l), condFunc.typ)
@@ -529,19 +528,18 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           val heap2 = heapModule.currentStateContributions
           val mask2 = permModule.currentStateContributions
 
-          val goodState2 =  currentGoodState
           val locationAccess2 = translateLocationAccess(locationAccess)
           val translatedCond2 = translateExp(renamedCond)
 
           val funApp2 = FuncApp(condFunc.name, (heap2++origArgs) map (_.l), condFunc.typ)
 
+          val triggers = if (locationAccess.contains(lvd)) Seq(Trigger(Seq(locationAccess1,locationAccess2))) else Seq() // TODO: we could (also in general) raise an error/warning if the tools fail to find triggers
 
           val res = CommentedDecl("Function used for framing of quantified permission " + qp.toString() +  " in " + originalName,
             condFunc ++
             Axiom(
-              Forall(heap1 ++ mask1 ++ heap2 ++ mask2 ++ origArgs, Seq(Trigger(Seq(funApp1, goodState1, goodState2, funApp2))),
-                (goodState1 && goodState2) ==>
-                  (Forall(Seq(translateLocalVarDecl(vFresh)), Seq(),
+              Forall(heap1 ++ heap2 ++ origArgs, Seq(Trigger(Seq(funApp1, funApp2))),
+                  (Forall(Seq(translateLocalVarDecl(vFresh)), triggers,
                     (translatedCond1 <==> translatedCond2) && (translatedCond1 ==> (locationAccess1 === locationAccess2))) ==> (funApp1 === funApp2))
                   ))
           );
