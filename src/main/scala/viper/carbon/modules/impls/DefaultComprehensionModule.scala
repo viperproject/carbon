@@ -22,7 +22,6 @@ With every comprehension expression however, a new filter instance is generated 
 is not completely syntactically equivalent to a different comprehension call (in which case the translation buffer `buffer` translates it to the same,
 already translated expression). There is an optimization, which could be implemented,
 that syntactically equivalent filters, when ignoring comprehension variable names, are detected.
-TODO: Optimization: naming independent filter equivalence detection
 Filters are translated to a constant, if they do not depend on variables outside of the comprehension expression,
 and to a function with the relevant outer variables as arguments, if it depends on such variables.
 
@@ -59,7 +58,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
   override def reset() = {
     buffer = new mutable.HashMap()
     comprehensions = Seq()
-    filters = Seq()
+    filterBuffer = new mutable.HashMap()
   }
 
 
@@ -132,10 +131,10 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
 
 
   /** A class for describing a filter instance.*/
-  class Filter(ast: sil.Filter, val comp: Comprehension)(val cond: Exp = translateExp(ast.exp)) {
+  class Filter(val ast: sil.Filter, val comp: Comprehension)(val cond: Exp = translateExp(ast.exp)) {
 
     /** The name of the filter */
-    val name = "filter"+filters.size
+    val name = "filter"
 
     /**
       * A list of variables which are defined outside the context of the comprehension of this filter,
@@ -179,9 +178,6 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
   /** All comprehensions occurring in the program */
   private var comprehensions: Seq[Comprehension] = Seq()
 
-  /** All filters occurring in the program */
-  private var filters: Seq[Filter] = Seq()
-
   /** The boogie filter type */
   val filterType = NamedType("Filter")
 
@@ -197,7 +193,15 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
   private val r = rDecl.l
   private val h = hDecl.l
 
+  /** A buffer to quickly detect already translated comprehensions */
   private var buffer: mutable.HashMap[sil.Exp, Exp] = new mutable.HashMap()
+
+  /**
+    * A buffer to store what filter instances were already created from wich expressions.
+    * Since filters depend on the comprehension, the buffer maps comprehensions to a map of silver filter expressions
+    * to their translated filter instances.
+    */
+  private var filterBuffer: mutable.HashMap[Comprehension, mutable.HashMap[sil.Filter, Filter]] = new mutable.HashMap()
 
   override def translateComp(e: sil.Exp): Exp = {
     // first check whether it was already translated
@@ -205,50 +209,72 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
       case Some(x) => x
       case None =>
         val out = e match {
-          case c@sil.Comp (vars, filter, body, binary, unit) =>
-            // retrieve the comprehension object for the comprehension call
-            detectComp (c) match {
-              case (None, _, _) =>
-                // alpha renaming
-                val fresh = vars map { v => env.makeUniquelyNamed (v)}
-                fresh map { v => env.define (v.localVar)}
-                def renaming[E <: sil.Exp] = (e: E) => Expressions.renameVariables (e, vars map { v => v.localVar}, fresh map { v => v.localVar})
-                val (freshFilter, freshBody) = (sil.Filter(renaming(filter.exp))(filter.pos, filter.info, filter.errT), renaming(body) )
-                // created instance
-                val comp = new Comprehension (sil.Comp (fresh, freshFilter, freshBody, binary, unit) (c.typ, c.pos, c.info, c.errT) )
-                // translate filter
-                val filterInstance = new Filter(freshFilter, comp)()
-                filters = filters :+ filterInstance
-                val translatedFilter = filterInstance.exp
-                // add comprehension to list
-                comprehensions = comprehensions :+ comp
-                fresh map {v=>env.undefine(v.localVar)}
-                comp.decl.apply(currentStateVars ++ translatedFilter)
-
-              case (Some(comp), old, fresh) =>
-                // define the fresh variables (the ast variables of the detected comprehension)
-                fresh map { v => env.define(v)}
-                // translate filter
-                // replace all variables in the ast to their corresponding ast variables of the comprehension
-                val freshFilter = sil.Filter(Expressions.renameVariables(filter.exp, old, fresh))(filter.pos, filter.info, filter.errT)
-                // create a temporary filter instance for translating the filtering condition
-                val tempInstance = new Filter(freshFilter, comp)()
-                // Replace the variables in the condition with the translated variables of the comprehension.
-                // Since the variables were newly defined in the environment, they won't be translated automatically to the
-                // corresponding ones of the comprehension.
-                val cond = (fresh :\ tempInstance.cond)((v, exp) => exp.replace(env.get(v), comp.localVarTranslation(v)))
-                // undefine the variables
-                fresh map {v=>env.undefine(v)}
-                // create a new intance with the correct condition
-                val filterInstance = new Filter(filter, comp)(cond)
-                filters = filters :+ filterInstance
-                comp.decl.apply(currentStateVars ++ filterInstance.exp)
+          case c: sil.Comp =>
+            // translate the comprehension to comprehension and filter instances
+            val instances = translateComp(c)
+            val comp = instances._1._1
+            val filter = instances._2._1
+            // add them to the respective buffers / lists
+            if(instances._1._2) {
+              comprehensions = comprehensions :+ comp
+              filterBuffer.put(comp, new mutable.HashMap())
+            } else if(instances._2._2) {
+              filterBuffer.get(comp).get.put(filter.ast, filter)
             }
+            comp.decl.apply(currentStateVars ++ filter.exp)
           case _ => sys.error("unexpected expression when translating comprehension")
         }
         // enlist in buffer
         buffer.put(e, out)
         out
+    }
+  }
+
+  /**
+    * Translates a comprehension into a comprehension instance and a filter instance, and indicates, whether
+    * the instances are new.
+    * @return A tuple, containing as a first entry a tuple with the translated comprehension instance and a boolean,
+    *         whether the instance is newly created, and as the second entry a tuple with the translated
+    *         filter instance and a boolean whether the instance is newly created.
+    */
+  private def translateComp(c: sil.Comp): ((Comprehension, Boolean), (Filter, Boolean)) = {
+    detectComp (c) match {
+      case (None, _, _) =>
+        // alpha renaming
+        val fresh = c.variables map { v => env.makeUniquelyNamed (v)}
+        fresh map { v => env.define (v.localVar)}
+        def renaming[E <: sil.Exp] = (e: E) => Expressions.renameVariables (e, c.variables map { v => v.localVar}, fresh map { v => v.localVar})
+        val (freshFilter, freshBody) = (sil.Filter(renaming(c.filter.exp))(c.filter.pos, c.filter.info, c.filter.errT), renaming(c.body) )
+        // created instance
+        val comp = new Comprehension (sil.Comp (fresh, freshFilter, freshBody, c.binaryApp, c.unit) (c.typ, c.pos, c.info, c.errT) )
+        // Translate the filter. Filters will always be newly created for new comprehensions, since a filter depends on the comprehension.
+        val filterInstance = new Filter(freshFilter, comp)()
+        fresh map {v=>env.undefine(v.localVar)}
+        ((comp, true), (filterInstance, true))
+
+      case (Some(comp), old, fresh) =>
+        // replace all variables in the ast to their corresponding ast variables of the comprehension
+        val freshFilter = sil.Filter(Expressions.renameVariables(c.filter.exp, old, fresh))(c.filter.pos, c.filter.info, c.filter.errT)
+        // check whether the filter was already translated
+        filterBuffer.get(comp).get.get(freshFilter) match {
+          case Some(filterInstance) => ((comp, false), (filterInstance, false))
+          case None => {
+            // translate filter
+            // define the fresh variables (the ast variables of the detected comprehension)
+            fresh map { v => env.define(v)}
+            // create a temporary filter instance for translating the filtering condition
+            val tempInstance = new Filter(freshFilter, comp)()
+            // Replace the variables in the condition with the translated variables of the comprehension.
+            // Since the variables were newly defined in the environment, they won't be translated automatically to the
+            // corresponding ones of the comprehension.
+            val cond = (fresh :\ tempInstance.cond)((v, exp) => exp.replace(env.get(v), comp.localVarTranslation(v)))
+            // undefine the variables
+            fresh map {v=>env.undefine(v)}
+            // create a new intance with the correct condition
+            val filterInstance = new Filter(freshFilter, comp)(cond)
+            ((comp, false), (filterInstance, true))
+          }
+        }
     }
   }
 
@@ -305,7 +331,8 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
   private val minus = Func(Identifier("minus"), f1Decl ++ f2Decl, filterType)
   private val intersect = Func(Identifier("intersect"), f1Decl ++ f2Decl, filterType)
   private val union = Func(Identifier("union"), f1Decl ++ f2Decl, filterType)
-  private val narrow = Func(Identifier("narrow"), fDecl ++ rDecl, filterType)
+  // we make the narrow axiom heap dependent, that we don't need a heap independent representation of the body
+  private val narrow = Func(Identifier("narrow"), hDecl ++ fDecl ++ rDecl, filterType)
 
   // filter property function declarations
   private val empty = Func(Identifier("empty"), fDecl, Bool)
@@ -343,19 +370,19 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     comprehensions foreach { c =>
       val axioms =
         CommentedDecl("Declaration of comprehension", c.decl, 1) ++
-        MaybeCommentedDecl("Declaration and axiomatization of inverse functions", inverseAxioms(c), 1) ++
+        MaybeCommentedDecl("Declaration of inverse functions", (c.inv map { tuple => tuple._1 }), 1) ++
         CommentedDecl("Declaration and axiomatization of filtering function", comprehensionDependentFilterAxioms(c), 1) ++
         CommentedDecl("Declaration of dummy function", c.dummy, 1) ++
         CommentedDecl("Comprehension axioms", comprehensionAxioms(c), 1) ++
         CommentedDecl("Framing axiom", framingAxiom(c), 1) ++
-        CommentedDecl("Additional axioms", additionalAxioms(c), 1) ++
-        CommentedDecl("Definedness check", definednessCheck(c), 1)
+        CommentedDecl("Additional axioms", additionalAxioms(c), 1)
 
       out = out :+ CommentedDecl("Axiomatization of comprehension " + c.name, axioms, 2, nLines = 2)
     }
 
     // generate the filter variables
-    val filterDeclarations = filters map { f => f.decl }
+    val filters = filterBuffer.values.flatMap(m => m.values).toSeq
+    val filterDeclarations = filters.map(f => f.decl)
     // axiomatize the filters
     val filterAxioms = filters map { f => filterAxiomatization(f) }
     out = out ++ MaybeCommentedDecl("Translation of filter declarations", filterDeclarations, 2, nLines = 2)
@@ -405,9 +432,9 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
       )
     )
     val narrowAxiom = Axiom(
-      c.applyFiltering(narrow.apply(f++r)) <==> (c.applyFiltering(f) && (c.receiver !== r)) forall (
-        fDecl ++ rDecl ++ c.varDecls,
-        Trigger(c.applyFiltering(narrow.apply(f++r)))
+      c.applyFiltering(narrow.apply(h++f++r)) <==> (c.applyFiltering(f) && (c.receiver !== r)) forall (
+        hDecl ++ fDecl ++ rDecl ++ c.varDecls,
+        Trigger(c.applyFiltering(narrow.apply(h++f++r)))
       )
     )
     // filter property function axiomatizations
@@ -422,24 +449,6 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
   }
 
 
-  private def inverseAxioms(c: Comprehension): Seq[Decl] = {
-    // If the receiver is a plain variable, the inverse is simply the variable itself,
-    // hence no function declaration necessary.
-    // Therefore only output the axioms if the receiver is not a variable
-    if(!c.recvIsVar) {
-      // inv(e(a)) == a
-      val lhsConjunct = c.inv map {tuple => tuple._1.apply(c.receiver) === tuple._2.l}
-      val invAxioms1 = Axiom(lhsConjunct.tail.foldLeft(lhsConjunct.head){_ && _} forall(c.varDecls, Trigger(c.receiver)))
-      // e(inv(r)) == r
-      val inverseApplications = c.invApply(Seq.fill(c.varDecls.size)(r))
-      val receiver = ((c.localVars zip inverseApplications) :\ c.receiver)((tuple, rcv) => rcv.replace(tuple._1, tuple._2))
-      val invAxioms2 = Axiom(receiver === r forall (rDecl, c.inv map { tuple =>Trigger(tuple._1.apply(r)) }))
-      (c.inv map { tuple => tuple._1 }) ++ invAxioms1 ++ invAxioms2
-    } else
-      Seq()
-  }
-
-
   private def comprehensionAxioms(c: Comprehension): Seq[Decl] = {
     val dummyAxiom = Axiom(c.dummy.apply(f) forall (hDecl ++ fDecl, Trigger(c.decl.apply(h ++ f))))
     val emptyAxiom = Axiom(empty.apply(f) ==> (c.decl.apply(h ++ f) === c.unit) forall (hDecl ++ fDecl, Trigger(c.decl.apply(h ++ f))))
@@ -447,7 +456,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     val inverseVal: Seq[Exp] = if(!c.recvIsVar) c.invApply(Seq.fill(c.localVars.size)(r)) else r
     val singletonAxiom = Axiom(
       c.filtering.apply(inverseVal ++ f) ==>
-        (c.decl.apply(h ++ f) === c.binary(c.decl.apply(h ++ narrow.apply(f ++ r)), locationAccess)) forall (
+        (c.decl.apply(h ++ f) === c.binary(c.decl.apply(h ++ narrow.apply(h ++ f ++ r)), locationAccess)) forall (
         hDecl ++ fDecl ++ rDecl,
         Trigger(c.dummy.apply(f) ++ MapSelect(h, r++c.value) ++ userMentioned.apply(r))
       )
@@ -501,13 +510,31 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
   }
 
 
-  private def definednessCheck(c: Comprehension): Seq[Decl] = {
-    // preamble of procedure: definition of heap and necessary assumptions if binary is heap dependent
-    val preamble: Seqn = if (c.isBinaryHeapDep){
-      Assume(stateModule.staticGoodState) ++
-        assumeAllFunctionDefinitions
-    } else Seq()
-    val error = errors.ComprehensionNotWellformed(c.ast)
+  private def filterAxiomatization(f: Filter): Decl = {
+    val filtering = f.comp.filtering
+    val filteringArgs: Seq[Exp] = f.comp.localVars ++ f.exp
+    val filteringApp = filtering.apply(filteringArgs)
+    val trigger = Trigger(filteringApp)
+    val axiom =
+    // the axiomatization of the filter in terms of its filtering condition
+      Forall(f.comp.varDecls, trigger, filteringApp <==> f.cond) &&
+        // the assumption of the userCreated function for the filter
+        FuncApp(userCreated.name, f.exp, userCreated.typ)
+    f.decl match {
+      // for function declarations, need to wrap in a quantifier, to quantify over the "outer variables"
+      case Func(_, args, _) => Axiom(axiom forall (args, Trigger(f.exp)))
+      case _: ConstDecl => Axiom(axiom)
+      case _ => sys.error("unexpected filter declaration")
+    }
+  }
+
+  // =======================================
+  // definedness check
+  // =======================================
+
+  /** Returns the definedness check for a specific comprehension call */
+  private def definednessCheck(c: Comprehension, f: Filter, error: PartialVerificationError): Stmt = {
+
     // receiver injectivity check
     /** second version of argument declarations for comparison */
     val argDecl2 = c.varDecls map {vDec => LocalVarDecl(Identifier(vDec.name.name), vDec.typ)}
@@ -525,51 +552,71 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     val xDecl = LocalVarDecl(Identifier("x"), c.typ)
     val x = xDecl.l
     val unitCheck = Assert(
-      c.binary(x, c.unit) === x forall (xDecl, Trigger(c.binary(x, c.unit))),
+      c.applyFiltering(f.exp) ==> (
+        c.binary(x, c.unit) === x forall (xDecl, Trigger(c.binary(x, c.unit)))
+        ),
       error.dueTo(reasons.CompUnitNotUnit(c.ast.unit))
     )
     // binary commutative check
     val yDecl = LocalVarDecl(Identifier("y"), c.typ)
     val y = yDecl.l
     val binaryCommCheck = Assert(
-      c.binary(x, y) === c.binary(y, x) forall (xDecl++yDecl, Trigger(c.binary(x, y))),
+      c.applyFiltering(f.exp) ==> (
+        c.binary(x, y) === c.binary(y, x) forall (xDecl++yDecl, Trigger(c.binary(x, y)))
+        ),
       error.dueTo(reasons.CompBinaryNotCommutative(c.ast))
     )
     // binary associative check
     val zDecl = LocalVarDecl(Identifier("z"), c.typ)
     val z = zDecl.l
     val binaryAssocCheck = Assert(
-      c.binary(x, c.binary(y, z)) === c.binary(c.binary(x, y), z) forall (xDecl++yDecl++zDecl, Trigger(c.binary(x, c.binary(y, z)))),
+      c.applyFiltering(f.exp) ==> (
+        c.binary(x, c.binary(y, z)) === c.binary(c.binary(x, y), z) forall (xDecl++yDecl++zDecl, Trigger(c.binary(x, c.binary(y, z))))
+        ),
       error.dueTo(reasons.CompBinaryNotAssociative(c.ast))
     )
 
-    val definednessCheck: Stmt =
-      MaybeCommentBlock("Assumptions for heap dependent function", preamble) ++
-        MaybeCommentBlock("Check for receiver injectivity", injectiveCheck) ++
+    MaybeCommentBlock("Check for receiver injectivity", injectiveCheck) ++
         CommentBlock("Check for unit", unitCheck) ++
         CommentBlock("Check for commutativity of binary operator", binaryCommCheck) ++
         CommentBlock("Check for associativity of binary operator", binaryAssocCheck)
-
-    val arg: Seq[LocalVarDecl] = if(c.isBinaryHeapDep) staticStateContributions(withHeap = true, withPermissions = true) else Seq()
-    Procedure(Identifier(c.name+"#definedness"), arg, Seq(), definednessCheck)
   }
 
+  /** Returns the axiomatization of the inverse function for a specific comprehension call */
+  private def inverseAxioms(c: Comprehension, f: Filter): Stmt = {
+    // If the receiver is a plain variable, the inverse is simply the variable itself,
+    // hence no function declaration necessary.
+    // Therefore only output the axioms if the receiver is not a variable
+    if(!c.recvIsVar) {
+      // inv(e(a)) == a
+      val lhsConjunct = c.inv map {tuple => tuple._1.apply(c.receiver) === tuple._2.l}
+      val invAxioms1 = Assume(
+        c.applyFiltering(f.exp) ==> (
+          lhsConjunct.tail.foldLeft(lhsConjunct.head){_ && _} forall(c.varDecls, Trigger(c.receiver))
+          )
+      )
+      // e(inv(r)) == r
+      val inverseApplications = c.invApply(Seq.fill(c.varDecls.size)(r))
+      val receiver = ((c.localVars zip inverseApplications) :\ c.receiver)((tuple, rcv) => rcv.replace(tuple._1, tuple._2))
+      val invAxioms2 = Assume(
+        c.applyFiltering(f.exp) ==> (
+          receiver === r forall (rDecl, c.inv map { tuple =>Trigger(tuple._1.apply(r)) })
+          )
+      )
+      invAxioms1 ++ invAxioms2
+    } else
+      Statements.EmptyStmt
+  }
 
-  private def filterAxiomatization(f: Filter): Decl = {
-    val filtering = f.comp.filtering
-    val filteringArgs: Seq[Exp] = f.comp.localVars ++ f.exp
-    val filteringApp = filtering.apply(filteringArgs)
-    val trigger = Trigger(filteringApp)
-    val axiom =
-    // the axiomatization of the filter in terms of its filtering condition
-      Forall(f.comp.varDecls, trigger, filteringApp <==> f.cond) &&
-        // the assumption of the userCreated function for the filter
-        FuncApp(userCreated.name, f.exp, userCreated.typ)
-    f.decl match {
-      // for function declarations, need to wrap in a quantifier, to quantify over the "outer variables"
-      case Func(_, args, _) => Axiom(axiom forall (args, Trigger(f.exp)))
-      case _: ConstDecl => Axiom(axiom)
-      case _ => sys.error("unexpected filter declaration")
+  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): (() => Stmt, () => Stmt) = {
+
+    if(e.isInstanceOf[sil.Comp] && makeChecks) {
+      val instances = translateComp(e.asInstanceOf[sil.Comp])
+      val comp = instances._1._1
+      val filter = instances._2._1
+      (() => Statements.EmptyStmt, () => definednessCheck(comp, filter, error) ++ inverseAxioms(comp, filter))
+    } else {
+      userMentionedAssumption(e)
     }
   }
 
@@ -591,13 +638,13 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     */
   private var quantifierLevel = 0
 
-  /** This method is 'misused' to output the userMentioned assumption for every reference-typed expression outside of a quantifier */
-  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): (() => Stmt, () => Stmt) = {
+  /** Returns what should be outputted in terms of user mentioned assumptions before and after translation of `e` */
+  private def userMentionedAssumption(e: sil.Exp): (() => Stmt, () => Stmt) = {
     // avoid user mentioned assumptions for expressions in quantifiers (and comprehensions)
     if(e.isInstanceOf[sil.QuantifiedExp] || e.isInstanceOf[sil.Comp]) {
       (() => {quantifierLevel += 1; Statements.EmptyStmt}, () => {quantifierLevel -= 1; Statements.EmptyStmt})
     } else if (e.typ == sil.Ref && quantifierLevel == 0) // assume user mentioned for reference-typed expressions
-        (() => Statements.EmptyStmt, () => Assume(userMentioned.apply(translateExp(e))))
+      (() => Statements.EmptyStmt, () => Assume(userMentioned.apply(translateExp(e))))
     else
       (() => Statements.EmptyStmt, () => Statements.EmptyStmt)
   }

@@ -411,17 +411,20 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
     * Checks definedness of a comprehension, which is checking, whether there is permission to the field inside the specified filter.
     */
   private def checkDefinednessComp(e: sil.Comp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
+    val checks = components map (_.partialCheckDefinedness(e, error, makeChecks = makeChecks))
+    val stmt = checks map (_._1())
     // check children similar as for quantified expressions, but avoid the top-level field access in the body to be checked
+    // permission to the body is checked with the forall statement later
     e.variables map {v=>env.define(v.localVar)}
-    val stmts = handleQuantifiedLocals(e.variables, checkDefinednessImpl(e.filter.exp, error, makeChecks)) ++
+    val stmt2 = handleQuantifiedLocals(e.variables, checkDefinednessImpl(e.filter.exp, error, makeChecks)) ++
     handleQuantifiedLocals(e.variables, checkDefinednessImpl(e.unit, error, makeChecks)) ++
     handleQuantifiedLocals(e.variables, checkDefinednessImpl(e.body.rcv, error, makeChecks))
     e.variables map {v=>env.undefine(v.localVar)}
     // create a forall statement to check for permission
     val fa = sil.Forall(e.variables, Seq(), sil.Implies(e.filter.exp, e.body)(e.pos, e.info, e.errT))(e.pos, e.info, e.errT)
-    Seqn(stmts ++ checkDefinedness(fa, error, makeChecks = makeChecks) ++ {
-      Nil
-    })
+    val stmt3 = checkDefinedness(fa, error, makeChecks = makeChecks)
+    val stmt4 = checks map (_._2())
+    stmt ++ stmt2 ++ stmt3 ++ stmt4
   }
 
 
