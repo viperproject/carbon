@@ -128,12 +128,16 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     val dummy = Func(Identifier(name+"#dummy"), fDecl, Bool)
   }
 
+  private var filterCount = 0
 
   /** A class for describing a filter instance.*/
   class Filter(val ast: sil.Filter, val comp: Comprehension)(val cond: Exp = translateExp(ast.exp)) {
 
     /** The name of the filter */
-    val name = "filter"
+    val name = {
+      filterCount += 1
+      "filter" + filterCount
+    }
 
     /**
       * A list of variables which are defined outside the context of the comprehension of this filter,
@@ -603,7 +607,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
           )
       )
       // e(inv(r)) == r
-      val inverseApplications = c.invApply(Seq.fill(recv.size)(r))
+      val inverseApplications = c.invApply(Seq.fill(c.varDecls.size)(r))
       val receiverApplied = replace(c.receiver, c.localVars, inverseApplications)
       val invAxioms2 = Assume(
         c.applyFiltering(f.exp) ==> (
