@@ -526,10 +526,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
   /** A procedure which checks definedness for the binary operator and the unit */
   private def definednessProcedure(c: Comprehension): Seq[Decl] = {
     // preamble of procedure: definition of heap and necessary assumptions if binary is heap dependent
-    val preamble: Seqn = if (c.isBinaryHeapDep) {
-      Assume(stateModule.staticGoodState) ++
-        assumeAllFunctionDefinitions
-    } else Seq()
+    val preamble: Seqn = Assume(stateModule.staticGoodState) ++ assumeAllFunctionDefinitions
     val error = errors.ComprehensionNotWellformed(c.ast)
 
     // unit check
@@ -555,7 +552,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     )
 
     val definednessCheck: Stmt =
-      MaybeCommentBlock("Assumptions for heap dependent function", preamble) ++
+      CommentBlock("Assumptions for heap dependent function", preamble) ++
         CommentBlock("Check for unit", unitCheck) ++
         CommentBlock("Check for commutativity of binary operator", binaryCommCheck) ++
         CommentBlock("Check for associativity of binary operator", binaryAssocCheck)
@@ -610,11 +607,16 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
       val freshDecls = freshSilDecls map translateLocalVarDecl
       // create a new receiver with the fresh variables
       val recv = replace(c.receiver, c.localVars, freshVars)
+
       // inv(e(a)) == a
-      val lhsConjunct = c.inv map {tuple => tuple._1.apply(recv) === tuple._2.l}
+      // the temporary conjuncts of the inverse assumptions (with the old comprehension variables)
+      val conjunctTmp = c.inv map {tuple => tuple._1.apply(recv) === tuple._2.l}
+      // the conjuncts of the inverse assumptions with the fresh variables
+      val conjunct = conjunctTmp map {replace(_, c.localVars, freshVars)}
       val invAxioms1 = Assume(
-        c.filtering.apply(freshVars ++ f.exp) ==> (lhsConjunct.tail.foldLeft(lhsConjunct.head){_ && _}) forall(freshDecls, Trigger(recv))
+        c.filtering.apply(freshVars ++ f.exp) ==> (conjunct.tail.foldLeft(conjunct.head){_ && _}) forall(freshDecls, Trigger(recv))
       )
+
       // e(inv(r)) == r
       val inverseApplications = c.invApply(Seq.fill(c.varDecls.size)(r))
       val receiverApplied = replace(c.receiver, c.localVars, inverseApplications)
