@@ -627,9 +627,10 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
         val instances = translateComp(e.asInstanceOf[sil.Comp])
         val comp = instances._1._1
         val filter = instances._2._1
+        quantifierLevel -= 1
         definednessCheck(comp, filter, error) ++ inverseAxioms(comp, filter)
       }
-      (() => Statements.EmptyStmt, checks)
+      (() => {quantifierLevel += 1; Statements.EmptyStmt}, checks)
     } else {
       userMentionedAssumption(e)
     }
