@@ -61,6 +61,9 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
   }
 
 
+  /** Replaces inside e the nodes in n1 with the nodes in n2 */
+  private def replace[T1 <: Exp, T2 <: Exp](e: Exp, n1: Seq[T1], n2: Seq[T2]) = ((n1 zip n2) :\ e)((repl, exp) => exp.replace(repl._1, repl._2))
+
   // =======================================
   // classes for describing comprehension and filter
   // =======================================
@@ -80,24 +83,25 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     /** A map from Ast local variables to their translations */
     val localVarTranslation: Map[sil.LocalVar, LocalVar] = ((ast.variables zip varDecls) map {tuple => tuple._1.localVar -> tuple._2.l}).toMap
     /** The boogie translated body of the comprehension */
-    val body = translateExp(ast.body)
+    val body = translateExp(ast.body).replace(currentHeap.head, h)
     /** The boogie translated receiver of the body */
-    val receiver = translateExp(ast.body.rcv)
+    val receiver = translateExp(ast.body.rcv).replace(currentHeap.head, h)
     /** The boogie translated value field of the body */
     val value = translateLocation(ast.body)
     /** The boogie translated unit */
-    val unit = translateExp(ast.unit)
+    val unit = translateExp(ast.unit).replace(currentHeap.head, h)
     /** The boogie type of the comprehension */
     val typ = translateType(ast.unit.typ)
     /** The boogie translated binary application example */
-    private val binaryApp = translateExp(ast.binaryApp).asInstanceOf[FuncApp]
+    private val binaryApp = translateExp(ast.binaryApp).replace(currentHeap.head, h).asInstanceOf[FuncApp]
+
+    /** Applies the receiver for the given variable list and the current heap */
+    def applyRecv(arg: Seq[Exp]) = replace(receiver, h++localVars, currentHeap.head++arg)
 
     /** The function declaration of the comprehension */
     val decl = Func(Identifier(name), hDecl ++ fDecl, typ)
 
     // methods and properties for binary operator application
-    /** Whether the binary function is heap dependent, i.e. it is not a domain function */
-    val isBinaryHeapDep = binaryApp.args.size == 3
     /** Returns a boogie function application of the binary opertor */
     def binary(lhs: Exp, rhs: Exp) = binaryApp.replace(body, lhs).replace(unit, rhs)
 
@@ -466,7 +470,6 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
 
 
   private def framingAxiom(c: Comprehension): Seq[Decl] = {
-    val h = currentStateVars.head
     val (_, curState) = stateModule.freshTempState("Heap1")
     val h1 = currentStateContributions.head
     val h1Var = h1.l
@@ -557,12 +560,8 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
         CommentBlock("Check for commutativity of binary operator", binaryCommCheck) ++
         CommentBlock("Check for associativity of binary operator", binaryAssocCheck)
 
-    val arg: Seq[LocalVarDecl] = if(c.isBinaryHeapDep) staticStateContributions(withHeap = true, withPermissions = true) else Seq()
-    Procedure(Identifier(c.name+"#definedness"), arg, Seq(), definednessCheck)
+    Procedure(Identifier(c.name+"#definedness"), hDecl, Seq(), definednessCheck)
   }
-
-  /** Replaces inside e the nodes in n1 with the nodes in n2 */
-  private def replace[T1 <: Exp, T2 <: Exp](e: Exp, n1: Seq[T1], n2: Seq[T2]) = ((n1 zip n2) :\ e)((repl, exp) => exp.replace(repl._1, repl._2))
 
   /** Returns the definedness check for a specific comprehension call */
   private def definednessCheck(c: Comprehension, f: Filter, error: PartialVerificationError): Stmt = {
@@ -578,9 +577,9 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     /** conjunct of: a1_1 != a1_2 && a2_1 != a2_2 && ... */
     val notEqualConj = varZip.map(t => t._1 !== t._2)
     /** A receiver with the fresh arguments */
-    val recv = replace(c.receiver, c.localVars, freshVars)
+    val recv = c.applyRecv(freshVars)
     /** the second version of the receiver */
-    var recv2 = replace(c.receiver, c.localVars, freshVars2)
+    var recv2 = c.applyRecv(freshVars2)
     /** the expression of [[notEqualConj]] */
     val argNotEqual = (notEqualConj.tail :\ notEqualConj.head)(_ && _)
     val injectiveCheck: Seq[Stmt] = if(c.recvIsVar) Seq() else Assert( // if receiver is a variable, it is trivially injective
@@ -606,7 +605,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
       val freshVars = freshSilDecls map {v => env.define(v.localVar)}
       val freshDecls = freshSilDecls map translateLocalVarDecl
       // create a new receiver with the fresh variables
-      val recv = replace(c.receiver, c.localVars, freshVars)
+      val recv = c.applyRecv(freshVars)
 
       // inv(e(a)) == a
       // the temporary conjuncts of the inverse assumptions (with the old comprehension variables)
@@ -619,7 +618,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
 
       // e(inv(r)) == r
       val inverseApplications = c.invApply(Seq.fill(c.varDecls.size)(r))
-      val receiverApplied = replace(c.receiver, c.localVars, inverseApplications)
+      val receiverApplied = c.applyRecv(inverseApplications)
       val invAxioms2 = Assume(
         c.filtering.apply(inverseApplications ++ f.exp) ==> (receiverApplied === r) forall (rDecl, c.inv map { tuple =>Trigger(tuple._1.apply(r)) })
       )
