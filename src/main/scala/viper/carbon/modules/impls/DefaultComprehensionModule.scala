@@ -541,7 +541,9 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     /** the second version of the receiver */
     var recv2 = replace(c.receiver, c.localVars, freshVars2)
     val injectiveCheck: Seq[Stmt] = if(c.recvIsVar) Seq() else Assert( // if receiver is a variable, it is trivially injective
-      (notEqualConj.tail :\ notEqualConj.head)(_ && _) ==> (c.receiver !== recv2) forall (freshDecls++freshDecls2, Trigger(recv ++ recv2)),
+      c.applyFiltering(f.exp) ==> (
+        (notEqualConj.tail :\ notEqualConj.head)(_ && _) ==> (recv !== recv2) forall (freshDecls++freshDecls2, Trigger(recv ++ recv2))
+        ),
       error.dueTo(reasons.ReceiverNotInjective(c.ast.body))
     )
     // unit check
