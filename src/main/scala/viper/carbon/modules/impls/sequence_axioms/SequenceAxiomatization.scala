@@ -12,7 +12,8 @@
 package viper.carbon.modules.impls.dafny_axioms
 
 object SequenceAxiomatization {
-  val value = """// START BASICS
+  val value = """ // diff 1 implemented (fixes test5 in sequences.sil)
+                |// START BASICS
                 |type Seq T;
                 |
                 |function Seq#Length<T>(Seq T): int;
@@ -148,9 +149,9 @@ object SequenceAxiomatization {
                 |
                 |// Additional axioms about common things
                 |axiom (forall<T> s: Seq T, n: int :: { Seq#Drop(s, n) } // ** NEW
-                |        n == 0 ==> Seq#Drop(s, n) == s); // diff 1: try changing n==0 to n<=0 (should be ok)
+                |        n <= 0 ==> Seq#Drop(s, n) == s); // (diff 1: try changing n==0 to n<=0 (should be ok))
                 |axiom (forall<T> s: Seq T, n: int :: { Seq#Take(s, n) } // ** NEW
-                |        n == 0 ==> Seq#Take(s, n) == Seq#Empty());  // diff 1: try changing n==0 to n<=0 (should be ok)
+                |        n <= 0 ==> Seq#Take(s, n) == Seq#Empty());  // (diff 1: try changing n==0 to n<=0 (should be ok))
                 |// diff 13: remove this?
                 |axiom (forall<T> s: Seq T, m, n: int :: { Seq#Drop(Seq#Drop(s, m), n) } // ** NEW - AS: could have bad triggering behaviour?
                 |        0 <= m && 0 <= n && m+n <= Seq#Length(s) ==>
