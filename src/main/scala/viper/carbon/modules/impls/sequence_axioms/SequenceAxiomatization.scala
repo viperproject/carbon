@@ -12,7 +12,8 @@
 package viper.carbon.modules.impls.dafny_axioms
 
 object SequenceAxiomatization {
-  val value = """ // diff 1 implemented (fixes test5 in sequences.sil)
+  val value = """ // diff 0 implemented (no difference)
+                | // diff 1 implemented (fixes test5 in sequences.sil)
                 |// START BASICS
                 |type Seq T;
                 |
@@ -84,7 +85,7 @@ object SequenceAxiomatization {
                 |    (Seq#Length(s) < n ==> Seq#Length(Seq#Take(s,n)) == Seq#Length(s)));
                 |
                 |// ** AS: 2nd of 3 axioms which get instantiated very often in certain problems involving take/drop/append
-                |axiom (forall<T> s: Seq T, n: int, j: int :: { Seq#Index(Seq#Take(s,n), j) } //{Seq#Index(s,j), Seq#Take(s,n)} // diff 0: (was already done) : add trigger // {:weight 25} // AS: dropped weight
+                |axiom (forall<T> s: Seq T, n: int, j: int :: { Seq#Index(Seq#Take(s,n), j) } {Seq#Index(s,j), Seq#Take(s,n)} // (diff 0: (was already done)) : add trigger // {:weight 25} // AS: dropped weight
                 |  0 <= j && j < n && j < Seq#Length(s) ==>
                 |    Seq#Index(Seq#Take(s,n), j) == Seq#Index(s, j));
                 |
