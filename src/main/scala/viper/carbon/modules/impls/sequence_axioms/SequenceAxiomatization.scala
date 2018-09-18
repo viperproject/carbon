@@ -15,6 +15,7 @@ object SequenceAxiomatization {
   val value = """ // diff 0 implemented (no difference)
                 | // diff 1 implemented (fixes test5 in sequences.sil)
                 | // diff 2 implemented (no difference)
+                | // diff 3 implemented
                 |// START BASICS
                 |type Seq T;
                 |
@@ -51,21 +52,20 @@ object SequenceAxiomatization {
                 |function Seq#Sub(int, int) : int;
                 |axiom (forall i: int, j: int :: {Seq#Sub(i,j)} Seq#Sub(i,j) == i - j);
                 |
-                |// diff 3 (old)
-                |axiom (forall<T> s0: Seq T, s1: Seq T, n: int :: { Seq#Index(Seq#Append(s0,s1), n) } // {:weight 25} // AS: dropped weight
-                |  s0 != Seq#Empty() && s1 != Seq#Empty() ==>
-                |  ((n < Seq#Length(s0) ==> Seq#Index(Seq#Append(s0,s1), n) == Seq#Index(s0, n)) &&
-                |  (Seq#Length(s0) <= n ==> Seq#Index(Seq#Append(s0,s1), n) == Seq#Index(s1, n - Seq#Length(s0)))));
+                |// (diff 3 (old))
+                |//axiom (forall<T> s0: Seq T, s1: Seq T, n: int :: { Seq#Index(Seq#Append(s0,s1), n) } // {:weight 25} // AS: dropped weight
+                |//  s0 != Seq#Empty() && s1 != Seq#Empty() ==>
+                |//  ((n < Seq#Length(s0) ==> Seq#Index(Seq#Append(s0,s1), n) == Seq#Index(s0, n)) &&
+                |//  (Seq#Length(s0) <= n ==> Seq#Index(Seq#Append(s0,s1), n) == Seq#Index(s1, n - Seq#Length(s0)))));
                 |
-                |// diff 3: split axiom, added constraints, replace arithmetic // diff 11: consider removing constraints
-                |/* axiom (forall<T> s0: Seq T, s1: Seq T, n: int :: { Seq#Index(Seq#Append(s0,s1), n) } { Seq#Index(s0, n), Seq#Append(s0,s1) } // AS: added alternative trigger
+                |// (diff 3: split axiom, added constraints, replace arithmetic) // diff 11: consider removing constraints
+                |axiom (forall<T> s0: Seq T, s1: Seq T, n: int :: { Seq#Index(Seq#Append(s0,s1), n) } { Seq#Index(s0, n), Seq#Append(s0,s1) } // AS: added alternative trigger
                 |  (s0 != Seq#Empty() && s1 != Seq#Empty() && 0 <= n && n < Seq#Length(s0) ==> Seq#Index(Seq#Append(s0,s1), n) == Seq#Index(s0, n)));
                 |axiom (forall<T> s0: Seq T, s1: Seq T, n: int :: { Seq#Index(Seq#Append(s0,s1), n) } // term below breaks loops
                 |  s0 != Seq#Empty() && s1 != Seq#Empty() && Seq#Length(s0) <= n && n < Seq#Length(s0) + Seq#Length(s1) ==> Seq#Add(Seq#Sub(n,Seq#Length(s0)),Seq#Length(s0)) == n && Seq#Index(Seq#Append(s0,s1), n) == Seq#Index(s1, Seq#Sub(n,Seq#Length(s0))));
                 |// AS: added "reverse triggering" versions of the axioms
                 |axiom (forall<T> s0: Seq T, s1: Seq T, m: int :: { Seq#Index(s1, m), Seq#Append(s0,s1)}  // m == n-|s0|, n == m + |s0|
                 |  s0 != Seq#Empty() && s1 != Seq#Empty() && 0 <= m && m < Seq#Length(s1) ==> Seq#Sub(Seq#Add(m,Seq#Length(s0)),Seq#Length(s0)) == m && Seq#Index(Seq#Append(s0,s1), Seq#Add(m,Seq#Length(s0))) == Seq#Index(s1, m));
-                |*/
                 |
                 |function Seq#Update<T>(Seq T, int, T): Seq T;
                 |axiom (forall<T> s: Seq T, i: int, v: T :: { Seq#Length(Seq#Update(s,i,v)) } //{Seq#Length(s),Seq#Update(s,i,v)} // diff 4: added trigger
