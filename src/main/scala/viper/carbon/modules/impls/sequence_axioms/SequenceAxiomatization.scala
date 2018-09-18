@@ -14,6 +14,7 @@ package viper.carbon.modules.impls.dafny_axioms
 object SequenceAxiomatization {
   val value = """ // diff 0 implemented (no difference)
                 | // diff 1 implemented (fixes test5 in sequences.sil)
+                | // diff 2 implemented (no difference)
                 |// START BASICS
                 |type Seq T;
                 |
@@ -25,7 +26,8 @@ object SequenceAxiomatization {
                 |axiom (forall<T> s: Seq T :: { Seq#Length(s) } Seq#Length(s) == 0 ==> s == Seq#Empty());
                 |
                 |function Seq#Singleton<T>(T): Seq T;
-                |axiom (forall<T> t: T :: { Seq#Length(Seq#Singleton(t)) } Seq#Length(Seq#Singleton(t)) == 1);
+                |//axiom (forall<T> t: T :: { Seq#Length(Seq#Singleton(t)) } Seq#Length(Seq#Singleton(t)) == 1);// (diff 2 (old))
+                |axiom (forall<T> t: T :: { Seq#Singleton(t) } Seq#Length(Seq#Singleton(t)) == 1);// (diff 2: changed trigger)
                 |
                 |function Seq#Append<T>(Seq T, Seq T): Seq T;
                 |axiom (forall<T> s0: Seq T, s1: Seq T :: { Seq#Length(Seq#Append(s0,s1)) }
@@ -36,8 +38,8 @@ object SequenceAxiomatization {
                 |axiom (forall<T> s: Seq T :: { Seq#Append(s,Seq#Empty()) } Seq#Append(s,Seq#Empty()) == s); // diff 11: consider removing
                 |
                 |function Seq#Index<T>(Seq T, int): T;
-                |axiom (forall<T> t: T :: { Seq#Index(Seq#Singleton(t), 0) } Seq#Index(Seq#Singleton(t), 0) == t); // diff 2 (old)
-                |//axiom (forall<T> t: T :: { Seq#Singleton(t) } Seq#Index(Seq#Singleton(t), 0) == t); // diff 2: changed trigger
+                |//axiom (forall<T> t: T :: { Seq#Index(Seq#Singleton(t), 0) } Seq#Index(Seq#Singleton(t), 0) == t); // (diff 2 (old))
+                |axiom (forall<T> t: T :: { Seq#Singleton(t) } Seq#Index(Seq#Singleton(t), 0) == t); // (diff 2: changed trigger)
                 |
                 |// END BASICS
                 |
