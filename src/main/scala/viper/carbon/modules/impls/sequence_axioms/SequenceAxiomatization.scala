@@ -17,7 +17,7 @@ object SequenceAxiomatization {
                 | // diff 2 implemented (fixes m01 and m03 in quantifiedpermissions/issues/issue_0064)
                 | // diff 3 implemented (no difference?)
                 | // diff 4 implemented (no difference?)
-                | // diff 5 implemented (no difference?)
+                | // diff 5 implemented (fixes colourings0 in sequence-incompletenesses test case)
                 |// START BASICS
                 |type Seq T;
                 |
@@ -116,12 +116,19 @@ object SequenceAxiomatization {
                 |  0 <= n && 0 <= j && j < Seq#Length(s)-n ==>
                 |   Seq#Sub(Seq#Add(j,n),n) == j && Seq#Index(Seq#Drop(s,n), j) == Seq#Index(s, Seq#Add(j,n)));
                 |
-                |// diff 6a: add an axiom for the 0 > n case
-                |
                 |axiom (forall<T> s: Seq T, n: int, i: int :: { Seq#Drop(s,n), Seq#Index(s,i) }
                 |  0 <= n && n <= i && i < Seq#Length(s) ==>
                 |  Seq#Add(Seq#Sub(i,n),n) == i && Seq#Index(Seq#Drop(s,n), Seq#Sub(i,n)) == Seq#Index(s, i)); // i = j + n, j = i - n
                 |
+                |// (diff 6a: add axioms for the 0 > n case)
+                |axiom (forall<T> s: Seq T, n: int, j: int :: { Seq#Index(Seq#Drop(s,n), j) } // {:weight 25} // AS: dropped weight
+                |  n < 0 && 0 <= j && j < Seq#Length(s) ==>
+                |    Seq#Index(Seq#Drop(s,n), j) == Seq#Index(s, j));
+                |
+                |// (diff 6a: add axioms for the 0 > n case)
+                |axiom (forall<T> s: Seq T, n: int, i: int :: { Seq#Drop(s,n), Seq#Index(s,i) }
+                |  n < 0 && 0 <= i && i < Seq#Length(s) ==>
+                |  Seq#Index(Seq#Drop(s,n), i) == Seq#Index(s, i)); // i = j + n, j = i - n
                 |
                 |// ** AS: We dropped the weak trigger on this axiom. One option is to strengthen the triggers:
                 |//axiom (forall<T> s, t: Seq T ::
