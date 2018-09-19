@@ -14,7 +14,7 @@ package viper.carbon.modules.impls.dafny_axioms
 object SequenceAxiomatization {
   val value = """ // diff 0 implemented (no difference)
                 | // diff 1 implemented (fixes test5 in sequences.sil)
-                | // diff 2 implemented (no difference)
+                | // diff 2 implemented (fixes m01 and m03 in quantifiedpermissions/issues/issue_0064)
                 | // diff 3 implemented
                 |// START BASICS
                 |type Seq T;
@@ -35,7 +35,7 @@ object SequenceAxiomatization {
                 |s0 != Seq#Empty() && s1 != Seq#Empty() ==> //diff 11: consider removing constraints
                 |  Seq#Length(Seq#Append(s0,s1)) == Seq#Length(s0) + Seq#Length(s1));
                 |
-                |axiom (forall<T> s: Seq T :: { Seq#Append(Seq#Empty(),s) } Seq#Append(Seq#Empty(),s) == s); // diff 11: consider removing
+                |axiom (forall<T> s: Seq T :: { Seq#Append(Seq#Empty(),s) } Seq#Append(Seq#Empty(),s) == s); // diff 11: consider removing (only makes sense if conditions dropped elsewhere)
                 |axiom (forall<T> s: Seq T :: { Seq#Append(s,Seq#Empty()) } Seq#Append(s,Seq#Empty()) == s); // diff 11: consider removing
                 |
                 |function Seq#Index<T>(Seq T, int): T;
@@ -62,7 +62,7 @@ object SequenceAxiomatization {
                 |axiom (forall<T> s0: Seq T, s1: Seq T, n: int :: { Seq#Index(Seq#Append(s0,s1), n) } { Seq#Index(s0, n), Seq#Append(s0,s1) } // AS: added alternative trigger
                 |  (s0 != Seq#Empty() && s1 != Seq#Empty() && 0 <= n && n < Seq#Length(s0) ==> Seq#Index(Seq#Append(s0,s1), n) == Seq#Index(s0, n)));
                 |axiom (forall<T> s0: Seq T, s1: Seq T, n: int :: { Seq#Index(Seq#Append(s0,s1), n) } // term below breaks loops
-                |  s0 != Seq#Empty() && s1 != Seq#Empty() && Seq#Length(s0) <= n && n < Seq#Length(s0) + Seq#Length(s1) ==> Seq#Add(Seq#Sub(n,Seq#Length(s0)),Seq#Length(s0)) == n && Seq#Index(Seq#Append(s0,s1), n) == Seq#Index(s1, Seq#Sub(n,Seq#Length(s0))));
+                |  s0 != Seq#Empty() && s1 != Seq#Empty() && Seq#Length(s0) <= n && n < Seq#Length(Seq#Append(s0,s1)) ==> Seq#Add(Seq#Sub(n,Seq#Length(s0)),Seq#Length(s0)) == n && Seq#Index(Seq#Append(s0,s1), n) == Seq#Index(s1, Seq#Sub(n,Seq#Length(s0))));
                 |// AS: added "reverse triggering" versions of the axioms
                 |axiom (forall<T> s0: Seq T, s1: Seq T, m: int :: { Seq#Index(s1, m), Seq#Append(s0,s1)}  // m == n-|s0|, n == m + |s0|
                 |  s0 != Seq#Empty() && s1 != Seq#Empty() && 0 <= m && m < Seq#Length(s1) ==> Seq#Sub(Seq#Add(m,Seq#Length(s0)),Seq#Length(s0)) == m && Seq#Index(Seq#Append(s0,s1), Seq#Add(m,Seq#Length(s0))) == Seq#Index(s1, m));
