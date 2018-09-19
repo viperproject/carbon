@@ -15,7 +15,9 @@ object SequenceAxiomatization {
   val value = """ // diff 0 implemented (no difference)
                 | // diff 1 implemented (fixes test5 in sequences.sil)
                 | // diff 2 implemented (fixes m01 and m03 in quantifiedpermissions/issues/issue_0064)
-                | // diff 3 implemented
+                | // diff 3 implemented (no difference?)
+                | // diff 4 implemented (no difference?)
+                | // diff 5 implemented (no difference?)
                 |// START BASICS
                 |type Seq T;
                 |
@@ -92,32 +94,34 @@ object SequenceAxiomatization {
                 |    Seq#Index(Seq#Take(s,n), j) == Seq#Index(s, j));
                 |
                 |function Seq#Drop<T>(s: Seq T, howMany: int): Seq T;
-                |axiom (forall<T> s: Seq T, n: int :: { Seq#Length(Seq#Drop(s,n)) } // {Seq#Length(s), Seq#Drop(s,n)} // diff 5: added trigger, exchange arithmetic
+                |axiom (forall<T> s: Seq T, n: int :: { Seq#Length(Seq#Drop(s,n)) } {Seq#Length(s), Seq#Drop(s,n)} // (diff 5: added trigger, exchange arithmetic)
                 |  0 <= n ==>
                 |    (n <= Seq#Length(s) ==> Seq#Length(Seq#Drop(s,n)) == Seq#Length(s) - n) &&
                 |    (Seq#Length(s) < n ==> Seq#Length(Seq#Drop(s,n)) == 0));
                 |
                 |// ** AS: 3rd of 3 axioms which get instantiated very often in certain problems involving take/drop/append
                 |// diff 5 (old)
-                |axiom (forall<T> s: Seq T, n: int, j: int :: { Seq#Index(Seq#Drop(s,n), j) } // {:weight 25} // AS: dropped weight
-                |  0 <= n && 0 <= j && j < Seq#Length(s)-n ==>
-                |    Seq#Index(Seq#Drop(s,n), j) == Seq#Index(s, j+n));
-                |
+                |//axiom (forall<T> s: Seq T, n: int, j: int :: { Seq#Index(Seq#Drop(s,n), j) } // {:weight 25} // AS: dropped weight
+                |//  0 <= n && 0 <= j && j < Seq#Length(s)-n ==>
+                |//    Seq#Index(Seq#Drop(s,n), j) == Seq#Index(s, j+n));
+                |//
                 |// diff already added // diff -1: try removing this axiom and checking effect
-                |axiom (forall<T> s: Seq T, n: int, k: int :: { Seq#Drop(s,n), Seq#Index(s,k) } // AS: alternative triggering for above axiom
-                |  0 <= n && n <= k && k < Seq#Length(s) ==>
-                |    Seq#Index(Seq#Drop(s,n), k-n) == Seq#Index(s, k));
+                |//axiom (forall<T> s: Seq T, n: int, k: int :: { Seq#Drop(s,n), Seq#Index(s,k) } // AS: alternative triggering for above axiom
+                |//  0 <= n && n <= k && k < Seq#Length(s) ==>
+                |//    Seq#Index(Seq#Drop(s,n), k-n) == Seq#Index(s, k));
                 |
                 |// diff 5: split axiom, added triggering case, exhanged arithmetic
-                |/*
+                |
                 |axiom (forall<T> s: Seq T, n: int, j: int :: { Seq#Index(Seq#Drop(s,n), j) } // {:weight 25} // AS: dropped weight
                 |  0 <= n && 0 <= j && j < Seq#Length(s)-n ==>
                 |   Seq#Sub(Seq#Add(j,n),n) == j && Seq#Index(Seq#Drop(s,n), j) == Seq#Index(s, Seq#Add(j,n)));
                 |
+                |// diff 6a: add an axiom for the 0 > n case
+                |
                 |axiom (forall<T> s: Seq T, n: int, i: int :: { Seq#Drop(s,n), Seq#Index(s,i) }
                 |  0 <= n && n <= i && i < Seq#Length(s) ==>
                 |  Seq#Add(Seq#Sub(i,n),n) == i && Seq#Index(Seq#Drop(s,n), Seq#Sub(i,n)) == Seq#Index(s, i)); // i = j + n, j = i - n
-                |*/
+                |
                 |
                 |// ** AS: We dropped the weak trigger on this axiom. One option is to strengthen the triggers:
                 |//axiom (forall<T> s, t: Seq T ::
@@ -135,7 +139,7 @@ object SequenceAxiomatization {
                 |// { Seq#Drop(Seq#Append(s, t), Seq#Length(s)) }
                 |//  Seq#Drop(Seq#Append(s, t), Seq#Length(s)) == t);
                 |
-                |// diff 6: remove these?
+                |// diff 6b: remove these?
                 |// Commutability of Take and Drop with Update.
                 |axiom (forall<T> s: Seq T, i: int, v: T, n: int ::
                 |        { Seq#Take(Seq#Update(s, i, v), n) }
