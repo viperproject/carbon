@@ -20,6 +20,7 @@ object SequenceAxiomatization {
                 | // diff 5 implemented (fixes colourings0 in sequence-incompletenesses test case)
                 | // diff 6 implemented (no difference)
                 | // diff 7 implemented
+                | // diff 11 implemented
                 |// START BASICS
                 |type Seq T;
                 |
@@ -39,8 +40,9 @@ object SequenceAxiomatization {
                 |s0 != Seq#Empty() && s1 != Seq#Empty() ==> //diff 11: consider removing constraints
                 |  Seq#Length(Seq#Append(s0,s1)) == Seq#Length(s0) + Seq#Length(s1));
                 |
-                |axiom (forall<T> s: Seq T :: { Seq#Append(Seq#Empty(),s) } Seq#Append(Seq#Empty(),s) == s); // diff 11: consider removing (only makes sense if conditions dropped elsewhere)
-                |axiom (forall<T> s: Seq T :: { Seq#Append(s,Seq#Empty()) } Seq#Append(s,Seq#Empty()) == s); // diff 11: consider removing
+                |//axiom (forall<T> s: Seq T :: { Seq#Append(Seq#Empty(),s) } Seq#Append(Seq#Empty(),s) == s); // (diff 11: switched to double-quantified version)
+                |//axiom (forall<T> s: Seq T :: { Seq#Append(s,Seq#Empty()) } Seq#Append(s,Seq#Empty()) == s); // (diff 11: switched to double-quantified version)
+                |axiom (forall<T> s0: Seq T, s1: Seq T :: { Seq#Append(s0,s1) } (s0 == Seq#Empty() ==> Seq#Append(s0,s1) == s1) && (s1 == Seq#Empty() ==> Seq#Append(s0,s1) == s0)); // diff 11: switched to double-quantified version
                 |
                 |function Seq#Index<T>(Seq T, int): T;
                 |//axiom (forall<T> t: T :: { Seq#Index(Seq#Singleton(t), 0) } Seq#Index(Seq#Singleton(t), 0) == t); // (diff 2 (old))
