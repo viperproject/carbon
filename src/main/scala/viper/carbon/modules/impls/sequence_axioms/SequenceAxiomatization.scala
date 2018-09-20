@@ -146,9 +146,9 @@ object SequenceAxiomatization {
                 |// { Seq#Drop(Seq#Append(s, t), Seq#Length(s)) }
                 |//  Seq#Drop(Seq#Append(s, t), Seq#Length(s)) == t);
                 |
-                |// diff 6b: remove these?
+                |// (diff 6b: remove these?)
                 |// Commutability of Take and Drop with Update.
-                |axiom (forall<T> s: Seq T, i: int, v: T, n: int ::
+                |/*axiom (forall<T> s: Seq T, i: int, v: T, n: int ::
                 |        { Seq#Take(Seq#Update(s, i, v), n) }
                 |        0 <= i && i < n && n <= Seq#Length(s) ==> Seq#Take(Seq#Update(s, i, v), n) == Seq#Update(Seq#Take(s, n), i, v) );
                 |axiom (forall<T> s: Seq T, i: int, v: T, n: int ::
@@ -160,6 +160,7 @@ object SequenceAxiomatization {
                 |axiom (forall<T> s: Seq T, i: int, v: T, n: int ::
                 |        { Seq#Drop(Seq#Update(s, i, v), n) }
                 |        0 <= i && i < n && n < Seq#Length(s) ==> Seq#Drop(Seq#Update(s, i, v), n) == Seq#Drop(s, n));
+                |*/
                 |
                 |// Additional axioms about common things
                 |axiom (forall<T> s: Seq T, n: int :: { Seq#Drop(s, n) } // ** NEW
