@@ -15,9 +15,11 @@ object SequenceAxiomatization {
   val value = """ // diff 0 implemented (no difference)
                 | // diff 1 implemented (fixes test5 in sequences.sil)
                 | // diff 2 implemented (fixes m01 and m03 in quantifiedpermissions/issues/issue_0064)
-                | // diff 3 implemented (no difference?)
-                | // diff 4 implemented (no difference?)
+                | // diff 3 implemented (no difference)
+                | // diff 4 implemented (no difference)
                 | // diff 5 implemented (fixes colourings0 in sequence-incompletenesses test case)
+                | // diff 6 implemented (no difference)
+                | // diff 7 implemented
                 |// START BASICS
                 |type Seq T;
                 |
@@ -83,10 +85,12 @@ object SequenceAxiomatization {
                 |
                 |function Seq#Take<T>(s: Seq T, howMany: int): Seq T;
                 |// AS: added triggers
-                |axiom (forall<T> s: Seq T, n: int :: { Seq#Length(Seq#Take(s,n)) } // { Seq#Take(s,n), Seq#Length(s)} // diff 7: add trigger
-                |  0 <= n ==>
+                |axiom (forall<T> s: Seq T, n: int :: { Seq#Length(Seq#Take(s,n)) } { Seq#Take(s,n), Seq#Length(s)} // (diff 7: add trigger)
+                |  (0 <= n ==>
                 |    (n <= Seq#Length(s) ==> Seq#Length(Seq#Take(s,n)) == n) &&
-                |    (Seq#Length(s) < n ==> Seq#Length(Seq#Take(s,n)) == Seq#Length(s)));
+                |    (Seq#Length(s) < n ==> Seq#Length(Seq#Take(s,n)) == Seq#Length(s)))
+                |    &&
+                |   (n < 0 ==> Seq#Length(Seq#Take(s,n)) == 0)); // (diff 7: added case for n < 0)
                 |
                 |// ** AS: 2nd of 3 axioms which get instantiated very often in certain problems involving take/drop/append
                 |axiom (forall<T> s: Seq T, n: int, j: int :: { Seq#Index(Seq#Take(s,n), j) } {Seq#Index(s,j), Seq#Take(s,n)} // (diff 0: (was already done)) : add trigger // {:weight 25} // AS: dropped weight
@@ -95,9 +99,12 @@ object SequenceAxiomatization {
                 |
                 |function Seq#Drop<T>(s: Seq T, howMany: int): Seq T;
                 |axiom (forall<T> s: Seq T, n: int :: { Seq#Length(Seq#Drop(s,n)) } {Seq#Length(s), Seq#Drop(s,n)} // (diff 5: added trigger, exchange arithmetic)
-                |  0 <= n ==>
+                |  (0 <= n ==>
                 |    (n <= Seq#Length(s) ==> Seq#Length(Seq#Drop(s,n)) == Seq#Length(s) - n) &&
-                |    (Seq#Length(s) < n ==> Seq#Length(Seq#Drop(s,n)) == 0));
+                |    (Seq#Length(s) < n ==> Seq#Length(Seq#Drop(s,n)) == 0))
+                |    &&
+                |  (n < 0 ==> Seq#Length(Seq#Drop(s,n)) == Seq#Length(s)) // (diff 7: added cases for n < 0)
+                |    );
                 |
                 |// ** AS: 3rd of 3 axioms which get instantiated very often in certain problems involving take/drop/append
                 |// diff 5 (old)
