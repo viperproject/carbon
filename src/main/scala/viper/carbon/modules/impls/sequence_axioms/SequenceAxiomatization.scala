@@ -187,8 +187,10 @@ object SequenceAxiomatization {
                 |// diff 8: skolemisation (old)
                 |function Seq#Contains<T>(Seq T, T): bool;
                 |axiom (forall<T> s: Seq T, x: T :: { Seq#Contains(s,x) }
-                |  Seq#Contains(s,x) <==>
+                |  Seq#Contains(s,x) ==>
                 |    (exists i: int :: { Seq#Index(s,i) } 0 <= i && i < Seq#Length(s) && Seq#Index(s,i) == x));
+                |axiom (forall<T> s: Seq T, x: T, i:int :: { Seq#Contains(s,x), Seq#Index(s,i) }
+                |    (0 <= i && i < Seq#Length(s) && Seq#Index(s,i) == x ==> Seq#Contains(s,x)));
                 |// ** AS: made one change here - changed type of x from ref to T
                 |axiom (forall<T> x: T ::
                 |  { Seq#Contains(Seq#Empty(), x) }
