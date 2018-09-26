@@ -20,6 +20,7 @@ object SequenceAxiomatization {
                 | // diff 5 implemented (fixes colourings0 in sequence-incompletenesses test case)
                 | // diff 6 implemented (no difference)
                 | // diff 7 implemented
+                | // diff 8 implemented (allows for contains triggering, without destroying performance of e.g. functions/linkedlists test case)
                 | // diff 11 implemented
                 |// START BASICS
                 |type Seq T;
@@ -157,19 +158,22 @@ object SequenceAxiomatization {
                 |
                 |// (diff 6b: remove these?)
                 |// Commutability of Take and Drop with Update.
-                |/*axiom (forall<T> s: Seq T, i: int, v: T, n: int ::
+                |axiom (forall<T> s: Seq T, i: int, v: T, n: int ::
                 |        { Seq#Take(Seq#Update(s, i, v), n) }
-                |        0 <= i && i < n && n <= Seq#Length(s) ==> Seq#Take(Seq#Update(s, i, v), n) == Seq#Update(Seq#Take(s, n), i, v) );
+                |//        0 <= i && i < n && n < Seq#Length(s) ==> Seq#Take(Seq#Update(s, i, v), n) == Seq#Update(Seq#Take(s, n), i, v) );
+                |        0 <= i && i < n && i < Seq#Length(s) ==> Seq#Take(Seq#Update(s, i, v), n) == Seq#Update(Seq#Take(s, n), i, v) );
                 |axiom (forall<T> s: Seq T, i: int, v: T, n: int ::
                 |        { Seq#Take(Seq#Update(s, i, v), n) }
                 |        n <= i && i < Seq#Length(s) ==> Seq#Take(Seq#Update(s, i, v), n) == Seq#Take(s, n));
                 |axiom (forall<T> s: Seq T, i: int, v: T, n: int ::
                 |        { Seq#Drop(Seq#Update(s, i, v), n) }
-                |        0 <= n && n <= i && i < Seq#Length(s) ==> Seq#Drop(Seq#Update(s, i, v), n) == Seq#Update(Seq#Drop(s, n), i-n, v) );
+                |//        0 <= n && n <= i && i < Seq#Length(s) ==> Seq#Drop(Seq#Update(s, i, v), n) == Seq#Update(Seq#Drop(s, n), i-n, v) );
+                |        0 <= i && n <=i && i < Seq#Length(s) ==> Seq#Drop(Seq#Update(s, i, v), n) == Seq#Update(Seq#Drop(s, n), i-n, v) );
                 |axiom (forall<T> s: Seq T, i: int, v: T, n: int ::
                 |        { Seq#Drop(Seq#Update(s, i, v), n) }
-                |        0 <= i && i < n && n < Seq#Length(s) ==> Seq#Drop(Seq#Update(s, i, v), n) == Seq#Drop(s, n));
-                |*/
+                |//        0 <= i && i < n && n < Seq#Length(s) ==> Seq#Drop(Seq#Update(s, i, v), n) == Seq#Drop(s, n));
+                |        0 <= i && i < n && i < Seq#Length(s) ==> Seq#Drop(Seq#Update(s, i, v), n) == Seq#Drop(s, n));
+                |
                 |
                 |// Additional axioms about common things
                 |axiom (forall<T> s: Seq T, n: int :: { Seq#Drop(s, n) } // ** NEW
