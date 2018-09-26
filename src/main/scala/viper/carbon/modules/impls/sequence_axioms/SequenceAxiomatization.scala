@@ -186,14 +186,15 @@ object SequenceAxiomatization {
                 |// START CONTAINS
                 |// diff 8: skolemisation (old)
                 |function Seq#Contains<T>(Seq T, T): bool;
+                |function Seq#ContainsTrigger<T>(Seq T, T): bool; // usages of Contains inside quantifier triggers are replaced with this
                 |function Seq#Skolem<T>(Seq T, T) : int; // skolem function for Seq#Contains // (diff 8: added)
                 |axiom (forall<T> s: Seq T, x: T :: { Seq#Contains(s,x) }
                 |  Seq#Contains(s,x) ==>
                 |    (0 <= Seq#Skolem(s,x) && Seq#Skolem(s,x) < Seq#Length(s) && Seq#Index(s,Seq#Skolem(s,x)) == x)); // (diff 8: skolem function)
-                |//axiom (forall<T> s: Seq T, x: T, i:int :: { Seq#Contains(s,x), Seq#Index(s,i) }
-                |//    (0 <= i && i < Seq#Length(s) && Seq#Index(s,i) == x ==> Seq#Contains(s,x)));
+                |axiom (forall<T> s: Seq T, x: T, i:int :: { Seq#Contains(s,x), Seq#Index(s,i) } // only trigger if interested in the Contains term
+                |    (0 <= i && i < Seq#Length(s) && Seq#Index(s,i) == x ==> Seq#Contains(s,x)));
                 |axiom (forall<T> s: Seq T, i:int :: { Seq#Index(s,i) }
-                |    (0 <= i && i < Seq#Length(s) ==> Seq#Contains(s,Seq#Index(s,i))));
+                |  (0 <= i && i < Seq#Length(s) ==> Seq#ContainsTrigger(s,Seq#Index(s,i))));
                 |// ** AS: made one change here - changed type of x from ref to T
                 |/*axiom (forall<T> x: T ::
                 |  { Seq#Contains(Seq#Empty(), x) }

@@ -103,6 +103,14 @@ class DefaultSeqModule(val verifier: Verifier)
     NamedType("Seq", translateType(seqType.elementType))
   }
 
+  def rewriteToTermsInTriggers(e: Exp) : Exp =
+  {
+    Transformer.transform(e, {
+      case FuncApp(Identifier("Seq#Contains",_),args,typ) =>
+        FuncApp(Identifier("Seq#ContainsTrigger"),args,typ)
+    })(_ => true) //  always recurse
+  }
+
 
   override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
     if(makeChecks)
