@@ -157,6 +157,7 @@ object SequenceAxiomatization {
                 |//  Seq#Drop(Seq#Append(s, t), Seq#Length(s)) == t);
                 |
                 |// (diff 6b: remove these?)
+                |/* Removed: at present, Carbon doesn't generate Seq#Update (but desugars via take/drop/append)
                 |// Commutability of Take and Drop with Update.
                 |axiom (forall<T> s: Seq T, i: int, v: T, n: int ::
                 |        { Seq#Take(Seq#Update(s, i, v), n) }
@@ -173,7 +174,23 @@ object SequenceAxiomatization {
                 |        { Seq#Drop(Seq#Update(s, i, v), n) }
                 |//        0 <= i && i < n && n < Seq#Length(s) ==> Seq#Drop(Seq#Update(s, i, v), n) == Seq#Drop(s, n));
                 |        0 <= i && i < n && i < Seq#Length(s) ==> Seq#Drop(Seq#Update(s, i, v), n) == Seq#Drop(s, n));
+                |*/
                 |
+                |axiom (forall<T> s: Seq T, t: Seq T, n:int ::
+                |  { Seq#Take(Seq#Append(s,t),n) } //TODO: {Seq#Append(s,t), Seq#Take(s,n)}
+                |  n <= Seq#Length(s) ==> Seq#Take(Seq#Append(s,t),n) == Seq#Take(s,n));
+                |
+                |axiom (forall<T> s: Seq T, t: Seq T, n:int ::
+                |  { Seq#Take(Seq#Append(s,t),n) } // TODO: add reverse triggering version
+                |  n > Seq#Length(s) ==> Seq#Take(Seq#Append(s,t),n) == Seq#Append(s,Seq#Take(t,Seq#Sub(n,Seq#Length(s)))));
+                |
+                |axiom (forall<T> s: Seq T, t: Seq T, n:int ::
+                |  { Seq#Drop(Seq#Append(s,t),n) } // TODO: add reverse triggering version
+                |  n <= Seq#Length(s) ==> Seq#Drop(Seq#Append(s,t),n) == Seq#Append(Seq#Drop(s,n),t));
+                |
+                |axiom (forall<T> s: Seq T, t: Seq T, n:int ::
+                |  { Seq#Drop(Seq#Append(s,t),n) } //TODO: {Seq#Append(s,t), Seq#Drop(s,n)}
+                |  n > Seq#Length(s) ==> Seq#Drop(Seq#Append(s,t),n) == Seq#Drop(t,Seq#Sub(n,Seq#Length(s))));
                 |
                 |// Additional axioms about common things
                 |axiom (forall<T> s: Seq T, n: int :: { Seq#Drop(s, n) } // ** NEW
