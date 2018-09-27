@@ -280,17 +280,16 @@ object SequenceAxiomatization {
                 |
                 |// diff 9 : skolemise equals (old)
                 |function Seq#Equal<T>(Seq T, Seq T): bool;
-                |axiom (forall<T> s0: Seq T, s1: Seq T :: { Seq#Equal(s0,s1) }
+                |/*axiom (forall<T> s0: Seq T, s1: Seq T :: { Seq#Equal(s0,s1) }
                 |  Seq#Equal(s0,s1) <==>
                 |    Seq#Length(s0) == Seq#Length(s1) &&
                 |    (forall j: int :: { Seq#Index(s0,j) } { Seq#Index(s1,j) }
                 |        0 <= j && j < Seq#Length(s0) ==> Seq#Index(s0,j) == Seq#Index(s1,j)));
+                |
                 |axiom (forall<T> a: Seq T, b: Seq T :: { Seq#Equal(a,b) }  // extensionality axiom for sequences
                 |  Seq#Equal(a,b) ==> a == b);
-                |
+                |*/
                 |// diff 9: skolemise equals (new)
-                |/*function Seq#Equal<T>(Seq T, Seq T): bool;
-                |
                 |// AS: split axiom
                 |axiom (forall<T> s0: Seq T, s1: Seq T :: { Seq#Equal(s0,s1) }
                 |  Seq#Equal(s0,s1) ==>
@@ -301,13 +300,13 @@ object SequenceAxiomatization {
                 |function Seq#SkolemDiff<T>(Seq T, Seq T) : int; // skolem function for Seq#Equals
                 |
                 |axiom (forall<T> s0: Seq T, s1: Seq T :: { Seq#Equal(s0,s1) }
-                |  Seq#Length(s0) != Seq#Length(s1) ||
-                |        (0 <= Seq#SkolemDiff(s0,s1) && Seq#SkolemDiff(s0,s1) < Seq#Length(s0) &&
-                |         Seq#Index(s0,Seq#SkolemDiff(s0,s1)) != Seq#Index(s1,Seq#SkolemDiff(s0,s1))) || s0==s1);
+                |  (s0==s1 && Seq#Equal(s0,s1)) || (s0!=s1 && !Seq#Equal(s0,s1) && Seq#Length(s0) != Seq#Length(s1)) ||
+                |        (s0 != s1 && !Seq#Equal(s0,s1) && Seq#Length(s0) == Seq#Length(s1) && Seq#SkolemDiff(s0,s1) == Seq#SkolemDiff(s1,s0) && 0 <= Seq#SkolemDiff(s0,s1) && Seq#SkolemDiff(s0,s1) < Seq#Length(s0) &&
+                |         Seq#Index(s0,Seq#SkolemDiff(s0,s1)) != Seq#Index(s1,Seq#SkolemDiff(s0,s1))));
                 |
                 |axiom (forall<T> a: Seq T, b: Seq T :: { Seq#Equal(a,b) }  // extensionality axiom for sequences
                 |  Seq#Equal(a,b) ==> a == b);
-                |*/
+                |
                 |
                 |// END EQUALS
                 |
