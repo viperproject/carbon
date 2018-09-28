@@ -184,9 +184,9 @@ object SequenceAxiomatization {
                 |  { Seq#Take(Seq#Append(s,t),n) }
                 |  n > Seq#Length(s) ==> Seq#Add(Seq#Sub(n,Seq#Length(s)),Seq#Length(s)) == n && Seq#Take(Seq#Append(s,t),n) == Seq#Append(s,Seq#Take(t,Seq#Sub(n,Seq#Length(s)))));
                 |
-                |axiom (forall<T> s: Seq T, t: Seq T, m:int ::
-                |  { Seq#Append(s,Seq#Take(t,m)) } {Seq#Append(s,t), Seq#Take(t,m)} // reverse triggering version of above: m = n - |s|, n = m + |s|
-                |  m > 0 ==> Seq#Sub(Seq#Add(m,Seq#Length(s)),Seq#Length(s)) == m && Seq#Take(Seq#Append(s,t),Seq#Add(m,Seq#Length(s))) == Seq#Append(s,Seq#Take(t,m)));
+                |//axiom (forall<T> s: Seq T, t: Seq T, m:int ::
+                |//  { Seq#Append(s,Seq#Take(t,m)) } {Seq#Append(s,t), Seq#Take(t,m)} // reverse triggering version of above: m = n - |s|, n = m + |s|
+                |//  m > 0 ==> Seq#Sub(Seq#Add(m,Seq#Length(s)),Seq#Length(s)) == m && Seq#Take(Seq#Append(s,t),Seq#Add(m,Seq#Length(s))) == Seq#Append(s,Seq#Take(t,m)));
                 |
                 |axiom (forall<T> s: Seq T, t: Seq T, n:int ::
                 |  { Seq#Drop(Seq#Append(s,t),n) } {Seq#Append(s,t), Seq#Drop(s,n)}
@@ -196,9 +196,9 @@ object SequenceAxiomatization {
                 |  { Seq#Drop(Seq#Append(s,t),n) }
                 |  n > Seq#Length(s) ==> Seq#Add(Seq#Sub(n,Seq#Length(s)),Seq#Length(s)) == n && Seq#Drop(Seq#Append(s,t),n) == Seq#Drop(t,Seq#Sub(n,Seq#Length(s))));
                 |
-                |axiom (forall<T> s: Seq T, t: Seq T, m:int ::
-                |  { Seq#Append(s,t),Seq#Drop(t,m) } // reverse triggering version of above: m = n - |s|, n = m + |s|
-                |  m > 0 ==> Seq#Sub(Seq#Add(m,Seq#Length(s)),Seq#Length(s)) == m && Seq#Drop(Seq#Append(s,t),Seq#Add(m,Seq#Length(s))) == Seq#Drop(t,m));
+                |//axiom (forall<T> s: Seq T, t: Seq T, m:int ::
+                |//  { Seq#Append(s,t),Seq#Drop(t,m) } // reverse triggering version of above: m = n - |s|, n = m + |s|
+                |//  m > 0 ==> Seq#Sub(Seq#Add(m,Seq#Length(s)),Seq#Length(s)) == m && Seq#Drop(Seq#Append(s,t),Seq#Add(m,Seq#Length(s))) == Seq#Drop(t,m));
                 |
                 |// Additional axioms about common things
                 |axiom (forall<T> s: Seq T, n: int :: { Seq#Drop(s, n) } // ** NEW
