@@ -182,7 +182,7 @@ object SequenceAxiomatization {
                 |
                 |axiom (forall<T> s: Seq T, t: Seq T, n:int ::
                 |  { Seq#Take(Seq#Append(s,t),n) } // TODO: add reverse triggering version
-                |  n > Seq#Length(s) ==> Seq#Take(Seq#Append(s,t),n) == Seq#Append(s,Seq#Take(t,Seq#Sub(n,Seq#Length(s)))));
+                |  n > Seq#Length(s) ==> Seq#Add(Seq#Sub(n,Seq#Length(s)),Seq#Length(s)) == n && Seq#Take(Seq#Append(s,t),n) == Seq#Append(s,Seq#Take(t,Seq#Sub(n,Seq#Length(s)))));
                 |
                 |axiom (forall<T> s: Seq T, t: Seq T, n:int ::
                 |  { Seq#Drop(Seq#Append(s,t),n) } // TODO: add reverse triggering version
@@ -200,7 +200,7 @@ object SequenceAxiomatization {
                 |// diff 13: remove this?
                 |axiom (forall<T> s: Seq T, m, n: int :: { Seq#Drop(Seq#Drop(s, m), n) } // ** NEW - AS: could have bad triggering behaviour?
                 |        0 <= m && 0 <= n && m+n <= Seq#Length(s) ==>
-                |        Seq#Drop(Seq#Drop(s, m), n) == Seq#Drop(s, m+n));
+                |        Seq#Sub(Seq#Add(m,n),n) == m && Seq#Drop(Seq#Drop(s, m), n) == Seq#Drop(s, Seq#Add(m,n)));
                 |
                 |// END TAKE/DROP
                 |
