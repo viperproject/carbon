@@ -64,6 +64,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
   val boogieNoPerm:Exp = RealLit(0)
   val boogieFullPerm:Exp = RealLit(1)
 
+  // keeps the magic wand representation to be able to refer its masks (ww#sm, ww$ft, ...).
   var ww: MagicWand = null
 
   //use this to generate unique names for states
@@ -114,7 +115,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
       val f0 = FuncApp(name,vars,typ)
       val f1 = FuncApp(heapModule.wandMaskIdentifier(name), vars, heapModule.predicateMaskFieldTypeOfWand(name.name)) // w#sm (wands secondary mask)
       val f2 = FuncApp(heapModule.wandFtIdentifier(name), vars, heapModule.predicateVersionFieldTypeOfWand(name.name)) // w#ft (permission to w#fm is added when at the begining of a package statement)
-      val f3 = wandMaskField(f2) // wandMaskField (wandMaskField()w == w#sm)
+      val f3 = wandMaskField(f2) // wandMaskField (wandMaskField(w) == w#sm)
       val typeDecl: Seq[TypeDecl] = heapModule.wandBasicType(name.preferredName) match {
         case named: NamedType => TypeDecl(named)
         case _ => Nil
@@ -149,6 +150,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
     }
   }
 
+  // returns the corresponding mask (wand#ft or wand#sm) depending on the value of 'ftsm'.
   override def getWandFtSmRepresentation(wand: sil.MagicWand, ftsm: Int): Exp = {
     //need to compute shape of wand
     val ghostFreeWand = wand
@@ -176,6 +178,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
       case pa@sil.Package(wand, proof) =>
         wand match {
           case w@sil.MagicWand(left,right) =>
+            // saving the old wand representation in the case of nested magic wands
             var oldW = ww
             ww = w
             val addWand = inhaleModule.inhale(w, statesStack, inWand)
@@ -476,7 +479,7 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
       val curPermTop = permModule.currentPermission(e.rcv, e.loc)
       val removeFromTop = heapModule.beginExhale ++
         (components flatMap (_.transferRemove(e,used.boolVar))) ++
-         {if(top != OPS){ // Sets the transferred field in secondary mask of the wand to true ,eg., Heap[null, w#sm\[x, f] := true
+         {if(top != OPS){ // Sets the transferred field in secondary mask of the wand to true ,eg., Heap[null, w#sm][x, f] := true
            heapModule.addPermissionToWMask(getWandFtSmRepresentation(ww, 1), e.originalSILExp)
           }else{
            Statements.EmptyStmt
