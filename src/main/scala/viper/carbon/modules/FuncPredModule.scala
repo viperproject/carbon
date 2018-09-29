@@ -31,8 +31,24 @@ trait FuncPredModule extends Module {
   def translateResult(r: sil.Result): Exp
 
   // code to go first, and code to go last (other modules may contribute in between)
+  /**
+    * statesStack is the stack of states used (to exhale from) during packaging a magic wand (it carries the current state, left-hand side state).
+    * statesStack also carries the left-hand side states of the outer magic wands in case of nested package statements
+    *
+    * inWand distinguishes whether this method is called during a package statement or not.
+    *
+    * Both 'statesStack' and 'inWand' are passed to the 'exhale' and 'inhale' methods that are called during the translation of the fold
+    */
   def translateFold(fold: sil.Fold, statesStack: List[Any] = null, inWand: Boolean = false): (Stmt,Stmt)
 
+  /**
+    * statesStack is the stack of states used (to exhale from) during packaging a magic wand (it carries the current state, left-hand side state).
+    * statesStack also carries the left-hand side states of the outer magic wands in case of nested package statements
+    *
+    * inWand distinguishes whether this method is called during a package statement or not.
+    *
+    * Both 'statesStack' and 'inWand' are passed to the 'exhale' and 'inhale' methods that are called during the translation of the unfold
+    */
   def translateUnfold(unfold: sil.Unfold, statesStack: List[Any] = null, inWand: Boolean = false): Stmt
 
   def toExpressionsUsedInTriggers(e: Exp): Seq[Exp]

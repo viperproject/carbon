@@ -57,6 +57,13 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
     (exps map (exp => (if (exp.existsDefined[Unit]({case sil.Unfolding(_,_) => })) checkDefinedness(exp, exp_error(exp), false) else Nil:Stmt)))
   }
 
+  /**
+    * @param statesStack stack of states used in translating package statements (carries currentState and LHS of wands)
+    * @param inWand Boolean that represents whether 'stmt' is being translated inside package statement or not
+    * @param allStateAssms represents all assumptions about states on the statesStack (conjunction of boolvar of all states on statesStack)
+    *
+    * These wand-related parameters are passed to 'fold' method and 'simpleHandleStmt' method.
+    */
   override def handleStmt(s: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false) : (Seqn => Seqn) = {
     val (bef, aft) =
       s match {
@@ -68,8 +75,10 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
 
   /**
     * @param statesStack stack of states used in translating package statements (carries currentState and LHS of wands)
-    * @param inWand Boolean that represents whether this exhale is inside package statement or not
+    * @param inWand Boolean that represents whether 'stmt' is being translated inside package statement or not
     * @param allStateAssms represents all assumptions about states on the statesStack (conjunction of boolvar of all states on statesStack)
+    *
+    * These wand-related parameters are passed as parameters for other method calls (such as exhale, inhale, unfold, ...).
     */
   override def simpleHandleStmt(stmt: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
     stmt match {

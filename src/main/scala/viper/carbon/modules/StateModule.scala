@@ -152,7 +152,7 @@ trait StateModule extends Module with ComponentRegistry[CarbonStateComponent] wi
 
   /**
     * returns statement of equating heap represented by snapshot to current heap
-    * returns statement: Assume snapshot == heap
+    * e.g. the returned statement is in the form of: Assume Heap1 == Heap2
     */
   def equateHeaps(snapshot: StateSnapshot, c: CarbonStateComponent):Stmt
 

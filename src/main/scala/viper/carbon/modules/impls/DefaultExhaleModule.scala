@@ -137,6 +137,9 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
             if(permModule.containsWildCard(e))
                   throw new RuntimeException() // AG: To be changed to unsupportedFeatureException
             else
+          // currently having wild cards and 'constraining' expressions are not supported during packaging a wand.
+          // This could is called many times in different phases to handle wildcards and constraining,
+          //  this code for exhaling inside a magic wand should be called only once (in phase 0, in this case)
             if(phase == 0) {
               var exhaleExtStmt = wandModule.exhaleExt(statesStack, tempState, e, wandModule.getCurOpsBoolvar(), error = error, havocHeap = havocHeap)  // transferring permissions from stack of states to temp state
               val addAssumptions = (statesStack(0).asInstanceOf[StateRep].boolVar := statesStack(0).asInstanceOf[StateRep].boolVar && tempState.boolVar)  // adding all assumptions of temp.bool to ops.bool

@@ -25,9 +25,16 @@ import viper.silver.verifier.PartialVerificationError
 trait ExhaleModule extends Module with ExhaleComponent with ComponentRegistry[ExhaleComponent] {
 
   /**
-    * @param statesStack stack of states used in translating package statements (carries currentState and LHS of wands)
-    * @param inWand Boolean that represents whether this exhale is inside package statement or not
-    * @return
+    * @param exp         the expression to be exhaled and the error to be raised if the exhale fails.
+    * @param havocHeap   A boolean used to allow or prevent havocing the heap after the exhale.
+    *                    For example, the heap is not havoced after the exhale when translating a fold statement.
+    * @param isAssert    A boolean that tells whether the exhale method is being called during an exhale statement or an assert statement
+    *                    (Assert reuses the code for exhale).
+    *                    This is used for optimization purposes (remove extra operations if the statement is an 'assert')
+    *                    and also used to translate the 'assert' statements during packaging a wand.
+    * @param statesStack stack of states used to translate exhales during package statements (carries currentState and LHS of wands)
+    * @param inWand      Boolean that represents whether this exhale is being called during a package statement or not.
+    *
     */
   def exhale(exp: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true, isAssert: Boolean = false
              , statesStack: List[Any] = null, inWand: Boolean = false): Stmt

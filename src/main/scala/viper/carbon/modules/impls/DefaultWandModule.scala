@@ -336,7 +336,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
   }
 
 
-//create a state Result which is the "sum" of the current  and Other state
+//create a state Result which is the "sum" of the current and Other state
 override def createAndSetSumState(stateOtherO: Any ,boolOther:Exp,boolCur:Exp):StateSetup = {
   // get heap and mask from other state
   val stateOther = stateOtherO.asInstanceOf[StateSnapshot]
@@ -660,6 +660,10 @@ case class TransferBoogieVars(transferAmount: LocalVar, boolVar: LocalVar)
  */
 case class PackageSetup(hypState: StateRep, usedState: StateRep, initStmt: Stmt)
 
+  /**
+    * This method update 'wandModule.UNIONState' to be the union of the 'current' state and 'wandModule.OPS' state
+    * The 'wandModule.UNIONState' is used in evaluating expressions during a package statement.
+    */
   override def updateUnion(): Stmt = {
     val oldCurState = stateModule.state
     stateModule.replaceState(tempCurState.asInstanceOf[StateRep].state)
