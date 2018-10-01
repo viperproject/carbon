@@ -620,7 +620,8 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
       val inverseApplications = c.invApply(Seq.fill(c.varDecls.size)(r))
       val receiverApplied = c.applyRecv(inverseApplications)
       val invAxioms2 = Assume(
-        c.filtering.apply(inverseApplications ++ f.exp) ==> (receiverApplied === r) forall (rDecl, c.inv map { tuple =>Trigger(tuple._1.apply(r)) })
+        c.filtering.apply(inverseApplications ++ f.exp) ==> (receiverApplied === r) forall
+          (rDecl, c.inv map { tuple =>Trigger(tuple._1.apply(r)) })
       )
       // undefine the fresh variables
       freshSilDecls map {v => env.undefine(v.localVar)}
@@ -638,11 +639,21 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
         val comp = instances._1._1
         val filter = instances._2._1
         quantifierLevel -= 1
-        definednessCheck(comp, filter, error) ++ inverseAxioms(comp, filter)
+        definednessCheck(comp, filter, error)
       }
       (() => {quantifierLevel += 1; Statements.EmptyStmt}, checks)
     } else {
       userMentionedAssumption(e)
+    }
+  }
+
+  override def freeAssumptions(e: sil.Exp) = {
+    e match {
+      case c: sil.Comp =>
+        val instances = translateComp(c)
+        inverseAxioms(instances._1._1, instances._2._1)
+      case _ =>
+        Statements.EmptyStmt
     }
   }
 
