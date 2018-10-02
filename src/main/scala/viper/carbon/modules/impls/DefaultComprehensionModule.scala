@@ -242,7 +242,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
         // add the result to the buffer
         comprehensions = comprehensions :+ comp
         val filterMap = new mutable.HashMap[sil.Filter, Filter]()
-        filterMap.put(c.filter, filterInstance)
+        filterMap.put(freshFilter, filterInstance)
         filterBuffer.put(comp, filterMap)
         ((comp, true), (filterInstance, true))
 
@@ -267,7 +267,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
             // create a new intance with the correct condition
             val filterInstance = new Filter(freshFilter, comp)(cond)
             // add filter instance to buffer
-            filterBuffer(comp).put(c.filter, filterInstance)
+            assert(filterBuffer(comp).put(freshFilter, filterInstance).isEmpty)
             ((comp, false), (filterInstance, true))
         }
     }
