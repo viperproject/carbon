@@ -83,20 +83,20 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     /** A map from Ast local variables to their translations */
     val localVarTranslation: Map[sil.LocalVar, LocalVar] = ((ast.variables zip varDecls) map {tuple => tuple._1.localVar -> tuple._2.l}).toMap
     /** The boogie translated body of the comprehension */
-    val body = translateExp(ast.body).replace(currentHeap.head, h)
+    val body = translateExp(ast.body).replace(currentStateExps.head, h)
     /** The boogie translated receiver of the body */
-    val receiver = translateExp(ast.body.rcv).replace(currentHeap.head, h)
+    val receiver = translateExp(ast.body.rcv).replace(currentStateExps.head, h)
     /** The boogie translated value field of the body */
     val value = translateLocation(ast.body)
     /** The boogie translated unit */
-    val unit = translateExp(ast.unit).replace(currentHeap.head, h)
+    val unit = translateExp(ast.unit).replace(currentStateExps.head, h)
     /** The boogie type of the comprehension */
     val typ = translateType(ast.unit.typ)
     /** The boogie translated binary application example */
-    private val binaryApp = translateExp(ast.binaryApp).replace(currentHeap.head, h).asInstanceOf[FuncApp]
+    private val binaryApp = translateExp(ast.binaryApp).replace(currentStateExps.head, h).asInstanceOf[FuncApp]
 
     /** Applies the receiver for the given variable list and the current heap */
-    def applyRecv(arg: Seq[Exp]) = replace(receiver, h++localVars, currentHeap.head++arg)
+    def applyRecv(arg: Seq[Exp]) = replace(receiver, h++localVars, currentStateExps.head++arg)
 
     /** The function declaration of the comprehension */
     val decl = Func(Identifier(name), hDecl ++ fDecl, typ)
@@ -135,7 +135,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
   private var filterCount = 0
 
   /** A class for describing a filter instance.*/
-  class Filter(val ast: sil.Filter, val comp: Comprehension)(val cond: Exp = translateExp(ast.exp)) {
+  class Filter(val ast: sil.Filter, val comp: Comprehension)(val cond: Exp = translateExp(ast.exp).replace(currentStateExps.head, h)) {
 
     /** The name of the filter */
     val name = {
@@ -147,8 +147,8 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
       * A list of variables which are defined outside the context of the comprehension of this filter,
       * but which are mentioned in the filter condition
       */
-    val outerVarDecls = cond reduce {(n: Node, varLists: Seq[Seq[LocalVar]]) =>
-      val unit: Seq[LocalVar] = Seq()
+    val outerVarDecls = cond reduce {(n: Node, varLists: Seq[Seq[Var]]) =>
+      val unit: Seq[Var] = Seq()
       val out = (varLists :\ unit)((l, r) => (l ++ r).distinct)
       n match {
         case l: LocalVar =>
@@ -371,7 +371,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
         CommentedDecl("Comprehension axioms", comprehensionAxioms(c), 1) ++
         CommentedDecl("Framing axiom", framingAxiom(c), 1) ++
         CommentedDecl("Additional axioms", additionalAxioms(c), 1) ++
-        CommentedDecl("Definedness chek", definednessProcedure(c), 1)
+        CommentedDecl("Definedness check", definednessProcedure(c), 1)
 
       out = out :+ CommentedDecl("Axiomatization of comprehension " + c.name, axioms, 2, nLines = 2)
     }
