@@ -214,7 +214,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
         val instances = translateComp(c)
         val comp = instances._1._1
         val filter = instances._2._1
-        comp.decl.apply(currentStateVars ++ filter.exp)
+        comp.decl.apply(currentStateExps ++ filter.exp)
       case _ => sys.error("unexpected expression when translating comprehension")
     }
   }
