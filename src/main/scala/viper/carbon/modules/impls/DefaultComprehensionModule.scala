@@ -370,6 +370,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
         CommentedDecl("Declaration of dummy function", c.dummy, 1) ++
         CommentedDecl("Comprehension axioms", comprehensionAxioms(c), 1) ++
         CommentedDecl("Framing axiom", framingAxiom(c), 1) ++
+        CommentedDecl("Inverse axioms", inverseAxioms(c), 1) ++
         CommentedDecl("Additional axioms", additionalAxioms(c), 1) ++
         CommentedDecl("Definedness check", definednessProcedure(c), 1)
 
@@ -491,6 +492,31 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     out
   }
 
+
+  private def inverseAxioms(c: Comprehension): Seq[Decl] = {
+    // If the receiver is a plain variable, the inverse is simply the variable itself,
+    // hence no function declaration necessary.
+    // Therefore only output the axioms if the receiver is not a variable
+    if(!c.recvIsVar) {
+      // inv(e(a)) == a
+      // the temporary conjuncts of the inverse assumptions (with the old comprehension variables)
+      val conjunct = c.inv map {tuple => tuple._1.apply(c.receiver) === tuple._2.l}
+      val invAxioms1 = c.filtering.apply(c.localVars ++ f) ==> (conjunct.tail.foldLeft(conjunct.head){_ && _}) forall
+        (c.varDecls, Trigger(c.receiver))
+
+      // e(inv(r)) == r
+      val inverseApplications = c.invApply(Seq.fill(c.varDecls.size)(r))
+      val receiverApplied = c.applyRecv(inverseApplications)
+      val invAxioms2 =
+        c.filtering.apply(inverseApplications ++ f) ==> (receiverApplied === r) forall
+          (rDecl, c.inv map { tuple =>Trigger(tuple._1.apply(r)) })
+      Axiom(
+        invAxioms1 && invAxioms2 forall (fDecl, Trigger(c.dummy.apply(f)))
+      )
+    } else
+      Seq()
+  }
+
   private def additionalAxioms(c: Comprehension): Seq[Decl] = {
     val equalAxiom = Axiom(equivalent.apply(f1++f2) ==> (f1 === f2) forall (f1Decl++f2Decl, Trigger(c.dummy.apply(f1)++c.dummy.apply(f2))))
     val filterUniteAxiom = Axiom(
@@ -594,44 +620,6 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
     MaybeCommentBlock("Check for receiver injectivity", injectiveCheck)
   }
 
-  /** Returns the axiomatization of the inverse function for a specific comprehension call */
-  private def inverseAxioms(c: Comprehension, f: Filter): Stmt = {
-    // If the receiver is a plain variable, the inverse is simply the variable itself,
-    // hence no function declaration necessary.
-    // Therefore only output the axioms if the receiver is not a variable
-    val assumes = if(!c.recvIsVar) {
-      // create fresh variables for the comprehension arguments
-      val freshSilDecls = c.ast.variables map {env.makeUniquelyNamed(_)}
-      val freshVars = freshSilDecls map {v => env.define(v.localVar)}
-      val freshDecls = freshSilDecls map translateLocalVarDecl
-      // create a new receiver with the fresh variables
-      val recv = c.applyRecv(freshVars)
-
-      // inv(e(a)) == a
-      // the temporary conjuncts of the inverse assumptions (with the old comprehension variables)
-      val conjunctTmp = c.inv map {tuple => tuple._1.apply(recv) === tuple._2.l}
-      // the conjuncts of the inverse assumptions with the fresh variables
-      val conjunct = conjunctTmp map {replace(_, c.localVars, freshVars)}
-      val invAxioms1 = Assume(
-        c.filtering.apply(freshVars ++ f.exp) ==> (conjunct.tail.foldLeft(conjunct.head){_ && _}) forall(freshDecls, Trigger(recv))
-      )
-
-      // e(inv(r)) == r
-      val inverseApplications = c.invApply(Seq.fill(c.varDecls.size)(r))
-      val receiverApplied = c.applyRecv(inverseApplications)
-      val invAxioms2 = Assume(
-        c.filtering.apply(inverseApplications ++ f.exp) ==> (receiverApplied === r) forall
-          (rDecl, c.inv map { tuple =>Trigger(tuple._1.apply(r)) })
-      )
-      // undefine the fresh variables
-      freshSilDecls map {v => env.undefine(v.localVar)}
-      invAxioms1 ++ invAxioms2
-    } else
-      Seq()
-
-    MaybeCommentBlock("Inverse assumptions", assumes)
-  }
-
   override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): (() => Stmt, () => Stmt) = {
     if(e.isInstanceOf[sil.Comp] && makeChecks) {
       def checks(): Stmt = {
@@ -646,7 +634,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
       userMentionedAssumption(e)
     }
   }
-
+/*
   override def freeAssumptions(e: sil.Exp) = {
     e match {
       case c: sil.Comp =>
@@ -655,7 +643,7 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
       case _ =>
         Statements.EmptyStmt
     }
-  }
+  }*/
 
 
   // =======================================
