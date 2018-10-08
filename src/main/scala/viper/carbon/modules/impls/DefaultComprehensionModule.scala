@@ -366,11 +366,11 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
       val axioms =
         CommentedDecl("Declaration of comprehension", c.decl, 1) ++
         MaybeCommentedDecl("Declaration of inverse functions", c.inv map { tuple => tuple._1 }, 1) ++
+        MaybeCommentedDecl("Axiomatization of inverse functions", inverseAxioms(c), 1) ++
         CommentedDecl("Declaration and axiomatization of filtering function", comprehensionDependentFilterAxioms(c), 1) ++
         CommentedDecl("Declaration of dummy function", c.dummy, 1) ++
         CommentedDecl("Comprehension axioms", comprehensionAxioms(c), 1) ++
         CommentedDecl("Framing axiom", framingAxiom(c), 1) ++
-        CommentedDecl("Inverse axioms", inverseAxioms(c), 1) ++
         CommentedDecl("Additional axioms", additionalAxioms(c), 1) ++
         CommentedDecl("Definedness check", definednessProcedure(c), 1)
 
@@ -494,6 +494,10 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
 
 
   private def inverseAxioms(c: Comprehension): Seq[Decl] = {
+    // the inverse axioms are filter-specfic, since the inverse is only defined on the
+    // receiver, if the comprehension was used for a specific filter (and therefore
+    // the receiver must be injective on the provided filter)
+
     // If the receiver is a plain variable, the inverse is simply the variable itself,
     // hence no function declaration necessary.
     // Therefore only output the axioms if the receiver is not a variable
@@ -510,9 +514,8 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
       val invAxioms2 =
         c.filtering.apply(inverseApplications ++ f) ==> (receiverApplied === r) forall
           (rDecl, c.inv map { tuple =>Trigger(tuple._1.apply(r)) })
-      Axiom(
-        invAxioms1 && invAxioms2 forall (fDecl, Trigger(c.dummy.apply(f)))
-      )
+      // pack the two axioms into a quantifier over filters, triggered on the comprehension call
+      Axiom(invAxioms1 && invAxioms2 forall (hDecl ++ fDecl, Trigger(c.decl.apply(h ++ f))))
     } else
       Seq()
   }
