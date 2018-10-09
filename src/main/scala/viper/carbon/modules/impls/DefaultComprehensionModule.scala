@@ -637,16 +637,6 @@ class DefaultComprehensionModule(val verifier: Verifier) extends ComprehensionMo
       userMentionedAssumption(e)
     }
   }
-/*
-  override def freeAssumptions(e: sil.Exp) = {
-    e match {
-      case c: sil.Comp =>
-        val instances = translateComp(c)
-        inverseAxioms(instances._1._1, instances._2._1)
-      case _ =>
-        Statements.EmptyStmt
-    }
-  }*/
 
 
   // =======================================
