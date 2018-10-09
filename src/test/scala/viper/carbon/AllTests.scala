@@ -18,11 +18,10 @@ import viper.silver.reporter.NoopReporter
 
   */
 class AllTests extends SilSuite {
-  /*
+
   override def testDirectories: Seq[String] = Vector("local", "all", "quantifiedpermissions", "quantifiedpredicates", "quantifiedcombinations", "wands", "examples"
     //, "generated"
-  )*/
-  override def testDirectories: Seq[String] = Vector("all/comprehensions")
+  )
 
   override def frontend(verifier: Verifier, files: Seq[Path]): Frontend = {
     require(files.length == 1, "tests should consist of exactly one file")
