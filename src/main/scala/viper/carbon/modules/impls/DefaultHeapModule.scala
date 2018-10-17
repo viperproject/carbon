@@ -406,11 +406,14 @@ class DefaultHeapModule(val verifier: Verifier)
         val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
         val pm1 = MapSelect(pmask, Seq(obj.l, field.l))
         val pm2 = MapSelect(newPMask, Seq(obj.l, field.l))
+        val res =
           MaybeComment("register all known folded permissions guarded by predicate " + loc.predicateName,
             Havoc(newPMask) ++
               Assume(Forall(Seq(obj, field), Seq(Trigger(pm2)), (pm1 ==> pm2))) ++
                 Assume(Forall(translateLocalVarDecl(vFresh),Seq(),translatedCond ==> (translateLocationAccess(renamingFieldAccess, newPMask) === TrueLit()) ))) ++
             (pmask := newPMask)
+        env.undefine(vFresh.localVar)
+        res
       case sil.FieldAccessPredicate(loc, perm) =>
         translateLocationAccess(loc, pmask) := TrueLit()
       case sil.PredicateAccessPredicate(loc, perm) =>
