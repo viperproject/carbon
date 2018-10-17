@@ -1,7 +1,8 @@
 package viper.carbon.modules
 
-import viper.carbon.boogie.{LocalVar, RealLit, Exp}
-import viper.silver.verifier.{PartialVerificationError, reasons, VerificationError}
+import viper.carbon.boogie.{Exp, LocalVar, RealLit}
+import viper.silver.ast.LocationAccess
+import viper.silver.verifier.{PartialVerificationError, VerificationError, reasons}
 import viper.silver.{ast => sil}
 
 /**
@@ -21,8 +22,10 @@ object TransferableEntity {
 }
 
 sealed trait TransferableAccessPred extends TransferableEntity {
-  override def transferError(error: PartialVerificationError):VerificationError = {
-    error.dueTo(reasons.InsufficientPermission(originalSILExp.loc))
+  override def transferError(error: PartialVerificationError):VerificationError =
+    originalSILExp.loc match {
+      case loc: LocationAccess => error.dueTo(reasons.InsufficientPermission(loc))
+      case other => sys.error(s"Unexpectedly found resource access node $other")
   }
   override def originalSILExp: sil.AccessPredicate
 }
