@@ -679,7 +679,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           stateModule.replaceState(state)
           Nil
         }
-        (before, after)
+        (before _, after _)
       case fa@sil.FuncApp(f, args) => {
         (() => Nil, if(makeChecks) () => {
         val funct = verifier.program.findFunction(f);

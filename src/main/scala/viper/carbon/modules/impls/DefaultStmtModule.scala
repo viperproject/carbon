@@ -27,7 +27,6 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
   import stateModule._
   import exhaleModule._
   import inhaleModule._
-  import typeModule._
   import funcPredModule._
   import wandModule._
 

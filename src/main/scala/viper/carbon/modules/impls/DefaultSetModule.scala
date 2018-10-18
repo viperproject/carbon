@@ -7,7 +7,6 @@
 package viper.carbon.modules.impls
 
 import viper.carbon.modules.SetModule
-import viper.silver.components.StatefulComponent
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.Verifier

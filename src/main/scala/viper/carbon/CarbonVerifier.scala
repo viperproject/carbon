@@ -8,9 +8,7 @@ package viper.carbon
 
 import boogie.Namespace
 import modules.impls._
-import viper._
-import viper.silver.ast.{Program,Method}
-import viper.silver.components.StatefulComponent
+import viper.silver.ast.Program
 import viper.silver.utility.Paths
 import viper.silver.verifier.Dependency
 import verifier.{BoogieInterface, Verifier, BoogieDependency}

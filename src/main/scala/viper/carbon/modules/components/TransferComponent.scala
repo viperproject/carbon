@@ -4,10 +4,8 @@ package viper.carbon.modules.components
  * Created by Gaurav on 08.03.2015.
  */
 
-import viper.carbon.boogie.{LocalVar, Exp, Stmt}
-import viper.silver.ast.LocationAccess
-import viper.silver.{ast => sil}
-import viper.carbon.modules.{TransferableEntity, StateModule}
+import viper.carbon.boogie.{Exp, Stmt}
+import viper.carbon.modules.TransferableEntity
 
 /**
  *used to handle the transfer operation across different modules

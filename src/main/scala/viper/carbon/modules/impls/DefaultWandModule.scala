@@ -1,24 +1,14 @@
 package viper.carbon.modules.impls
 
 
-import org.scalatest.GivenWhenThen
 import viper.carbon.modules._
-import viper.carbon.modules.components.{TransferComponent, DefinednessComponent}
 import viper.carbon.verifier.Verifier
 import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
 import viper.silver.ast.utility.Expressions
-import viper.silver.ast.{FullPerm, MagicWand, MagicWandStructure}
-import viper.silver.verifier.{errors, reasons, PartialVerificationError}
+import viper.silver.ast.MagicWandStructure
+import viper.silver.verifier.{reasons, PartialVerificationError}
 import viper.silver.{ast => sil}
-
-import scala.collection.mutable.ListBuffer
-
-
-/**
- * Created by Gaurav on 06.03.2015.
- */
-
 
 class
 DefaultWandModule(val verifier: Verifier) extends WandModule {

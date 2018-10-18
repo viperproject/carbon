@@ -1,6 +1,6 @@
 package viper.carbon.modules
 
-import viper.carbon.boogie.{LocalVar, RealLit, Exp}
+import viper.carbon.boogie.Exp
 import viper.silver.verifier.{PartialVerificationError, reasons, VerificationError}
 import viper.silver.{ast => sil}
 
