@@ -288,7 +288,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
-      case sil.AccessPredicate(loc, prm) =>
+      case sil.AccessPredicate(loc: LocationAccess, prm) =>
         val p = PermissionSplitter.normalizePerm(prm)
         val perms = PermissionSplitter.splitPerm(p) filter (x => x._1 - 1 == exhaleModule.currentPhaseId)
         (if (exhaleModule.currentPhaseId == 0)
@@ -714,7 +714,7 @@ class QuantifiedPermModule(val verifier: Verifier)
    */
   private def inhaleAux(e: sil.Exp, assmsToStmt: Exp => Stmt):Stmt = {
     e match {
-      case sil.AccessPredicate(loc, prm) =>
+      case sil.AccessPredicate(loc: LocationAccess, prm) =>
         val perm = PermissionSplitter.normalizePerm(prm)
         val curPerm = currentPermission(loc)
         val permVar = LocalVar(Identifier("perm"), permType)

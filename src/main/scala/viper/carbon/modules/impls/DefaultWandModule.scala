@@ -403,7 +403,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
   def exhaleExt(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssms: Exp):Stmt = {
     Comment("exhale_ext of " + e.toString())
     e match {
-      case acc@sil.AccessPredicate(_,_) => transferMain(states,used, e, allStateAssms)
+      case acc@sil.AccessPredicate(_: sil.LocationAccess,_) => transferMain(states,used, e, allStateAssms)
       case acc@sil.MagicWand(_,_) => transferMain(states, used,e,allStateAssms)
       case acc@sil.And(e1,e2) => exhaleExt(states, used, e1,allStateAssms) :: exhaleExt(states,used,e2,allStateAssms) :: Nil
       case acc@sil.Implies(e1,e2) => If(expModule.translateExp(e1), exhaleExt(states,used,e2,allStateAssms),Statements.EmptyStmt)
@@ -603,6 +603,8 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
           sil.PredicateAccess(localEvalArgs, loc.predicateName)(loc.pos, loc.info, loc.errT), newPerm)(acc.pos, acc.info)
 
         (localEvalArgs, predAccTransformed, assignStmt)
+
+      case mw: sil.MagicWand => sys.error(s"Unexpectedly found magic wand $mw")
     }
 
   }
