@@ -14,4 +14,6 @@ lazy val carbon = (project in file("."))
         assembly / assemblyJarName := "carbon.jar",             // JAR filename
         assembly / mainClass := Some("viper.carbon.Carbon"),    // Define JAR's entry point
         assembly / test := {},                                  // Prevent testing before packaging
+        // Make all implementations of SilSuite discoverable by the SBT testing framework
+        testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oD"),
     )
