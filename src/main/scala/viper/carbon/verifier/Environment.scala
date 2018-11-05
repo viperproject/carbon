@@ -8,7 +8,6 @@ package viper.carbon.verifier
 
 import viper.silver.{ast => sil}
 import viper.carbon.boogie.{BoogieNameGenerator, Identifier, LocalVar}
-import viper.silver.ast.utility.Expressions
 
 /**
  * An environment that assigns unique names to Viper variables;  in SIL, loops can have
