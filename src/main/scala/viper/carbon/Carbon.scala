@@ -10,7 +10,7 @@ import ch.qos.logback.classic.Logger
 import viper.silver.frontend.{SilFrontend, SilFrontendConfig}
 import viper.silver.logger.ViperStdOutLogger
 import viper.silver.reporter.{Reporter, StdIOReporter}
-import viper.silver.verifier.{Failure => SilFailure, Success => SilSuccess, Verifier => SilVerifier}
+import viper.silver.verifier.{Verifier => SilVerifier}
 
 /**
  * The main object for Carbon containing the execution start-point.

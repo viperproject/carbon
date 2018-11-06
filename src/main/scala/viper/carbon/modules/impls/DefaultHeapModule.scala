@@ -9,13 +9,10 @@ package viper.carbon.modules.impls
 import viper.carbon.modules._
 import viper.carbon.modules.components.{DefinednessComponent, InhaleComponent, SimpleStmtComponent}
 import viper.silver.ast.utility.Expressions
-import viper.silver.components.StatefulComponent
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
-import viper.silver.verifier.{PartialVerificationError, reasons}
 import viper.carbon.verifier.Verifier
-import viper.silver.ast.NullLit
 import viper.silver.ast.utility.QuantifiedPermissions.QuantifiedPermissionAssertion
 
 /**

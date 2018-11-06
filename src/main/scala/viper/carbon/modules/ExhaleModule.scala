@@ -8,7 +8,7 @@ package viper.carbon.modules
 
 import components.{ExhaleComponent, ComponentRegistry}
 import viper.silver.{ast => sil}
-import viper.carbon.boogie.{Stmt, Exp}
+import viper.carbon.boogie.Stmt
 import viper.silver.verifier.PartialVerificationError
 
 /**
