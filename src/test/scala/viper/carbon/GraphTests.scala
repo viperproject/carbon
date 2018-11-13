@@ -16,7 +16,17 @@ import viper.silver.verifier.Verifier
   */
 @DoNotDiscover
 class GraphTests extends SilSuite {
-  override def testDirectories: Seq[String] = Vector("graphs")
+  override def testDirectories: Seq[String] =
+    Vector(
+      "graphs/static",
+      "graphs/dynamic/immutable",
+      "graphs/dynamic/unary/utests",
+      //"graphs/dynamic/unary/examples",
+      "graphs/dynamic/binary/utests",
+      //"graphs/dynamic/binary/examples",
+      "graphs/dynamic/ternary/utests",
+      //"graphs/dynamic/ternary/examples"
+    )
 
   override def frontend(verifier: Verifier, files: Seq[Path]): Frontend = {
     require(files.length == 1, "tests should consist of exactly one file")
