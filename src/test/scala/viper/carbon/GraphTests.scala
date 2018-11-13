@@ -18,7 +18,7 @@ import viper.silver.verifier.Verifier
 class GraphTests extends SilSuite {
   override def testDirectories: Seq[String] =
     Vector(
-      "graphs/static",
+      //"graphs/static",
       "graphs/dynamic/immutable",
       "graphs/dynamic/unary/utests",
       //"graphs/dynamic/unary/examples",
