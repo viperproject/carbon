@@ -21,9 +21,9 @@ class GraphTests extends SilSuite {
       //"graphs/static",
       "graphs/dynamic/immutable",
       "graphs/dynamic/unary/utests",
-      //"graphs/dynamic/unary/examples",
+      "graphs/dynamic/unary/examples",
       "graphs/dynamic/binary/utests",
-      //"graphs/dynamic/binary/examples",
+      "graphs/dynamic/binary/examples",
       "graphs/dynamic/ternary/utests",
       //"graphs/dynamic/ternary/examples"
     )

@@ -16,5 +16,4 @@ lazy val carbon = (project in file("."))
         assembly / test := {},                                  // Prevent testing before packaging
         // Make all implementations of SilSuite discoverable by the SBT testing framework
         testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oD"),
-        assemblyJarName in (Test, assembly) := s"${name.value}-test.jar"
     )
