@@ -15,7 +15,7 @@ import viper.silver.verifier.Verifier
   * [[DoNotDiscover]] annotation.
   */
 @DoNotDiscover
-class GraphTests extends SilSuite {
+class LongRunningGraphTests extends SilSuite {
   override def testDirectories: Seq[String] =
     Vector(
       //"graphs"

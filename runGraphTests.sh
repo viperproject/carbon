@@ -1,7 +1,7 @@
 #!/bin/bash
 
-BOOGIE_EXE="${BOOGIE_EXE:-$BOOGIE_HOME/Boogie.exe}"
-Z3_EXE="${Z3_EXE:-$BOOGIE_HOME/z3.exe}"
+BOOGIE_EXE=/usr/local/Viper/boogie/Binaries/Boogie
+Z3_EXE=/usr/local/Viper/z3/bin/z3
 
 export Z3_EXE
 export BOOGIE_EXE
