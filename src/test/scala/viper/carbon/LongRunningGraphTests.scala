@@ -18,7 +18,7 @@ import viper.silver.verifier.Verifier
 class LongRunningGraphTests extends SilSuite {
   override def testDirectories: Seq[String] =
     Vector(
-      //"graphs"
+      "graphs/_preambles/common"
     )
 
   override def frontend(verifier: Verifier, files: Seq[Path]): Frontend = {
