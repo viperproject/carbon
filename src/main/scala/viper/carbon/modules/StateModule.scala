@@ -8,7 +8,6 @@ package viper.carbon.modules
 
 import components.{CarbonStateComponent, ComponentRegistry}
 import viper.silver.components.StatefulComponent
-import viper.silver.{ast => sil}
 import viper.carbon.boogie.{LocalVarDecl, Exp, Stmt}
 
 /**

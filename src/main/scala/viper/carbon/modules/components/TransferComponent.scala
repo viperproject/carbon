@@ -1,13 +1,17 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
 package viper.carbon.modules.components
 
 /**
  * Created by Gaurav on 08.03.2015.
  */
 
-import viper.carbon.boogie.{LocalVar, Exp, Stmt}
-import viper.silver.ast.LocationAccess
-import viper.silver.{ast => sil}
-import viper.carbon.modules.{TransferableEntity, StateModule}
+import viper.carbon.boogie.{Exp, Stmt}
+import viper.carbon.modules.TransferableEntity
 
 /**
  *used to handle the transfer operation across different modules

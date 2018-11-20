@@ -1,13 +1,11 @@
 package viper.carbon.modules
 
-import viper.carbon.boogie.{Exp, LocalVar, RealLit}
+import viper.carbon.boogie.Exp
 import viper.silver.ast.LocationAccess
 import viper.silver.verifier.{PartialVerificationError, VerificationError, reasons}
+
 import viper.silver.{ast => sil}
 
-/**
- * Created by Gaurav on 02.05.2015.
- */
 sealed trait TransferableEntity {
   def rcv: Exp
   def loc: Exp
