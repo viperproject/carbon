@@ -643,6 +643,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule {
         val wandRep = getWandRepresentation(w)
         //GP: maybe should store holes of wand first in local variables
         (TransferableWand(heapModule.translateNull, wandRep, permTransfer, w),Nil)
+      case _ => sys.error("Viper expression didn't match any existing case.")
     }
   }
 
