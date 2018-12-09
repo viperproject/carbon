@@ -22,6 +22,7 @@ class LongRunningGraphTests extends SilSuite {
       "graphs/dynamic/immutable",
       "graphs/dynamic/unary/utests",
       "graphs/dynamic/unary/examples",
+      "graphs/dynamic/unary/long_running",
       "graphs/dynamic/binary/utests",
       "graphs/dynamic/binary/examples",
       "graphs/dynamic/ternary/utests"
