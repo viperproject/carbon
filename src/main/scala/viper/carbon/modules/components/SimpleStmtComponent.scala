@@ -20,8 +20,8 @@ trait SimpleStmtComponent extends StmtComponent {
    * is desired, then [[viper.carbon.boogie.Statements.EmptyStmt]] can be used as a
    * return value.
    */
-  def simpleHandleStmt(s: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt
+  def simpleHandleStmt(s: sil.Stmt, statesStackForPackageStmt: List[Any] = null, allStateAssms: Exp = TrueLit(), insidePackageStmt: Boolean = false): Stmt
 
-  override def handleStmt(s: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false) : (Seqn => Seqn)
+  override def handleStmt(s: sil.Stmt, statesStackForPackageStmt: List[Any] = null, allStateAssms: Exp = TrueLit(), insidePackageStmt: Boolean = false) : (Seqn => Seqn)
 //  = (simpleHandleStmt(s),Statements.EmptyStmt )
 }

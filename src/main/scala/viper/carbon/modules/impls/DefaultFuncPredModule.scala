@@ -748,7 +748,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         {
           val (foldFirst, foldLast) = foldPredicate(acc, errors.FoldFailed(fold), statesStack, inWand)
           if(inWand){
-            wandModule.prepareStmt()
+            wandModule.translatingStmtsInWandInit()
           }
           (checkDefinedness(acc, errors.FoldFailed(fold), inWand = inWand) ++
             checkDefinedness(perm, errors.FoldFailed(fold), inWand = inWand) ++

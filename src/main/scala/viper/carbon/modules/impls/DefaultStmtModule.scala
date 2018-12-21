@@ -236,7 +236,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
     */
   override def translateStmt(stmt: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
     if(inWand) {
-        wandModule.prepareStmt()
+        wandModule.translatingStmtsInWandInit()
       }
     var comment = "Translating statement: " + stmt.toString.replace("\n", "\n  // ")
     stmt match {

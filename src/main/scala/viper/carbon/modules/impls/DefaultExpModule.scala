@@ -40,7 +40,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   def name = "Expression module"
 
   override def translateExpInWand(e: sil.Exp): Exp = {
-    val inWand = wandModule.wandId > 0
+    val inWand = wandModule.nestingDepth > 0
     if(inWand){
       val oldCurState = stateModule.state
       stateModule.replaceState(wandModule.UNIONState.asInstanceOf[StateRep].state)
@@ -437,12 +437,12 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
 
     stateModule.replaceState(defStateLHS)
     val lhs = initStmtLHS ++ checkDefinednessOfSpecAndInhale(e.left, error)
-    val defineLHS = stmtModule.translateStmt(sil.Label("lhs"+wandModule.getLhsId(), Nil)(e.pos, e.info))
-    wandModule.pushLhsStack(wandModule.getLhsId())
-    wandModule.incLhsId()
+    val lhsID = wandModule.getNewLhsID() // identifier for the lhs of the wand to be referred to later when 'old(lhs)' is used
+    val defineLHS = stmtModule.translateStmt(sil.Label("lhs"+lhsID, Nil)(e.pos, e.info))
+    wandModule.pushToActiveWandsStack(lhsID)
     stateModule.replaceState(defStateRHS)
     val rhs = initStmtRHS ++ checkDefinednessOfSpecAndInhale(e.right, error)
-    wandModule.popLhsStack()
+    wandModule.popFromActiveWandsStack()
     stateModule.replaceState(curState)
     NondetIf(lhs ++ defineLHS ++ rhs ++ Assume(FalseLit()))
   }

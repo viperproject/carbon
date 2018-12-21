@@ -28,10 +28,10 @@ trait WandModule extends Module with ComponentRegistry[TransferComponent] {
 
 
 
-  var tempCurState: Any = null  // A temporary state that is used to execute the current statement inside a package statement (e.g., collecting needed permissions)
+  var tempCurState: Any = null  // A temporary state that is used to execute statements inside a package statement (e.g., collecting needed permissions)
 
   var UNIONState: Any = null // The union of opsState (the resulting state from executing the ghost operations so far) and
-                            // tempCurState. Evaluation of expressions takes place in this UNIONState.
+                            // tempCurState. All Evaluations of expressions during translating the package statement take place in this UNIONState.
 
   /**
     * Represents the nesting depth of package statements for the current statement being translated, e.g.,
@@ -49,7 +49,7 @@ trait WandModule extends Module with ComponentRegistry[TransferComponent] {
     * @param p the package statement to be translated.
     * @param statesStackForPackageStmt the stack of states for the outer package statements in case of nested package statements.
     * @param allStateAssms  the conjunction of all states booleans on the states stack (assumption about states resulted from executing the outer package statements).
-    * @param insidePackageStmt boolean represents being called during another package statement or not.
+    * @param insidePackageStmt boolean represents whether this function is being called during another package statement or not.
     * @return
     */
   def translatePackage(p: sil.Package, error: PartialVerificationError, statesStackForPackageStmt: List[Any] = null, allStateAssms: Exp = TrueLit(), insidePackageStmt: Boolean = false):Stmt
@@ -114,7 +114,7 @@ trait WandModule extends Module with ComponentRegistry[TransferComponent] {
     * Called before executing any statement inside a package statement. It performs the needed initializations for the execution of a ghost operation.
     * (e.g., Initializing the states used such as 'ops-state' and 'union-state').
     */
-  def prepareStmt(): Unit
+  def translatingStmtsInWandInit(): Unit
 
   /**
     * When opsState or tempCurState are changed, the UNIONState is updated to be the union of both.
@@ -171,7 +171,7 @@ trait WandModule extends Module with ComponentRegistry[TransferComponent] {
 
   /**
     * Used in snapshots of magic wands. It returns a boogie function that refers to wand footprint or wand secondary mask
-    * @param wand the magic wand that we need to refer to its footprint or mask
+    * @param wand the magic wand that we need to refer to its footprint or its secondary mask
     * @param ftsm boolean specifying if the methor returns the footprint of the wand (wand#ft) function or secondray mask (wand#sm) function.
     * @return
     * ftsm == 1   ==>   returns sm representation (wand#sm)
