@@ -1270,7 +1270,7 @@ class QuantifiedPermModule(val verifier: Verifier)
       (bvs map (v => Assume((v > noPerm) && (v < fullPerm))))
   }
 
-  override def handleStmt(s: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false) : (Seqn => Seqn) = {
+  override def handleStmt(s: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), insidePackageStmt: Boolean = false) : (Seqn => Seqn) = {
     stmts =>
       s match {
         case n@sil.NewStmt(target, fields) =>

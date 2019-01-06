@@ -375,7 +375,7 @@ class DefaultHeapModule(val verifier: Verifier)
     FuncApp(locationIdentifier(pred), args, t)
   }
 
-  override def handleStmt(s: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false) : (Seqn => Seqn) = {
+  override def handleStmt(s: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), insidePackageStmt: Boolean = false) : (Seqn => Seqn) = {
 
       stmt => (
         s match {
@@ -400,7 +400,7 @@ class DefaultHeapModule(val verifier: Verifier)
 
   }
 
-  override def simpleHandleStmt(stmt: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false): Stmt = {
+  override def simpleHandleStmt(stmt: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), insidePackageStmt: Boolean = false): Stmt = {
     stmt match {
       case sil.NewStmt(target,fields) =>
         Havoc(freshObjectVar) ::

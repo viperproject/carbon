@@ -40,10 +40,10 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   def name = "Expression module"
 
   override def translateExpInWand(e: sil.Exp): Exp = {
-    val inWand = wandModule.nestingDepth > 0
-    if(inWand){
+    val duringPackageStmt = wandModule.nestingDepth > 0
+    if(duringPackageStmt){
       val oldCurState = stateModule.state
-      stateModule.replaceState(wandModule.UNIONState.asInstanceOf[StateRep].state)
+      stateModule.replaceState(wandModule.UNIONState.asInstanceOf[StateRep].state)  // state in which 'e' is evaluated
 
       val stmt = translateExp(e)
 
@@ -302,22 +302,22 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   }
 
   override def checkDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
-                                inWand: Boolean = false, ignoreIfInWand: Boolean = false): Stmt = {
+                                duringPackageStmt: Boolean = false, ignoreIfInWand: Boolean = false): Stmt = {
 
-    if(inWand && ignoreIfInWand)  // ignore the check
+    if(duringPackageStmt && ignoreIfInWand)  // ignore the check
       return Statements.EmptyStmt
 
     val oldCurState = stateModule.state
-    if(inWand) {
+    if(duringPackageStmt) {
       stateModule.replaceState(wandModule.UNIONState.asInstanceOf[StateRep].state)
     }
 
     var stmt =
       MaybeCommentBlock(s"Check definedness of $e",
       MaybeStmt(checkDefinednessImpl(e, error, makeChecks = makeChecks),
-        if(inWand) wandModule.exchangeAssumesWithBoolean(stateModule.assumeGoodState, wandModule.getCurOpsBoolvar()) else stateModule.assumeGoodState))
+        if(duringPackageStmt) wandModule.exchangeAssumesWithBoolean(stateModule.assumeGoodState, wandModule.getCurOpsBoolvar()) else stateModule.assumeGoodState))
 
-    if(inWand) {
+    if(duringPackageStmt) {
       stateModule.replaceState(oldCurState)
       If(wandModule.getCurOpsBoolvar(), stmt, Statements.EmptyStmt)
     }else stmt
@@ -469,28 +469,28 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   }
 
 
-  override def checkDefinednessOfSpecAndInhale(e: sil.Exp, error: PartialVerificationError, statesStack: List[Any] = null, inWand: Boolean = false): Stmt = {
+  override def checkDefinednessOfSpecAndInhale(e: sil.Exp, error: PartialVerificationError, statesStack: List[Any] = null, duringPackageStmt: Boolean = false): Stmt = {
 
     val stmt =
     {
       e match {
         case sil.And(e1, e2) =>
-          checkDefinednessOfSpecAndInhale(e1, error, statesStack, inWand) ::
-            checkDefinednessOfSpecAndInhale(e2, error, statesStack, inWand) ::
+          checkDefinednessOfSpecAndInhale(e1, error, statesStack, duringPackageStmt) ::
+            checkDefinednessOfSpecAndInhale(e2, error, statesStack, duringPackageStmt) ::
             Nil
         case sil.Implies(e1, e2) =>
-          checkDefinedness(e1, error, inWand = inWand) ++ {
-            if (inWand)
-              If(wandModule.getCurOpsBoolvar() ==> translateExpInWand(e1), checkDefinednessOfSpecAndInhale(e2, error, statesStack, inWand), Statements.EmptyStmt)
+          checkDefinedness(e1, error, duringPackageStmt = duringPackageStmt) ++ {
+            if (duringPackageStmt)
+              If(wandModule.getCurOpsBoolvar() ==> translateExpInWand(e1), checkDefinednessOfSpecAndInhale(e2, error, statesStack, duringPackageStmt), Statements.EmptyStmt)
             else
-              If(translateExp(e1), checkDefinednessOfSpecAndInhale(e2, error, statesStack, inWand), Statements.EmptyStmt)
+              If(translateExp(e1), checkDefinednessOfSpecAndInhale(e2, error, statesStack, duringPackageStmt), Statements.EmptyStmt)
           }
         case sil.CondExp(c, e1, e2) =>
-          checkDefinedness(c, error, inWand = inWand) ++ {
-            if (inWand)
-              If(wandModule.getCurOpsBoolvar() ==> translateExpInWand(c), checkDefinednessOfSpecAndInhale(e1, error, statesStack, inWand), checkDefinednessOfSpecAndInhale(e2, error, statesStack, inWand))
+          checkDefinedness(c, error, duringPackageStmt = duringPackageStmt) ++ {
+            if (duringPackageStmt)
+              If(wandModule.getCurOpsBoolvar() ==> translateExpInWand(c), checkDefinednessOfSpecAndInhale(e1, error, statesStack, duringPackageStmt), checkDefinednessOfSpecAndInhale(e2, error, statesStack, duringPackageStmt))
             else
-              If(translateExp(c), checkDefinednessOfSpecAndInhale(e1, error, statesStack, inWand), checkDefinednessOfSpecAndInhale(e2, error, statesStack, inWand))
+              If(translateExp(c), checkDefinednessOfSpecAndInhale(e1, error, statesStack, duringPackageStmt), checkDefinednessOfSpecAndInhale(e2, error, statesStack, duringPackageStmt))
           }
       case l@sil.Let(v, exp, body) =>
         checkDefinedness(exp, error, true) ::
@@ -506,33 +506,33 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           }
       //      case fa@sil.Forall(vars, triggers, expr) => // NOTE: there's no need for a special case for QPs, since these are desugared, introducing conjunctions
         case _ =>
-          checkDefinedness(e, error, inWand = inWand) ++
-            inhale(e, statesStack, inWand)
+          checkDefinedness(e, error, duringPackageStmt = duringPackageStmt) ++
+            inhale(e, statesStack, duringPackageStmt)
       }
     }
 
-    if(inWand) {
+    if(duringPackageStmt) {
       If(wandModule.getCurOpsBoolvar(), stmt, Statements.EmptyStmt)
     }else stmt
   }
 
   override def checkDefinednessOfSpecAndExhale(e: sil.Exp, definednessError: PartialVerificationError, exhaleError: PartialVerificationError
-                                              ,statesStack: List[Any] = null, inWand: Boolean = false): Stmt = {
+                                               , statesStack: List[Any] = null, duringPackageStmt: Boolean = false): Stmt = {
 
     val stmt =
       e match {
       case sil.And(e1, e2) =>
-        checkDefinednessOfSpecAndExhale(e1, definednessError, exhaleError, statesStack, inWand) ::
-          checkDefinednessOfSpecAndExhale(e2, definednessError, exhaleError, statesStack, inWand) ::
+        checkDefinednessOfSpecAndExhale(e1, definednessError, exhaleError, statesStack, duringPackageStmt) ::
+          checkDefinednessOfSpecAndExhale(e2, definednessError, exhaleError, statesStack, duringPackageStmt) ::
           Nil
       case sil.Implies(e1, e2) =>
         checkDefinedness(e1, definednessError) ++
-          If(translateExp(e1), checkDefinednessOfSpecAndExhale(e2, definednessError, exhaleError, statesStack, inWand), Statements.EmptyStmt)
+          If(translateExp(e1), checkDefinednessOfSpecAndExhale(e2, definednessError, exhaleError, statesStack, duringPackageStmt), Statements.EmptyStmt)
       case sil.CondExp(c, e1, e2) =>
         checkDefinedness(c, definednessError) ++
           If(translateExp(c),
-            checkDefinednessOfSpecAndExhale(e1, definednessError, exhaleError, statesStack, inWand),
-            checkDefinednessOfSpecAndExhale(e2, definednessError, exhaleError, statesStack, inWand))
+            checkDefinednessOfSpecAndExhale(e1, definednessError, exhaleError, statesStack, duringPackageStmt),
+            checkDefinednessOfSpecAndExhale(e2, definednessError, exhaleError, statesStack, duringPackageStmt))
       case l@sil.Let(v, exp, body) =>
         checkDefinedness(exp, definednessError, true) ::
           {
@@ -550,7 +550,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           exhale(Seq((e, exhaleError)))
     }
 
-    if(inWand) {
+    if(duringPackageStmt) {
       If(wandModule.getCurOpsBoolvar(), stmt, Statements.EmptyStmt)
     }else stmt
   }

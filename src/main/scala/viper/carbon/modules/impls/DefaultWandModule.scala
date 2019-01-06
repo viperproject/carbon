@@ -337,7 +337,7 @@ override def exhaleExt(statesObj: List[Any], usedObj:Any, e: sil.Exp, allStateAs
 
 def exhaleExtExp(states: List[StateRep], used:StateRep, e: sil.Exp,allStateAssms:Exp, RHS: Boolean = false, mainError: PartialVerificationError):Stmt = {
   if(e.isPure) {
-    If(allStateAssms&&used.boolVar,expModule.checkDefinedness(e,mainError, inWand = true),Statements.EmptyStmt) ++
+    If(allStateAssms&&used.boolVar,expModule.checkDefinedness(e,mainError, insidePackageStmt = true),Statements.EmptyStmt) ++
       Assert((allStateAssms&&used.boolVar) ==> expModule.translateExpInWand(e), mainError.dueTo(reasons.AssertionFalse(e)))
 
   } else {
@@ -366,7 +366,7 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
 
   val definedness =
     MaybeCommentBlock("checking if access predicate defined in used state",
-    If(allStateAssms&&used.boolVar,expModule.checkDefinedness(e, mainError, inWand = true),Statements.EmptyStmt))
+    If(allStateAssms&&used.boolVar,expModule.checkDefinedness(e, mainError, insidePackageStmt = true),Statements.EmptyStmt))
 
   val transferRest = transferAcc(states,used, transferEntity,allStateAssms, mainError, havocHeap)
   val stmt = definedness++ initStmt /*++ nullCheck*/ ++ initPermVars ++  positivePerm ++ transferRest
@@ -694,11 +694,11 @@ case class PackageSetup(hypState: StateRep, usedState: StateRep, initStmt: Stmt)
     val defineLHS = stmtModule.translateStmt(sil.Label("lhs"+lhsID, Nil)(w.pos, w.info))
     wandModule.pushToActiveWandsStack(lhsID)
 
-    val ret = CommentBlock("check if wand is held and remove an instance",exhaleModule.exhale((w, error), false, inWand = inWand, statesStack = statesStack)) ++
+    val ret = CommentBlock("check if wand is held and remove an instance",exhaleModule.exhale((w, error), false, insidePackageStmt = inWand, statesStackForPackageStmt = statesStack)) ++
       (if(inWand) exchangeAssumesWithBoolean(stateModule.assumeGoodState, OPS.boolVar) else stateModule.assumeGoodState) ++
-      CommentBlock("check if LHS holds and remove permissions ", exhaleModule.exhale((w.left, error), false, inWand = inWand, statesStack = statesStack)) ++
+      CommentBlock("check if LHS holds and remove permissions ", exhaleModule.exhale((w.left, error), false, insidePackageStmt = inWand, statesStackForPackageStmt = statesStack)) ++
       (if(inWand) exchangeAssumesWithBoolean(stateModule.assumeGoodState, OPS.boolVar) else stateModule.assumeGoodState) ++
-      CommentBlock("inhale the RHS of the wand",inhaleModule.inhale(w.right, statesStack = statesStack, inWand = inWand)) ++
+      CommentBlock("inhale the RHS of the wand",inhaleModule.inhale(w.right, statesStackForPackageStmt = statesStack, insidePackageStmt = inWand)) ++
       heapModule.beginExhale ++ heapModule.endExhale ++
       (if(inWand) exchangeAssumesWithBoolean(stateModule.assumeGoodState, OPS.boolVar) else stateModule.assumeGoodState)
     //GP: using beginExhale, endExhale works now, but isn't intuitive, maybe should duplicate code to avoid this breaking

@@ -32,12 +32,14 @@ trait ExhaleModule extends Module with ExhaleComponent with ComponentRegistry[Ex
     *                    (Assert reuses the code for exhale).
     *                    This is used for optimization purposes (remove extra operations if the statement is an 'assert')
     *                    and also used to translate the 'assert' statements during packaging a wand.
-    * @param statesStack stack of states used to translate exhales during package statements (carries currentState and LHS of wands)
-    * @param inWand      Boolean that represents whether this exhale is being called during a package statement or not.
+    * @param statesStackForPackageStmt stack of states used to translate statements during packaging a wand (carries currentState and LHS of wands)
+    * @param insidePackageStmt      Boolean that represents whether this method is being called during packaging a wand or not.
     *
+    * The 'statesStackForPackageStmt' and 'insidePackageStmt' are used when translating statements during packaging a wand.
+    * For more details refer to the note in the wand module.
     */
   def exhale(exp: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true, isAssert: Boolean = false
-             , statesStack: List[Any] = null, inWand: Boolean = false): Stmt
+             , statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt
 
   def currentPhaseId: Int
 }

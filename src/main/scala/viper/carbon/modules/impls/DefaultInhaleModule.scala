@@ -29,11 +29,10 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule with Stat
     register(this)
   }
 
-  override def inhale(exps: Seq[sil.Exp], statesStack: List[Any] = null, inWand: Boolean = false): Stmt = {
-    // replace currentState with top State (ops_state)
+  override def inhale(exps: Seq[sil.Exp], statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt = {
     val current_state = stateModule.state
-    if(inWand){
-      stateModule.replaceState(statesStack(0).asInstanceOf[StateRep].state)
+    if(insidePackageStmt){ // replace currentState with the correct state in which the inhale occurs during packaging the wand
+      stateModule.replaceState(statesStackForPackageStmt(0).asInstanceOf[StateRep].state)
     }
 
 
@@ -43,10 +42,10 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule with Stat
             exps map (e => allFreeAssumptions(e))) ++
           assumeGoodState
 
-    if(inWand) { // all the assumption made during packaging a wand (except assumptions about the global state before the package statement)
+    if(insidePackageStmt) { // all the assumption made during packaging a wand (except assumptions about the global state before the package statement)
                  // should be replaced conjunction to state booleans (see documentation for 'exchangeAssumesWithBoolean')
       stateModule.replaceState(current_state)
-      wandModule.exchangeAssumesWithBoolean(stmt, statesStack.head.asInstanceOf[StateRep].boolVar)
+      wandModule.exchangeAssumesWithBoolean(stmt, statesStackForPackageStmt.head.asInstanceOf[StateRep].boolVar)
     }else
       stmt
   }
