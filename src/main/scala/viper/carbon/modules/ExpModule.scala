@@ -19,8 +19,8 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
   def translateExp(exp: sil.Exp): Exp
 
   /**
-    * Prepares the correct state in which translating an expression takes place then calls translateExp
-    * The states in which the expressions are evaluated during a package statement is 'wandModuel.UNIONState'
+    * Used to translate expressions during packaging a wand.
+    * This method Prepares the correct state in which translating an expression takes place then calls translateExp
     */
   def translateExpInWand(exp: sil.Exp): Exp
 
@@ -41,12 +41,9 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
       * ignoreIfInWand gives the option to ignore the definedness check if it is called during a package statement
       *
       * inWand distinguish when check definedness is called during a package statement.
-      * If 'inWand is true', the current state is replaced with the 'wandModule.UNIONState' state
-      * while checking definedness
-      *
       */
   def checkDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean = true,
-                        inWand: Boolean = false, ignoreIfInWand: Boolean = false): Stmt
+                       insidePackageStmt: Boolean = false, ignoreIfInWand: Boolean = false): Stmt
 
   /**
    * Check definedness of Viper assertions such as pre-/postconditions or invariants.
@@ -86,12 +83,11 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
    * The implementation works by exhaling 'e' and checking the necessary properties
    * along the way.
    *
-   * inWand distinguishes whether check definedness is called during a package statement or not.
-   *
-   * statesStack is the stack of states used during packaging a magic wand (it carries the current state, left-hand side state).
-   * statesStack also carries the left-hand side states of the outer magic wands in case of nested package statements.
-   *
+   * statesStackForPackageStmt stack of states used in translating statements during packaging a wand (carries currentState and LHS of wands)
+   * insidePackageStmt      Boolean that represents whether this method is being called during packaging a wand or not.
+   * The 'statesStackForPackageStmt' and 'insidePackageStmt' are used when translating statements during packaging a wand.
+   * For more details refer to the general note in 'wandModule'.
    */
   def checkDefinednessOfSpecAndExhale(e: sil.Exp, definednessError: PartialVerificationError, exhaleError: PartialVerificationError,
-                                      statesStack: List[Any] = null, inWand: Boolean = false): Stmt
+                                      statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt
 }

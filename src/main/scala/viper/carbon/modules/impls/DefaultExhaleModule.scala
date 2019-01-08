@@ -37,12 +37,12 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
   }
 
   override def exhale(exps: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true, isAssert: Boolean = false
-                      , statesStack: List[Any] = null, inWand: Boolean = false): Stmt = {
+                      , statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt = {
 
     // creating a new temp state if we are inside a package statement
     val curState = stateModule.state
     var initStmtWand: Stmt = Statements.EmptyStmt
-    if(inWand){
+    if(insidePackageStmt){
       val StateSetup(tempState, initStmt) = wandModule.createAndSetState(None)
       wandModule.tempCurState = tempState
       initStmtWand = initStmt
@@ -54,7 +54,7 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
     val phases = for (phase <- 1 to numberOfPhases) yield {
       currentPhaseId = phase - 1
       val stmts = exps map (e => exhaleConnective(e._1.whenExhaling, e._2, currentPhaseId, havocHeap,
-        statesStack, inWand, isAssert = isAssert, tempState = tempState))
+        statesStackForPackageStmt, insidePackageStmt, isAssert = isAssert, currentStateForPackage = tempState))
       if (stmts.children.isEmpty) {
         Statements.EmptyStmt
       } else {
@@ -84,71 +84,72 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
   /**
    * Exhales Viper expression connectives (such as logical and/implication) and forwards the
    * translation of other expressions to the exhale components.
-    * @param tempState The temporary state connected to current statement being evaluated inside package statement
+    * @param currentStateForPackage The temporary state connected to current statement being evaluated inside package statement
+    *                  Access to the current state is needed during translation of an exhale during packaging a wand
    */
   private def exhaleConnective(e: sil.Exp, error: PartialVerificationError, phase: Int, havocHeap: Boolean = true,
-                               statesStack: List[Any] = null, inWand: Boolean = false,
-                               isAssert: Boolean , tempState: StateRep): Stmt = {
+                               statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false,
+                               isAssert: Boolean , currentStateForPackage: StateRep): Stmt = {
 
     // creating union of current state and ops state to be used in translating exps
     val currentState = stateModule.state
 
     e match {
       case sil.And(e1, e2) =>
-        exhaleConnective(e1, error, phase, havocHeap, statesStack, inWand, isAssert, tempState = tempState) ::
-          exhaleConnective(e2, error, phase, havocHeap, statesStack, inWand, isAssert, tempState = tempState) ::
+        exhaleConnective(e1, error, phase, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage) ::
+          exhaleConnective(e2, error, phase, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage) ::
           Nil
       case sil.Implies(e1, e2) =>
-        if(inWand){
-          val res = If(wandModule.getCurOpsBoolvar() ==> translateExpInWand(e1), exhaleConnective(e2, error, phase, havocHeap, statesStack, inWand, isAssert, tempState = tempState), Statements.EmptyStmt)
+        if(insidePackageStmt){
+          val res = If(wandModule.getCurOpsBoolvar() ==> translateExpInWand(e1), exhaleConnective(e2, error, phase, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage), Statements.EmptyStmt)
           val unionStmt = wandModule.updateUnion()
           res ++ unionStmt
         }
         else
-          If(translateExpInWand(e1), exhaleConnective(e2, error, phase, havocHeap, statesStack, inWand, isAssert, tempState = tempState), Statements.EmptyStmt)
+          If(translateExpInWand(e1), exhaleConnective(e2, error, phase, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage), Statements.EmptyStmt)
       case sil.CondExp(c, e1, e2) =>
-        if(inWand)
+        if(insidePackageStmt)
           If(wandModule.getCurOpsBoolvar(),
-            If(translateExpInWand(c), exhaleConnective(e1, error, phase, havocHeap, statesStack, inWand, isAssert, tempState = tempState),
-              exhaleConnective(e2, error, phase, havocHeap, statesStack, inWand, isAssert, tempState = tempState)),
+            If(translateExpInWand(c), exhaleConnective(e1, error, phase, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage),
+              exhaleConnective(e2, error, phase, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage)),
             Statements.EmptyStmt) ++
             // The union state should be updated because the union state calculated inside exhaleExt (let's call it state U') is inside the then part of if(c){}
             // and outside the if condition c is not satisfied we still evaluate expressions and check definedness in U' without knowing any assumption about it
           wandModule.updateUnion()
         else
-          If(translateExpInWand(c), exhaleConnective(e1, error, phase, havocHeap, statesStack, inWand, isAssert, tempState = tempState),
-            exhaleConnective(e2, error, phase, havocHeap, statesStack, inWand, isAssert, tempState = tempState))
+          If(translateExpInWand(c), exhaleConnective(e1, error, phase, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage),
+            exhaleConnective(e2, error, phase, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage))
       case sil.Let(declared,boundTo,body) if !body.isPure =>
       {
         val u = env.makeUniquelyNamed(declared) // choose a fresh binder
         env.define(u.localVar)
         Assign(translateLocalVar(u.localVar),translateExpInWand(boundTo)) ::
-          exhaleConnective(body.replace(declared.localVar, u.localVar),error,phase, havocHeap, statesStack, inWand, isAssert, tempState = tempState) ::
+          exhaleConnective(body.replace(declared.localVar, u.localVar),error,phase, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage) ::
           {
             env.undefine(u.localVar)
             Nil
           }
       }
       case _ if isInPhase(e, phase) => {
-        if(inWand){
+        if(insidePackageStmt){  // handling exhales during packaging a wand
+          // currently having wild cards and 'constraining' expressions are not supported during packaging a wand.
           if(!permModule.getCurrentAbstractReads().isEmpty)
-            throw new RuntimeException()  // AG: To be changed to unsupportedFeatureException
+            sys.error("Abstract reads cannot be used during packaging a wand.")  // AG: To be changed to unsupportedFeatureException
           else
             if(permModule.containsWildCard(e))
-                  throw new RuntimeException() // AG: To be changed to unsupportedFeatureException
+              sys.error("Wild cards cannot be used during packaging a wand.") // AG: To be changed to unsupportedFeatureException
             else
-          // currently having wild cards and 'constraining' expressions are not supported during packaging a wand.
           // This could is called many times in different phases to handle wildcards and constraining,
           //  this code for exhaling inside a magic wand should be called only once (in phase 0, in this case)
             if(phase == 0) {
-              var exhaleExtStmt = wandModule.exhaleExt(statesStack, tempState, e, wandModule.getCurOpsBoolvar(), error = error, havocHeap = havocHeap)  // transferring permissions from stack of states to temp state
-              val addAssumptions = (statesStack(0).asInstanceOf[StateRep].boolVar := statesStack(0).asInstanceOf[StateRep].boolVar && tempState.boolVar)  // adding all assumptions of temp.bool to ops.bool
-              var equateHps = wandModule.exchangeAssumesWithBoolean(equateHeaps(statesStack(0).asInstanceOf[StateRep].state, heapModule), statesStack(0).asInstanceOf[StateRep].boolVar)  // equating ops and temp heaps
+              var exhaleExtStmt = wandModule.exhaleExt(statesStackForPackageStmt, currentStateForPackage, e, wandModule.getCurOpsBoolvar(), error = error, havocHeap = havocHeap)  // executing the exhale statement
+              val addAssumptions = (statesStackForPackageStmt(0).asInstanceOf[StateRep].boolVar := statesStackForPackageStmt(0).asInstanceOf[StateRep].boolVar && currentStateForPackage.boolVar)  // adding needed assumptions to states boolean variables
+              var equateHps = wandModule.exchangeAssumesWithBoolean(equateHeaps(statesStackForPackageStmt(0).asInstanceOf[StateRep].state, heapModule), statesStackForPackageStmt(0).asInstanceOf[StateRep].boolVar)
               var assertTransfer: Stmt =  // if it is an assert statement we transfer the permissions from temp state to ops state
                 if(isAssert && !e.isPure) {
                   val curState = stateModule.state
-                  stateModule.replaceState(statesStack(0).asInstanceOf[StateRep].state)
-                  val stmt: Stmt = wandModule.exhaleExt(tempState :: Nil, statesStack(0).asInstanceOf[StateRep], e, wandModule.getCurOpsBoolvar(), error = error)
+                  stateModule.replaceState(statesStackForPackageStmt(0).asInstanceOf[StateRep].state)
+                  val stmt: Stmt = wandModule.exhaleExt(currentStateForPackage :: Nil, statesStackForPackageStmt(0).asInstanceOf[StateRep], e, wandModule.getCurOpsBoolvar(), error = error)
                   stateModule.replaceState(curState)
                   stmt
                 }

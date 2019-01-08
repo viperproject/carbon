@@ -79,6 +79,11 @@ trait PermModule extends Module with CarbonStateComponent {
   def predicateMaskField(pred: Exp): Exp
 
   /**
+    * The wand mask field of a given wand (as its ghost location).
+    */
+  def wandMaskField(wand: Exp): Exp
+
+  /**
    * The type used to for predicate masks.
    */
   def pmaskType: Type
@@ -125,5 +130,11 @@ trait PermModule extends Module with CarbonStateComponent {
     */
 
   def containsWildCard(e: sil.Exp): Boolean
+
+  // adds permission to w#ft (footprint of the magic wand) (See Heap module for w#ft description)
+  def inhaleWandFt(w: sil.MagicWand): Stmt
+
+  // removes permission to w#ft (footprint of the magic wand) (See Heap module for w#ft description)
+  def exhaleWandFt(w: sil.MagicWand): Stmt
 
 }

@@ -32,24 +32,20 @@ trait FuncPredModule extends Module {
 
   // code to go first, and code to go last (other modules may contribute in between)
   /**
-    * statesStack is the stack of states used (to exhale from) during packaging a magic wand (it carries the current state, left-hand side state).
-    * statesStack also carries the left-hand side states of the outer magic wands in case of nested package statements
-    *
-    * inWand distinguishes whether this method is called during a package statement or not.
-    *
-    * Both 'statesStack' and 'inWand' are passed to the 'exhale' and 'inhale' methods that are called during the translation of the fold
+    * statesStackForPackageStmt: stack of states used in translating statements during packaging a wand (carries currentState and LHS of wands)
+    * insidePackageStmt: Boolean that represents whether this method is being called during packaging a wand or not.
+    * The 'statesStackForPackageStmt' and 'insidePackageStmt' are used when translating statements during packaging a wand.
+    * For more details refer to the general note in 'wandModule'.
     */
-  def translateFold(fold: sil.Fold, statesStack: List[Any] = null, inWand: Boolean = false): (Stmt,Stmt)
+  def translateFold(fold: sil.Fold, statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): (Stmt,Stmt)
 
   /**
-    * statesStack is the stack of states used (to exhale from) during packaging a magic wand (it carries the current state, left-hand side state).
-    * statesStack also carries the left-hand side states of the outer magic wands in case of nested package statements
-    *
-    * inWand distinguishes whether this method is called during a package statement or not.
-    *
-    * Both 'statesStack' and 'inWand' are passed to the 'exhale' and 'inhale' methods that are called during the translation of the unfold
+    * statesStackForPackageStmt: stack of states used in translating statements during packaging a wand (carries currentState and LHS of wands)
+    * insidePackageStmt: Boolean that represents whether this method is being called during packaging a wand or not.
+    * The 'statesStackForPackageStmt' and 'insidePackageStmt' are used when translating statements during packaging a wand.
+    * For more details refer to the general note in 'wandModule'.
     */
-  def translateUnfold(unfold: sil.Unfold, statesStack: List[Any] = null, inWand: Boolean = false): Stmt
+  def translateUnfold(unfold: sil.Unfold, statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt
 
   def toExpressionsUsedInTriggers(e: Exp): Seq[Exp]
   def toExpressionsUsedInTriggers(e: Seq[Exp]): Seq[Seq[Exp]]

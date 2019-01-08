@@ -98,6 +98,8 @@ class QuantifiedPermModule(val verifier: Verifier)
   private val goodMaskName = Identifier("GoodMask")
   private val hasDirectPermName = Identifier("HasDirectPerm")
   private val predicateMaskFieldName = Identifier("PredicateMaskField")
+  private val wandMaskFieldName = Identifier("WandMaskField")
+
 
   private val resultMask = LocalVarDecl(Identifier("ResultMask"),maskType)
   private val summandMask1 = LocalVarDecl(Identifier("SummandMask1"),maskType)
@@ -143,6 +145,9 @@ class QuantifiedPermModule(val verifier: Verifier)
         permInZeroPMask === FalseLit())) ::
       // predicate mask function
       Func(predicateMaskFieldName,
+        Seq(LocalVarDecl(Identifier("f"), predicateVersionFieldType())),
+        predicateMaskFieldType) ::
+      Func(wandMaskFieldName,
         Seq(LocalVarDecl(Identifier("f"), predicateVersionFieldType())),
         predicateMaskFieldType) ::
       // permission amount constants
@@ -236,6 +241,10 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   override def predicateMaskField(pred: Exp): Exp = {
     FuncApp(predicateMaskFieldName, Seq(pred), pmaskType)
+  }
+
+  override def wandMaskField(wand: Exp): Exp = {
+    FuncApp(wandMaskFieldName, Seq(wand), pmaskType)
   }
 
   def staticGoodMask = FuncApp(goodMaskName, LocalVar(maskName, maskType), Bool)
@@ -714,6 +723,18 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   override def inhaleExp(e: sil.Exp): Stmt = {
     inhaleAux(e, Assume)
+  }
+
+  override def inhaleWandFt(w: sil.MagicWand): Stmt = {
+    val wandRep = wandModule.getWandFtSmRepresentation(w, 0)
+    val curPerm = currentPermission(translateNull, wandRep)
+    (if (!usingOldState) curPerm := permAdd(curPerm, fullPerm) else Nil)
+  }
+
+  override def exhaleWandFt(w: sil.MagicWand): Stmt = {
+      val wandRep = wandModule.getWandFtSmRepresentation(w, 0)
+      val curPerm = currentPermission(translateNull, wandRep)
+      (if (!usingOldState) curPerm := permSub(curPerm, fullPerm) else Nil)
   }
 
   /*
@@ -1249,7 +1270,7 @@ class QuantifiedPermModule(val verifier: Verifier)
       (bvs map (v => Assume((v > noPerm) && (v < fullPerm))))
   }
 
-  override def handleStmt(s: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false) : (Seqn => Seqn) = {
+  override def handleStmt(s: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), insidePackageStmt: Boolean = false) : (Seqn => Seqn) = {
     stmts =>
       s match {
         case n@sil.NewStmt(target, fields) =>
