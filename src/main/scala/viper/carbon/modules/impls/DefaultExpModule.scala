@@ -277,6 +277,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       case setExp@sil.AnySetMinus(left, right) => translateSetExp(setExp)
       case setExp@sil.AnySetContains(left, right) => translateSetExp(setExp)
       case setExp@sil.AnySetCardinality(_) => translateSetExp(setExp)
+      case _ => sys.error("Viper expression didn't match any existing case.")
     }
   }
 

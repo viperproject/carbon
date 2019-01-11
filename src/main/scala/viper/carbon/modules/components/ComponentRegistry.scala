@@ -7,8 +7,6 @@
 package viper.carbon.modules.components
 
 import viper.carbon.utility.PartialSort
-import viper.carbon.modules.Module
-
 import scala.collection.mutable
 
 /**

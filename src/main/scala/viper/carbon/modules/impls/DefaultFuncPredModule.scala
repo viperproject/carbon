@@ -518,7 +518,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
 
 
-          val locationAccess1 = translateLocationAccess(locationAccess)
+          val locationAccess1 = translateResourceAccess(locationAccess)
           val translatedCond1 = translateExp(renamedCond) //condition just evaluated in one state
           val funApp1 = FuncApp(condFunc.name, (heap1++origArgs) map (_.l), condFunc.typ)
 
@@ -528,7 +528,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           val heap2 = heapModule.currentStateContributions
           val mask2 = permModule.currentStateContributions
 
-          val locationAccess2 = translateLocationAccess(locationAccess)
+          val locationAccess2 = translateResourceAccess(locationAccess)
           val translatedCond2 = translateExp(renamedCond)
 
           val funApp2 = FuncApp(condFunc.name, (heap2++origArgs) map (_.l), condFunc.typ)
@@ -679,7 +679,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           stateModule.replaceState(state)
           Nil
         }
-        (before, after)
+        (before _, after _)
       case fa@sil.FuncApp(f, args) => {
         (() => Nil, if(makeChecks) () => {
         val funct = verifier.program.findFunction(f);

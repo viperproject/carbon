@@ -14,13 +14,6 @@ import viper.silver.verifier.{PartialVerificationError, errors, reasons}
 import viper.silver.{ast => sil}
 
 import scala.collection.mutable.ListBuffer
-
-
-/**
- * Created by Gaurav on 06.03.2015.
- */
-
-
 class
 DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent with DefinednessComponent{
   import verifier._
@@ -64,7 +57,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
   val boogieNoPerm:Exp = RealLit(0)
   val boogieFullPerm:Exp = RealLit(1)
 
-  // keeps the magic wand representation to be able to refer its masks (ww#sm, ww$ft, ...).
+  // keeps the magic wand representation.
   var currentWand: MagicWand = null
 
   var lhsID = 0 // Id of the current package statement being translated (used to handle old[lhs])
@@ -248,7 +241,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
             stateModule.replaceState(currentState)
             activeWandsStack = activeWandsStack.dropRight(1)
             nestingDepth -= 1
-            val retStmt = permModule.inhaleWandFt(w) ++ stmt ++ addWand
+            val retStmt = stmt ++ addWand
             currentWand = oldW
             retStmt
 
@@ -704,7 +697,7 @@ case class PackageSetup(hypState: StateRep, usedState: StateRep, initStmt: Stmt)
     //GP: using beginExhale, endExhale works now, but isn't intuitive, maybe should duplicate code to avoid this breaking
     //in the future when beginExhale and endExhale's implementations are changed
     popFromActiveWandsStack()
-    ret ++ permModule.exhaleWandFt(w)
+    ret
   }
   //  =============================================== End of Applying wands ===============================================
 

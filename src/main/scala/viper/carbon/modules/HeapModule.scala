@@ -9,6 +9,7 @@ package viper.carbon.modules
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.modules.components.CarbonStateComponent
+import viper.silver.ast.{LocationAccess, MagicWand}
 
 /**
  * A module for translating heap expressions (access, updating) and determining
@@ -74,6 +75,14 @@ trait HeapModule extends Module with CarbonStateComponent {
    * Definitions for the ghost field of a predicate.
    */
   def predicateGhostFieldDecl(f: sil.Predicate): Seq[Decl]
+
+  /**
+   * Translation of a resource access (field read/write, predicate or wand instance)
+   */
+  def translateResourceAccess(r: sil.ResourceAccess): Exp = r match {
+    case la: LocationAccess => translateLocationAccess(la)
+    case mw: MagicWand => sys.error(s"Unexpectedly found magic wand $mw")
+  }
 
   /**
    * Translation of a field read or predicate instance

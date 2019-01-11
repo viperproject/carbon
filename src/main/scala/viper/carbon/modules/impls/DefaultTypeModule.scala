@@ -41,11 +41,12 @@ class DefaultTypeModule(val verifier: Verifier) extends TypeModule with Stateles
       case t@sil.MultisetType(elemType) =>
         translateMultisetType(t)
       case sil.InternalType =>
-        sys.error("this is an internal type, not expected here")
+        sys.error("This is an internal type, not expected here")
       case sil.TypeVar(name) =>
         TypeVar(name)
       case t@sil.DomainType(_, _) =>
         translateDomainTyp(t)
+      case _ => sys.error("Viper type didn't match any existing case.")
     }
   }
 }

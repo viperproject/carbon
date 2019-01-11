@@ -8,7 +8,6 @@ package viper.carbon.modules.components
 
 import viper.carbon.boogie.Stmt
 import viper.silver.{ast => sil}
-import viper.silver.verifier.PartialVerificationError
 
 /**
  * Takes care of inhaling one or several kinds of expressions.

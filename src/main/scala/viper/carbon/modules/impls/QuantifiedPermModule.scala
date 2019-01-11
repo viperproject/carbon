@@ -30,7 +30,7 @@ import viper.carbon.boogie.Assert
 import viper.carbon.boogie.ConstDecl
 import viper.carbon.boogie.Const
 import viper.carbon.boogie.LocalVar
-import viper.silver.ast.{LocationAccess, NoPerm, PermGtCmp, PermMul, PredicateAccess, PredicateAccessPredicate, ResourceAccess, WildcardPerm}
+import viper.silver.ast.{LocationAccess, PermMul, PredicateAccess, PredicateAccessPredicate, ResourceAccess, WildcardPerm}
 import viper.carbon.boogie.Forall
 import viper.carbon.boogie.Assign
 import viper.carbon.boogie.Func
@@ -306,7 +306,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
-      case sil.AccessPredicate(loc, prm) =>
+      case sil.AccessPredicate(loc: LocationAccess, prm) =>
         val p = PermissionSplitter.normalizePerm(prm)
         val perms = PermissionSplitter.splitPerm(p) filter (x => x._1 - 1 == exhaleModule.currentPhaseId)
         (if (exhaleModule.currentPhaseId == 0)
@@ -744,7 +744,7 @@ class QuantifiedPermModule(val verifier: Verifier)
    */
   private def inhaleAux(e: sil.Exp, assmsToStmt: Exp => Stmt):Stmt = {
     e match {
-      case sil.AccessPredicate(loc, prm) =>
+      case sil.AccessPredicate(loc: LocationAccess, prm) =>
         val perm = PermissionSplitter.normalizePerm(prm)
         val curPerm = currentPermission(loc)
         val permVar = LocalVar(Identifier("perm"), permType)
@@ -1312,7 +1312,8 @@ class QuantifiedPermModule(val verifier: Verifier)
   override def isInPhase(e: sil.Exp, phaseId: Int): Boolean = {
     e match {
       case sil.AccessPredicate(loc, perm) => true // do something in all phases
-      case _ => phaseId == 0
+      case _ =>
+        phaseId == 0
     }
   }
 
