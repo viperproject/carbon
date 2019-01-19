@@ -25,6 +25,7 @@ class GraphTests extends SilSuite {
       "graphs/dynamic/binary/utests",
       "graphs/dynamic/binary/examples",
       "graphs/dynamic/binary/edge_selectors",
+      "graphs/dynamic/binary/binomial-heap",
       "graphs/dynamic/ternary/utests",
       //"graphs/dynamic/ternary/examples"
     )
