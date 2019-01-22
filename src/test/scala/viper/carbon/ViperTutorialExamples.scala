@@ -4,10 +4,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package viper.silicon.tests
+package viper.carbon
 
 import org.scalatest.DoNotDiscover
-import viper.carbon.AllTests
 
 @DoNotDiscover
 class ViperTutorialExamples extends AllTests {
