@@ -1311,6 +1311,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   override val numberOfPhases = 3
   override def isInPhase(e: sil.Exp, phaseId: Int): Boolean = {
     e match {
+      case sil.MagicWand(_,_) => phaseId == 0   // disable the three-phase exhale for magic wands. This should come before AccessPredicate case as magic wands extend Access predicate.
       case sil.AccessPredicate(loc, perm) => true // do something in all phases
       case _ =>
         phaseId == 0
