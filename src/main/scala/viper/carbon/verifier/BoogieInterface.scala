@@ -136,7 +136,7 @@ trait BoogieInterface {
     }
   }
 
-  // TODO: investigate why passing the program directly does not work
+/*  // TODO: investigate why passing the program directly does not work
   private def runX(input: String, options: Seq[String]): String = {
     def convertStreamToString(is: java.io.InputStream) = {
       val s = new java.util.Scanner(is).useDelimiter("\\A")
@@ -160,5 +160,5 @@ trait BoogieInterface {
     // Note: we call boogie with an empty input "file" on stdin and parse the output
     (Seq(boogiePath) ++ options ++ Seq("stdin.bpl")).run(new ProcessIO(in, out, err)).exitValue()
     reserr + res
-  }
+  }*/
 }
