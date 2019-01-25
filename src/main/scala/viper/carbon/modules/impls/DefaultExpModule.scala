@@ -339,10 +339,13 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         }
 
         if (e.isInstanceOf[sil.QuantifiedExp]) {
-          val bound_vars = e.asInstanceOf[sil.QuantifiedExp].variables
+          val orig_bound_vars = e.asInstanceOf[sil.QuantifiedExp].variables
+          val bound_vars = orig_bound_vars map (v => env.makeUniquelyNamed(v))
+          val replacement = ((orig_bound_vars map (_.localVar)) zip (bound_vars map (_.localVar))).toMap
           bound_vars map (v => env.define(v.localVar))
+          val renamed = e.replace(replacement)
           val res = if (e.isInstanceOf[sil.ForPerm]) {
-            val eAsForallRef = e.asInstanceOf[sil.ForPerm]
+            val eAsForallRef = renamed.asInstanceOf[sil.ForPerm]
 
             if (eAsForallRef.variables.length != 1) sys.error("Carbon only supports a single quantified variable in forperm, see Carbon issue #243")
             if (eAsForallRef.variables.head.typ != Ref) sys.error("Carbon only supports Ref type in forperm, see Carbon issue #243")
@@ -353,10 +356,10 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             }
 
             val bound_var = eAsForallRef.variables.head
-            val perLocFilter: sil.Location => LocationAccess = loc => loc match {
-              case f: sil.Field => sil.FieldAccess(bound_var.localVar, f)(loc.pos, loc.info)
-              case p: sil.Predicate => sil.PredicateAccess(Seq(bound_var.localVar), p)(loc.pos, loc.info, loc.errT)
-            }
+            //val perLocFilter: sil.Location => LocationAccess = loc => loc match {
+            //  case f: sil.Field => sil.FieldAccess(bound_var.localVar, f)(loc.pos, loc.info)
+            //  case p: sil.Predicate => sil.PredicateAccess(Seq(bound_var.localVar), p)(loc.pos, loc.info, loc.errT)
+            //}
             val filter: Exp = hasDirectPerm(eAsForallRef.resource.asInstanceOf[LocationAccess])
 
             handleQuantifiedLocals(bound_vars, If(filter, translate, Nil))

@@ -41,6 +41,7 @@ import viper.silver.ast.utility.Rewriter.Traverse
 
 import scala.collection.mutable.ListBuffer
 import viper.silver.ast.utility.QuantifiedPermissions.SourceQuantifiedPermissionAssertion
+import viper.silver.verifier.reasons.FeatureUnsupported
 
 /**
  * An implementation of [[viper.carbon.modules.PermModule]] supporting quantified permissions.
@@ -353,19 +354,6 @@ class QuantifiedPermModule(val verifier: Verifier)
   }
 
 
-  /*For QP \forall x:T :: c(x) ==> acc(e(x),p(x)) this case class describes an instantiation of the QP where
-   * cond = c(expr), recv = e(expr) and perm = p(expr) and expr is of type T and may be dependent on the variable given by v. */
-  case class QuantifiedFieldComponents( translatedVar:LocalVarDecl,
-                                        translatedCondcond: Exp,
-                                        translatedRcv: Exp,
-                                        translatedPerm: Exp,
-                                        translatedLoc:Exp)
-  case class QuantifiedFieldInverseComponents(condInv: Exp,
-                                             recvInv: Exp,
-                                              invFun:Exp,
-                                              obj:Exp,
-                                              field:Exp)
-
   private def conservativeIsWildcardPermission(perm: sil.Exp) : Boolean = {
     perm match {
       case WildcardPerm() | PermMul(WildcardPerm(), WildcardPerm()) => true
@@ -375,44 +363,10 @@ class QuantifiedPermModule(val verifier: Verifier)
     }
   }
 
-  /**
-    * translates given quantified field access predicate to Boogie components needed for translation of the statement
-    */
-  def translateFieldAccessComponents(v:sil.LocalVarDecl, cond:sil.Exp, fieldAccess:sil.FieldAccess, perms:sil.Exp): (QuantifiedFieldComponents, Boolean, LocalVar, Stmt) = {
-        val newV = env.makeUniquelyNamed(v);
-        env.define(newV.localVar);
-
-        //replaces components with unique localVar
-        def renaming[E <: sil.Exp] = (e:E) => Expressions.renameVariables(e, v.localVar, newV.localVar)
-
-        //translate components
-        val translatedLocal = translateLocalVarDecl(newV)
-        val translatedCond = translateExp(renaming(cond))
-        val translatedRcv = translateExp(renaming(fieldAccess.rcv))
-        val translatedLocation = translateLocation(renaming(fieldAccess))
-
-        //translate Permission and create Stmts and Local Variable if wildcard permission
-        var isWildcard = false
-        val (translatedPerms, stmts, wildcard) = {
-          if (conservativeIsWildcardPermission(perms)) {
-            isWildcard = true
-            val w = LocalVar(Identifier("wildcard"), Real)
-            (w, LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil, w)
-          } else {
-            (translateExp(renaming(perms)), Nil, null)
-          }
-        }
-
-        //return values: Quantified Field Components, wildcard
-        (QuantifiedFieldComponents(translateLocalVarDecl(newV), translatedCond, translatedRcv, translatedPerms, translatedLocation),
-          isWildcard,
-          wildcard,
-          stmts)
-  }
-
   def translateExhale(e: sil.Forall, error: PartialVerificationError): Stmt =  {
     val stmt = e match {
       case SourceQuantifiedPermissionAssertion(forall, cond, expr)  =>
+        if (forall.variables.size > 1) { throw ViperThrowableErrorMessage(Internal(FeatureUnsupported(e, "Viper's VCG backend (Carbon) currently does not support quantified permissions/resources involving multiple nested quantifiers")))
         val v = forall.variables.head // TODO: Generalise to multiple quantified variables
 
         val res = expr match {
