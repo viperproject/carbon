@@ -6,9 +6,9 @@
 
 package viper.carbon.modules
 
-import components.{InhaleComponent, ComponentRegistry}
+import components.{ComponentRegistry, InhaleComponent}
 import viper.silver.{ast => sil}
-import viper.carbon.boogie.Stmt
+import viper.carbon.boogie.{Exp, LocalVar, Stmt, TrueLit}
 
 /**
  * A module for translating inhale statements.  The module takes care of the basic
@@ -22,5 +22,11 @@ import viper.carbon.boogie.Stmt
 
  */
 trait InhaleModule extends Module with InhaleComponent with ComponentRegistry[InhaleComponent] {
-  def inhale(exp: Seq[sil.Exp]): Stmt
+  /**
+    * statesStackForPackageStmt: stack of states used in translating statements during packaging a wand (carries currentState and LHS of wands)
+    * insidePackageStmt: Boolean that represents whether this method is being called during packaging a wand or not.
+    * The 'statesStackForPackageStmt' and 'insidePackageStmt' are used when translating statements during packaging a wand.
+    * For more details refer to the general note in 'wandModule'.
+    */
+  def inhale(exp: Seq[sil.Exp], statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt
 }
