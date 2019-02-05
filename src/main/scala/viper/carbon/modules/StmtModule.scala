@@ -6,7 +6,7 @@
 
 package viper.carbon.modules
 
-import viper.carbon.modules.components.{ComponentRegistry, DefinednessComponent, StmtComponent}
+import viper.carbon.modules.components.{ComponentRegistry, StmtComponent}
 import viper.silver.{ast => sil}
 import viper.carbon.boogie.{Exp, Stmt, TrueLit}
 

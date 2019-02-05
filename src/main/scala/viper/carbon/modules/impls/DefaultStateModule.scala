@@ -19,7 +19,6 @@ import scala.collection.mutable
  */
 class DefaultStateModule(val verifier: Verifier) extends StateModule {
   import verifier._
-  import heapModule._
 
   def name = "State module"
 

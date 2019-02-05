@@ -1,19 +1,16 @@
 package viper.carbon.modules.impls
 
 
-import org.scalatest.GivenWhenThen
 import viper.carbon.modules._
 import viper.carbon.verifier.Verifier
 import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
 import viper.carbon.modules.components.{DefinednessComponent, StmtComponent}
 import viper.silver.ast.utility.Expressions
-import viper.silver.ast.{FullPerm, MagicWand, MagicWandStructure, PredicateAccessPredicate}
-import viper.silver.cfg.silver.CfgGenerator.EmptyStmt
-import viper.silver.verifier.{PartialVerificationError, errors, reasons}
+import viper.silver.ast.{MagicWand, MagicWandStructure}
+import viper.silver.verifier.{PartialVerificationError, reasons}
 import viper.silver.{ast => sil}
 
-import scala.collection.mutable.ListBuffer
 class
 DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent with DefinednessComponent{
   import verifier._
@@ -743,7 +740,7 @@ case class PackageSetup(hypState: StateRep, usedState: StateRep, initStmt: Stmt)
           stateModule.replaceState(state)
           Nil
         }
-        (before, after)
+        (before _, after _)
       case _ => (() => simplePartialCheckDefinedness(e, error, makeChecks), () => Nil)
     }
   }
