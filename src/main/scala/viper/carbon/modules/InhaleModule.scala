@@ -8,7 +8,7 @@ package viper.carbon.modules
 
 import components.{ComponentRegistry, InhaleComponent}
 import viper.silver.{ast => sil}
-import viper.carbon.boogie.{Exp, LocalVar, Stmt, TrueLit}
+import viper.carbon.boogie.Stmt
 
 /**
  * A module for translating inhale statements.  The module takes care of the basic
