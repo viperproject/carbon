@@ -8,7 +8,6 @@ package viper.carbon.modules
 
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
-import viper.silver.ast.PredicateAccessPredicate
 
 /**
  * A module for translating functions and predicates.

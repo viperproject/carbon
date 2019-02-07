@@ -8,7 +8,6 @@ import viper.carbon.modules.components.{ComponentRegistry, TransferComponent}
 import viper.silver.verifier.PartialVerificationError
 import viper.silver.{ast => sil}
 import viper.carbon.boogie.{Exp, LocalVar, Stmt, TrueLit}
-import viper.silver.ast.Seqn
 
 
 trait WandModule extends Module with ComponentRegistry[TransferComponent] {

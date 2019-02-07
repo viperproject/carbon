@@ -26,7 +26,6 @@ class DefaultSeqModule(val verifier: Verifier)
   import verifier._
   import typeModule._
   import expModule._
-  import stateModule._
 
   /**
    * Have sequences been used so far (to determine if we need to include
