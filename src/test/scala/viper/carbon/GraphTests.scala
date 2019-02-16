@@ -18,15 +18,19 @@ import viper.silver.verifier.Verifier
 class GraphTests extends SilSuite {
   override def testDirectories: Seq[String] =
     Vector(
-      //"graphs/static",
-      "graphs/dynamic/immutable",
-      "graphs/dynamic/unary/utests",
-      //"graphs/dynamic/unary/examples",
-      "graphs/dynamic/binary/utests",
-      "graphs/dynamic/binary/examples",
-      "graphs/dynamic/binary/edge_selectors",
+      "graphs/dynamic/binary/edge_selectors/Harris-List",
+      "graphs/dynamic/binary/examples/CAV_running_example",
       "graphs/dynamic/binary/binomial-heap",
-      "graphs/dynamic/ternary/utests",
+      "graphs/dynamic/unary/examples"
+      //"graphs/static",
+      //"graphs/dynamic/immutable",
+      //"graphs/dynamic/unary/utests",
+      //"graphs/dynamic/unary/examples",
+      //"graphs/dynamic/binary/utests",
+      //"graphs/dynamic/binary/examples"
+      //"graphs/dynamic/binary/edge_selectors",
+      //"graphs/dynamic/binary/binomial-heap"//,
+      //"graphs/dynamic/ternary/utests",
       //"graphs/dynamic/ternary/examples"
     )
 

@@ -7,7 +7,7 @@
 package viper.carbon.modules
 
 import viper.silver.{ast => sil}
-import viper.carbon.boogie.{Stmt, Decl, Exp, Type}
+import viper.carbon.boogie._
 
 /**
  * A module for translating functions and predicates.
@@ -30,9 +30,21 @@ trait FuncPredModule extends Module {
   def translateResult(r: sil.Result): Exp
 
   // code to go first, and code to go last (other modules may contribute in between)
-  def translateFold(fold: sil.Fold): (Stmt,Stmt)
+  /**
+    * statesStackForPackageStmt: stack of states used in translating statements during packaging a wand (carries currentState and LHS of wands)
+    * insidePackageStmt: Boolean that represents whether this method is being called during packaging a wand or not.
+    * The 'statesStackForPackageStmt' and 'insidePackageStmt' are used when translating statements during packaging a wand.
+    * For more details refer to the general note in 'wandModule'.
+    */
+  def translateFold(fold: sil.Fold, statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): (Stmt,Stmt)
 
-  def translateUnfold(unfold: sil.Unfold): Stmt
+  /**
+    * statesStackForPackageStmt: stack of states used in translating statements during packaging a wand (carries currentState and LHS of wands)
+    * insidePackageStmt: Boolean that represents whether this method is being called during packaging a wand or not.
+    * The 'statesStackForPackageStmt' and 'insidePackageStmt' are used when translating statements during packaging a wand.
+    * For more details refer to the general note in 'wandModule'.
+    */
+  def translateUnfold(unfold: sil.Unfold, statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt
 
   def toExpressionsUsedInTriggers(e: Exp): Seq[Exp]
   def toExpressionsUsedInTriggers(e: Seq[Exp]): Seq[Seq[Exp]]

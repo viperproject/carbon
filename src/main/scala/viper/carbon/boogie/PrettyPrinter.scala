@@ -49,6 +49,7 @@ object PrettyPrinter {
 }
 
 /**
+**
  * The class that implements most of the pretty-printing functionality.
  */
 class PrettyPrinter(n: Node) extends BracketPrettyPrinter {

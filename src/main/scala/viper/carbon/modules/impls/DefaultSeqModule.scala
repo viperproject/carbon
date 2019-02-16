@@ -103,6 +103,7 @@ class DefaultSeqModule(val verifier: Verifier)
 
 
   override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
+
     if(makeChecks)
       e match {
         case si@SeqIndex(s,idx) => {

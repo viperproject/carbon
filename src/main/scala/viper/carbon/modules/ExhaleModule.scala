@@ -6,7 +6,7 @@
 
 package viper.carbon.modules
 
-import components.{ExhaleComponent, ComponentRegistry}
+import components.{ComponentRegistry, ExhaleComponent}
 import viper.silver.{ast => sil}
 import viper.carbon.boogie.Stmt
 import viper.silver.verifier.PartialVerificationError
@@ -23,6 +23,23 @@ import viper.silver.verifier.PartialVerificationError
 
  */
 trait ExhaleModule extends Module with ExhaleComponent with ComponentRegistry[ExhaleComponent] {
-  def exhale(exp: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true, isAssert: Boolean = false): Stmt
+
+  /**
+    * @param exp         the expression to be exhaled and the error to be raised if the exhale fails.
+    * @param havocHeap   A boolean used to allow or prevent havocing the heap after the exhale.
+    *                    For example, the heap is not havoced after the exhale when translating a fold statement.
+    * @param isAssert    A boolean that tells whether the exhale method is being called during an exhale statement or an assert statement
+    *                    (Assert reuses the code for exhale).
+    *                    This is used for optimization purposes (remove extra operations if the statement is an 'assert')
+    *                    and also used to translate the 'assert' statements during packaging a wand.
+    * @param statesStackForPackageStmt stack of states used to translate statements during packaging a wand (carries currentState and LHS of wands)
+    * @param insidePackageStmt      Boolean that represents whether this method is being called during packaging a wand or not.
+    *
+    * The 'statesStackForPackageStmt' and 'insidePackageStmt' are used when translating statements during packaging a wand.
+    * For more details refer to the note in the wand module.
+    */
+  def exhale(exp: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true, isAssert: Boolean = false
+             , statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt
+
   def currentPhaseId: Int
 }
