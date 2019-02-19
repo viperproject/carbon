@@ -8,7 +8,7 @@ package viper.carbon.modules
 
 import viper.silver.{ast => sil}
 import viper.silver.ast.utility.Expressions.{whenExhaling, whenInhaling}
-import viper.carbon.boogie.{Exp, LocalVar, Stmt, TrueLit}
+import viper.carbon.boogie.{Exp, LocalVar, Stmt}
 import viper.carbon.modules.components.{ComponentRegistry, DefinednessComponent}
 import viper.silver.verifier.PartialVerificationError
 
