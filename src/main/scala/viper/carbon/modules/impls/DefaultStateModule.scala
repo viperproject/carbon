@@ -91,7 +91,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
         res ++= hashMap.get(c)
       }
     }
-    if(usingOldState) (res map (v => Old(v))) else res
+    if(usingOldState) (res map (v => Old(v))) else res // ALEX: I think this conditional should be on the element of the StateSnapshot
   }
 
 
