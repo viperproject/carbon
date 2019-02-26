@@ -1,3 +1,6 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
 field f: Int;
 
 /* This test case concerns a previous bug in Carbon, due to 1/3 being translated to 0.333333333, hence the assertion in test02 was proven correct (even though isn't) 
