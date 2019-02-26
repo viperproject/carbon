@@ -1,13 +1,12 @@
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- */
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2019 ETH Zurich.
 
 package viper.carbon.modules.impls
 
 import viper.carbon.modules.SeqModule
-import viper.silver.components.StatefulComponent
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.Verifier
@@ -15,8 +14,7 @@ import viper.carbon.boogie.Implicits._
 import viper.carbon.modules.impls.dafny_axioms.SequenceAxiomatization
 import viper.carbon.modules.components.DefinednessComponent
 import viper.silver.ast.{SeqIndex, SeqLength}
-import viper.silver.ast.utility.Expressions
-import viper.silver.verifier.{PartialVerificationError, errors, reasons}
+import viper.silver.verifier.{PartialVerificationError, reasons}
 
 /**
  * The default implementation of [[viper.carbon.modules.SeqModule]].
@@ -105,6 +103,7 @@ class DefaultSeqModule(val verifier: Verifier)
 
 
   override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
+
     if(makeChecks)
       e match {
         case si@SeqIndex(s,idx) => {

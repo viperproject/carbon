@@ -1,8 +1,8 @@
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- */
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2019 ETH Zurich.
 
 package viper.carbon.modules.impls
 
@@ -18,6 +18,8 @@ import scala.collection.mutable
  * The default implementation of a [[viper.carbon.modules.StateModule]].
  */
 class DefaultStateModule(val verifier: Verifier) extends StateModule {
+  import verifier._
+
   def name = "State module"
 
   private val isGoodState = "state"
@@ -88,7 +90,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
         res ++= hashMap.get(c)
       }
     }
-    if(usingOldState) (res map (v => Old(v))) else res
+    if(usingOldState) (res map (v => Old(v))) else res // ALEX: I think this conditional should be on the element of the StateSnapshot
   }
 
 
@@ -143,6 +145,11 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
       c.restoreState(snapshot._1.get(c))
     }
     usingOldState = snapshot._2
+  }
+
+  override def equateHeaps(snapshot: StateSnapshot, c: CarbonStateComponent):Stmt =
+  {
+    heapModule.equateWithCurrentHeap(snapshot._1.get(c))
   }
 
   // initialisation in principle not needed - one should call initState

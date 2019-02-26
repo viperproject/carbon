@@ -1,8 +1,8 @@
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- */
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2019 ETH Zurich.
 
 package viper.carbon.verifier
 
@@ -11,13 +11,11 @@ import viper.silver.verifier._
 import sys.process._
 import java.io._
 
-import viper.carbon.boogie._
 import viper.silver.verifier.Failure
-import viper.silver.verifier.errors.{ErrorNode, Internal}
+import viper.silver.verifier.errors.Internal
 import viper.silver.verifier.reasons.InternalReason
 import viper.carbon.boogie.Assert
 import viper.carbon.boogie.Program
-import viper.silver.ast.{NoPosition, Position, Positioned}
 
 class BoogieDependency(_location: String) extends Dependency {
   def name = "Boogie"

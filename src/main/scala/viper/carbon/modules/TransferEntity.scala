@@ -1,12 +1,17 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2019 ETH Zurich.
+
 package viper.carbon.modules
 
-import viper.carbon.boogie.{LocalVar, RealLit, Exp}
-import viper.silver.verifier.{PartialVerificationError, reasons, VerificationError}
+import viper.carbon.boogie.Exp
+import viper.silver.ast.LocationAccess
+import viper.silver.verifier.{PartialVerificationError, VerificationError, reasons}
+
 import viper.silver.{ast => sil}
 
-/**
- * Created by Gaurav on 02.05.2015.
- */
 sealed trait TransferableEntity {
   def rcv: Exp
   def loc: Exp
@@ -21,8 +26,10 @@ object TransferableEntity {
 }
 
 sealed trait TransferableAccessPred extends TransferableEntity {
-  override def transferError(error: PartialVerificationError):VerificationError = {
-    error.dueTo(reasons.InsufficientPermission(originalSILExp.loc))
+  override def transferError(error: PartialVerificationError):VerificationError =
+    originalSILExp.loc match {
+      case loc: LocationAccess => error.dueTo(reasons.InsufficientPermission(loc))
+      case other => sys.error(s"Unexpectedly found resource access node $other")
   }
   override def originalSILExp: sil.AccessPredicate
 }

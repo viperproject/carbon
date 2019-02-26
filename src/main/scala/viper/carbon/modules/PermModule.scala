@@ -1,8 +1,8 @@
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- */
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2019 ETH Zurich.
 
 package viper.carbon.modules
 
@@ -13,7 +13,6 @@ import viper.silver.{ast => sil}
 /**
  * The permission module determines the encoding of permissions and allows to add or remove
  * permission.
-
  */
 trait PermModule extends Module with CarbonStateComponent {
 
@@ -80,6 +79,11 @@ trait PermModule extends Module with CarbonStateComponent {
   def predicateMaskField(pred: Exp): Exp
 
   /**
+    * The wand mask field of a given wand (as its ghost location).
+    */
+  def wandMaskField(wand: Exp): Exp
+
+  /**
    * The type used to for predicate masks.
    */
   def pmaskType: Type
@@ -118,5 +122,19 @@ trait PermModule extends Module with CarbonStateComponent {
       * will be overwritten in the Boogie code
       */
   def tempInitMask(rcv: Exp, loc:Exp):(Seq[Exp], Stmt)
+
+  def getCurrentAbstractReads(): collection.mutable.ListBuffer[String]
+
+  /**
+    * Checks if expression e contains instances of wildcards
+    */
+
+  def containsWildCard(e: sil.Exp): Boolean
+
+  // adds permission to w#ft (footprint of the magic wand) (See Heap module for w#ft description)
+  def inhaleWandFt(w: sil.MagicWand): Stmt
+
+  // removes permission to w#ft (footprint of the magic wand) (See Heap module for w#ft description)
+  def exhaleWandFt(w: sil.MagicWand): Stmt
 
 }

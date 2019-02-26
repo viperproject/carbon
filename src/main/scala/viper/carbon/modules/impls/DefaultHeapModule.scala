@@ -1,21 +1,18 @@
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- */
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2019 ETH Zurich.
 
 package viper.carbon.modules.impls
 
 import viper.carbon.modules._
 import viper.carbon.modules.components.{DefinednessComponent, InhaleComponent, SimpleStmtComponent}
 import viper.silver.ast.utility.Expressions
-import viper.silver.components.StatefulComponent
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
-import viper.silver.verifier.{PartialVerificationError, reasons}
 import viper.carbon.verifier.Verifier
-import viper.silver.ast.NullLit
 import viper.silver.ast.utility.QuantifiedPermissions.QuantifiedPermissionAssertion
 
 /**
@@ -63,6 +60,14 @@ class DefaultHeapModule(val verifier: Verifier)
     NamedType(fieldTypeName, Seq(TypeVar("A"), pmaskType))
   override def predicateMaskFieldTypeOf(p: sil.Predicate): Type =
     NamedType(fieldTypeName, Seq(predicateMetaTypeOf(p), pmaskType))
+
+
+  override def predicateMaskFieldTypeOfWand(wand: String): Type =
+    NamedType(fieldTypeName, Seq(wandBasicType(wand), pmaskType))
+  override def predicateVersionFieldTypeOfWand(wand: String) =
+    NamedType(fieldTypeName, Seq(wandBasicType(wand), funcPredModule.predicateVersionType))
+
+
   override def wandBasicType(wand: String): Type = NamedType("WandType_" + wand)
   override def wandFieldType(wand: String) : Type = NamedType(fieldTypeName, Seq(wandBasicType(wand),Int))
   private val heapTyp = NamedType("HeapType")
@@ -166,7 +171,30 @@ class DefaultHeapModule(val verifier: Verifier)
                 )
               )
         )), size = 1)  ++
-        (if(enableAllocationEncoding) // preserve "allocated" knowledge, where already true
+      // frame all wand masks
+      MaybeCommentedDecl("Frame all wand mask locations of wands with direct permission", Axiom(Forall(
+        vars ++ Seq(predField),
+        Trigger(Seq(identicalFuncApp, isWandField(predField.l), lookup(eh.l, nullLit, wandMaskField(predField.l)))),
+        identicalFuncApp ==>
+          ((staticPermissionPositive(nullLit, predField.l) && isWandField(predField.l)) ==>
+            (lookup(h.l, nullLit, wandMaskField(predField.l)) === lookup(eh.l, nullLit, wandMaskField(predField.l))))
+      )), size = 1) ++
+        MaybeCommentedDecl("Frame all locations in the footprint of magic wands", Axiom(Forall(
+          vars ++ Seq(predField),
+          Trigger(Seq(identicalFuncApp, isWandField(predField.l)))
+              ,
+          identicalFuncApp ==>
+            (
+              (staticPermissionPositive(nullLit, predField.l) && isWandField(predField.l)) ==>
+                Forall(Seq(obj2, field),
+                  Trigger(Seq(lookup(eh.l, obj2.l, field.l))),
+                  (lookup(lookup(h.l, nullLit, wandMaskField(predField.l)), obj2.l, field.l) ==>
+                    (lookup(h.l, obj2.l, field.l) === lookup(eh.l, obj2.l, field.l))),
+                  field.typ.freeTypeVars
+                )
+              )
+        )), size = 1) ++
+      (if(enableAllocationEncoding) // preserve "allocated" knowledge, where already true
         MaybeCommentedDecl("All previously-allocated references are still allocated", Axiom(Forall(
           vars ++ Seq(obj),
           /*Trigger(Seq(identicalFuncApp, lookup(h.l, obj.l, Const(allocName)))) ++*/
@@ -262,6 +290,14 @@ class DefaultHeapModule(val verifier: Verifier)
     Identifier(f.name + "#sm")(fieldNamespace)
   }
 
+  def wandMaskIdentifier(f: Identifier) = {
+    Identifier(f.name + "#sm")(fieldNamespace)
+  }
+
+  def wandFtIdentifier(f: Identifier) = {
+    Identifier(f.name + "#ft")(fieldNamespace)
+  }
+
   private def predicateMask(loc: sil.PredicateAccess):Exp = {
     predicateMask(loc, heap)
   }
@@ -272,6 +308,11 @@ class DefaultHeapModule(val verifier: Verifier)
     MapSelect(heapExp, Seq(nullLit,
       FuncApp(predicateMaskIdentifer(predicate),
         loc.args map translateExp, t)))
+  }
+
+  private def wandMask(wandMaskRep: Exp) = {
+    MapSelect(heapExp, Seq(nullLit,
+      wandMaskRep))
   }
 
   private def predicateTriggerIdentifier(f: sil.Predicate): Identifier = {
@@ -331,27 +372,32 @@ class DefaultHeapModule(val verifier: Verifier)
     FuncApp(locationIdentifier(pred), args, t)
   }
 
-  override def handleStmt(stmt: sil.Stmt): (Stmt, Stmt) =
-    stmt match {
-      case sil.MethodCall(_, _, targets) if enableAllocationEncoding =>
-        (Nil, targets filter (_.typ == sil.Ref) map translateExp map {
-          t =>
-            Assume(validReference(t))
-        })
-      case sil.Fold(sil.PredicateAccessPredicate(loc, perm)) => // AS: this should really be taken care of in the FuncPredModule (and factored out to share code with unfolding case, if possible)
-        (Nil, {val newVersion = LocalVar(Identifier("freshVersion"), funcPredModule.predicateVersionType)
-        val resetPredicateInfo : Stmt = (predicateMask(loc) := zeroPMask) ++
-          Havoc(newVersion) ++
-          (translateLocationAccess(loc) := newVersion)
+  override def handleStmt(s: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), insidePackageStmt: Boolean = false) : (Seqn => Seqn) = {
 
-        If(UnExp(Not,hasDirectPerm(loc)), resetPredicateInfo, Nil) ++
-          addPermissionToPMask(loc) ++ stateModule.assumeGoodState}  )
-      case sil.FieldAssign(lhs, rhs) =>
-        (Nil, translateLocationAccess(lhs) := translateExp(rhs) ) // after all checks
-      case _ => super.handleStmt(stmt)
-    }
+      stmt => (
+        s match {
+          case sil.MethodCall(_, _, targets) if enableAllocationEncoding =>
+            stmt ++ (targets filter (_.typ == sil.Ref) map translateExp map {
+              t =>
+                Assume(validReference(t))
+            })
+          case sil.Fold(sil.PredicateAccessPredicate(loc, perm)) => // AS: this should really be taken care of in the FuncPredModule (and factored out to share code with unfolding case, if possible)
+            stmt ++ ({val newVersion = LocalVar(Identifier("freshVersion"), funcPredModule.predicateVersionType)
+              val resetPredicateInfo : Stmt = (predicateMask(loc) := zeroPMask) ++
+                Havoc(newVersion) ++
+                (translateLocationAccess(loc) := newVersion)
 
-  override def simpleHandleStmt(stmt: sil.Stmt): Stmt = {
+              If(UnExp(Not,hasDirectPerm(loc)), resetPredicateInfo, Nil) ++
+                addPermissionToPMask(loc) ++ stateModule.assumeGoodState}  )
+          case sil.FieldAssign(lhs, rhs) =>
+            stmt ++ (translateLocationAccess(lhs) := translateExp(rhs) ) // after all checks
+          case _ => simpleHandleStmt(s) ++ stmt
+        }
+      )
+
+  }
+
+  override def simpleHandleStmt(stmt: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), insidePackageStmt: Boolean = false): Stmt = {
     stmt match {
       case sil.NewStmt(target,fields) =>
         Havoc(freshObjectVar) ::
@@ -376,6 +422,25 @@ class DefaultHeapModule(val verifier: Verifier)
     }
   }
 
+
+  override def addPermissionToWMask(wMask: Exp, e: sil.Exp): Stmt = {
+    e match {
+      case sil.FieldAccessPredicate(loc, perm) =>
+        translateLocationAccess(loc, wandMask(wMask)) := TrueLit()
+      case sil.PredicateAccessPredicate(loc, perm) =>
+        val newPMask = LocalVar(Identifier("newPMask"), pmaskType)
+        val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
+        val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
+        val pm1 = MapSelect(wandMask(wMask), Seq(obj.l, field.l))
+        val pm2 = MapSelect(predicateMask(loc), Seq(obj.l, field.l))
+        val pm3 = MapSelect(newPMask, Seq(obj.l, field.l))
+        Havoc(newPMask) ++
+          Assume(Forall(Seq(obj, field), Seq(Trigger(pm3)), (pm1 || pm2) ==> pm3)) ++
+          (wandMask(wMask) := newPMask)
+      case _ =>
+        Statements.EmptyStmt
+    }
+  }
   /**
    * Adds the permissions from the body of a predicate to its permission mask.
    */
@@ -406,11 +471,14 @@ class DefaultHeapModule(val verifier: Verifier)
         val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
         val pm1 = MapSelect(pmask, Seq(obj.l, field.l))
         val pm2 = MapSelect(newPMask, Seq(obj.l, field.l))
+        val res =
           MaybeComment("register all known folded permissions guarded by predicate " + loc.predicateName,
             Havoc(newPMask) ++
               Assume(Forall(Seq(obj, field), Seq(Trigger(pm2)), (pm1 ==> pm2))) ++
                 Assume(Forall(translateLocalVarDecl(vFresh),Seq(),translatedCond ==> (translateLocationAccess(renamingFieldAccess, newPMask) === TrueLit()) ))) ++
             (pmask := newPMask)
+        env.undefine(vFresh.localVar)
+        res
       case sil.FieldAccessPredicate(loc, perm) =>
         translateLocationAccess(loc, pmask) := TrueLit()
       case sil.PredicateAccessPredicate(loc, perm) =>
@@ -474,15 +542,20 @@ class DefaultHeapModule(val verifier: Verifier)
     heap = s(0) // note: this should be accessed via heapVar or heapExp as appropriate (whether a variable is essential or not)
   }
 
+  def equateWithCurrentHeap(s: Seq[Var]): Stmt ={
+    Assume(heap === s(0))
+  }
+
   override def usingOldState = stateModuleIsUsingOldState
 
 
   override def beginExhale: Stmt = {
-    Havoc(exhaleHeap)
+//    Havoc(exhaleHeap)
+    Statements.EmptyStmt
   }
 
   override def endExhale: Stmt = {
-    if (!usingOldState) Assume(FuncApp(identicalOnKnownLocsName, Seq(heapExp, exhaleHeap) ++ currentMask, Bool)) ++
+    if (!usingOldState) Havoc(exhaleHeap) ++ Assume(FuncApp(identicalOnKnownLocsName, Seq(heapExp, exhaleHeap) ++ currentMask, Bool)) ++
       (heapVar := exhaleHeap)
     else Nil
   }

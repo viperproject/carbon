@@ -1,8 +1,8 @@
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- */
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2019 ETH Zurich.
 
 package viper.carbon.modules.impls
 
@@ -30,7 +30,7 @@ import viper.carbon.boogie.Assert
 import viper.carbon.boogie.ConstDecl
 import viper.carbon.boogie.Const
 import viper.carbon.boogie.LocalVar
-import viper.silver.ast.{LocationAccess, NoPerm, PermGtCmp, PermMul, PredicateAccess, PredicateAccessPredicate, ResourceAccess, WildcardPerm}
+import viper.silver.ast.{LocationAccess, PermMul, PredicateAccess, PredicateAccessPredicate, ResourceAccess, WildcardPerm}
 import viper.carbon.boogie.Forall
 import viper.carbon.boogie.Assign
 import viper.carbon.boogie.Func
@@ -98,6 +98,8 @@ class QuantifiedPermModule(val verifier: Verifier)
   private val goodMaskName = Identifier("GoodMask")
   private val hasDirectPermName = Identifier("HasDirectPerm")
   private val predicateMaskFieldName = Identifier("PredicateMaskField")
+  private val wandMaskFieldName = Identifier("WandMaskField")
+
 
   private val resultMask = LocalVarDecl(Identifier("ResultMask"),maskType)
   private val summandMask1 = LocalVarDecl(Identifier("SummandMask1"),maskType)
@@ -143,6 +145,9 @@ class QuantifiedPermModule(val verifier: Verifier)
         permInZeroPMask === FalseLit())) ::
       // predicate mask function
       Func(predicateMaskFieldName,
+        Seq(LocalVarDecl(Identifier("f"), predicateVersionFieldType())),
+        predicateMaskFieldType) ::
+      Func(wandMaskFieldName,
         Seq(LocalVarDecl(Identifier("f"), predicateVersionFieldType())),
         predicateMaskFieldType) ::
       // permission amount constants
@@ -238,6 +243,10 @@ class QuantifiedPermModule(val verifier: Verifier)
     FuncApp(predicateMaskFieldName, Seq(pred), pmaskType)
   }
 
+  override def wandMaskField(wand: Exp): Exp = {
+    FuncApp(wandMaskFieldName, Seq(wand), pmaskType)
+  }
+
   def staticGoodMask = FuncApp(goodMaskName, LocalVar(maskName, maskType), Bool)
 
   private def permAdd(a: Exp, b: Exp): Exp = a + b
@@ -286,9 +295,18 @@ class QuantifiedPermModule(val verifier: Verifier)
   def sumMask(summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp =
     FuncApp(sumMasks, currentMask++summandMask1++summandMask2,Bool)
 
-  override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
+  override def containsWildCard(e: sil.Exp): Boolean = {
     e match {
       case sil.AccessPredicate(loc, prm) =>
+        val p = PermissionSplitter.normalizePerm(prm)
+        p.isInstanceOf[sil.WildcardPerm]
+      case _ => false
+    }
+  }
+
+  override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
+    e match {
+      case sil.AccessPredicate(loc: LocationAccess, prm) =>
         val p = PermissionSplitter.normalizePerm(prm)
         val perms = PermissionSplitter.splitPerm(p) filter (x => x._1 - 1 == exhaleModule.currentPhaseId)
         (if (exhaleModule.currentPhaseId == 0)
@@ -707,6 +725,18 @@ class QuantifiedPermModule(val verifier: Verifier)
     inhaleAux(e, Assume)
   }
 
+  override def inhaleWandFt(w: sil.MagicWand): Stmt = {
+    val wandRep = wandModule.getWandFtSmRepresentation(w, 0)
+    val curPerm = currentPermission(translateNull, wandRep)
+    (if (!usingOldState) curPerm := permAdd(curPerm, fullPerm) else Nil)
+  }
+
+  override def exhaleWandFt(w: sil.MagicWand): Stmt = {
+      val wandRep = wandModule.getWandFtSmRepresentation(w, 0)
+      val curPerm = currentPermission(translateNull, wandRep)
+      (if (!usingOldState) curPerm := permSub(curPerm, fullPerm) else Nil)
+  }
+
   /*
    * same as the original inhale except that it abstracts over the way assumptions are expressed in the
    * Boogie program
@@ -714,7 +744,7 @@ class QuantifiedPermModule(val verifier: Verifier)
    */
   private def inhaleAux(e: sil.Exp, assmsToStmt: Exp => Stmt):Stmt = {
     e match {
-      case sil.AccessPredicate(loc, prm) =>
+      case sil.AccessPredicate(loc: LocationAccess, prm) =>
         val perm = PermissionSplitter.normalizePerm(prm)
         val curPerm = currentPermission(loc)
         val permVar = LocalVar(Identifier("perm"), permType)
@@ -1210,6 +1240,10 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   val currentAbstractReads = collection.mutable.ListBuffer[String]()
 
+  override def getCurrentAbstractReads(): ListBuffer[String] = {
+    currentAbstractReads
+  }
+
   private def isAbstractRead(exp: sil.Exp) = {
     exp match {
       case sil.LocalVar(name) => currentAbstractReads.contains(name)
@@ -1236,16 +1270,20 @@ class QuantifiedPermModule(val verifier: Verifier)
       (bvs map (v => Assume((v > noPerm) && (v < fullPerm))))
   }
 
-  override def handleStmt(s: sil.Stmt) : (Stmt,Stmt) =
-    s match {
-      case n@sil.NewStmt(target,fields) =>
-        (Nil,for (field <- fields) yield {
-          Assign(currentPermission(sil.FieldAccess(target, field)()), currentPermission(sil.FieldAccess(target, field)()) + fullPerm)
-        })
-      case assign@sil.FieldAssign(fa, rhs) =>
-        (Nil, Assert(permGe(currentPermission(fa), fullPerm, true), errors.AssignmentFailed(assign).dueTo(reasons.InsufficientPermission(fa)))) // add the check after the definedness checks for LHS/RHS (in heap module)
-      case _ => (Nil,Nil)
-    }
+  override def handleStmt(s: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), insidePackageStmt: Boolean = false) : (Seqn => Seqn) = {
+    stmts =>
+      s match {
+        case n@sil.NewStmt(target, fields) =>
+          stmts ++ (for (field <- fields) yield {
+            Assign(currentPermission(sil.FieldAccess(target, field)()), currentPermission(sil.FieldAccess(target, field)()) + fullPerm)
+          })
+        case assign@sil.FieldAssign(fa, rhs) =>
+           stmts ++ Assert(permGe(currentPermission(fa), fullPerm, true), errors.AssignmentFailed(assign).dueTo(reasons.InsufficientPermission(fa))) // add the check after the definedness checks for LHS/RHS (in heap module)
+        case _ =>
+          //        (Nil, Nil)
+          stmts
+      }
+  }
 
   private def permEq(a: Exp, b: Exp): Exp = {
     a === b
@@ -1273,8 +1311,10 @@ class QuantifiedPermModule(val verifier: Verifier)
   override val numberOfPhases = 3
   override def isInPhase(e: sil.Exp, phaseId: Int): Boolean = {
     e match {
+      case sil.MagicWand(_,_) => phaseId == 0   // disable the three-phase exhale for magic wands. This should come before AccessPredicate case as magic wands extend Access predicate.
       case sil.AccessPredicate(loc, perm) => true // do something in all phases
-      case _ => phaseId == 0
+      case _ =>
+        phaseId == 0
     }
   }
 
@@ -1290,7 +1330,8 @@ class QuantifiedPermModule(val verifier: Verifier)
   // The trick is somewhat fragile, in that it relies on the ordering of the calls to this method (but generally works out because of the recursive traversal of the assertion).
   private var allowLocationAccessWithoutPerm = false
   override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
-    if(makeChecks) (
+
+    val stmt: Stmt = if(makeChecks) (
       e match {
         case sil.CurrentPerm(loc) =>
           allowLocationAccessWithoutPerm = true
@@ -1303,13 +1344,15 @@ class QuantifiedPermModule(val verifier: Verifier)
             allowLocationAccessWithoutPerm = false
             Nil
           } else {
-            Assert(hasDirectPerm(fa), error.dueTo(reasons.InsufficientPermission(fa)))
+              Assert(hasDirectPerm(fa), error.dueTo(reasons.InsufficientPermission(fa)))
           }
         case sil.PermDiv(a, b) =>
-          Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
+            Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
         case _ => Nil
       }
       ) else Nil
+
+    stmt
   }
 
   /*For QP \forall x:T :: c(x) ==> acc(e(x),p(x)) this case class describes an instantiation of the QP where

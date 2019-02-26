@@ -1,8 +1,8 @@
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- */
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2019 ETH Zurich.
 
 package viper.carbon
 
@@ -10,7 +10,7 @@ import ch.qos.logback.classic.Logger
 import viper.silver.frontend.{SilFrontend, SilFrontendConfig}
 import viper.silver.logger.ViperStdOutLogger
 import viper.silver.reporter.{Reporter, StdIOReporter}
-import viper.silver.verifier.{Failure => SilFailure, Success => SilSuccess, Verifier => SilVerifier}
+import viper.silver.verifier.{Verifier => SilVerifier}
 
 /**
  * The main object for Carbon containing the execution start-point.

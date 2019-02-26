@@ -6,22 +6,23 @@
 
 package viper.carbon
 
-import viper.silver.testing.SilSuite
-import viper.silver.verifier.Verifier
-import viper.silver.frontend.Frontend
 import java.nio.file.Path
 
+import org.scalatest.DoNotDiscover
+
+import viper.silver.frontend.Frontend
 import viper.silver.logger.SilentLogger
 import viper.silver.reporter.NoopReporter
+import viper.silver.testing.SilSuite
+import viper.silver.verifier.Verifier
 
-/** All tests for carbon.
-
+/**
+  * Currently, we do not run the graph tests by default. This could be easily changed later by removing the
+  * [[DoNotDiscover]] annotation.
   */
-class AllTests extends SilSuite {
-   override def testDirectories: Seq[String] = Vector("local", "all", "quantifiedpermissions", "quantifiedpredicates", "quantifiedcombinations", "wands", "examples"
-//  override def testDirectories: Seq[String] = Vector("wandsAhmed"
-    //, "generated"
-  )
+@DoNotDiscover
+class GraphTests extends SilSuite {
+  override def testDirectories: Seq[String] = Vector("graphs")
 
   override def frontend(verifier: Verifier, files: Seq[Path]): Frontend = {
     require(files.length == 1, "tests should consist of exactly one file")

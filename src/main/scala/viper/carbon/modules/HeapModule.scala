@@ -1,14 +1,15 @@
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- */
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2019 ETH Zurich.
 
 package viper.carbon.modules
 
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.modules.components.CarbonStateComponent
+import viper.silver.ast.{LocationAccess, MagicWand}
 
 /**
  * A module for translating heap expressions (access, updating) and determining
@@ -74,6 +75,14 @@ trait HeapModule extends Module with CarbonStateComponent {
    * Definitions for the ghost field of a predicate.
    */
   def predicateGhostFieldDecl(f: sil.Predicate): Seq[Decl]
+
+  /**
+   * Translation of a resource access (field read/write, predicate or wand instance)
+   */
+  def translateResourceAccess(r: sil.ResourceAccess): Exp = r match {
+    case la: LocationAccess => translateLocationAccess(la)
+    case mw: MagicWand => sys.error(s"Unexpectedly found magic wand $mw")
+  }
 
   /**
    * Translation of a field read or predicate instance
@@ -142,4 +151,24 @@ trait HeapModule extends Module with CarbonStateComponent {
   def currentHeap:Seq[Exp]
 
   def identicalOnKnownLocations(heap:Seq[Exp],mask:Seq[Exp]):Exp
+
+  /**
+    * Adds assumption that current heap equals heap represented by s
+    */
+  def equateWithCurrentHeap(s: Seq[Var]): Stmt
+
+  // returns wand#sm (secondary mask for the wand)
+  def wandMaskIdentifier(f: Identifier): Identifier
+
+  // returns wand#ft (footprint of the magic wand)
+  // this is inhaled at the beginning of packaging a wand to frame fields while the wand being packaged (
+  // as the permission to the wand is gained at the end of the package statement)
+  def wandFtIdentifier(f: Identifier): Identifier
+
+  def predicateMaskFieldTypeOfWand(wand: String): Type
+
+  def predicateVersionFieldTypeOfWand(wand: String): Type
+
+  // adds permission to field e to the secondary mask of the wand
+  def addPermissionToWMask(wMask: Exp, e: sil.Exp): Stmt
 }

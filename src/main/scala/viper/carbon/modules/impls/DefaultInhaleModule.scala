@@ -1,8 +1,8 @@
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- */
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2019 ETH Zurich.
 
 package viper.carbon.modules.impls
 
@@ -29,11 +29,25 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule with Stat
     register(this)
   }
 
-  override def inhale(exps: Seq[sil.Exp]): Stmt = {
-    (exps map (e => inhaleConnective(e.whenInhaling))) ++
-      MaybeCommentBlock("Free assumptions",
-        exps map (e => allFreeAssumptions(e))) ++
-      assumeGoodState
+  override def inhale(exps: Seq[sil.Exp], statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt = {
+    val current_state = stateModule.state
+    if(insidePackageStmt){ // replace currentState with the correct state in which the inhale occurs during packaging the wand
+      stateModule.replaceState(statesStackForPackageStmt(0).asInstanceOf[StateRep].state)
+    }
+
+
+    val stmt =
+        (exps map (e => inhaleConnective(e.whenInhaling))) ++
+          MaybeCommentBlock("Free assumptions",
+            exps map (e => allFreeAssumptions(e))) ++
+          assumeGoodState
+
+    if(insidePackageStmt) { // all the assumption made during packaging a wand (except assumptions about the global state before the package statement)
+                 // should be replaced conjunction to state booleans (see documentation for 'exchangeAssumesWithBoolean')
+      stateModule.replaceState(current_state)
+      wandModule.exchangeAssumesWithBoolean(stmt, statesStackForPackageStmt.head.asInstanceOf[StateRep].boolVar)
+    }else
+      stmt
   }
 
   def containsFunc(exp: sil.Exp): Boolean = {
@@ -72,8 +86,11 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule with Stat
       case _ =>
         val stmt = components map (_.inhaleExp(e))
         if (stmt.children.isEmpty) sys.error(s"missing translation for inhaling of $e")
-        (if (containsFunc(e)) Seq(assumeGoodState) else Seq()) ++ stmt ++ (if (e.isPure) Seq() else Seq(assumeGoodState))
+        val retStmt = (if (containsFunc(e)) Seq(assumeGoodState) else Seq()) ++ stmt ++ (if (e.isPure) Seq() else Seq(assumeGoodState))
         //(if (containsFunc(e)) assumeGoodState else Seq[Stmt]()) ++ stmt ++ (if (e.isPure) Seq[Stmt]() else assumeGoodState)
+
+        // if we are inside package statement, then all assumptions should be replaced with conjinctions with ops.boolVar
+          retStmt
     }
   }
 
