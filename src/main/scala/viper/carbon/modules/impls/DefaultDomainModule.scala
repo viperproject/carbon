@@ -67,7 +67,9 @@ class DefaultDomainModule(val verifier: Verifier) extends DomainModule with Stat
     if (funct.unique) {
       Const(Identifier(funct.name))
     } else {
-      FuncApp(Identifier(funct.name), fa.args map translateExp, translateType(fa.typ))
+      val res = FuncApp(Identifier(funct.name), fa.args map translateExp, translateType(fa.typ))
+      res.showReturnType = true
+      res
     }
   }
 
