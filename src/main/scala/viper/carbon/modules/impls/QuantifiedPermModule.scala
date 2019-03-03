@@ -532,7 +532,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
             //assumption for locations that are definitely independent of any of the locations part of the QP (i.e. different
             //field)
-            val independentLocations = Assume(Forall(Seq(obj,field), Trigger(currentPermission(obj.l,field.l))++
+            val independentLocations = Assume(Forall(Seq(obj,field), //Trigger(currentPermission(obj.l,field.l))++
               Trigger(currentPermission(qpMask,obj.l,field.l)),(field.l !== translatedLocation) ==>
               (currentPermission(obj.l,field.l) === currentPermission(qpMask,obj.l,field.l))) )
             val triggersForPermissionUpdateAxiom = Seq(Trigger(currentPermission(qpMask,obj.l,translatedLocation)))
@@ -634,7 +634,8 @@ class QuantifiedPermModule(val verifier: Verifier)
               } else {
                 (currentPermission(translateNull, translatedLocation) >= translatedPerms)
               }
-            val enoughPerm = Assert(Forall(translatedLocal, tr1, translatedCond ==> permNeeded),
+
+            val enoughPerm = Assert(Forall(translatedLocal, /*tr1*/ Trigger(Seq(triggerFunApp)), translatedCond ==> permNeeded),
               error.dueTo(reasons.InsufficientPermission(predAccPred.loc)))
 
             //if we exhale a wildcard permission, assert that we hold some permission to all affected locations and restrict the wildcard value
