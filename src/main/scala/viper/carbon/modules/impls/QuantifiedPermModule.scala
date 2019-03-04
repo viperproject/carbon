@@ -506,7 +506,7 @@ class QuantifiedPermModule(val verifier: Verifier)
               }
 
             //assert that we possess enough permission to exhale the permission indicated
-            val enoughPerm = Assert(Forall(translateLocalVarDecl(vFresh), /*tr1*/ Trigger(Seq(triggerFunApp)), translatedCond ==> permNeeded),
+            val enoughPerm = Assert(Forall(translateLocalVarDecl(vFresh), tr1, translatedCond ==> permNeeded),
               error.dueTo(reasons.InsufficientPermission(fieldAccess)))
 
             //if the permission is a wildcard, we check that we have some permission > 0 for all locations and assume that the permission substracted is smaller than the permission held.
@@ -635,7 +635,7 @@ class QuantifiedPermModule(val verifier: Verifier)
                 (currentPermission(translateNull, translatedLocation) >= translatedPerms)
               }
 
-            val enoughPerm = Assert(Forall(translatedLocal, /*tr1*/ Trigger(Seq(triggerFunApp)), translatedCond ==> permNeeded),
+            val enoughPerm = Assert(Forall(translatedLocal, tr1, translatedCond ==> permNeeded),
               error.dueTo(reasons.InsufficientPermission(predAccPred.loc)))
 
             //if we exhale a wildcard permission, assert that we hold some permission to all affected locations and restrict the wildcard value
