@@ -458,7 +458,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       // we use a fresh namespace to make sure we get fresh variables
       Identifier(x.name)(namespace)
       ))
-    Transformer.transform(res, {
+    NondetIf(Seqn(Seq(Transformer.transform(res, {
       case v@LocalVar(name, _) =>
         newVars.find(x => (name == x._1.name)) match {
           case None => v // no change
@@ -466,7 +466,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             // use the new variable
             LocalVar(xb, x.typ)
         }
-    })()
+    })(),Assume(FalseLit()))))
   }
 
 
