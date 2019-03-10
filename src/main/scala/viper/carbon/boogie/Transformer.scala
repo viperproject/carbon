@@ -71,6 +71,7 @@ object Transformer {
             case GlobalVar(n, t) => GlobalVar(n, go(t))
             case Const(i) => parent
             case MapSelect(map, idxs) => MapSelect(go(map), idxs map go)
+            case MapUpdate(map, idxs, value) => MapUpdate(go(map), idxs map go, go(value))
             case Old(exp) => Old(go(exp))
             case CondExp(cond, thn, els) => CondExp(go(cond), go(thn), go(els))
             case Exists(v, exp) => Exists(v map go, go(exp))
@@ -176,6 +177,8 @@ object DuplicatingTransformer {
             case Const(i) => Seq(parent)
             case MapSelect(map, idxs) =>
               for {mapResult <- go(map); idxsResult <- goSeq(idxs)} yield MapSelect(mapResult, idxsResult)
+            case MapUpdate(map, idxs, value) =>
+              for {mapResult <- go(map); idxsResult <- goSeq(idxs); valueResult <- go(value)} yield MapUpdate(mapResult, idxsResult, valueResult)
             case Old(exp) => go(exp) map (Old(_))
             case CondExp(cond, thn, els) =>
               for {condResult <- go(cond); thnResult <- go(thn); elsResult <- go(els)} yield

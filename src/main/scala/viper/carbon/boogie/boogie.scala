@@ -284,6 +284,8 @@ case class FuncApp(name: Identifier, args: Seq[Exp], typ: Type) extends Exp {
 
 case class MapSelect(map: Exp, idxs: Seq[Exp]) extends Exp
 
+case class MapUpdate(map: Exp, idxs: Seq[Exp], value: Exp) extends Exp
+
 // --- Statements
 
 sealed trait Stmt extends Node {

@@ -806,6 +806,7 @@ class QuantifiedPermModule(val verifier: Verifier)
       case BoolLit(_) => true
 
       case MapSelect(_, idxs) => idxs.map(validTriggerTypes).reduce((b1, b2) => b1 && b2)
+      case MapUpdate(_, idxs, value) => idxs.map(validTriggerTypes).reduce((b1, b2) => b1 && b2) && validTriggerTypes(value)
       case FuncApp(_, args, _) => args.map(validTriggerTypes).reduce((b1, b2) => b1 && b2)
       /* BinExp should be refined to Add, Sub, Mul, Div, Mod. user-triggers will not be allowed invalid types.
          other triggers should not be generated.

@@ -382,6 +382,8 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
       case Old(exp) => text("old") <> parens(show(exp))
       case MapSelect(map, idxs) =>
         show(map) <> "[" <> commasep(idxs) <> "]"
+      case MapUpdate(map, idxs, value) =>
+        show(map) <> "[" <> commasep(idxs) <> ":=" <> show(value) <> "]"
       case f@FuncApp(name, args, typ) =>
         // if the return type of the function is generic, include a type annotation
         // also, if the FuncApp is explicitly flagged (showReturn
