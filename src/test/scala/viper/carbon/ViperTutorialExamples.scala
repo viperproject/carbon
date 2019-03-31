@@ -4,12 +4,11 @@
 //
 // Copyright (c) 2011-2019 ETH Zurich.
 
-package viper.carbon.modules.components
+package viper.carbon
 
-/**
- * Common trait for components.
+import org.scalatest.DoNotDiscover
 
- */
-trait Component {
-
+@DoNotDiscover
+class ViperTutorialExamples extends AllTests {
+  override val testDirectories = Seq("viper_tutorial_examples")
 }

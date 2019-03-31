@@ -1,12 +1,12 @@
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- */
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2019 ETH Zurich.
 
 package viper.carbon.modules
 
-import components.{InhaleComponent, ComponentRegistry}
+import components.{ComponentRegistry, InhaleComponent}
 import viper.silver.{ast => sil}
 import viper.carbon.boogie.Stmt
 
@@ -22,5 +22,11 @@ import viper.carbon.boogie.Stmt
 
  */
 trait InhaleModule extends Module with InhaleComponent with ComponentRegistry[InhaleComponent] {
-  def inhale(exp: Seq[sil.Exp]): Stmt
+  /**
+    * statesStackForPackageStmt: stack of states used in translating statements during packaging a wand (carries currentState and LHS of wands)
+    * insidePackageStmt: Boolean that represents whether this method is being called during packaging a wand or not.
+    * The 'statesStackForPackageStmt' and 'insidePackageStmt' are used when translating statements during packaging a wand.
+    * For more details refer to the general note in 'wandModule'.
+    */
+  def inhale(exp: Seq[sil.Exp], statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt
 }

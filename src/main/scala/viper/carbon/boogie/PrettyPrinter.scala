@@ -1,8 +1,8 @@
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- */
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2019 ETH Zurich.
 
 package viper.carbon.boogie
 
@@ -49,6 +49,7 @@ object PrettyPrinter {
 }
 
 /**
+**
  * The class that implements most of the pretty-printing functionality.
  */
 class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
@@ -381,6 +382,8 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
       case Old(exp) => text("old") <> parens(show(exp))
       case MapSelect(map, idxs) =>
         show(map) <> "[" <> commasep(idxs) <> "]"
+      case MapUpdate(map, idxs, value) =>
+        show(map) <> "[" <> commasep(idxs) <> ":=" <> show(value) <> "]"
       case f@FuncApp(name, args, typ) =>
         // if the return type of the function is generic, include a type annotation
         // also, if the FuncApp is explicitly flagged (showReturn

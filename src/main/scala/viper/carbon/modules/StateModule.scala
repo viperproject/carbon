@@ -1,14 +1,14 @@
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- */
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2019 ETH Zurich.
 
 package viper.carbon.modules
 
 import components.{CarbonStateComponent, ComponentRegistry}
 import viper.silver.components.StatefulComponent
-import viper.carbon.boogie.{LocalVarDecl, Exp, Stmt}
+import viper.carbon.boogie.{Exp, LocalVar, LocalVarDecl, Stmt}
 
 /**
  * A module for dealing with the state of a program during execution.  Allows other modules
@@ -144,5 +144,21 @@ trait StateModule extends Module with ComponentRegistry[CarbonStateComponent] wi
    * Analogous get operation to the put above.
    */
   def stateRepositoryGet(name:String) : Option[StateSnapshot]
-}
 
+  /*
+   * is used to store relevant blocks needed to use a newly created state in executing package statement
+   */
+
+  /**
+    * returns statement of equating heap represented by snapshot to current heap
+    * e.g. the returned statement is in the form of: Assume Heap1 == Heap2
+    */
+  def equateHeaps(snapshot: StateSnapshot, c: CarbonStateComponent):Stmt
+
+  /**
+    * Representation of state used in wandModule. Pair of stateSnapshot and boolean variable carrying assumptions about this state.
+    */
+  case class StateRep(state: StateSnapshot, boolVar: LocalVar)
+
+  case class StateSetup(usedState: StateRep, initStmt: Stmt)
+}

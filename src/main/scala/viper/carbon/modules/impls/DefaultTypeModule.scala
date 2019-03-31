@@ -1,8 +1,8 @@
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- */
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2019 ETH Zurich.
 
 package viper.carbon.modules.impls
 
@@ -41,11 +41,12 @@ class DefaultTypeModule(val verifier: Verifier) extends TypeModule with Stateles
       case t@sil.MultisetType(elemType) =>
         translateMultisetType(t)
       case sil.InternalType =>
-        sys.error("this is an internal type, not expected here")
+        sys.error("This is an internal type, not expected here")
       case sil.TypeVar(name) =>
         TypeVar(name)
       case t@sil.DomainType(_, _) =>
         translateDomainTyp(t)
+      case _ => sys.error("Viper type didn't match any existing case.")
     }
   }
 }

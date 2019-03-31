@@ -1,3 +1,9 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2019 ETH Zurich.
+
 /**
 ; These axioms are based on the DafnyPrelude.bpl file of Microsoft's Dafny tool.
 ; See http://dafny.codeplex.com for more information about the Dafny verifier.
@@ -49,10 +55,10 @@ object SetAxiomatization {
       |  a[y] ==> Set#Union(a, b)[y]);
       |axiom (forall<T> a, b: Set T, y: T :: { Set#Union(a, b), b[y] }
       |  b[y] ==> Set#Union(a, b)[y]);
-      |axiom (forall<T> a, b: Set T :: { Set#Union(a, b) }
-      |  Set#Disjoint(a, b) ==>
-      |    Set#Difference(Set#Union(a, b), a) == b &&
-      |    Set#Difference(Set#Union(a, b), b) == a);
+      |//axiom (forall<T> a, b: Set T :: { Set#Union(a, b) }
+      |//  Set#Disjoint(a, b) ==>
+      |//    Set#Difference(Set#Union(a, b), a) == b &&
+      |//    Set#Difference(Set#Union(a, b), b) == a);
       |
       |function Set#Intersection<T>(Set T, Set T): Set T;
       |axiom (forall<T> a: Set T, b: Set T, o: T :: { Set#Intersection(a,b)[o] }
@@ -95,9 +101,9 @@ object SetAxiomatization {
       |axiom(forall<T> a: Set T, b: Set T :: { Set#Equal(a,b) }  // extensionality axiom for sets
       |  Set#Equal(a,b) ==> a == b);
       |
-      |function Set#Disjoint<T>(Set T, Set T): bool;
-      |axiom (forall<T> a: Set T, b: Set T :: { Set#Disjoint(a,b) }
-      |  Set#Disjoint(a,b) <==> (forall o: T :: {a[o]} {b[o]} !a[o] || !b[o]));
+      |//function Set#Disjoint<T>(Set T, Set T): bool;
+      |//axiom (forall<T> a: Set T, b: Set T :: { Set#Disjoint(a,b) }
+      |//  Set#Disjoint(a,b) <==> (forall o: T :: {a[o]} {b[o]} !a[o] || !b[o]));
       |
       |// ---------------------------------------------------------------
       |// -- Axiomatization of multisets --------------------------------
