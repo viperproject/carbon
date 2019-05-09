@@ -20,7 +20,7 @@ import viper.carbon.boogie.Program
 import viper.carbon.verifier.Environment
 import viper.silver.verifier.errors
 import viper.carbon.verifier.Verifier
-import viper.silver.ast.utility.Rewriter.Traverse
+import viper.silver.ast.utility.rewriter.Traverse
 
 /**
  * The default implementation of a [[viper.carbon.modules.MainModule]].
