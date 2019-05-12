@@ -1,8 +1,8 @@
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- */
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2019 ETH Zurich.
 
 package viper.carbon.modules.impls
 
@@ -458,7 +458,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       // we use a fresh namespace to make sure we get fresh variables
       Identifier(x.name)(namespace)
       ))
-    Transformer.transform(res, {
+    NondetIf(Seqn(Seq(Transformer.transform(res, {
       case v@LocalVar(name, _) =>
         newVars.find(x => (name == x._1.name)) match {
           case None => v // no change
@@ -466,7 +466,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             // use the new variable
             LocalVar(xb, x.typ)
         }
-    })()
+    })(),Assume(FalseLit()))))
   }
 
 

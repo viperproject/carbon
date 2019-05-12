@@ -1,3 +1,9 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2019 ETH Zurich.
+
 package viper.carbon
 
 import java.nio.file.Path
@@ -18,20 +24,10 @@ import viper.silver.verifier.Verifier
 class GraphTests extends SilSuite {
   override def testDirectories: Seq[String] =
     Vector(
-      "graphs/dynamic/binary/edge_selectors/Harris-List",
-      "graphs/dynamic/binary/examples/CAV_running_example",
-      "graphs/dynamic/binary/binomial-heap",
-      "graphs/dynamic/unary/examples"
-      //"graphs/static",
-      //"graphs/dynamic/immutable",
-      //"graphs/dynamic/unary/utests",
-      //"graphs/dynamic/unary/examples",
-      //"graphs/dynamic/binary/utests",
-      //"graphs/dynamic/binary/examples"
-      //"graphs/dynamic/binary/edge_selectors",
-      //"graphs/dynamic/binary/binomial-heap"//,
-      //"graphs/dynamic/ternary/utests",
-      //"graphs/dynamic/ternary/examples"
+      "graphs/dynamic/immutable/utest",
+      "graphs/dynamic/unary/utest",
+      "graphs/dynamic/binary/utest",
+      "graphs/dynamic/examples"
     )
 
   override def frontend(verifier: Verifier, files: Seq[Path]): Frontend = {

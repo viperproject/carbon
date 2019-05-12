@@ -1,8 +1,8 @@
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- */
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2019 ETH Zurich.
 
 package viper.carbon.boogie
 
@@ -129,6 +129,7 @@ object Nodes {
           case GlobalVar(n, t) => Nil
           case Const(i) => Nil
           case MapSelect(map, idxs) => Seq(map) ++ idxs
+          case MapUpdate(map, idxs, value) => Seq(map) ++ idxs ++ Seq(value)
           case Old(exp) => Seq(exp)
           case CondExp(cond, thn, els) => Seq(cond, thn, els)
           case Exists(v, exp) => v ++ Seq(exp)
@@ -161,6 +162,7 @@ object Nodes {
           case GlobalVar(n, tt) => exp
           case Const(i) => exp
           case MapSelect(map, idxs) => MapSelect(func(map), idxs map func)
+          case MapUpdate(map, idxs, value) => MapUpdate(func(map), idxs map func, func(value))
           case Old(e) => Old(func(e))
           case CondExp(cond, thn, els) => CondExp(func(cond), func(thn), func(els))
           case Exists(v, e) => Exists(v, func(e))

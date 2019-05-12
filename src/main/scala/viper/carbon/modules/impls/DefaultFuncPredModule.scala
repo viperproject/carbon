@@ -1,8 +1,8 @@
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- */
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2019 ETH Zurich.
 
 package viper.carbon.modules.impls
 
@@ -546,7 +546,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           val res = CommentedDecl("Function used for framing of quantified permission " + qp.toString() +  " in " + originalName,
             condFunc ++
             Axiom(
-              Forall(heap1 ++ heap2 ++ origArgs, Seq(Trigger(Seq(funApp1, funApp2))),
+              Forall(heap1 ++ heap2 ++ origArgs, Seq(Trigger(Seq(funApp1, funApp2, heapModule.successorHeapState(heap1,heap2)))),
                   (Forall(Seq(translateLocalVarDecl(vFresh)), triggers,
                     (translatedCond1 <==> translatedCond2) && (translatedCond1 ==> (locationAccess1 === locationAccess2))) ==> (funApp1 === funApp2))
                   ))
@@ -801,7 +801,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   }
 
   private def unfoldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError, isUnfolding: Boolean
-                             ,statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt = {
+                             ,statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false, exhaleUnfoldedPredicate : Boolean = true): Stmt = {
     val oldDuringUnfold = duringUnfold
     val oldDuringUnfolding = duringUnfolding
     val oldUnfoldInfo = unfoldInfo
@@ -817,9 +817,9 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         val translatedArgs = location.args map translateExp
         Assume(translateLocationAccess(location) === getPredicateFrame(predicate,translatedArgs)._1)
       } ++
-      exhale(Seq((acc, error)), havocHeap = false, statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt) ++
-      inhale(Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program).get,acc.perm), statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt
-      )
+      (if(exhaleUnfoldedPredicate)
+          exhale(Seq((acc, error)), havocHeap = false, statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
+      else Nil) ++ inhale(Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program).get,acc.perm), statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
     unfoldInfo = oldUnfoldInfo
     duringUnfold = oldDuringUnfold
     duringFold = oldDuringFold
@@ -835,7 +835,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         tmpStateId += 1
         val tmpStateName = if (tmpStateId == 0) "Unfolding" else s"Unfolding$tmpStateId"
         val (stmt, state) = stateModule.freshTempState(tmpStateName)
-        val stmts = stmt ++ unfoldPredicate(acc, NullPartialVerificationError, true)
+        val stmts = stmt ++ unfoldPredicate(acc, NullPartialVerificationError, isUnfolding = true, exhaleUnfoldedPredicate = false) // skip removing the predicate instance, since this will have happened earlier in the assertion being exhaled
         tmpStateId -= 1
         stateModule.replaceState(state)
         duringUnfoldingExtraUnfold = false

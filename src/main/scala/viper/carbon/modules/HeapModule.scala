@@ -1,8 +1,8 @@
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- */
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2019 ETH Zurich.
 
 package viper.carbon.modules
 
@@ -53,8 +53,9 @@ trait HeapModule extends Module with CarbonStateComponent {
   def predicateVersionFieldTypeOf(p: sil.Predicate): Type
 
   /**
-   *
+   * Get a function application representing that one heap-state (as represented by currentStateContributions of HeapModule) is a predecessor of another
    */
+  def successorHeapState(first: Seq[LocalVarDecl], second: Seq[LocalVarDecl]) : Exp
 
   /**
    * The type used for wands.

@@ -1,8 +1,8 @@
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- */
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2019 ETH Zurich.
 
 package viper.carbon.modules.impls
 
@@ -72,6 +72,9 @@ class DefaultHeapModule(val verifier: Verifier)
   override def wandFieldType(wand: String) : Type = NamedType(fieldTypeName, Seq(wandBasicType(wand),Int))
   private val heapTyp = NamedType("HeapType")
   private val heapName = Identifier("Heap")
+  private val heap0Name = Identifier("Heap0")
+  private val heap1Name = Identifier("Heap1")
+  private val heap2Name = Identifier("Heap2")
   private val exhaleHeapName = Identifier("ExhaleHeap")
   private val exhaleHeap = LocalVar(exhaleHeapName, heapTyp)
   private val originalHeap = GlobalVar(heapName, heapTyp)
@@ -85,6 +88,8 @@ class DefaultHeapModule(val verifier: Verifier)
   private val freshObjectName = Identifier("freshObj")
   private val freshObjectVar = LocalVar(freshObjectName, refType)
   private lazy val allocName = if(enableAllocationEncoding) Identifier("$allocated")(fieldNamespace) else null
+  private val succHeapName = Identifier("succHeap")
+  private val succHeapTransName = Identifier("succHeapTrans")
   private val identicalOnKnownLocsName = Identifier("IdenticalOnKnownLocations")
   private val isPredicateFieldName = Identifier("IsPredicateField")
   private var PredIdMap:Map[String, BigInt] = Map()
@@ -117,6 +122,12 @@ class DefaultHeapModule(val verifier: Verifier)
           stateModule.staticStateContributions(withPermissions = false),
         Trigger(Seq(obj_refField)),
         validReference(obj.l) ==> validReference(obj_refField))) else Nil) ++
+      Func(succHeapName,
+        Seq(LocalVarDecl(heap0Name, heapTyp), LocalVarDecl(heap1Name, heapTyp)),
+        Bool) ++
+      Func(succHeapTransName,
+        Seq(LocalVarDecl(heap0Name, heapTyp), LocalVarDecl(heap1Name, heapTyp)),
+        Bool) ++
       Func(identicalOnKnownLocsName,
         Seq(LocalVarDecl(heapName, heapTyp), LocalVarDecl(exhaleHeapName, heapTyp)) ++ staticMask,
         Bool) ++
@@ -131,6 +142,9 @@ class DefaultHeapModule(val verifier: Verifier)
         Int) ++ {
       val h = LocalVarDecl(heapName, heapTyp)
       val eh = LocalVarDecl(exhaleHeapName, heapTyp)
+      val h0 = LocalVarDecl(heap0Name, heapTyp)
+      val h1 = LocalVarDecl(heap1Name, heapTyp)
+      val h2 = LocalVarDecl(heap2Name, heapTyp)
       val vars = Seq(h, eh) ++ staticMask
       val identicalFuncApp = FuncApp(identicalOnKnownLocsName, vars map (_.l), Bool)
       // frame all locations with direct permission
@@ -201,8 +215,48 @@ class DefaultHeapModule(val verifier: Verifier)
             Trigger(Seq(identicalFuncApp, lookup(eh.l, obj.l, Const(allocName)))),
           identicalFuncApp ==>
               (lookup(h.l, obj.l, Const(allocName)) ==> lookup(eh.l, obj.l, Const(allocName)))
-        )), size = 1) else Nil)
+        )), size = 1) else Nil) ++
+        MaybeCommentedDecl("Updated Heaps are Successor Heaps", {
+          val value = LocalVarDecl(Identifier("v"),TypeVar("B"));
+          val upd = MapUpdate(h.l,Seq(obj.l,field.l),value.l)
+          Axiom(Forall(
+            Seq(h, obj, field, value),
+            Trigger(Seq(upd))
+            ,
+            FuncApp(succHeapName, Seq(h.l, upd), Bool)
+          ))
+        }, size = 1) ++
+        MaybeCommentedDecl("IdenticalOnKnownLocations Heaps are Successor Heaps",
+          Axiom(Forall(
+            vars,
+            Trigger(Seq(identicalFuncApp))
+            ,
+            identicalFuncApp ==> FuncApp(succHeapName, Seq(h.l, eh.l), Bool)
+          )), size = 1) ++
+            MaybeCommentedDecl("Successor Heaps are Transitive Successor Heaps", {
+              val succHeapApp = FuncApp(succHeapName, Seq(h0.l, h1.l), Bool)
+              Axiom(Forall(
+                Seq(h0, h1),
+                Trigger(Seq(succHeapApp))
+                ,
+                succHeapApp ==> FuncApp(succHeapTransName, Seq(h0.l, h1.l), Bool)
+              ))
+            }, size = 1) ++
+        MaybeCommentedDecl("Transitivity of Transitive Successor Heaps", {
+          val succHeapTransApp = FuncApp(succHeapTransName, Seq(h0.l, h1.l), Bool)
+          val succHeapApp = FuncApp(succHeapName, Seq(h1.l, h2.l), Bool)
+          Axiom(Forall(
+            Seq(h0, h1, h2),
+            Trigger(Seq(succHeapTransApp,succHeapApp))
+            ,
+            (succHeapTransApp && succHeapApp) ==> FuncApp(succHeapTransName, Seq(h0.l, h2.l), Bool) // NOTE: ignore IDE warning - these parentheses are NOT spurious, due to how the overloaded && and ==> get desugared
+          ))
+        }, size = 1)
     }
+  }
+
+  override def successorHeapState(first: Seq[LocalVarDecl], second: Seq[LocalVarDecl]): Exp = {
+    FuncApp(succHeapTransName, (first ++ second) map (_.l), Bool)
   }
 
   override def isPredicateField(f: Exp): Exp = {

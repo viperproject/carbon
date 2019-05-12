@@ -1,8 +1,8 @@
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- */
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2019 ETH Zurich.
 
 package viper.carbon.modules.impls
 
@@ -37,7 +37,7 @@ import viper.carbon.boogie.Func
 import viper.carbon.boogie.TypeAlias
 import viper.carbon.boogie.FuncApp
 import viper.carbon.verifier.Verifier
-import viper.silver.ast.utility.Rewriter.Traverse
+import viper.silver.ast.utility.rewriter.Traverse
 
 import scala.collection.mutable.ListBuffer
 import viper.silver.ast.utility.QuantifiedPermissions.SourceQuantifiedPermissionAssertion
@@ -532,7 +532,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
             //assumption for locations that are definitely independent of any of the locations part of the QP (i.e. different
             //field)
-            val independentLocations = Assume(Forall(Seq(obj,field), Trigger(currentPermission(obj.l,field.l))++
+            val independentLocations = Assume(Forall(Seq(obj,field), //Trigger(currentPermission(obj.l,field.l))++
               Trigger(currentPermission(qpMask,obj.l,field.l)),(field.l !== translatedLocation) ==>
               (currentPermission(obj.l,field.l) === currentPermission(qpMask,obj.l,field.l))) )
             val triggersForPermissionUpdateAxiom = Seq(Trigger(currentPermission(qpMask,obj.l,translatedLocation)))
@@ -634,6 +634,7 @@ class QuantifiedPermModule(val verifier: Verifier)
               } else {
                 (currentPermission(translateNull, translatedLocation) >= translatedPerms)
               }
+
             val enoughPerm = Assert(Forall(translatedLocal, tr1, translatedCond ==> permNeeded),
               error.dueTo(reasons.InsufficientPermission(predAccPred.loc)))
 
@@ -805,6 +806,7 @@ class QuantifiedPermModule(val verifier: Verifier)
       case BoolLit(_) => true
 
       case MapSelect(_, idxs) => idxs.map(validTriggerTypes).reduce((b1, b2) => b1 && b2)
+      case MapUpdate(_, idxs, value) => idxs.map(validTriggerTypes).reduce((b1, b2) => b1 && b2) && validTriggerTypes(value)
       case FuncApp(_, args, _) => args.map(validTriggerTypes).reduce((b1, b2) => b1 && b2)
       /* BinExp should be refined to Add, Sub, Mul, Div, Mod. user-triggers will not be allowed invalid types.
          other triggers should not be generated.
