@@ -61,7 +61,7 @@ object SetAxiomatization {
       |//    Set#Difference(Set#Union(a, b), b) == a);
       |
       |function Set#Intersection<T>(Set T, Set T): Set T;
-      |axiom (forall<T> a: Set T, b: Set T, o: T :: { Set#Intersection(a,b)[o] }
+      |axiom (forall<T> a: Set T, b: Set T, o: T :: { Set#Intersection(a,b)[o] } {Set#Intersection(a,b), a[o]} {Set#Intersection(a,b), b[o]} // AS: added alternative triggers 20/06/19
       |  Set#Intersection(a,b)[o] <==> a[o] && b[o]);
       |
       |axiom (forall<T> a, b: Set T :: { Set#Union(Set#Union(a, b), b) }
