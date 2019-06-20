@@ -28,6 +28,8 @@ object SequenceAxiomatization {
                 | // diff 7 implemented
                 | // diff 8 implemented (allows for contains triggering, without destroying performance of e.g. functions/linkedlists test case)
                 | // diff 11 implemented
+                | // diff 13 implemented, for now (may reduce completeness, but there's a known matching loop when the first drop amount is 0); another option would be to add !=0 as an explicit condition
+                | // diff 14 implemented: eliminate index over take/drop for trivial cases (to avoid matching loops when e.g. s[i..] == s is known)
                 |// START BASICS
                 |type Seq T;
                 |
@@ -129,21 +131,21 @@ object SequenceAxiomatization {
                 |// diff 5: split axiom, added triggering case, exhanged arithmetic
                 |
                 |axiom (forall<T> s: Seq T, n: int, j: int :: { Seq#Index(Seq#Drop(s,n), j) } // {:weight 25} // AS: dropped weight
-                |  0 <= n && 0 <= j && j < Seq#Length(s)-n ==>
+                |  0 < n && 0 <= j && j < Seq#Length(s)-n ==> // diff 14: change 0 <= n to 0 < n
                 |   Seq#Sub(Seq#Add(j,n),n) == j && Seq#Index(Seq#Drop(s,n), j) == Seq#Index(s, Seq#Add(j,n)));
                 |
                 |axiom (forall<T> s: Seq T, n: int, i: int :: { Seq#Drop(s,n), Seq#Index(s,i) }
-                |  0 <= n && n <= i && i < Seq#Length(s) ==>
+                |  0 < n && n <= i && i < Seq#Length(s) ==> // diff 14: change 0 <= n to 0 < n
                 |  Seq#Add(Seq#Sub(i,n),n) == i && Seq#Index(Seq#Drop(s,n), Seq#Sub(i,n)) == Seq#Index(s, i)); // i = j + n, j = i - n
                 |
                 |// (diff 6a: add axioms for the 0 > n case)
                 |axiom (forall<T> s: Seq T, n: int, j: int :: { Seq#Index(Seq#Drop(s,n), j) } // {:weight 25} // AS: dropped weight
-                |  n < 0 && 0 <= j && j < Seq#Length(s) ==>
+                |  n <= 0 && 0 <= j && j < Seq#Length(s) ==> // diff 14: change n < 0 to n <= 0
                 |    Seq#Index(Seq#Drop(s,n), j) == Seq#Index(s, j));
                 |
                 |// (diff 6a: add axioms for the 0 > n case)
                 |axiom (forall<T> s: Seq T, n: int, i: int :: { Seq#Drop(s,n), Seq#Index(s,i) }
-                |  n < 0 && 0 <= i && i < Seq#Length(s) ==>
+                |  n <= 0 && 0 <= i && i < Seq#Length(s) ==> // diff 14: change n < 0 to n <= 0
                 |  Seq#Index(Seq#Drop(s,n), i) == Seq#Index(s, i)); // i = j + n, j = i - n
                 |
                 |// ** AS: We dropped the weak trigger on this axiom. One option is to strengthen the triggers:
@@ -212,9 +214,9 @@ object SequenceAxiomatization {
                 |axiom (forall<T> s: Seq T, n: int :: { Seq#Take(s, n) } // ** NEW
                 |        n <= 0 ==> Seq#Take(s, n) == Seq#Empty());  // (diff 1: try changing n==0 to n<=0 (should be ok))
                 |// diff 13: remove this?
-                |axiom (forall<T> s: Seq T, m, n: int :: { Seq#Drop(Seq#Drop(s, m), n) } // ** NEW - AS: could have bad triggering behaviour?
-                |        0 <= m && 0 <= n && m+n <= Seq#Length(s) ==>
-                |        Seq#Sub(Seq#Add(m,n),n) == m && Seq#Drop(Seq#Drop(s, m), n) == Seq#Drop(s, Seq#Add(m,n)));
+                |//axiom (forall<T> s: Seq T, m, n: int :: { Seq#Drop(Seq#Drop(s, m), n) } // ** NEW - AS: could have bad triggering behaviour?
+                |//        0 <= m && 0 <= n && m+n <= Seq#Length(s) ==>
+                |//        Seq#Sub(Seq#Add(m,n),n) == m && Seq#Drop(Seq#Drop(s, m), n) == Seq#Drop(s, Seq#Add(m,n)));
                 |
                 |// END TAKE/DROP
                 |
