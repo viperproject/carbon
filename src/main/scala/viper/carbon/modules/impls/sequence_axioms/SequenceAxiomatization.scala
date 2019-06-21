@@ -30,6 +30,7 @@ object SequenceAxiomatization {
                 | // diff 11 implemented
                 | // diff 13 implemented, for now (may reduce completeness, but there's a known matching loop when the first drop amount is 0); another option would be to add !=0 as an explicit condition
                 | // diff 14 implemented: eliminate index over take/drop for trivial cases (to avoid matching loops when e.g. s[i..] == s is known)
+                | // diff 16 implemented: remove general cases of equality-learning between take/drop/append subsequences; only allow when take/drop are at top level (this affects linkedlists test case)
                 |// START BASICS
                 |type Seq T;
                 |
@@ -139,14 +140,14 @@ object SequenceAxiomatization {
                 |  Seq#Add(Seq#Sub(i,n),n) == i && Seq#Index(Seq#Drop(s,n), Seq#Sub(i,n)) == Seq#Index(s, i)); // i = j + n, j = i - n
                 |
                 |// (diff 6a: add axioms for the 0 > n case)
-                |axiom (forall<T> s: Seq T, n: int, j: int :: { Seq#Index(Seq#Drop(s,n), j) } // {:weight 25} // AS: dropped weight
-                |  n <= 0 && 0 <= j && j < Seq#Length(s) ==> // diff 14: change n < 0 to n <= 0
-                |    Seq#Index(Seq#Drop(s,n), j) == Seq#Index(s, j));
+                |//axiom (forall<T> s: Seq T, n: int, j: int :: { Seq#Index(Seq#Drop(s,n), j) } // {:weight 25} // AS: dropped weight
+                |//  n <= 0 && 0 <= j && j < Seq#Length(s) ==> // diff 14: change n < 0 to n <= 0
+                |//    Seq#Index(Seq#Drop(s,n), j) == Seq#Index(s, j));
                 |
                 |// (diff 6a: add axioms for the 0 > n case)
-                |axiom (forall<T> s: Seq T, n: int, i: int :: { Seq#Drop(s,n), Seq#Index(s,i) }
-                |  n <= 0 && 0 <= i && i < Seq#Length(s) ==> // diff 14: change n < 0 to n <= 0
-                |  Seq#Index(Seq#Drop(s,n), i) == Seq#Index(s, i)); // i = j + n, j = i - n
+                |//axiom (forall<T> s: Seq T, n: int, i: int :: { Seq#Drop(s,n), Seq#Index(s,i) }
+                |//  n <= 0 && 0 <= i && i < Seq#Length(s) ==> // diff 14: change n < 0 to n <= 0
+                |//  Seq#Index(Seq#Drop(s,n), i) == Seq#Index(s, i)); // i = j + n, j = i - n
                 |
                 |// ** AS: We dropped the weak trigger on this axiom. One option is to strengthen the triggers:
                 |//axiom (forall<T> s, t: Seq T ::
@@ -185,28 +186,30 @@ object SequenceAxiomatization {
                 |*/
                 |
                 |axiom (forall<T> s: Seq T, t: Seq T, n:int ::
-                |  { Seq#Take(Seq#Append(s,t),n) } {Seq#Append(s,t), Seq#Take(s,n)}
+                |  { Seq#Take(Seq#Append(s,t),n) } //{Seq#Append(s,t), Seq#Take(s,n)} // diff 16: temporarily dropped general case of these
                 |  0 < n && n <= Seq#Length(s) ==> Seq#Take(Seq#Append(s,t),n) == Seq#Take(s,n));
                 |
                 |axiom (forall<T> s: Seq T, t: Seq T, n:int ::
                 |  { Seq#Take(Seq#Append(s,t),n) }
-                |  n > Seq#Length(s) ==> Seq#Add(Seq#Sub(n,Seq#Length(s)),Seq#Length(s)) == n && Seq#Take(Seq#Append(s,t),n) == Seq#Append(s,Seq#Take(t,Seq#Sub(n,Seq#Length(s)))));
+                |  n > 0 && n > Seq#Length(s) ==> Seq#Add(Seq#Sub(n,Seq#Length(s)),Seq#Length(s)) == n && Seq#Take(Seq#Append(s,t),n) == Seq#Append(s,Seq#Take(t,Seq#Sub(n,Seq#Length(s)))));
                 |
-                |axiom (forall<T> s: Seq T, t: Seq T, m:int ::
-                |  { Seq#Append(s,Seq#Take(t,m)) } {Seq#Append(s,t), Seq#Take(t,m)} // reverse triggering version of above: m = n - |s|, n = m + |s|
-                |  m > 0 ==> Seq#Sub(Seq#Add(m,Seq#Length(s)),Seq#Length(s)) == m && Seq#Take(Seq#Append(s,t),Seq#Add(m,Seq#Length(s))) == Seq#Append(s,Seq#Take(t,m)));
+                |// diff 16: temporarily dropped general case of these
+                |//axiom (forall<T> s: Seq T, t: Seq T, m:int ::
+                |//  { Seq#Append(s,Seq#Take(t,m)) } //{Seq#Append(s,t), Seq#Take(t,m)} // diff 16: temporarily dropped general case of these // reverse triggering version of above: m = n - |s|, n = m + |s|
+                |//  m > 0 ==> Seq#Sub(Seq#Add(m,Seq#Length(s)),Seq#Length(s)) == m && Seq#Take(Seq#Append(s,t),Seq#Add(m,Seq#Length(s))) == Seq#Append(s,Seq#Take(t,m)));
                 |
                 |axiom (forall<T> s: Seq T, t: Seq T, n:int ::
-                |  { Seq#Drop(Seq#Append(s,t),n) } {Seq#Append(s,t), Seq#Drop(s,n)}
+                |  { Seq#Drop(Seq#Append(s,t),n) } //{Seq#Append(s,t), Seq#Drop(s,n)} // diff 16: temporarily dropped general case of these
                 |  0<n && n <= Seq#Length(s) ==> Seq#Drop(Seq#Append(s,t),n) == Seq#Append(Seq#Drop(s,n),t));
                 |
                 |axiom (forall<T> s: Seq T, t: Seq T, n:int ::
                 |  { Seq#Drop(Seq#Append(s,t),n) }
-                |  n > Seq#Length(s) ==> Seq#Add(Seq#Sub(n,Seq#Length(s)),Seq#Length(s)) == n && Seq#Drop(Seq#Append(s,t),n) == Seq#Drop(t,Seq#Sub(n,Seq#Length(s))));
+                | n > 0 && n > Seq#Length(s) ==> Seq#Add(Seq#Sub(n,Seq#Length(s)),Seq#Length(s)) == n && Seq#Drop(Seq#Append(s,t),n) == Seq#Drop(t,Seq#Sub(n,Seq#Length(s))));
                 |
-                |axiom (forall<T> s: Seq T, t: Seq T, m:int ::
-                |  { Seq#Append(s,t),Seq#Drop(t,m) } // reverse triggering version of above: m = n - |s|, n = m + |s|
-                |  m > 0 ==> Seq#Sub(Seq#Add(m,Seq#Length(s)),Seq#Length(s)) == m && Seq#Drop(Seq#Append(s,t),Seq#Add(m,Seq#Length(s))) == Seq#Drop(t,m));
+                |// diff 16: temporarily dropped general case of these
+                |//axiom (forall<T> s: Seq T, t: Seq T, m:int ::
+                |//  { Seq#Append(s,t),Seq#Drop(t,m) } // reverse triggering version of above: m = n - |s|, n = m + |s|
+                |//  m > 0 ==> Seq#Sub(Seq#Add(m,Seq#Length(s)),Seq#Length(s)) == m && Seq#Drop(Seq#Append(s,t),Seq#Add(m,Seq#Length(s))) == Seq#Drop(t,m));
                 |
                 |// Additional axioms about common things
                 |axiom (forall<T> s: Seq T, n: int :: { Seq#Drop(s, n) } // ** NEW
