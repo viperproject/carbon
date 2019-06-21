@@ -27,7 +27,7 @@ object PrettyPrinter {
           case Forall(vars, triggers, _body, tv) =>
             Forall(vars, triggers, _body, tv++t)
           case _ =>
-            Forall(Seq(), Nil, exp, t) // NOTE: no triggers selected! This should be changed, but requires trigger generation code on the level of the Boogie AST.
+            Forall(Seq(), Nil, exp, t) // FIXME: no triggers selected! This should be changed, but requires trigger generation code on the level of the Boogie AST.
         }
     }
     body
@@ -312,7 +312,7 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
           case Forall(vars, triggers, _body, tv) =>
             Forall(vars, triggers, _body, tv++t)
           case _ =>
-            Forall(Seq(), Nil, exp, t) // NOTE: no triggers selected! This should be changed, but requires trigger generation code on the level of the Boogie AST.
+            Forall(Seq(), Nil, exp, t) // FIXME: no triggers selected! This should be changed, but requires trigger generation code on the level of the Boogie AST.
         }
     }
     body

@@ -7,7 +7,7 @@
 package viper.carbon.modules
 
 import viper.silver.{ast => sil}
-import viper.carbon.boogie.{Type, Exp}
+import viper.carbon.boogie.{DuplicatingTransformer, Exp, Type}
 
 /**
  * A module for translating sequences.
@@ -16,4 +16,5 @@ import viper.carbon.boogie.{Type, Exp}
 trait SeqModule extends Module {
   def translateSeqExp(exp: sil.Exp): Exp
   def translateSeqType(seqType: sil.SeqType): Type
+  def rewriteToTermsInTriggers(e: Exp) : Exp
 }
