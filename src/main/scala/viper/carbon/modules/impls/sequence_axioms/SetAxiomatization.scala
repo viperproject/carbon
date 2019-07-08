@@ -140,22 +140,25 @@ object SetAxiomatization {
       |function MultiSet#Singleton<T>(T): MultiSet T;
       |axiom (forall<T> r: T, o: T :: { MultiSet#Singleton(r)[o] } (MultiSet#Singleton(r)[o] == 1 <==> r == o) &&
       |                                                            (MultiSet#Singleton(r)[o] == 0 <==> r != o));
-      |axiom (forall<T> r: T :: { MultiSet#Singleton(r) } MultiSet#Singleton(r) == MultiSet#UnionOne(MultiSet#Empty(), r));
+      |axiom (forall<T> r: T :: { MultiSet#Singleton(r) } MultiSet#Card(MultiSet#Singleton(r)) == 1 && MultiSet#Singleton(r)[r] == 1); // AS: added
+      |axiom (forall<T> r: T :: { MultiSet#Singleton(r) } MultiSet#Singleton(r) == MultiSet#UnionOne(MultiSet#Empty(), r)); // AS: remove this?
       |
       |function MultiSet#UnionOne<T>(MultiSet T, T): MultiSet T;
       |// union-ing increases count by one for x, not for others
-      |axiom (forall<T> a: MultiSet T, x: T, o: T :: { MultiSet#UnionOne(a,x)[o] } // previous trigger for similar axiom was: { MultiSet#UnionOne(a, x), a[o] }
+      |axiom (forall<T> a: MultiSet T, x: T, o: T :: { MultiSet#UnionOne(a,x)[o] } { MultiSet#UnionOne(a, x), a[o] } // AS: added back this trigger (used on a similar axiom before)
       |  MultiSet#UnionOne(a, x)[o] == (if x==o then a[o] + 1 else a[o]));
       |// non-decreasing
-      |axiom (forall<T> a: MultiSet T, x: T :: { MultiSet#Card(MultiSet#UnionOne(a, x)) }
+      |axiom (forall<T> a: MultiSet T, x: T :: { MultiSet#Card(MultiSet#UnionOne(a, x)) } {MultiSet#UnionOne(a, x), MultiSet#Card(a)} // AS: added alternative trigger
       |  MultiSet#Card(MultiSet#UnionOne(a, x)) == MultiSet#Card(a) + 1);
-      |
+      |// AS: added - concrete knowledge of element added
+      |axiom (forall<T> a: MultiSet T, x: T :: { MultiSet#UnionOne(a,x)}
+      |  MultiSet#UnionOne(a, x)[x] > 0 && MultiSet#Card(MultiSet#UnionOne(a, x)) > 0);
       |
       |function MultiSet#Union<T>(MultiSet T, MultiSet T): MultiSet T;
       |// union-ing is the sum of the contents
-      |axiom (forall<T> a: MultiSet T, b: MultiSet T, o: T :: { MultiSet#Union(a,b)[o] }
+      |axiom (forall<T> a: MultiSet T, b: MultiSet T, o: T :: { MultiSet#Union(a,b)[o] } {MultiSet#Union(a,b), a[o], b[o]}// AS: added triggers
       |  MultiSet#Union(a,b)[o] == a[o] + b[o]);
-      |axiom (forall<T> a: MultiSet T, b: MultiSet T :: { MultiSet#Card(MultiSet#Union(a,b)) }
+      |axiom (forall<T> a: MultiSet T, b: MultiSet T :: { MultiSet#Card(MultiSet#Union(a,b)) } {MultiSet#Card(a), MultiSet#Union(a,b)} {MultiSet#Card(b), MultiSet#Union(a,b)}
       |  MultiSet#Card(MultiSet#Union(a,b)) == MultiSet#Card(a) + MultiSet#Card(b));
       |
       |function MultiSet#Intersection<T>(MultiSet T, MultiSet T): MultiSet T;
