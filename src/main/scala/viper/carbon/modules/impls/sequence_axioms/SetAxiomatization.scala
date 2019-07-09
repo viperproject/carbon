@@ -76,7 +76,7 @@ object SetAxiomatization {
       |  Set#Card(Set#Union(a, b)) + Set#Card(Set#Intersection(a, b)) == Set#Card(a) + Set#Card(b));
       |
       |function Set#Difference<T>(Set T, Set T): Set T;
-      |axiom (forall<T> a: Set T, b: Set T, o: T :: { Set#Difference(a,b)[o] }
+      |axiom (forall<T> a: Set T, b: Set T, o: T :: { Set#Difference(a,b)[o] } { Set#Difference(a,b), a[o] }
       |  Set#Difference(a,b)[o] <==> a[o] && !b[o]);
       |axiom (forall<T> a, b: Set T, y: T :: { Set#Difference(a, b), b[y] }
       |  b[y] ==> !Set#Difference(a, b)[y] );
