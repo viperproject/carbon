@@ -24,7 +24,7 @@ import viper.silver.verifier.Verifier
 class PortableCarbonTests extends SilSuite with StatisticalTestSuite {
 
   override def verifier = CarbonVerifier()
-
+  
   override def frontend(verifier: Verifier, files: Seq[Path]): Frontend = {
     require(files.length == 1, "tests should consist of exactly one file")
     val fe = new CarbonFrontend(NoopReporter, SilentLogger().get)
@@ -32,6 +32,9 @@ class PortableCarbonTests extends SilSuite with StatisticalTestSuite {
     fe.reset(files.head)
     fe
   }
+
+  override def warmupLocationEnvVarName = "CARBONTESTS_WARMUP"
+  override def targetLocationEnvVarName = "CARBONTESTS_TARGET"
 
   override val numOfExecutions: Int = Option(System.getenv("GRAPHS_REPETITIONS")) match {
     case Some(reps) =>
