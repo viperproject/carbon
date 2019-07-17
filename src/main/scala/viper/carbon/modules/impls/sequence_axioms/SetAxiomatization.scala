@@ -118,52 +118,56 @@ object SetAxiomatization {
       |axiom (forall a: int :: { Math#clip(a) } 0 <= a ==> Math#clip(a) == a);
       |axiom (forall a: int :: { Math#clip(a) } a < 0  ==> Math#clip(a) == 0);
       |
-      |type MultiSet T = [T]int;
+      |type MultiSet T; // = [T]int;
       |
-      |function $IsGoodMultiSet<T>(ms: MultiSet T): bool;
+      |function MultiSet#Select<T>(ms: MultiSet T, x:T): int;
+      |
+      |//function $IsGoodMultiSet<T>(ms: MultiSet T): bool;
       |// ints are non-negative, used after havocing, and for conversion from sequences to multisets.
-      |axiom (forall<T> ms: MultiSet T :: { $IsGoodMultiSet(ms) }
-      |  $IsGoodMultiSet(ms) <==>
-      |  (forall bx: T :: { ms[bx] } 0 <= ms[bx] && ms[bx] <= MultiSet#Card(ms)));
+      |//axiom (forall<T> ms: MultiSet T :: { $IsGoodMultiSet(ms) }
+      |//  $IsGoodMultiSet(ms) <==>
+      |//  (forall bx: T :: { ms[bx] } 0 <= ms[bx] && ms[bx] <= MultiSet#Card(ms)));
+      |
+      |axiom (forall<T> ms: MultiSet T, x: T :: {MultiSet#Select(ms,x)} MultiSet#Select(ms,x) >= 0); // NEW
       |
       |function MultiSet#Card<T>(MultiSet T): int;
       |axiom (forall<T> s: MultiSet T :: { MultiSet#Card(s) } 0 <= MultiSet#Card(s));
-      |axiom (forall<T> s: MultiSet T, x: T, n: int :: { MultiSet#Card(s[x := n]) }
-      |  0 <= n ==> MultiSet#Card(s[x := n]) == MultiSet#Card(s) - s[x] + n);
-      |
+      |//axiom (forall<T> s: MultiSet T, x: T, n: int :: { MultiSet#Card(s[x := n]) }
+      |//  0 <= n ==> MultiSet#Card(s[x := n]) == MultiSet#Card(s) - s[x] + n);
+      |//
       |function MultiSet#Empty<T>(): MultiSet T;
-      |axiom (forall<T> o: T :: { MultiSet#Empty()[o] } MultiSet#Empty()[o] == 0);
+      |axiom (forall<T> o: T :: { MultiSet#Select(MultiSet#Empty(),o) } MultiSet#Select(MultiSet#Empty(),o) == 0);
       |axiom (forall<T> s: MultiSet T :: { MultiSet#Card(s) }
       |  (MultiSet#Card(s) == 0 <==> s == MultiSet#Empty()) &&
-      |  (MultiSet#Card(s) != 0 ==> (exists x: T :: 0 < s[x])));
+      |  (MultiSet#Card(s) != 0 ==> (exists x: T :: 0 < MultiSet#Select(s,x))));
       |
       |function MultiSet#Singleton<T>(T): MultiSet T;
-      |axiom (forall<T> r: T, o: T :: { MultiSet#Singleton(r)[o] } (MultiSet#Singleton(r)[o] == 1 <==> r == o) &&
-      |                                                            (MultiSet#Singleton(r)[o] == 0 <==> r != o));
-      |axiom (forall<T> r: T :: { MultiSet#Singleton(r) } MultiSet#Card(MultiSet#Singleton(r)) == 1 && MultiSet#Singleton(r)[r] == 1); // AS: added
+      |axiom (forall<T> r: T, o: T :: { MultiSet#Select(MultiSet#Singleton(r),o) } (MultiSet#Select(MultiSet#Singleton(r),o) == 1 <==> r == o) &&
+      |                                                            (MultiSet#Select(MultiSet#Singleton(r),o) == 0 <==> r != o));
+      |axiom (forall<T> r: T :: { MultiSet#Singleton(r) } MultiSet#Card(MultiSet#Singleton(r)) == 1 && MultiSet#Select(MultiSet#Singleton(r),r) == 1); // AS: added
       |axiom (forall<T> r: T :: { MultiSet#Singleton(r) } MultiSet#Singleton(r) == MultiSet#UnionOne(MultiSet#Empty(), r)); // AS: remove this?
       |
       |function MultiSet#UnionOne<T>(MultiSet T, T): MultiSet T;
       |// union-ing increases count by one for x, not for others
-      |axiom (forall<T> a: MultiSet T, x: T, o: T :: { MultiSet#UnionOne(a,x)[o] } { MultiSet#UnionOne(a, x), a[o] } // AS: added back this trigger (used on a similar axiom before)
-      |  MultiSet#UnionOne(a, x)[o] == (if x==o then a[o] + 1 else a[o]));
+      |axiom (forall<T> a: MultiSet T, x: T, o: T :: { MultiSet#Select(MultiSet#UnionOne(a,x),o) } { MultiSet#UnionOne(a, x), MultiSet#Select(a,o) } // AS: added back this trigger (used on a similar axiom before)
+      |  MultiSet#Select(MultiSet#UnionOne(a, x),o) == (if x==o then MultiSet#Select(a,o) + 1 else MultiSet#Select(a,o)));
       |// non-decreasing
       |axiom (forall<T> a: MultiSet T, x: T :: { MultiSet#Card(MultiSet#UnionOne(a, x)) } {MultiSet#UnionOne(a, x), MultiSet#Card(a)} // AS: added alternative trigger
       |  MultiSet#Card(MultiSet#UnionOne(a, x)) == MultiSet#Card(a) + 1);
       |// AS: added - concrete knowledge of element added
       |axiom (forall<T> a: MultiSet T, x: T :: { MultiSet#UnionOne(a,x)}
-      |  MultiSet#UnionOne(a, x)[x] > 0 && MultiSet#Card(MultiSet#UnionOne(a, x)) > 0);
+      |  MultiSet#Select(MultiSet#UnionOne(a, x),x) > 0 && MultiSet#Card(MultiSet#UnionOne(a, x)) > 0);
       |
       |function MultiSet#Union<T>(MultiSet T, MultiSet T): MultiSet T;
       |// union-ing is the sum of the contents
-      |axiom (forall<T> a: MultiSet T, b: MultiSet T, o: T :: { MultiSet#Union(a,b)[o] } {MultiSet#Union(a,b), a[o], b[o]}// AS: added triggers
-      |  MultiSet#Union(a,b)[o] == a[o] + b[o]);
+      |axiom (forall<T> a: MultiSet T, b: MultiSet T, o: T :: { MultiSet#Select(MultiSet#Union(a,b),o) } {MultiSet#Union(a,b), MultiSet#Select(a,o), MultiSet#Select(b,o)}// AS: added triggers
+      |  MultiSet#Select(MultiSet#Union(a,b),o) == MultiSet#Select(a,o) + MultiSet#Select(b,o));
       |axiom (forall<T> a: MultiSet T, b: MultiSet T :: { MultiSet#Card(MultiSet#Union(a,b)) } {MultiSet#Card(a), MultiSet#Union(a,b)} {MultiSet#Card(b), MultiSet#Union(a,b)}
       |  MultiSet#Card(MultiSet#Union(a,b)) == MultiSet#Card(a) + MultiSet#Card(b));
       |
       |function MultiSet#Intersection<T>(MultiSet T, MultiSet T): MultiSet T;
-      |axiom (forall<T> a: MultiSet T, b: MultiSet T, o: T :: { MultiSet#Intersection(a,b)[o] }
-      |  MultiSet#Intersection(a,b)[o] == Math#min(a[o],  b[o]));
+      |axiom (forall<T> a: MultiSet T, b: MultiSet T, o: T :: { MultiSet#Select(MultiSet#Intersection(a,b),o) }
+      |  MultiSet#Select(MultiSet#Intersection(a,b),o) == Math#min(MultiSet#Select(a,o),  MultiSet#Select(b,o)));
       |
       |// left and right pseudo-idempotence
       |axiom (forall<T> a, b: MultiSet T :: { MultiSet#Intersection(MultiSet#Intersection(a, b), b) }
@@ -173,10 +177,10 @@ object SetAxiomatization {
       |
       |// multiset difference, a - b. clip() makes it positive.
       |function MultiSet#Difference<T>(MultiSet T, MultiSet T): MultiSet T;
-      |axiom (forall<T> a: MultiSet T, b: MultiSet T, o: T :: { MultiSet#Difference(a,b)[o] }
-      |  MultiSet#Difference(a,b)[o] == Math#clip(a[o] - b[o]));
-      |axiom (forall<T> a, b: MultiSet T, y: T :: { MultiSet#Difference(a, b), b[y], a[y] }
-      |  a[y] <= b[y] ==> MultiSet#Difference(a, b)[y] == 0 );
+      |axiom (forall<T> a: MultiSet T, b: MultiSet T, o: T :: { MultiSet#Select(MultiSet#Difference(a,b),o) }
+      |  MultiSet#Select(MultiSet#Difference(a,b),o) == Math#clip(MultiSet#Select(a,o) - MultiSet#Select(b,o)));
+      |axiom (forall<T> a, b: MultiSet T, y: T :: { MultiSet#Difference(a, b), MultiSet#Select(b,y), MultiSet#Select(a,y) }
+      |  MultiSet#Select(a,y) <= MultiSet#Select(b,y) ==> MultiSet#Select(MultiSet#Difference(a, b),y) == 0 );
       |axiom (forall<T> a, b: MultiSet T ::
       |  { MultiSet#Card(MultiSet#Difference(a, b)) }
       |  MultiSet#Card(MultiSet#Difference(a, b)) + MultiSet#Card(MultiSet#Difference(b, a))
@@ -187,18 +191,18 @@ object SetAxiomatization {
       |// multiset subset means a must have at most as many of each element as b
       |function MultiSet#Subset<T>(MultiSet T, MultiSet T): bool;
       |axiom(forall<T> a: MultiSet T, b: MultiSet T :: { MultiSet#Subset(a,b) }
-      |  MultiSet#Subset(a,b) <==> (forall o: T :: {a[o]} {b[o]} a[o] <= b[o]));
+      |  MultiSet#Subset(a,b) <==> (forall o: T :: {MultiSet#Select(a,o)} {MultiSet#Select(b,o)} MultiSet#Select(a,o) <= MultiSet#Select(b,o)));
       |
       |function MultiSet#Equal<T>(MultiSet T, MultiSet T): bool;
       |axiom(forall<T> a: MultiSet T, b: MultiSet T :: { MultiSet#Equal(a,b) }
-      |  MultiSet#Equal(a,b) <==> (forall o: T :: {a[o]} {b[o]} a[o] == b[o]));
+      |  MultiSet#Equal(a,b) <==> (forall o: T :: {MultiSet#Select(a,o)} {MultiSet#Select(b,o)} MultiSet#Select(a,o) == MultiSet#Select(b,o)));
       |// extensionality axiom for multisets
       |axiom(forall<T> a: MultiSet T, b: MultiSet T :: { MultiSet#Equal(a,b) }
       |  MultiSet#Equal(a,b) ==> a == b);
       |
       |function MultiSet#Disjoint<T>(MultiSet T, MultiSet T): bool;
       |axiom (forall<T> a: MultiSet T, b: MultiSet T :: { MultiSet#Disjoint(a,b) }
-      |  MultiSet#Disjoint(a,b) <==> (forall o: T :: {a[o]} {b[o]} a[o] == 0 || b[o] == 0));
+      |  MultiSet#Disjoint(a,b) <==> (forall o: T :: {MultiSet#Select(a,o)} {MultiSet#Select(b,o)} MultiSet#Select(a,o) == 0 || MultiSet#Select(b,o) == 0));
       |
     """.stripMargin
 }

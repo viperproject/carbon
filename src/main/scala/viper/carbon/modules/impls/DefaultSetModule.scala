@@ -34,17 +34,17 @@ class DefaultSetModule(val verifier: Verifier)
   def name = "Set module"
   implicit val namespace = verifier.freshNamespace("set")
 
-  override def freeAssumptions(e: sil.Exp): Stmt = {
-    e match {
-      case _ if e.typ.isInstanceOf[sil.MultisetType] =>
-        Assume(FuncApp(Identifier("$IsGoodMultiSet"),translateExp(e),Bool))
-      case _ => Nil
-    }
-  }
+  //override def freeAssumptions(e: sil.Exp): Stmt = {
+  //  e match {
+  //    case _ if e.typ.isInstanceOf[sil.MultisetType] =>
+  //      Assume(FuncApp(Identifier("$IsGoodMultiSet"),translateExp(e),Bool))
+  //    case _ => Nil
+  //  }
+ // }
 
-  override def validValue(typ: sil.Type, variable: LocalVar, isParameter: Boolean): Option[Exp] = {
-    if (typ.isInstanceOf[sil.MultisetType]) Some(FuncApp(Identifier("$IsGoodMultiSet"),variable,Bool)) else None
-  }
+  //override def validValue(typ: sil.Type, variable: LocalVar, isParameter: Boolean): Option[Exp] = {
+  //  if (typ.isInstanceOf[sil.MultisetType]) Some(FuncApp(Identifier("$IsGoodMultiSet"),variable,Bool)) else None
+ // }
 
   override def preamble = {
     if (used) {
@@ -108,11 +108,10 @@ class DefaultSetModule(val verifier: Verifier)
         else FuncApp(Identifier("Set#Difference"), List(t(left), t(right)), typ)
       case sil.AnySetContains(left, right) =>
         if (isMultiset(right))
-          MapSelect(t(right),Seq(t(left)))
-         // FuncApp(Identifier("MultiSet#Subset"), List(FuncApp(Identifier("MultiSet#Singleton"), List(t(left)), typ), t(right)), Bool)
+          FuncApp(Identifier("MultiSet#Select"), List(t(right), t(left)), Int)
+          //MapSelect(t(right),Seq(t(left)))
         else
           MapSelect(t(right),Seq(t(left)))
-          //FuncApp(Identifier("Set#Subset"), List(FuncApp(Identifier("Set#Singleton"), List(t(left)), typ), t(right)), Bool)
       case sil.AnySetCardinality(set) =>
         if (isMultiset(set)) FuncApp(Identifier("MultiSet#Card"), t(set), Bool)
         else FuncApp(Identifier("Set#Card"), t(set), Bool)
