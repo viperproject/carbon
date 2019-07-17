@@ -7,7 +7,7 @@
 package viper.carbon.modules
 
 import viper.silver.{ast => sil}
-import viper.carbon.boogie.{DuplicatingTransformer, Exp, Type}
+import viper.carbon.boogie.{Exp, Type}
 
 /**
  * A module for translating sequences.

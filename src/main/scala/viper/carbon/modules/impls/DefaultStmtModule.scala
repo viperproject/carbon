@@ -133,7 +133,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           }
           if (!useConcrete) {
             val silFormal = method.formalArgs(i)
-            val tempArg = sil.LocalVar("arg_" + silFormal.name)(silFormal.typ)
+            val tempArg = sil.LocalVar("arg_" + silFormal.name, silFormal.typ)()
             mainModule.env.define(tempArg)
             toUndefine.append(tempArg)
             val translatedTempArg = translateExp(tempArg)

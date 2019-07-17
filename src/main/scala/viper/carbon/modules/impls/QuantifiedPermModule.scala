@@ -1248,7 +1248,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   private def isAbstractRead(exp: sil.Exp) = {
     exp match {
-      case sil.LocalVar(name) => currentAbstractReads.contains(name)
+      case sil.LocalVar(name, _) => currentAbstractReads.contains(name)
       case _ => false
     }
   }
