@@ -319,7 +319,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       case ps => ps.tail.foldLeft(ps.head)((p,q) => BinExp(p,And,q))
     }
     val limitedFapp = transformFuncAppsToLimitedForm(fapp)
-    val res = translateResult(sil.Result()(f.typ))
+    val res = translateResult(sil.Result(f.typ)())
     for (post <- f.posts) yield {
       val translatedPost = translateExp(whenInhaling(post))
       val resultToPrimedFapp : PartialFunction[Exp,Option[Exp]] = {
@@ -562,7 +562,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private def checkFunctionDefinedness(f: sil.Function) = {
     checkingDefinednessOfFunction = Some(f.name)
     val args = f.formalArgs map translateLocalVarDecl
-    val res = sil.Result()(f.typ)
+    val res = sil.Result(f.typ)()
     val init : Stmt = MaybeCommentBlock("Initializing the state",
       stateModule.initBoogieState ++ (f.formalArgs map (a => allAssumptionsAboutValue(a.typ,mainModule.translateLocalVarDecl(a),true))) ++ assumeFunctionsAt(heights(f.name)))
     val initOld : Stmt = MaybeCommentBlock("Initializing the old state", stateModule.initOldState)
