@@ -228,6 +228,14 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
     (res.toSet -- not.toSet).toSeq
   }
 
+  def showAttributes(atts: Map[String, String]) = {
+    if (atts.isEmpty) {
+      text("")
+    }else{
+      char('{') <+> ssep((atts map {case (k, v) => char(':') <> text(k) <+> char('"') <> text(v) <> char('"')}).toList, space) <+> char('}')
+    }
+  }
+
   def showDecl(decl: Decl) = {
     decl match {
       case ConstDecl(name, typ, unique) =>
@@ -241,9 +249,10 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
         text("type") <+> show(name) <> char (';')
       case TypeAlias(name, definition) =>
         text("type") <+> show(name) <+> "=" <+> show(definition) <> char (';')
-      case Func(name, args, typ) =>
+      case Func(name, args, typ, attributes) =>
         val typVars = (args map (_.typ)) ++ Seq(typ) flatMap (_.freeTypeVars)
         text("function") <+>
+          showAttributes(attributes) <+>
           name <>
           showTypeVars(typVars, endWithSpace = false) <>
           parens(commasep(args)) <>

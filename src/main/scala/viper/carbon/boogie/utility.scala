@@ -94,7 +94,7 @@ object Nodes {
           case ConstDecl(name, typ, unique) => Nil
           case TypeDecl(name) => Nil
           case TypeAlias(n, d) => Nil
-          case Func(name, args, typ) => args
+          case Func(name, args, typ, attrs) => args
           case Axiom(exp) => Seq(exp)
           case GlobalVarDecl(name, typ) => Nil
           case Procedure(name, ins, outs, body) => ins ++ outs ++ Seq(body)

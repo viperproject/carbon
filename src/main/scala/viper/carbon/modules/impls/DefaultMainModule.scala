@@ -20,7 +20,10 @@ import viper.carbon.boogie.Program
 import viper.carbon.verifier.Environment
 import viper.silver.verifier.errors
 import viper.carbon.verifier.Verifier
+import viper.silver.ast.SMTFunc
 import viper.silver.ast.utility.rewriter.Traverse
+
+import scala.collection.mutable
 
 /**
  * The default implementation of a [[viper.carbon.modules.MainModule]].
@@ -55,6 +58,11 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
         Traverse.TopDown)
     )
 
+    val smtFuncs = new mutable.HashSet[sil.SMTFunc]()
+    p.visit{
+      case sf: sil.SMTFuncApp => smtFuncs.add(sf.smtfunc)
+    }
+
     val output = verifier.program match {
       case sil.Program(domains, fields, functions, predicates, methods) =>
         // translate all members
@@ -64,7 +72,8 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
           translateFields ++
           (functions flatMap translateFunction) ++
           (predicates flatMap translatePredicate) ++
-          (methods flatMap translateMethodDecl)
+          (methods flatMap translateMethodDecl) ++
+          (smtFuncs flatMap translateSMTFunc)
 
         // get the preambles (only at the end, even if we add it at the beginning)
         val preambles = verifier.allModules flatMap {
@@ -206,6 +215,25 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
   def translateDomainDecl(d: sil.Domain): Seq[Decl] = {
     env = Environment(verifier, d)
     val res = translateDomain(d)
+    env = null
+    res
+  }
+
+  def translateSMTFuncApp(fa: sil.SMTFuncApp): Exp = {
+    val funct = fa.smtfunc
+    val res = FuncApp(Identifier(funct.name), fa.args map translateExp, translateType(fa.typ))
+    res.showReturnType = true
+    res
+  }
+
+  private def translateSMTFunc(f: sil.SMTFunc): Seq[Decl] = {
+    env = Environment(verifier, f)
+    val t = translateType(f.typ)
+    val args = f.formalArgs map (x => LocalVarDecl(Identifier(x.name), translateType(x.typ)))
+    var attributes: Map[String, String] = Map()
+    attributes += "builtin" -> f.smtName
+    val func = Func(Identifier(f.name), args, t, attributes)
+    val res = MaybeCommentedDecl(s"Translation of domain function ${f.name}", func, size = 1)
     env = null
     res
   }

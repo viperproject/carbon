@@ -46,6 +46,7 @@ class DefaultTypeModule(val verifier: Verifier) extends TypeModule with Stateles
         TypeVar(name)
       case t@sil.DomainType(_, _) =>
         translateDomainTyp(t)
+      case sil.SMTType(boogieName, _) => NamedType(boogieName)
       case _ => sys.error("Viper type didn't match any existing case.")
     }
   }
