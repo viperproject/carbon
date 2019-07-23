@@ -102,13 +102,17 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         substitutedBody
       case sil.CondExp(cond, thn, els) =>
         CondExp(translateExp(cond), translateExp(thn), translateExp(els))
-      case sil.Exists(vars, exp) => {
+      case sil.Exists(vars, triggers, exp) => {
         // alpha renaming, to avoid clashes in context
         val renamedVars: Seq[sil.LocalVarDecl] = vars map (v => {
           val v1 = env.makeUniquelyNamed(v); env.define(v1.localVar); v1
         });
         val renaming = (e: sil.Exp) => Expressions.instantiateVariables(e, (vars map (_.localVar)), renamedVars map (_.localVar))
-        val res = Exists(renamedVars map translateLocalVarDecl, translateExp(renaming(exp)))
+        val ts : Seq[Trigger] = (triggers map
+          (t => (funcPredModule.toExpressionsUsedInTriggers(t.exps map (e => translateExp(renaming(e)))))
+            map (Trigger(_)) // build a trigger for each sequence element returned (in general, one original trigger can yield multiple alternative new triggers)
+            )).flatten
+        val res = Exists(renamedVars map translateLocalVarDecl, ts, translateExp(renaming(exp)))
         renamedVars map (v => env.undefine(v.localVar))
         res
       }
