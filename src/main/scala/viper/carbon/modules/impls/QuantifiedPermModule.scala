@@ -583,11 +583,8 @@ class QuantifiedPermModule(val verifier: Verifier)
           //Predicate access
           case predAccPred@sil.PredicateAccessPredicate(PredicateAccess(args, predname), perms) =>
             // alpha renaming, to avoid clashes in context, use vFresh instead of v
-            println("vs "+ vs )
             val vsFresh = vs.map(v => env.makeUniquelyNamed(v))
-            println("vsFresh " + vsFresh)
             val vsFreshBoogie = vsFresh.map(vFresh => env.define(vFresh.localVar))
-            println("vsFreshoogie " + vsFreshBoogie)
             // create fresh variables for the formal arguments of the predicate definition
             val predicate = program.findPredicate(predname)
             val formals = predicate.formalArgs
@@ -605,10 +602,8 @@ class QuantifiedPermModule(val verifier: Verifier)
 
             //translate components
             val translatedLocals = vsFresh.map(vFresh => translateLocalVarDecl(vFresh))  // quantified variable
-            println("translatedLocals " + translatedLocals)
             val translatedCond = translateExp(renamedCond)
             val translatedArgs = renamedArgs.map(translateExp)
-            println("translatedArgs " + translatedArgs)
             val (translatedPerms, stmts, wildcard) = {
               if (conservativeIsWildcardPermission(perms)) {
                 isWildcard = true
@@ -638,7 +633,6 @@ class QuantifiedPermModule(val verifier: Verifier)
               argsInv = argsInv.map(a => a.replace(translatedLocals(i).l, invFunApps(i)))
               permInv = permInv.replace(translatedLocals(i).l, invFunApps(i))
             }
-            println("argsinv " + argsInv)
             val curPerm = currentPermission(predAccPred.loc)
             val translatedLocation = translateLocation(predAccPred.loc)
 
@@ -709,7 +703,6 @@ class QuantifiedPermModule(val verifier: Verifier)
             //AS: TODO: it would be better to use the Boogie representation of a predicate instance as the canonical representation here (i.e. the function mapping to a field in the Boogie heap); this would avoid the disjunction of arguments used below. In addition, this could be used as a candidate trigger in tr1 code above. See issue 242
             //assert injectivity of inverse function:
             val translatedLocals2 = translatedLocals.map(translatedLocal => LocalVarDecl(Identifier(translatedLocal.name.name), translatedLocal.typ)) //new varible
-            println("translatedLocals2 " + translatedLocals2)
 
             var unequalities : Exp = TrueLit()
             var translatedCond2 = translatedCond
@@ -730,7 +723,6 @@ class QuantifiedPermModule(val verifier: Verifier)
             val ineqExpr = ineqs.reduce((expr1, expr2) => (expr1) || (expr2))
             val injectTrigger = Seq(Trigger(Seq(triggerFunApp, triggerFunApp2)))
             val injectiveAssertion = Assert(Forall((translatedLocals ++ translatedLocals2), injectTrigger,injectiveCond ==> ineqExpr), error.dueTo(reasons.ReceiverNotInjective(predAccPred.loc)))
-            println("injective asserton " + injectiveAssertion)
 
             val res1 = Havoc(qpMask) ++
               MaybeComment("wildcard assumptions", stmts ++
