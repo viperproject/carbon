@@ -78,7 +78,7 @@ object Optimizer {
 
       case Forall(_, _, BoolLit(literal), _) =>
         BoolLit(literal)
-      case Exists(_, BoolLit(literal)) =>
+      case Exists(_, _, BoolLit(literal)) =>
         BoolLit(literal)
 
       case UnExp(Minus, IntLit(literal)) => IntLit(-literal)

@@ -368,13 +368,15 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
               ssep((triggers map show).to[collection.immutable.Seq], space) <> line <>
               show(exp)
           ) <> line)
-      case Exists(vars, exp) =>
+      case Exists(vars, triggers, exp) =>
         parens(text("exists") <+>
           commasep(vars) <+>
           //("•" or "::") <+>
           "::" <>
           nest(defaultIndent,
-            line <> show(exp)
+            line <>
+              ssep((triggers map show).to[collection.immutable.Seq], space) <> line <>
+              show(exp)
           ) <> line)
       case LocalVar(name, typ) => name
       case GlobalVar(name, typ) => name
