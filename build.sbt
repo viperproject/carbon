@@ -16,6 +16,10 @@ lazy val carbon = (project in file("."))
         organization := "viper",
         version := "1.0-SNAPSHOT",
 
+        // Fork test to a different JVM than SBT's, avoiding SBT's classpath interfering with
+        // classpath used by Scala's reflection.
+        Test / fork := true,
+
         // Assembly settings
         assembly / assemblyJarName := "carbon.jar",             // JAR filename
         assembly / mainClass := Some("viper.carbon.Carbon"),    // Define JAR's entry point
