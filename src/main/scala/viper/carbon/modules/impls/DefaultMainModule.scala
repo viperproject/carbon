@@ -20,7 +20,6 @@ import viper.carbon.boogie.Program
 import viper.carbon.verifier.Environment
 import viper.silver.verifier.errors
 import viper.carbon.verifier.Verifier
-import viper.silver.ast.SMTFunc
 import viper.silver.ast.utility.rewriter.Traverse
 
 import scala.collection.mutable
