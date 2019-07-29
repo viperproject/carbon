@@ -10,6 +10,7 @@ lazy val silver = project in file("silver")
 // Carbon specific project settings
 lazy val carbon = (project in file("."))
     .dependsOn(silver % "compile->compile;test->test")
+    .disablePlugins(plugins.JUnitXmlReportPlugin)
     .settings(
         // General settings
         name := "Carbon",
@@ -19,6 +20,7 @@ lazy val carbon = (project in file("."))
         // Fork test to a different JVM than SBT's, avoiding SBT's classpath interfering with
         // classpath used by Scala's reflection.
         Test / fork := true,
+        Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-u", "target/test-reports", "-oD"),
 
         // Assembly settings
         assembly / assemblyJarName := "carbon.jar",             // JAR filename
