@@ -507,13 +507,13 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     (for ((condFunc,qp) <- qps) yield {
       qp match {
         case QuantifiedPermissionAssertion(forall, condition, acc: sil.AccessPredicate) => // same works for field or predicate accesses!
-          val lvd = forall.variables.head // TODO: Generalise to multiple quantified variables
+          val lvds = forall.variables // TODO: Generalise to multiple quantified variables
           val perm = acc.perm
           val locationAccess = acc.loc
 
-          val vFresh = env.makeUniquelyNamed(lvd);
-          env.define(vFresh.localVar)
-          def renaming(origExpr: sil.Exp) = Expressions.instantiateVariables(origExpr, Seq(lvd), vFresh.localVar)
+          val vsFresh = lvds.map(lvd => env.makeUniquelyNamed(lvd))
+          vsFresh.foreach(vFresh => env.define(vFresh.localVar))
+          def renaming(origExpr: sil.Exp) = Expressions.instantiateVariables(origExpr, lvds, vsFresh.map(_.localVar))
 
 
           val (_, curState) = stateModule.freshTempState("Heap2")
@@ -541,17 +541,17 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
           val funApp2 = FuncApp(condFunc.name, (heap2++origArgs) map (_.l), condFunc.typ)
 
-          val triggers = if (locationAccess.contains(lvd)) Seq(Trigger(Seq(locationAccess1,locationAccess2))) else Seq() // TODO: we could (also in general) raise an error/warning if the tools fail to find triggers
+          val triggers = if (locationAccess.exists(lvds.toSet)) Seq(Trigger(Seq(locationAccess1,locationAccess2))) else Seq() // TODO: we could (also in general) raise an error/warning if the tools fail to find triggers
 
           val res = CommentedDecl("Function used for framing of quantified permission " + qp.toString() +  " in " + originalName,
             condFunc ++
             Axiom(
               Forall(heap1 ++ heap2 ++ origArgs, Seq(Trigger(Seq(funApp1, funApp2, heapModule.successorHeapState(heap1,heap2)))),
-                  (Forall(Seq(translateLocalVarDecl(vFresh)), triggers,
+                  (Forall(vsFresh.map(vFresh => translateLocalVarDecl(vFresh)), triggers,
                     (translatedCond1 <==> translatedCond2) && (translatedCond1 ==> (locationAccess1 === locationAccess2))) ==> (funApp1 === funApp2))
                   ))
           );
-          env.undefine(vFresh.localVar)
+          vsFresh.foreach(vFresh => env.undefine(vFresh.localVar))
           stateModule.replaceState(curState)
           res
         case e => sys.error("invalid quantified permission input into method: got " + e)
