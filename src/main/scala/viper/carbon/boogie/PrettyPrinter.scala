@@ -88,13 +88,7 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
    * Map an identifier to a string, making it unique first if necessary.
    */
   implicit def ident2doc(i: Identifier): Cont = {
-    idnMap.get(i) match {
-      case Some(s) => s
-      case None =>
-        val s = names.createUniqueIdentifier(i.preferredName)
-        idnMap.put(i, s)
-        s
-    }
+    i.name
   }
 
   override val defaultIndent = 2

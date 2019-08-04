@@ -22,6 +22,8 @@ import viper.silver.verifier.errors
 import viper.carbon.verifier.Verifier
 import viper.silver.ast.utility.rewriter.Traverse
 
+import scala.collection.mutable
+
 /**
  * The default implementation of a [[viper.carbon.modules.MainModule]].
  */
@@ -47,7 +49,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
     LocalVarDecl(name, t)
   }
 
-  override def translate(p: sil.Program): Program = {
+  override def translate(p: sil.Program, debugNames : Seq[String]): (Program, Map[String, Map[String, Option[String]]]) = {
 
     verifier.replaceProgram(
       p.transform(
@@ -57,17 +59,23 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
         },
         Traverse.TopDown)
     )
+    var nameMaps : Map[String, mutable.HashMap[String, Option[String]]] = null
 
     val output = verifier.program match {
       case sil.Program(domains, fields, functions, predicates, methods) =>
         // translate all members
         val translateFields =
           MaybeCommentedDecl("Translation of all fields", (fields flatMap translateField).toList)
+        val emptyMap = new mutable.HashMap[String, Option[String]]()
+        for (name <- debugNames) {
+          emptyMap.update(name, None)
+        }
+        nameMaps = methods.map(_.name -> emptyMap.clone()).toMap
         val members = (domains flatMap translateDomainDecl) ++
           translateFields ++
           (functions flatMap translateFunction) ++
           (predicates flatMap translatePredicate) ++
-          (methods flatMap translateMethodDecl)
+          (methods flatMap (m => translateMethodDecl(m, nameMaps.get(m.name).get)))
 
         // get the preambles (only at the end, even if we add it at the beginning)
         val preambles = verifier.allModules flatMap {
@@ -91,11 +99,12 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
         Program(header, preambles ++ members)
     }
 
-    output.optimize.asInstanceOf[Program]
+    (output.optimize.asInstanceOf[Program], nameMaps.map(e => e._1 -> e._2.toMap))
   }
 
-  def translateMethodDecl(m: sil.Method): Seq[Decl] = {
+  def translateMethodDecl(m: sil.Method, names: mutable.Map[String, Option[String]]): Seq[Decl] = {
     env = Environment(verifier, m)
+    ErrorMethodMapping.currentMethod = m
         val res = m match {
           case method @ sil.Method(name, formalArgs, formalReturns, pres, posts, _) =>
             val initOldStateComment = "Initializing of old state"
@@ -121,7 +130,14 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
                 checkPost, body, exhalePost))
         CommentedDecl(s"Translation of method $name", proc)
     }
+    val usedNames = env.currentNameMapping
+    for (name <- names.keys){
+      if (usedNames.contains(name)){
+        names.update(name, Some(usedNames.get(name).get))
+      }
+    }
     env = null
+    ErrorMethodMapping.currentMethod = null
     res
   }
 

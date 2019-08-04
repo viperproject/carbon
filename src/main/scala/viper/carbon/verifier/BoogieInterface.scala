@@ -10,12 +10,15 @@ import viper.silver.verifier._
 
 import sys.process._
 import java.io._
+import java.nio.file.Path
 
 import viper.silver.verifier.Failure
 import viper.silver.verifier.errors.Internal
 import viper.silver.verifier.reasons.InternalReason
 import viper.carbon.boogie.Assert
 import viper.carbon.boogie.Program
+
+import scala.io.Source
 
 class BoogieDependency(_location: String) extends Dependency {
   def name = "Boogie"
@@ -40,6 +43,7 @@ trait BoogieInterface {
   private var _boogieProcess:Process = null
 
   var errormap: Map[Int, VerificationError] = Map()
+  var models : collection.mutable.ListBuffer[String] = new collection.mutable.ListBuffer[String]
   def invokeBoogie(program: Program, options: Seq[String]): (String,VerificationResult) = {
     // find all errors and assign everyone a unique id
     errormap = Map()
@@ -55,9 +59,16 @@ trait BoogieInterface {
     parse(output) match {
       case (version,Nil) =>
         (version,Success)
-      case (version,errorIds) =>
-        val errors = errorIds map (errormap.get(_).get)
+      case (version,errorIds) => {
+        val errors = (0 until errorIds.length).map(i => {
+          val id = errorIds(i)
+          val error = errormap.get(id).get
+          if (models.nonEmpty)
+            error.parsedModel = Some(Model(models(i)))
+          error
+        })
         (version,Failure(errors))
+      }
     }
   }
 
@@ -79,8 +90,16 @@ trait BoogieInterface {
       errormap += (otherErrId -> internalError)
     }
 
+    var parsingModel : Option[StringBuilder] = None
     for (l <- output.linesIterator) {
       l match {
+        case "*** END_MODEL" if parsingModel.isDefined =>
+          models.append(parsingModel.get.toString())
+          parsingModel = None
+        case _ if parsingModel.isDefined =>
+          parsingModel.get.append(l).append("\n")
+        case "*** MODEL" if parsingModel.isEmpty =>
+          parsingModel = Some(new StringBuilder)
         case LogoPattern(version) =>
           version_found = version
         case ErrorPattern(id) =>

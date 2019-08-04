@@ -6,13 +6,16 @@
 
 package viper.carbon
 
-import boogie.Namespace
+import boogie.{ErrorMethodMapping, Namespace}
 import modules.impls._
-import viper.silver.ast.Program
+import viper.silver.ast.{LocalVarDecl, Program}
 import viper.silver.utility.Paths
-import viper.silver.verifier.Dependency
-import verifier.{BoogieInterface, Verifier, BoogieDependency}
-import java.io.{FileOutputStream, BufferedOutputStream, File}
+import viper.silver.verifier._
+import verifier.{BoogieDependency, BoogieInterface, Verifier}
+import java.io.{BufferedOutputStream, File, FileOutputStream}
+import java.nio.file.Files
+
+import scala.collection.mutable
 
 
 
@@ -131,7 +134,18 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
     allModules map (m => m.reset())
     heapModule.enableAllocationEncoding = config == null || !config.disableAllocEncoding.supplied // NOTE: config == null happens on the build server / via sbt test
 
-    _translated = mainModule.translate(program)
+    var transformNames = false
+    val names : Seq[String] = config.model.toOption match {
+      case Some("true") => Seq()
+      case Some(l) => {
+        transformNames = true
+        l.split(",")
+      }
+      case None => Seq()
+    }
+    val (tProg, translatedNames) = mainModule.translate(program, names)
+    _translated = tProg
+
 
     val options = {
       if (config == null) {
@@ -148,7 +162,13 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
             l.split(" ")
           case None =>
             Nil
-        })
+        }) ++
+          (config.model.toOption match {
+            case Some(_) => {
+              List("/mv:-")
+            }
+            case _ => Nil
+          })
       }
     }
 
@@ -170,7 +190,39 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
         if (version!=null) { dependencies.foreach(_ match {
           case b:BoogieDependency => b.version = version
           case _ => }) }
+
+        val finalResult = result match {
+          case Failure(errors) if transformNames => {
+            Failure(errors.map(e => transformModel(e, translatedNames)))
+          }
+          case _ => result
+        }
         result
+    }
+  }
+
+  def transformModel(e: AbstractError, names: Map[String, Map[String, Option[String]]]) : AbstractError = {
+    if (e.isInstanceOf[VerificationError] && ErrorMethodMapping.mapping.contains(e.asInstanceOf[VerificationError])){
+      val ve = e.asInstanceOf[VerificationError]
+      val methodName = ErrorMethodMapping.mapping.get(ve).get.name
+      val methodNames = names.get(methodName).get.filter(e => e._2.isDefined).map(e => e._1 -> e._2.get).toMap
+      val originalEntries = ve.parsedModel.get.entries
+      val newEntries = mutable.HashMap[String, ModelEntry]()
+      for ((vname, bname) <- methodNames){
+        if (originalEntries.contains(bname)){
+          newEntries.update(vname, originalEntries.get(bname).get)
+        }else if (originalEntries.contains(bname + "@0")){
+          newEntries.update(vname, originalEntries.get(bname + "@0").get)
+        }else if (originalEntries.contains(bname + "@@0")){
+          newEntries.update(vname, originalEntries.get(bname + "@@0").get)
+        }else if (originalEntries.contains("q@" + bname)){
+          newEntries.update(vname, originalEntries.get("q@" + bname).get)
+        }
+      }
+      ve.parsedModel = Some(Model(newEntries.toMap))
+      ve
+    }else{
+      e
     }
   }
 

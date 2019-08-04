@@ -7,8 +7,11 @@
 package viper.carbon.boogie
 
 import UnicodeString.string2unicodestring
+import viper.silver.ast.Method
 import viper.silver.ast.pretty._
 import viper.silver.verifier.VerificationError
+
+import scala.collection.mutable
 
 /** The root of the Boogie AST. */
 sealed trait Node {
@@ -308,10 +311,19 @@ case class Assume(exp: Exp) extends Stmt
 case class AssertImpl(exp: Exp, error: VerificationError) extends Stmt {
   var id = AssertIds.next // Used for mapping errors in the output back to VerificationErrors
 }
+object ErrorMethodMapping {
+  val mapping = mutable.HashMap[VerificationError, Method]()
+  var currentMethod : Method = null
+}
 object Assert {
   def apply(exp: Exp, error: VerificationError) = {
     if (error == null) Statements.EmptyStmt
-    else AssertImpl(exp, error)
+    else {
+      if (ErrorMethodMapping.currentMethod != null) {
+        ErrorMethodMapping.mapping.update(error, ErrorMethodMapping.currentMethod)
+      }
+      AssertImpl(exp, error)
+    }
   }
   def unapply(a: AssertImpl) = Some((a.exp, a.error))
 }
