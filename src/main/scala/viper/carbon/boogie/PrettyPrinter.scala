@@ -14,6 +14,20 @@ import viper.silver.verifier.VerificationError
  * A pretty printer for the Boogie AST.
  */
 object PrettyPrinter {
+
+  /**
+    * The current mapping from identifier to names.
+    */
+  private val idnMap = collection.mutable.HashMap[Identifier, String]()
+
+  /** BoogieNameGenerator instance. */
+  private val names = new BoogieNameGenerator()
+
+  /**
+    * The current mapping from unique Boogie names to the original identifiers.
+    */
+  val backMap = collection.mutable.HashMap[String, String]()
+
   def pretty(n: Node): String = {
     new PrettyPrinter(n).pretty
   }
@@ -58,14 +72,6 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
     pretty(n)
   }
 
-  /** BoogieNameGenerator instance. */
-  private val names = new BoogieNameGenerator()
-
-  /**
-   * The current mapping from identifier to names.
-   */
-  private val idnMap = collection.mutable.HashMap[Identifier, String]()
-
   /**
    * The current store for where clauses of identifiers.
    */
@@ -88,7 +94,14 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
    * Map an identifier to a string, making it unique first if necessary.
    */
   implicit def ident2doc(i: Identifier): Cont = {
-    i.name
+    PrettyPrinter.idnMap.get(i) match {
+      case Some(s) => s
+      case None =>
+        val s = PrettyPrinter.names.createUniqueIdentifier(i.preferredName)
+        PrettyPrinter.idnMap.put(i, s)
+        PrettyPrinter.backMap.update(s, i.name)
+        s
+    }
   }
 
   override val defaultIndent = 2

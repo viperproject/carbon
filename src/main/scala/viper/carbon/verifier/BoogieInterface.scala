@@ -10,7 +10,6 @@ import viper.silver.verifier._
 
 import sys.process._
 import java.io._
-import java.nio.file.Path
 
 import viper.silver.verifier.Failure
 import viper.silver.verifier.errors.Internal
@@ -18,7 +17,6 @@ import viper.silver.verifier.reasons.InternalReason
 import viper.carbon.boogie.Assert
 import viper.carbon.boogie.Program
 
-import scala.io.Source
 
 class BoogieDependency(_location: String) extends Dependency {
   def name = "Boogie"

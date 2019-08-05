@@ -7,7 +7,7 @@
 package viper.carbon.boogie
 
 import UnicodeString.string2unicodestring
-import viper.silver.ast.Method
+import viper.silver.ast.{Member, Method}
 import viper.silver.ast.pretty._
 import viper.silver.verifier.VerificationError
 
@@ -312,15 +312,15 @@ case class AssertImpl(exp: Exp, error: VerificationError) extends Stmt {
   var id = AssertIds.next // Used for mapping errors in the output back to VerificationErrors
 }
 object ErrorMethodMapping {
-  val mapping = mutable.HashMap[VerificationError, Method]()
-  var currentMethod : Method = null
+  val mapping = mutable.HashMap[VerificationError, Member]()
+  var currentMember : Member = null
 }
 object Assert {
   def apply(exp: Exp, error: VerificationError) = {
     if (error == null) Statements.EmptyStmt
     else {
-      if (ErrorMethodMapping.currentMethod != null) {
-        ErrorMethodMapping.mapping.update(error, ErrorMethodMapping.currentMethod)
+      if (ErrorMethodMapping.currentMember != null) {
+        ErrorMethodMapping.mapping.update(error, ErrorMethodMapping.currentMember)
       }
       AssertImpl(exp, error)
     }

@@ -70,11 +70,11 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
         for (name <- debugNames) {
           emptyMap.update(name, None)
         }
-        nameMaps = methods.map(_.name -> emptyMap.clone()).toMap
+        nameMaps = (methods ++ functions ++ predicates).map(_.name -> emptyMap.clone()).toMap
         val members = (domains flatMap translateDomainDecl) ++
           translateFields ++
-          (functions flatMap translateFunction) ++
-          (predicates flatMap translatePredicate) ++
+          (functions flatMap (f => translateFunction(f, nameMaps.get(f.name).get))) ++
+          (predicates flatMap (p => translatePredicate(p, nameMaps.get(p.name).get))) ++
           (methods flatMap (m => translateMethodDecl(m, nameMaps.get(m.name).get)))
 
         // get the preambles (only at the end, even if we add it at the beginning)
@@ -104,7 +104,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
 
   def translateMethodDecl(m: sil.Method, names: mutable.Map[String, Option[String]]): Seq[Decl] = {
     env = Environment(verifier, m)
-    ErrorMethodMapping.currentMethod = m
+    ErrorMethodMapping.currentMember = m
         val res = m match {
           case method @ sil.Method(name, formalArgs, formalReturns, pres, posts, _) =>
             val initOldStateComment = "Initializing of old state"
@@ -143,7 +143,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
     }
 
     env = null
-    ErrorMethodMapping.currentMethod = null
+    ErrorMethodMapping.currentMember = null
     res
   }
 

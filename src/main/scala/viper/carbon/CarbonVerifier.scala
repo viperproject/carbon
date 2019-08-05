@@ -6,7 +6,7 @@
 
 package viper.carbon
 
-import boogie.{ErrorMethodMapping, Namespace}
+import boogie.{ErrorMethodMapping, Namespace, PrettyPrinter}
 import modules.impls._
 import viper.silver.ast.Program
 import viper.silver.utility.Paths
@@ -134,7 +134,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
     heapModule.enableAllocationEncoding = config == null || !config.disableAllocEncoding.supplied // NOTE: config == null happens on the build server / via sbt test
 
     var transformNames = false
-    val names : Seq[String] = config.model.toOption match {
+    val names : Seq[String] = if (config == null) Seq() else config.model.toOption match {
       case Some("native") => Seq()
       case Some("variables") => {
         transformNames = true
@@ -222,11 +222,14 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
         }else if (originalName.indexOf("@") != -1){
           originalName = originalName.substring(0, originalName.indexOf("@"))
         }
-        if (methodNames.contains(originalName)){
-          val viperName = methodNames.get(originalName).get
-          if (!currentEntryForName.contains(viperName) || isLaterVersion(vname, originalName, currentEntryForName.get(viperName).get)){
-            newEntries.update(viperName, e)
-            currentEntryForName.update(viperName, vname)
+        if (PrettyPrinter.backMap.contains(originalName)){
+          originalName = PrettyPrinter.backMap.get(originalName).get
+          if (methodNames.contains(originalName)){
+            val viperName = methodNames.get(originalName).get
+            if (!currentEntryForName.contains(viperName) || isLaterVersion(vname, originalName, currentEntryForName.get(viperName).get)){
+              newEntries.update(viperName, e)
+              currentEntryForName.update(viperName, vname)
+            }
           }
         }
       }
