@@ -8,12 +8,11 @@ package viper.carbon
 
 import boogie.{ErrorMethodMapping, Namespace}
 import modules.impls._
-import viper.silver.ast.{LocalVarDecl, Program}
+import viper.silver.ast.Program
 import viper.silver.utility.Paths
 import viper.silver.verifier._
 import verifier.{BoogieDependency, BoogieInterface, Verifier}
 import java.io.{BufferedOutputStream, File, FileOutputStream}
-import java.nio.file.Files
 
 import scala.collection.mutable
 
@@ -136,7 +135,11 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
 
     var transformNames = false
     val names : Seq[String] = config.model.toOption match {
-      case Some("true") => Seq()
+      case Some("native") => Seq()
+      case Some("variables") => {
+        transformNames = true
+        Seq()
+      }
       case Some(l) => {
         transformNames = true
         l.split(",")
@@ -191,9 +194,9 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
           case b:BoogieDependency => b.version = version
           case _ => }) }
 
-        val finalResult = result match {
+        result match {
           case Failure(errors) if transformNames => {
-            Failure(errors.map(e => transformModel(e, translatedNames)))
+            errors.foreach(e =>  transformModel(e, translatedNames))
           }
           case _ => result
         }
@@ -201,28 +204,45 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
     }
   }
 
-  def transformModel(e: AbstractError, names: Map[String, Map[String, Option[String]]]) : AbstractError = {
+  def transformModel(e: AbstractError, names: Map[String, Map[String, Option[String]]]) : Unit = {
     if (e.isInstanceOf[VerificationError] && ErrorMethodMapping.mapping.contains(e.asInstanceOf[VerificationError])){
       val ve = e.asInstanceOf[VerificationError]
       val methodName = ErrorMethodMapping.mapping.get(ve).get.name
-      val methodNames = names.get(methodName).get.filter(e => e._2.isDefined).map(e => e._1 -> e._2.get).toMap
+      val methodNames = names.get(methodName).get.filter(e => e._2.isDefined).map(e => e._2.get -> e._1).toMap
       val originalEntries = ve.parsedModel.get.entries
       val newEntries = mutable.HashMap[String, ModelEntry]()
-      for ((vname, bname) <- methodNames){
-        if (originalEntries.contains(bname)){
-          newEntries.update(vname, originalEntries.get(bname).get)
-        }else if (originalEntries.contains(bname + "@0")){
-          newEntries.update(vname, originalEntries.get(bname + "@0").get)
-        }else if (originalEntries.contains(bname + "@@0")){
-          newEntries.update(vname, originalEntries.get(bname + "@@0").get)
-        }else if (originalEntries.contains("q@" + bname)){
-          newEntries.update(vname, originalEntries.get("q@" + bname).get)
+      val currentEntryForName = mutable.HashMap[String, String]()
+
+      for ((vname, e) <- originalEntries) {
+        var originalName = vname
+        if (originalName.startsWith("q@")){
+          originalName = originalName.substring(2)
+        }else if (originalName.indexOf("@@") != -1){
+          originalName = originalName.substring(0, originalName.indexOf("@@"))
+        }else if (originalName.indexOf("@") != -1){
+          originalName = originalName.substring(0, originalName.indexOf("@"))
+        }
+        if (methodNames.contains(originalName)){
+          val viperName = methodNames.get(originalName).get
+          if (!currentEntryForName.contains(viperName) || isLaterVersion(vname, originalName, currentEntryForName.get(viperName).get)){
+            newEntries.update(viperName, e)
+            currentEntryForName.update(viperName, vname)
+          }
         }
       }
       ve.parsedModel = Some(Model(newEntries.toMap))
-      ve
-    }else{
-      e
+    }
+  }
+
+  def isLaterVersion(firstName: String, originalName: String, secondName: String) : Boolean = {
+    if (secondName == originalName || secondName == "q@" + originalName || secondName.indexOf("@@") != -1){
+      true
+    }else if (secondName.indexOf("@") != -1 && firstName.indexOf("@@") == -1 && firstName.indexOf("@") != -1) {
+      val firstIndex = Integer.parseInt(firstName.substring(originalName.length + 1))
+      val secondIndex = Integer.parseInt(secondName.substring(originalName.length + 1))
+      firstIndex > secondIndex
+    }else {
+      false
     }
   }
 

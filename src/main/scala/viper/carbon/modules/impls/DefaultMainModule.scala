@@ -131,11 +131,17 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
         CommentedDecl(s"Translation of method $name", proc)
     }
     val usedNames = env.currentNameMapping
-    for (name <- names.keys){
-      if (usedNames.contains(name)){
-        names.update(name, Some(usedNames.get(name).get))
+    if (names.nonEmpty){
+      for (name <- names.keys){
+        if (usedNames.contains(name)){
+          names.update(name, Some(usedNames.get(name).get))
+        }
       }
+    }else{
+      // add all local vars
+      usedNames.foreach(e => names.update(e._1, Some(e._2)))
     }
+
     env = null
     ErrorMethodMapping.currentMethod = null
     res
