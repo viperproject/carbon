@@ -425,7 +425,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         val freshParams = freshParamDeclarations map (_.localVar)
         freshParams map (lv => env.define(lv))
         val freshBoogies = freshParamDeclarations map translateLocalVarDecl
-        val renaming = ((e:sil.Exp) => Expressions.instantiateVariables(e,formalArgs,freshParams))
+        val renaming = ((e:sil.Exp) => Expressions.instantiateVariables(e,formalArgs,freshParams, env.allDefinedNames(program)))
         val (frame, declarations) = computeFrame(assertions, renaming, name, freshBoogies)
         info.put(name, (frame, frameState, freshBoogies, declarations))
         freshParams map (lv => env.undefine(lv))
@@ -493,7 +493,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       case sil.CondExp(con, thn, els) =>
         frameFragment(CondExp(translateExp(renaming(con)), computeFrameHelper(thn,renaming,name,args), computeFrameHelper(els,renaming,name,args)))
       case sil.Let(varDeclared,boundTo,inBody) =>
-        computeFrameHelper(Expressions.instantiateVariables(inBody,varDeclared,boundTo),renaming,name,args)
+        computeFrameHelper(Expressions.instantiateVariables(inBody,varDeclared,boundTo, env.allDefinedNames(program)),renaming,name,args)
       case e if e.isPure =>
         emptyFrame
       // should be no default case! Some explicit cases should be added - e.g. let expressions (see issue 222)
@@ -513,7 +513,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
           val vsFresh = lvds.map(lvd => env.makeUniquelyNamed(lvd))
           vsFresh.foreach(vFresh => env.define(vFresh.localVar))
-          def renaming(origExpr: sil.Exp) = Expressions.instantiateVariables(origExpr, lvds, vsFresh.map(_.localVar))
+          def renaming(origExpr: sil.Exp) = Expressions.instantiateVariables(origExpr, lvds, vsFresh.map(_.localVar), env.allDefinedNames(program))
 
 
           val (_, curState) = stateModule.freshTempState("Heap2")
@@ -691,7 +691,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       case fa@sil.FuncApp(f, args) => {
         (() => Nil, if(makeChecks) () => {
         val funct = verifier.program.findFunction(f);
-        val pres = funct.pres map (e => Expressions.instantiateVariables(e, funct.formalArgs, args))
+        val pres = funct.pres map (e => Expressions.instantiateVariables(e, funct.formalArgs, args, env.allDefinedNames(program)))
         //if (pres.isEmpty) noStmt // even for empty pres, the assumption made below is important
         NondetIf(
           // This is where termination checks could/should be added
@@ -772,7 +772,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
                            , statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): (Stmt,Stmt) = {
     duringFold = true
     foldInfo = acc
-    val stmt = exhale(Seq((Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program).get,acc.perm), error)), havocHeap = false,
+    val stmt = exhale(Seq((Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program, env.allDefinedNames(program)).get,acc.perm), error)), havocHeap = false,
       statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt) ++
       inhale(acc, statesStackForPackageStmt, insidePackageStmt)
     val stmtLast =  Assume(predicateTrigger(heapModule.currentStateExps, acc.loc)) ++ {
@@ -819,7 +819,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       } ++
       (if(exhaleUnfoldedPredicate)
           exhale(Seq((acc, error)), havocHeap = false, statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
-      else Nil) ++ inhale(Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program).get,acc.perm), statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
+      else Nil) ++ inhale(Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program, env.allDefinedNames(program)).get,acc.perm), statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
     unfoldInfo = oldUnfoldInfo
     duringUnfold = oldDuringUnfold
     duringFold = oldDuringFold

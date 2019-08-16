@@ -499,7 +499,7 @@ class DefaultHeapModule(val verifier: Verifier)
    * Adds the permissions from the body of a predicate to its permission mask.
    */
   private def addPermissionToPMask(loc: sil.PredicateAccess): Stmt = {
-    val predBody = loc.predicateBody(verifier.program).get
+    val predBody = loc.predicateBody(verifier.program, env.allDefinedNames(program)).get
     addPermissionToPMaskHelper(predBody, loc, predicateMask(loc,heap))
   }
   /**
