@@ -55,6 +55,7 @@ object Transformer {
             case Seqn(s) => Seqn(s map go)
             case If(cond, thn, els) => If(go(cond), go(thn), go(els))
             case NondetIf(thn, els) => NondetIf(go(thn), go(els))
+            case NondetWhile(bod) => NondetWhile(go(bod))
             case Label(name) => parent
             case Goto(target) => parent
             case LocalVarWhereDecl(idn, where) => LocalVarWhereDecl(idn, go(where))
@@ -160,6 +161,9 @@ object DuplicatingTransformer {
             case NondetIf(thn, els) =>
               for {thnResult <- go(thn); elsResult <- go(els)} yield
                 (NondetIf(thnResult, elsResult))
+            case NondetWhile(bod) =>
+              for {bodResult <- go(bod)} yield
+                (NondetWhile(bodResult))
             case Label(name) => Seq(parent)
             case Goto(target) => Seq(parent)
             case LocalVarWhereDecl(idn, where) => go(where) map (LocalVarWhereDecl(idn, _))

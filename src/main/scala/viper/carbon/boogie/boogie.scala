@@ -334,6 +334,8 @@ case class If(cond: Exp, thn: Stmt, els: Stmt) extends Stmt
 case class Seqn(stmts: Seq[Stmt]) extends Stmt
 /** A non-deterministic if statement. */
 case class NondetIf(thn: Stmt, els: Stmt = Statements.EmptyStmt) extends Stmt
+/** A non-deterministic while statement. */
+case class NondetWhile(bod: Stmt) extends Stmt
 /**
  * Something like a 'declaration' of a local variable that allows to specify a where
  * clause.  However, local variables do not need to be declared if no where clause

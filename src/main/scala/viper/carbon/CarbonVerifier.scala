@@ -70,6 +70,9 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
   /** The default location for Boogie (the environment variable ${BOOGIE_EXE}). */
   lazy val boogieDefault: String = new File(Paths.resolveEnvVars("${BOOGIE_EXE}")).getAbsolutePath
 
+  /** The default location for Corral (the environment variable ${CORRAL_EXE}). */
+  lazy val corralDefault: String = new File(Paths.resolveEnvVars("${CORRAL_EXE}")).getAbsolutePath
+
   /** The default location for Z3 (the environment variable ${Z3_EXE}). */
   lazy val z3Default: String = new File(Paths.resolveEnvVars("${Z3_EXE}")).getAbsolutePath
 
@@ -79,6 +82,11 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
     case Some(path) => new File(path).getAbsolutePath
     case None => boogieDefault
   } else boogieDefault
+
+  def corralPath = if (config != null) config.corralExecutable.toOption match {
+    case Some(path) => new File(path).getAbsolutePath
+    case None => corralDefault
+  } else corralDefault
 
   /** The (resolved) path where Z3 is supposed to be located. */
   def z3Path = if (config != null) config.Z3executable.toOption match {

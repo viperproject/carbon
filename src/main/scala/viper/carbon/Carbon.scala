@@ -61,6 +61,12 @@ class CarbonConfig(args: Seq[String]) extends SilFrontendConfig(args, "Carbon") 
     noshort = true
   )
 
+  val useCorral = opt[String]("useCorral",
+    descr = "Verify using stratified inlining with Corral. Off by default. Argument must have the form mainMethodName,recursionBound.",
+    default = None,
+    noshort = true
+  )
+
   val boogieOut = opt[String]("print",
     descr = "Write the Boogie output file to the provided filename (default: none)",
     default = None,
@@ -75,6 +81,12 @@ class CarbonConfig(args: Seq[String]) extends SilFrontendConfig(args, "Carbon") 
 
   val boogieExecutable = opt[String]("boogieExe",
     descr = "Manually-specified full path to Boogie.exe executable (default: ${BOOGIE_EXE})",
+    default = None,
+    noshort = true
+  )
+
+  val corralExecutable = opt[String]("corralExe",
+    descr = "Manually-specified full path to Corral.exe executable (default: ${CORRAL_EXE})",
     default = None,
     noshort = true
   )

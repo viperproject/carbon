@@ -172,4 +172,6 @@ trait HeapModule extends Module with CarbonStateComponent {
 
   // adds permission to field e to the secondary mask of the wand
   def addPermissionToWMask(wMask: Exp, e: sil.Exp): Stmt
+
+  val identicalOnKnownLocsName : Identifier
 }
