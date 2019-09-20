@@ -75,6 +75,11 @@ case class Environment(verifier: Verifier, member: sil.Node) {
     }
   }
 
+  def allDefinedVariables() : Set[sil.LocalVar] = currentMapping.keys.toSet
+
+  def allDefinedNames(p : sil.Program) : Set[String] =
+    allDefinedVariables().map(_.name) union p.scopedDecls.map(_.name).toSet
+
   def isDefinedAt(variable: sil.LocalVar) : Boolean = currentMapping.isDefinedAt(variable)
 
   def makeUniquelyNamed(decl: sil.LocalVarDecl) : sil.LocalVarDecl =
