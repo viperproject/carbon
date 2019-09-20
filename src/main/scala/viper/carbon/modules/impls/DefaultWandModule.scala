@@ -289,7 +289,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
         val translatedExp = expModule.translateExp(exp) // expression to bind "v" to, evaluated in ops state
         val v = mainModule.env.makeUniquelyNamed(letVarDecl) // choose a fresh "v" binder
         mainModule.env.define(v.localVar)
-        val instantiatedExp = Expressions.instantiateVariables(body,Seq(letVarDecl),Seq(v.localVar)) //instantiate bound variable
+        val instantiatedExp = Expressions.instantiateVariables(body,Seq(letVarDecl),Seq(v.localVar), mainModule.env.allDefinedNames(program)) //instantiate bound variable
 
         val stmt =
           (bOps := bOps && (mainModule.env.get(v.localVar) === translatedExp) ) ++
