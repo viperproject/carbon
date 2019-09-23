@@ -312,18 +312,17 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
 
 override def exhaleExt(statesObj: List[Any], usedObj:Any, e: sil.Exp, allStateAssms: Exp, RHS: Boolean = false, error: PartialVerificationError, havocHeap: Boolean):Stmt = {
   Comment("exhale_ext of " + e.toString())
-  var states = statesObj.asInstanceOf[List[StateRep]]
-  var used = usedObj.asInstanceOf[StateRep]
+  val states = statesObj.asInstanceOf[List[StateRep]]
+  val used = usedObj.asInstanceOf[StateRep]
   e match {
-    case acc@sil.AccessPredicate(_,_) => transferMain(states,used, e, allStateAssms, error, havocHeap)
-    case acc@sil.MagicWand(_,_) => transferMain(states, used,e,allStateAssms, error, havocHeap)
-    case acc@sil.And(e1,e2) =>
+    case _: sil.AccessPredicate => transferMain(states, used, e, allStateAssms, error, havocHeap)
+    case sil.And(e1,e2) =>
       exhaleExt(states, used, e1,allStateAssms, RHS, error, havocHeap) :: exhaleExt(states,used,e2,allStateAssms, RHS, error, havocHeap) :: Nil
-    case acc@sil.Implies(e1,e2) =>
+    case sil.Implies(e1,e2) =>
       If(allStateAssms,
         If(expModule.translateExpInWand(e1), exhaleExt(states,used,e2,allStateAssms, RHS, error, havocHeap),Statements.EmptyStmt),
         Statements.EmptyStmt)
-    case acc@sil.CondExp(c,e1,e2) =>
+    case sil.CondExp(c,e1,e2) =>
       If(allStateAssms,
         If(expModule.translateExpInWand(c), exhaleExt(states,used,e1,allStateAssms, RHS, error, havocHeap), exhaleExt(states,used,e2,allStateAssms, RHS, error, havocHeap)),
         Statements.EmptyStmt)
@@ -558,22 +557,21 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
  */
 private def setupTransferableEntity(e: sil.Exp, permTransfer: Exp):(TransferableEntity,Stmt) = {
   e match {
-    case fa@sil.FieldAccessPredicate(loc, perm) =>
+    case fa@sil.FieldAccessPredicate(loc, _) =>
       val assignStmt = rcvLocal := expModule.translateExpInWand(loc.rcv)
       val evalLoc = heapModule.translateLocation(loc)
       (TransferableFieldAccessPred(rcvLocal, evalLoc, permTransfer,fa), assignStmt)
 
-    case p@sil.PredicateAccessPredicate(loc, perm) =>
+    case p@sil.PredicateAccessPredicate(loc, _) =>
       val localsStmt: Seq[(LocalVar, Stmt)] = (for (arg <- loc.args) yield {
         val v = LocalVar(Identifier(names.createUniqueIdentifier("arg"))(transferNamespace),
           typeModule.translateType(arg.typ))
         (v, v := expModule.translateExpInWand(arg))
       })
-
       val (locals, assignStmt) = localsStmt.unzip
       val predTransformed = heapModule.translateLocation(p.loc.loc(verifier.program), locals)
-
       (TransferablePredAccessPred(heapModule.translateNull, predTransformed, permTransfer,p), assignStmt)
+
     case w:sil.MagicWand =>
       val wandRep = getWandRepresentation(w)
       //GP: maybe should store holes of wand first in local variables
