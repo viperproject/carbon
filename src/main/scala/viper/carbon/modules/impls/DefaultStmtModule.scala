@@ -200,10 +200,6 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
             Assume(guard.not) ++ stateModule.assumeGoodState ++
               inhale(w.invs) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv)))
           )
-      case fb@sil.Constraining(vars, body) =>
-        MaybeCommentBlock(s"Start of constraining(${vars.mkString(", ")})", components map (_.enterConstrainingBlock(fb))) ++
-          translateStmt(body) ++
-          MaybeCommentBlock(s"End of constraining(${vars.mkString(", ")})", components map (_.leaveConstrainingBlock(fb)))
       case i@sil.If(cond, thn, els) =>
         checkDefinedness(cond, errors.IfFailed(cond), insidePackageStmt = insidePackageStmt) ++
         If((allStateAssms) ==> translateExpInWand(cond),
@@ -255,8 +251,6 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
         comment = s"Translating statement: if ($cond)"
       case sil.While(cond, invs, body) =>
         comment = s"Translating statement: while ($cond)"
-      case cs@sil.Constraining(vars,body) =>
-        comment = s"Translating statement: constraining(${vars.mkString(", ")})"
       case _ =>
     }
 

@@ -36,16 +36,4 @@ trait StmtComponent extends Component {
    * This method is called when translating a "fresh" statement, and by default does nothing
    */
   def freshReads(fb: Seq[LocalVar]): Stmt = Statements.EmptyStmt
-
-  /**
-   * This method is called at the beginning of translating a constraining read permission block,
-   * and by default does nothing.
-   */
-  def enterConstrainingBlock(fb: sil.Constraining): Stmt = Statements.EmptyStmt
-
-  /**
-   * This method is called at the end of translating a constaining read permission block,
-   * and by default does nothing.
-   */
-  def leaveConstrainingBlock(fb: sil.Constraining): Stmt = Statements.EmptyStmt
 }
