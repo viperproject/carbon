@@ -1319,19 +1319,6 @@ class QuantifiedPermModule(val verifier: Verifier)
     }
   }
 
-  override def enterConstrainingBlock(cb: sil.Constraining): Stmt = {
-    val vars = cb.vars map translateLocalVar
-    currentAbstractReads ++= (cb.vars map (_.name))
-    Nil
-  }
-
-  override def leaveConstrainingBlock(cb: sil.Constraining): Stmt = {
-    val vars = cb.vars map (_.name)
-    currentAbstractReads --= vars
-    Nil
-  }
-
-
   override def freshReads(vars: Seq[viper.silver.ast.LocalVar]): Stmt = {
     val bvs = vars map translateLocalVar
     Havoc(bvs) ++
