@@ -59,7 +59,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
     )
 
     val output = verifier.program match {
-      case sil.Program(domains, fields, functions, predicates, methods) =>
+      case sil.Program(domains, fields, functions, predicates, methods, extensions) =>
         // translate all members
         val translateFields =
           MaybeCommentedDecl("Translation of all fields", (fields flatMap translateField).toList)
