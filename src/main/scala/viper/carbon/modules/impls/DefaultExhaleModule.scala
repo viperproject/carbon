@@ -11,6 +11,7 @@ import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.Verifier
 import Implicits._
+import viper.silver.ast.utility.Expressions
 import viper.silver.verifier.PartialVerificationError
 import viper.silver.verifier.reasons._
 
@@ -28,8 +29,12 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
 
   def name = "Exhale module"
 
+  //unfoldings within forall assertions must be executed when being exhaled
+  var exhaleInsidePureForAll = true
+
   override def reset = {
     currentPhaseId = -1
+    exhaleInsidePureForAll = false
   }
 
   override def start() {
@@ -131,6 +136,45 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
             Nil
           }
       }
+      case fa@sil.Forall(vars, _, body) if isInPhase(e, phase) && fa.isPure =>
+        //GP: the definedness check for foralls is in another branch, hence we must take unfoldings of e into account here (otherwise they would be ignored)
+      {
+        val oldExhaleInsidePureForAll = exhaleInsidePureForAll
+        exhaleInsidePureForAll = true
+        val varsFresh = vars.map(v => env.makeUniquelyNamed(v))
+        varsFresh.foreach(vFresh => env.define(vFresh.localVar))
+
+        val renamedBody = Expressions.instantiateVariables(body, vars.map(_.localVar), varsFresh.map(_.localVar))
+
+        val exhaleStmt : Stmt = exhaleConnective(renamedBody, error, phase, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage)
+
+        Seqn(Seq (
+          NondetIf(Seqn(Seq(exhaleStmt, Assume(FalseLit())))),
+          //GP: in the non-deterministic branch we checked the assertion, hence we assume the assertion in the main branch
+          Assume(translateExp(e)),
+          {
+            varsFresh.foreach(vFresh => env.undefine(vFresh.localVar))
+            exhaleInsidePureForAll = oldExhaleInsidePureForAll
+            Nil
+          }
+        ))
+      }
+      case sil.Unfolding(_, body) if isInPhase(e, phase) => {
+        val checks = components map (_.exhaleExpBeforeAfter(e, error))
+        val stmtBefore = checks map (_._1())
+
+        val stmtBody =
+          if (exhaleInsidePureForAll) {
+            //GP: components only deal with the top-level unfolding, force to use unfoldings that are deeper if the exhale is within pure forall assertion
+            exhaleConnective(body, error, phase, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage)
+        } else {
+          Statements.EmptyStmt
+        }
+
+        val stmtAfter = checks map (_._2())
+
+        stmtBefore ++ stmtBody ++ stmtAfter
+      }
       case _ if isInPhase(e, phase) => {
         if(insidePackageStmt){  // handling exhales during packaging a wand
           // currently having wild cards and 'constraining' expressions are not supported during packaging a wand.
@@ -165,7 +209,7 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
             }
 
         }else{
-          components map (_.exhaleExp(e, error))
+          invokeExhaleOnComponents(e, error)
         }
       }
       case _ =>
@@ -175,13 +219,26 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
 
   var currentPhaseId: Int = -1
 
+  private def invokeExhaleOnComponents(e: sil.Exp, error: PartialVerificationError) : Stmt = {
+    val checks = components map (_.exhaleExpBeforeAfter(e, error))
+    val stmtBefore = checks map (_._1())
+    // some implementations may rely on the order of these calls
+
+    val stmtAfter = checks map (_._2())
+
+    stmtBefore ++ stmtAfter
+  }
+
   /**
    * Handles only pure expressions - others will be dealt with by other modules
    */
   override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt =
   {
     if (e.isPure) {
-      Assert(translateExp(e), error.dueTo(AssertionFalse(e)))
+      e match {
+        case sil.Unfolding(_, _) => Nil //taken care of by exhaleConnective
+        case _ => Assert(translateExp(e), error.dueTo(AssertionFalse(e)))
+      }
     } else {
       Nil
     }

@@ -827,20 +827,30 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     stmt
   }
 
-  override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
+  override def exhaleExpBeforeAfter(e: sil.Exp, error: PartialVerificationError): (() => Stmt, () => Stmt) = {
     e match {
-      case sil.Unfolding(acc, _) => if (duringUnfoldingExtraUnfold) Nil else // execute the unfolding, since this may gain information
+      case sil.Unfolding(acc, _) => if (duringUnfoldingExtraUnfold) (() => Nil, () => Nil) else // execute the unfolding, since this may gain information
       {
         duringUnfoldingExtraUnfold = true
         tmpStateId += 1
         val tmpStateName = if (tmpStateId == 0) "Unfolding" else s"Unfolding$tmpStateId"
         val (stmt, state) = stateModule.freshTempState(tmpStateName)
-        val stmts = stmt ++ unfoldPredicate(acc, NullPartialVerificationError, isUnfolding = true, exhaleUnfoldedPredicate = false) // skip removing the predicate instance, since this will have happened earlier in the assertion being exhaled
-        tmpStateId -= 1
-        stateModule.replaceState(state)
-        duringUnfoldingExtraUnfold = false
+        def before() : Stmt = {
+          val result = CommentBlock("Execute unfolding (for extra information)",
+            stmt ++ unfoldPredicate(acc, NullPartialVerificationError, isUnfolding = true, exhaleUnfoldedPredicate = false)
+              // skip removing the predicate instance, since this will have happened earlier in the assertion being exhaled
+          )
+          duringUnfoldingExtraUnfold = false
+          result
+        }
 
-        CommentBlock("Execute unfolding (for extra information)",stmts)
+        def after():Stmt = {
+          tmpStateId -= 1
+          stateModule.replaceState(state)
+          Nil
+        }
+
+        (before, after)
       }
       case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(args, predicateName), _) if duringUnfold && currentPhaseId == 0 =>
         val oldVersion = LocalVar(Identifier("oldVersion"), predicateVersionType)
@@ -850,13 +860,13 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
            Havoc(Seq(newVersion)) ++
               //          Assume(oldVersion < newVersion) ++ // this only made sense with integer versions. In the new model, we even want to allow the possibility of the new version being equal to the old
               (curVersion := newVersion)
-        MaybeCommentBlock("Update version of predicate",
-          If(UnExp(Not,hasDirectPerm(loc)), stmt, Nil))
+        ( () => MaybeCommentBlock("Update version of predicate",
+          If(UnExp(Not,hasDirectPerm(loc)), stmt, Nil)), () => Nil)
       case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(_, _), _) if duringFold =>
-        MaybeCommentBlock("Record predicate instance information",
-          insidePredicate(foldInfo, pap))
+        ( () => MaybeCommentBlock("Record predicate instance information",
+          insidePredicate(foldInfo, pap)), () => Nil)
 
-      case _ => Nil
+      case _ => (() => Nil, () => Nil)
     }
   }
 
