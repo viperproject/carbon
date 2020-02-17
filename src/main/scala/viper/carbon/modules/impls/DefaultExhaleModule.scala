@@ -236,7 +236,12 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
   {
     if (e.isPure) {
       e match {
-        case sil.Unfolding(_, _) => Nil //taken care of by exhaleConnective
+        case sil.Unfolding(_, _) =>
+          if(exhaleInsidePureForAll) {
+            Nil //taken care of by exhaleConnective, since unfolding is within a forall expression
+          } else {
+            Assert(translateExp(e), error.dueTo(AssertionFalse(e)))
+          }
         case _ => Assert(translateExp(e), error.dueTo(AssertionFalse(e)))
       }
     } else {
