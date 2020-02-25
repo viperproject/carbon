@@ -159,7 +159,7 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
           }
         ))
       }
-      case sil.Unfolding(_, body) if isInPhase(e, phase) => {
+      case sil.Unfolding(_, body) if !insidePackageStmt && isInPhase(e, phase) => {
         val checks = components map (_.exhaleExpBeforeAfter(e, error))
         val stmtBefore = checks map (_._1())
 
@@ -236,12 +236,8 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
   {
     if (e.isPure) {
       e match {
-        case sil.Unfolding(_, _) =>
-          if(exhaleInsidePureForAll) {
+        case sil.Unfolding(_, _) if exhaleInsidePureForAll =>
             Nil //taken care of by exhaleConnective, since unfolding is within a forall expression
-          } else {
-            Assert(translateExp(e), error.dueTo(AssertionFalse(e)))
-          }
         case _ => Assert(translateExp(e), error.dueTo(AssertionFalse(e)))
       }
     } else {
