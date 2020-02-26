@@ -838,7 +838,6 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         def before() : Stmt = {
           val result = CommentBlock("Execute unfolding (for extra information)",
             stmt ++ unfoldPredicate(acc, NullPartialVerificationError, isUnfolding = true, exhaleUnfoldedPredicate = true)
-              // skip removing the predicate instance, since this will have happened earlier in the assertion being exhaled
           )
           duringUnfoldingExtraUnfold = false
           result
