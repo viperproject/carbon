@@ -29,12 +29,8 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
 
   def name = "Exhale module"
 
-  //unfoldings within forall assertions must be executed when being exhaled
-  var exhaleInsidePureForAll = true
-
   override def reset = {
     currentPhaseId = -1
-    exhaleInsidePureForAll = false
   }
 
   override def start() {
@@ -137,16 +133,16 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
           }
       }
       case fa@sil.Forall(vars, _, body) if isInPhase(e, phase) && fa.isPure =>
-        //GP: the definedness check for foralls is in another branch, hence we must take unfoldings of e into account here (otherwise they would be ignored)
+        //GP: the definedness check for foralls is in another branch, hence we must take unfoldings of e
+        // into account here (otherwise they would be ignored)
       {
-        val oldExhaleInsidePureForAll = exhaleInsidePureForAll
-        exhaleInsidePureForAll = true
         val varsFresh = vars.map(v => env.makeUniquelyNamed(v))
         varsFresh.foreach(vFresh => env.define(vFresh.localVar))
 
         val renamedBody = Expressions.instantiateVariables(body, vars.map(_.localVar), varsFresh.map(_.localVar))
 
-        val exhaleStmt : Stmt = exhaleConnective(renamedBody, error, phase, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage)
+        val exhaleStmt : Stmt = exhaleConnective(renamedBody, error, phase, havocHeap, statesStackForPackageStmt,
+          insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage)
 
         Seqn(Seq (
           NondetIf(Seqn(Seq(exhaleStmt, Assume(FalseLit())))),
@@ -154,26 +150,21 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
           Assume(translateExp(e)),
           {
             varsFresh.foreach(vFresh => env.undefine(vFresh.localVar))
-            exhaleInsidePureForAll = oldExhaleInsidePureForAll
             Nil
           }
         ))
       }
       case sil.Unfolding(_, body) if !insidePackageStmt && isInPhase(e, phase) => {
         val checks = components map (_.exhaleExpBeforeAfter(e, error))
-        val stmtBefore = checks map (_._1())
+        val stmtBefore = (checks map (_._1())).toList
 
         val stmtBody =
-          if (exhaleInsidePureForAll) {
-            //GP: components only deal with the top-level unfolding, force to use unfoldings that are deeper if the exhale is within pure forall assertion
-            exhaleConnective(body, error, phase, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage)
-        } else {
-          Statements.EmptyStmt
-        }
+            exhaleConnective(body, error, phase, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert,
+              currentStateForPackage = currentStateForPackage)
 
-        val stmtAfter = checks map (_._2())
+        val stmtAfter = (checks map (_._2())).toList
 
-        stmtBefore ++ stmtBody ++ stmtAfter
+        (stmtBefore ++ stmtBody ++ stmtAfter)
       }
       case _ if isInPhase(e, phase) => {
         if(insidePackageStmt){  // handling exhales during packaging a wand
@@ -236,8 +227,7 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
   {
     if (e.isPure) {
       e match {
-        case sil.Unfolding(_, _) if exhaleInsidePureForAll =>
-            Nil //taken care of by exhaleConnective, since unfolding is within a forall expression
+        case sil.Unfolding(_, _) => Nil //taken care of by exhaleConnective
         case _ => Assert(translateExp(e), error.dueTo(AssertionFalse(e)))
       }
     } else {
