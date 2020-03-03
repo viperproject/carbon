@@ -6,11 +6,12 @@
 
 package viper.carbon.modules.impls
 
-import viper.carbon.modules.{StatelessComponent, DomainModule}
+import viper.carbon.modules.{DomainModule, StatelessComponent}
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.{Environment, Verifier}
 import viper.carbon.boogie.Implicits._
+import viper.silver.ast.NamedDomainAxiom
 
 /**
  * The default implementation of [[viper.carbon.modules.DomainModule]].
@@ -56,7 +57,11 @@ class DefaultDomainModule(val verifier: Verifier) extends DomainModule with Stat
     env = Environment(verifier, axiom)
     //(AS): I believe this is not needed, as locals are introduced in the translation
     //mainModule.defineLocalVars(axiom)
-    val res = MaybeCommentedDecl(s"Translation of domain axiom ${axiom.name}", Axiom(translateExp(axiom.exp)), size = 1)
+    val res = MaybeCommentedDecl(if (axiom.isInstanceOf[NamedDomainAxiom])
+      (s"Translation of domain axiom ${axiom.asInstanceOf[NamedDomainAxiom].name}")
+    else
+      (s"Translation of anonymous domain axiom")
+    , Axiom(translateExp(axiom.exp)), size = 1)
     //mainModule.undefineLocalVars(axiom)
     env = null
     res
