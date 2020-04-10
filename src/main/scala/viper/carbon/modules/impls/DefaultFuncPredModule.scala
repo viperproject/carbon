@@ -261,10 +261,32 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     // In either case, the function must have been mentioned *somewhere* in the program (not necessarily the state in which its definition is triggered) with the corresponding combination of function arguments.
     val recursiveCallsAndUnfoldings : Seq[(silverFuncApp,Seq[Unfolding])] = Functions.recursiveCallsAndSurroundingUnfoldings(f)
     val outerUnfoldings : Seq[Unfolding] = recursiveCallsAndUnfoldings.map((pair) => pair._2.headOption).flatten
-    val predicateTriggers : Seq[Exp] = if (recursiveCallsAndUnfoldings.isEmpty) // then any predicate in the precondition will do (at the moment, regardless of position - seems OK since there is no recursion)
-      (f.pres map (p => p.shallowCollect{case pacc : PredicateAccess => pacc})).flatten map (p => predicateTrigger(heap map (_.l), p))
-    else
-    outerUnfoldings.map{case Unfolding(PredicateAccessPredicate(predacc : PredicateAccess,perm),exp) => predicateTrigger(heap map (_.l), predacc)}
+
+    val predicateTriggers : Seq[Exp] = if (recursiveCallsAndUnfoldings.isEmpty) {
+      // then any predicate in the precondition that does not contain bound variables will do (at the moment, regardless of position - seems OK since there is no recursion)
+      // (can maybe do something better if bound variables occur)
+      val collectDefinedPredicates = (p: sil.Node) =>
+        p.shallowCollect {
+          case pacc: PredicateAccess => Some(predicateTrigger(heap map (_.l), pacc))
+          case quantified: sil.QuantifiedExp => None
+          //we might be able to support the Let case, but it's not clear if this is desired
+          case let: sil.Let => None
+          case forperm: sil.ForPerm => None
+        }
+      (f.pres.flatMap(p => collectDefinedPredicates(p))).flatten
+    } else {
+      // since outerUnfoldings may include unfoldings that access predicates using bound variables, we make sure we
+      // only include triggers for predicate accesses that do not refer to bound variables (can maybe relax this)
+      val silArgsLocalVar = f.formalArgs map (decl => decl.localVar)
+      val hasOnlyDefinedVars = (pacc: PredicateAccess) =>
+         pacc.args.forall(arg => !arg.existsDefined[Unit]({case v:sil.LocalVar if !silArgsLocalVar.contains(v) => }  ))
+
+      outerUnfoldings.flatMap {
+        case Unfolding(PredicateAccessPredicate(predacc: PredicateAccess, perm), exp)
+          if hasOnlyDefinedVars(predacc) => Some(predicateTrigger(heap map (_.l), predacc))
+        case _ => None}.flatten
+    }
+
 
     Axiom(Forall(
       stateModule.staticStateContributions() ++ args,
@@ -367,7 +389,16 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val funcApp = FuncApp(name, funcFrameInfo._1 ++ (realArgs map (_.l)), typ)
     val funcApp2 = translateFuncApp(f.name, args map (_.l), f.typ)
     val outerUnfoldings : Seq[Unfolding] = Functions.recursiveCallsAndSurroundingUnfoldings(f).map((pair) => pair._2.headOption).flatten
-    val predicateTriggers = outerUnfoldings.map{case Unfolding(PredicateAccessPredicate(predacc : PredicateAccess,perm),exp) => predicateTrigger(heap map (_.l), predacc)}
+
+    //only include predicate accesses that do not refer to bound variables
+    val silArgsLocalVar = f.formalArgs map (decl => decl.localVar)
+    val hasOnlyDefinedVars = (pacc: PredicateAccess) =>
+      pacc.args.forall(arg => !arg.existsDefined[Unit]({case v:sil.LocalVar if !silArgsLocalVar.contains(v) => }  ))
+
+    val predicateTriggers : Seq[Exp] = outerUnfoldings.flatMap {
+      case Unfolding(PredicateAccessPredicate(predacc: PredicateAccess, perm), exp)
+        if hasOnlyDefinedVars(predacc) => Some(predicateTrigger(heap map (_.l), predacc))
+      case _ => None}.flatten
 
     Seq(func) ++
       Seq(Axiom(Forall(
