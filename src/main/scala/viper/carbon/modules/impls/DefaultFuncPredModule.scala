@@ -750,7 +750,9 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   override def toExpressionsUsedInTriggers(e: Exp): Seq[Exp] = {
     val inter = transformFuncAppsToLimitedOrTriggerForm(e,-1,true)
     val seqsDone = seqModule.rewriteToTermsInTriggers(inter)
-    val res = flattenConditionalsInTriggers(seqsDone)
+    val res = if (seqsDone != inter)
+      (flattenConditionalsInTriggers(seqsDone) ++ flattenConditionalsInTriggers(inter)).distinct
+      else flattenConditionalsInTriggers(seqsDone)
     res
   }
 
