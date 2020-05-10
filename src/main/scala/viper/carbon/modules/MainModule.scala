@@ -18,7 +18,7 @@ trait MainModule extends Module {
   /**
    * Translate a Viper program into a Boogie program.
    */
-  def translate(p: sil.Program, debugNames : Seq[String]): (Program, Map[String, Map[String, Option[String]]])
+  def translate(p: sil.Program): (Program, Map[String, Map[String, Option[String]]])
 
   /**
    * Translate a local variable along with its type (into a boogie declaration).  Assumes that the variable is already

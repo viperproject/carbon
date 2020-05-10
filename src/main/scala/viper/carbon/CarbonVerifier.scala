@@ -134,19 +134,15 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
     heapModule.enableAllocationEncoding = config == null || !config.disableAllocEncoding.supplied // NOTE: config == null happens on the build server / via sbt test
 
     var transformNames = false
-    val names : Seq[String] = if (config == null) Seq() else config.model.toOption match {
-      case Some("native") => Seq()
+    if (config == null) Seq() else config.model.toOption match {
+      case Some("native") =>
       case Some("variables") => {
         transformNames = true
-        Seq()
       }
-      case Some(l) => {
-        transformNames = true
-        l.split(",")
-      }
-      case None => Seq()
+      case None =>
+      case Some(v) => sys.error("Invalid option: " + v)
     }
-    val (tProg, translatedNames) = mainModule.translate(program, names)
+    val (tProg, translatedNames) = mainModule.translate(program)
     _translated = tProg
 
 
@@ -241,8 +237,8 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
     if (secondName == originalName || secondName == "q@" + originalName || secondName.indexOf("@@") != -1){
       true
     }else if (secondName.indexOf("@") != -1 && firstName.indexOf("@@") == -1 && firstName.indexOf("@") != -1) {
-      val firstIndex = Integer.parseInt(firstName.substring(originalName.length + 1))
-      val secondIndex = Integer.parseInt(secondName.substring(originalName.length + 1))
+      val firstIndex = Integer.parseInt(firstName.substring(firstName.indexOf("@") + 1))
+      val secondIndex = Integer.parseInt(secondName.substring(secondName.indexOf("@") + 1))
       firstIndex > secondIndex
     }else {
       false

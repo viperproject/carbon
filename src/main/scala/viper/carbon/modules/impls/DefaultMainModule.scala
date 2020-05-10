@@ -49,7 +49,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
     LocalVarDecl(name, t)
   }
 
-  override def translate(p: sil.Program, debugNames : Seq[String]): (Program, Map[String, Map[String, Option[String]]]) = {
+  override def translate(p: sil.Program): (Program, Map[String, Map[String, Option[String]]]) = {
 
     verifier.replaceProgram(
       p.transform(
@@ -69,16 +69,12 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
         // evaluation happens lazily, which can lead to incorrect behaviour (evaluation order is important here)
         val translateFields =
           MaybeCommentedDecl("Translation of all fields", (fields flatMap translateField).toList)
-        val emptyMap = new mutable.HashMap[String, Option[String]]()
-        for (name <- debugNames) {
-          emptyMap.update(name, None)
-        }
-        nameMaps = (methods ++ functions ++ predicates).map(_.name -> emptyMap.clone()).toMap
+        nameMaps = (methods ++ functions ++ predicates).map(_.name -> new mutable.HashMap[String, Option[String]]()).toMap
         val members = (domains flatMap translateDomainDecl) ++
           translateFields ++
-          (functions flatMap (f => translateFunction(f, nameMaps.get(f.name).get))) ++
-          (predicates flatMap (p => translatePredicate(p, nameMaps.get(p.name).get))) ++
-          (methods flatMap (m => translateMethodDecl(m, nameMaps.get(m.name).get)))
+          (functions flatMap (f => translateFunction(f, nameMaps.get(f.name)))) ++
+          (predicates flatMap (p => translatePredicate(p, nameMaps.get(p.name)))) ++
+          (methods flatMap (m => translateMethodDecl(m, nameMaps.get(m.name))))
 
         // get the preambles (only at the end, even if we add it at the beginning)
         val preambles = verifier.allModules flatMap {
@@ -105,7 +101,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
     (output.optimize.asInstanceOf[Program], nameMaps.map(e => e._1 -> e._2.toMap))
   }
 
-  def translateMethodDecl(m: sil.Method, names: mutable.Map[String, Option[String]]): Seq[Decl] = {
+  def translateMethodDecl(m: sil.Method, names: Option[mutable.Map[String, Option[String]]]): Seq[Decl] = {
     env = Environment(verifier, m)
     ErrorMethodMapping.currentMember = m
         val res = m match {
@@ -133,16 +129,10 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
                 checkPost, body, exhalePost))
         CommentedDecl(s"Translation of method $name", proc)
     }
-    val usedNames = env.currentNameMapping
-    if (names.nonEmpty){
-      for (name <- names.keys){
-        if (usedNames.contains(name)){
-          names.update(name, Some(usedNames.get(name).get))
-        }
-      }
-    }else{
+    if (names.isDefined){
+      val usedNames = env.currentNameMapping
       // add all local vars
-      usedNames.foreach(e => names.update(e._1, Some(e._2)))
+      usedNames.foreach(e => names.get.update(e._1, Some(e._2)))
     }
 
     env = null

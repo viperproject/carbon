@@ -193,7 +193,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     predicateFrames = FrameInfos()
   }
 
-    override def translateFunction(f: sil.Function, names: mutable.Map[String, Option[String]]): Seq[Decl] = {
+    override def translateFunction(f: sil.Function, names: Option[mutable.Map[String, Option[String]]]): Seq[Decl] = {
     env = Environment(verifier, f)
     ErrorMethodMapping.currentMember = f
     val res = MaybeCommentedDecl(s"Translation of function ${f.name}",
@@ -207,17 +207,12 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         MaybeCommentedDecl("Check contract well-formedness and postcondition", checkFunctionDefinedness(f), size = 1)
       , nLines = 2)
 
-    val usedNames = env.currentNameMapping
-    if (names.nonEmpty){
-      for (name <- names.keys){
-        if (usedNames.contains(name)){
-          names.update(name, Some(usedNames.get(name).get))
-        }
-      }
-    }else{
+    if (names.isDefined){
+      val usedNames = env.currentNameMapping
       // add all local vars
-      usedNames.foreach(e => names.update(e._1, Some(e._2)))
+      usedNames.foreach(e => names.get.update(e._1, Some(e._2)))
     }
+
     env = null
     ErrorMethodMapping.currentMember = null
     res
@@ -783,7 +778,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   // --------------------------------------------
 
-  override def translatePredicate(p: sil.Predicate, names: mutable.Map[String, Option[String]]): Seq[Decl] = {
+  override def translatePredicate(p: sil.Predicate, names: Option[mutable.Map[String, Option[String]]]): Seq[Decl] = {
 
     env = Environment(verifier, p)
     ErrorMethodMapping.currentMember = p
@@ -799,16 +794,12 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       (if (p.isAbstract) Nil else translateCondAxioms("predicate "+p.name, p.formalArgs, framingFunctionsToDeclare))
 
     val usedNames = env.currentNameMapping
-    if (names.nonEmpty){
-      for (name <- names.keys){
-        if (usedNames.contains(name)){
-          names.update(name, Some(usedNames.get(name).get))
-        }
-      }
-    }else{
+
+    if (names.isDefined){
       // add all local vars
-      usedNames.foreach(e => names.update(e._1, Some(e._2)))
+      usedNames.foreach(e => names.get.update(e._1, Some(e._2)))
     }
+
     env = null
     ErrorMethodMapping.currentMember = null
     res

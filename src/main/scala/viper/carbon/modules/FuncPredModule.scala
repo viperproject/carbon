@@ -16,14 +16,14 @@ import scala.collection.mutable
 
  */
 trait FuncPredModule extends Module {
-  def translateFunction(f: sil.Function, names: mutable.Map[String, Option[String]]): Seq[Decl]
+  def translateFunction(f: sil.Function, names: Option[mutable.Map[String, Option[String]]]): Seq[Decl]
 
   def translateFuncApp(fa: sil.FuncApp): Exp
 
   // wrap an expression in a dummy function with "true" value (sometimes useful for triggering)
   def dummyFuncApp(e: Exp): Exp
 
-  def translatePredicate(p: sil.Predicate, names: mutable.Map[String, Option[String]]): Seq[Decl]
+  def translatePredicate(p: sil.Predicate, names: Option[mutable.Map[String, Option[String]]]): Seq[Decl]
 
   def predicateVersionType : Type
 
