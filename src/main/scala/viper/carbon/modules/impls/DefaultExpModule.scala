@@ -570,6 +570,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         e match {
           case sil.MagicWand(_,_) => Nil
           case sil.Forall(_,_,_) => Nil
+          case sil.Exists(_,_,_) => Nil
           case sil.Let(v, e, body) => {
             val u = env.makeUniquelyNamed(v) // choose a fresh "v" binder
             env.define(u.localVar)

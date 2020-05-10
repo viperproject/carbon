@@ -62,8 +62,11 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
     var nameMaps : Map[String, mutable.HashMap[String, Option[String]]] = null
 
     val output = verifier.program match {
-      case sil.Program(domains, fields, functions, predicates, methods) =>
+      case sil.Program(domains, fields, functions, predicates, methods, extensions) =>
         // translate all members
+
+        // important to convert Seq to List to force the methods to be translated, otherwise it's possible that
+        // evaluation happens lazily, which can lead to incorrect behaviour (evaluation order is important here)
         val translateFields =
           MaybeCommentedDecl("Translation of all fields", (fields flatMap translateField).toList)
         val emptyMap = new mutable.HashMap[String, Option[String]]()
