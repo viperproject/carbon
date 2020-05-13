@@ -870,7 +870,10 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         val (stmt, state) = stateModule.freshTempState(tmpStateName)
         def before() : Stmt = {
           val result = CommentBlock("Execute unfolding (for extra information)",
-            stmt ++ unfoldPredicate(acc, NullPartialVerificationError, isUnfolding = true, exhaleUnfoldedPredicate = true)
+            // skip removing the predicate instance, since this will have happened earlier in the assertion being exhaled
+            // TODO: note that this means that perm expressions for predicates might not behave as expected, this should be investigated
+            // see Carbon issue #348
+            stmt ++ unfoldPredicate(acc, NullPartialVerificationError, isUnfolding = true, exhaleUnfoldedPredicate = false)
           )
           duringUnfoldingExtraUnfold = false
           result
