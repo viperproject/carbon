@@ -134,7 +134,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
     heapModule.enableAllocationEncoding = config == null || !config.disableAllocEncoding.supplied // NOTE: config == null happens on the build server / via sbt test
 
     var transformNames = false
-    if (config == null) Seq() else config.model.toOption match {
+    if (config == null) Seq() else config.counterexample.toOption match {
       case Some("native") =>
       case Some("variables") => {
         transformNames = true
@@ -162,7 +162,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
           case None =>
             Nil
         }) ++
-          (config.model.toOption match {
+          (config.counterexample.toOption match {
             case Some(_) => {
               List("/mv:-")
             }
