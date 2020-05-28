@@ -29,7 +29,7 @@ import viper.silver.verifier.Verifier
  *      -DCARBONTESTS_CSV=data.csv
  *      org.scalatest.tools.Runner
  *      -o -s
- *      viper.silicon.tests.PortableCarbonTests"
+ *      viper.carbon.PortableCarbonTests"
  * ```
  *
  * The command above will:
