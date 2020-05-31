@@ -1,6 +1,6 @@
 package viper.carbon.boogie
 
-import viper.silver.verifier.{AbstractError, Model, ModelEntry, VerificationError}
+import viper.silver.verifier.{AbstractError, Model, ModelEntry, SimpleCounterexample, VerificationError}
 
 import scala.collection.mutable
 
@@ -12,15 +12,15 @@ object BoogieModelTransformer {
   /**
     * Adds a counterexample to the given error if one is available.
     */
-  def addCounterexample(e: AbstractError, names: Map[String, Map[String, String]]) : Unit = {
+  def transformCounterexample(e: AbstractError, names: Map[String, Map[String, String]]) : Unit = {
     if (e.isInstanceOf[VerificationError] && ErrorMemberMapping.mapping.contains(e.asInstanceOf[VerificationError])){
       val ve = e.asInstanceOf[VerificationError]
       val methodName = ErrorMemberMapping.mapping.get(ve).get.name
       val namesInMember = names.get(methodName).get.map(e => e._2 -> e._1)
-      val originalEntries = ve.parsedModel.get.entries
+      val originalEntries = ve.counterexample.get.model.entries
 
-      val model = transformModel(originalEntries, namesInMember)
-      ve.parsedModel = Some(model)
+      val model = transformModelEntries(originalEntries, namesInMember)
+      ve.counterexample = Some(SimpleCounterexample(model))
     }
   }
 
@@ -30,7 +30,7 @@ object BoogieModelTransformer {
     * @param namesInMember Mapping from Boogie names to Viper names for the Viper member belonging to this error.
     * @return
     */
-  def transformModel(originalEntries: Map[String, ModelEntry], namesInMember: Map[String, String]) : Model = {
+  def transformModelEntries(originalEntries: Map[String, ModelEntry], namesInMember: Map[String, String]) : Model = {
     val newEntries = mutable.HashMap[String, ModelEntry]()
     val currentEntryForName = mutable.HashMap[String, String]()
     for ((vname, e) <- originalEntries) {

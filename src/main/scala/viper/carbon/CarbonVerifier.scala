@@ -193,7 +193,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
 
         result match {
           case Failure(errors) if transformNames => {
-            errors.foreach(e =>  BoogieModelTransformer.addCounterexample(e, translatedNames))
+            errors.foreach(e =>  BoogieModelTransformer.transformCounterexample(e, translatedNames))
           }
           case _ => result
         }

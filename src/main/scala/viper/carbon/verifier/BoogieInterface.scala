@@ -62,7 +62,7 @@ trait BoogieInterface {
           val id = errorIds(i)
           val error = errormap.get(id).get
           if (models.nonEmpty)
-            error.parsedModel = Some(Model(models(i)))
+            error.counterexample = Some(SimpleCounterexample(Model(models(i))))
           error
         })
         (version,Failure(errors))
