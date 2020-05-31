@@ -6,14 +6,13 @@
 
 package viper.carbon
 
-import boogie.Namespace
+import boogie.{BoogieModelTransformer, Namespace}
 import modules.impls._
 import viper.silver.ast.Program
 import viper.silver.utility.Paths
-import viper.silver.verifier.Dependency
-import verifier.{BoogieInterface, Verifier, BoogieDependency}
-import java.io.{FileOutputStream, BufferedOutputStream, File}
-
+import viper.silver.verifier._
+import verifier.{BoogieDependency, BoogieInterface, Verifier}
+import java.io.{BufferedOutputStream, File, FileOutputStream}
 
 
 /**
@@ -131,7 +130,18 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
     allModules map (m => m.reset())
     heapModule.enableAllocationEncoding = config == null || !config.disableAllocEncoding.supplied // NOTE: config == null happens on the build server / via sbt test
 
-    _translated = mainModule.translate(program)
+    var transformNames = false
+    if (config == null) Seq() else config.counterexample.toOption match {
+      case Some("native") =>
+      case Some("variables") => {
+        transformNames = true
+      }
+      case None =>
+      case Some(v) => sys.error("Invalid option: " + v)
+    }
+    val (tProg, translatedNames) = mainModule.translate(program)
+    _translated = tProg
+
 
     val options = {
       if (config == null) {
@@ -148,7 +158,17 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
             l.split(" ")
           case None =>
             Nil
-        })
+        }) ++
+          (config.counterexample.toOption match {
+            case Some(_) => {
+              /* [2020-05-31 Marco] We use /mv:- instead of /printModel:1 because Boogie, at least the versions I tried,
+               * does not properly separate models for different errors when it prints multiple ones and uses multiple
+               * threads. I.e., it ill mix lines belonging to different models, which makes them useless.
+               */
+              List("/mv:-")
+            }
+            case _ => Nil
+          })
       }
     }
 
@@ -170,9 +190,18 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
         if (version!=null) { dependencies.foreach(_ match {
           case b:BoogieDependency => b.version = version
           case _ => }) }
+
+        result match {
+          case Failure(errors) if transformNames => {
+            errors.foreach(e =>  BoogieModelTransformer.addCounterexample(e, translatedNames))
+          }
+          case _ => result
+        }
         result
     }
   }
+
+
 
   private var _translated: viper.carbon.boogie.Program = null
   def translated = _translated

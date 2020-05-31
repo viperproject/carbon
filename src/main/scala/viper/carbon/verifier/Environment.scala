@@ -22,6 +22,9 @@ case class Environment(verifier: Verifier, member: sil.Node) {
   /** The current mapping of variables. */
   private val currentMapping = collection.mutable.HashMap[sil.LocalVar, LocalVar]()
 
+  /** Records the generated Boogie names of all translated Viper variables. */
+  private val allUsedNames = collection.mutable.HashMap[String, String]()
+
   // register types from member
   member match {
     case sil.Method(name, args, returns, pres, posts, body) =>
@@ -42,6 +45,8 @@ case class Environment(verifier: Verifier, member: sil.Node) {
       }
     case _ =>
   }
+
+  def currentNameMapping : Map[String, String] = allUsedNames.toMap
 
   /**
    * Returns the Boogie variable for a given Viper variable (it has to be defined first,
@@ -66,6 +71,7 @@ case class Environment(verifier: Verifier, member: sil.Node) {
         val name = uniqueName(variable.name)
         val bvar = LocalVar(Identifier(name)(verifier.mainModule.silVarNamespace), verifier.typeModule.translateType(variable.typ))
         currentMapping.put(variable, bvar)
+        allUsedNames.update(variable.name, name)
         bvar
     }
   }
