@@ -6,16 +6,13 @@
 
 package viper.carbon
 
-import boogie.{ErrorMethodMapping, Namespace, PrettyPrinter}
+import boogie.{BoogieModelTransformer, Namespace}
 import modules.impls._
 import viper.silver.ast.Program
 import viper.silver.utility.Paths
 import viper.silver.verifier._
 import verifier.{BoogieDependency, BoogieInterface, Verifier}
 import java.io.{BufferedOutputStream, File, FileOutputStream}
-
-import scala.collection.mutable
-
 
 
 /**
@@ -164,6 +161,10 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
         }) ++
           (config.counterexample.toOption match {
             case Some(_) => {
+              /* [2020-05-31 Marco] We use /mv:- instead of /printModel:1 because Boogie, at least the versions I tried,
+               * does not properly separate models for different errors when it prints multiple ones and uses multiple
+               * threads. I.e., it ill mix lines belonging to different models, which makes them useless.
+               */
               List("/mv:-")
             }
             case _ => Nil
@@ -192,7 +193,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
 
         result match {
           case Failure(errors) if transformNames => {
-            errors.foreach(e =>  transformModel(e, translatedNames))
+            errors.foreach(e =>  BoogieModelTransformer.addCounterexample(e, translatedNames))
           }
           case _ => result
         }
@@ -200,50 +201,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
     }
   }
 
-  def transformModel(e: AbstractError, names: Map[String, Map[String, Option[String]]]) : Unit = {
-    if (e.isInstanceOf[VerificationError] && ErrorMethodMapping.mapping.contains(e.asInstanceOf[VerificationError])){
-      val ve = e.asInstanceOf[VerificationError]
-      val methodName = ErrorMethodMapping.mapping.get(ve).get.name
-      val methodNames = names.get(methodName).get.filter(e => e._2.isDefined).map(e => e._2.get -> e._1).toMap
-      val originalEntries = ve.parsedModel.get.entries
-      val newEntries = mutable.HashMap[String, ModelEntry]()
-      val currentEntryForName = mutable.HashMap[String, String]()
 
-      for ((vname, e) <- originalEntries) {
-        var originalName = vname
-        if (originalName.startsWith("q@")){
-          originalName = originalName.substring(2)
-        }else if (originalName.indexOf("@@") != -1){
-          originalName = originalName.substring(0, originalName.indexOf("@@"))
-        }else if (originalName.indexOf("@") != -1){
-          originalName = originalName.substring(0, originalName.indexOf("@"))
-        }
-        if (PrettyPrinter.backMap.contains(originalName)){
-          originalName = PrettyPrinter.backMap.get(originalName).get
-          if (methodNames.contains(originalName)){
-            val viperName = methodNames.get(originalName).get
-            if (!currentEntryForName.contains(viperName) || isLaterVersion(vname, originalName, currentEntryForName.get(viperName).get)){
-              newEntries.update(viperName, e)
-              currentEntryForName.update(viperName, vname)
-            }
-          }
-        }
-      }
-      ve.parsedModel = Some(Model(newEntries.toMap))
-    }
-  }
-
-  def isLaterVersion(firstName: String, originalName: String, secondName: String) : Boolean = {
-    if (secondName == originalName || secondName == "q@" + originalName || secondName.indexOf("@@") != -1){
-      true
-    }else if (secondName.indexOf("@") != -1 && firstName.indexOf("@@") == -1 && firstName.indexOf("@") != -1) {
-      val firstIndex = Integer.parseInt(firstName.substring(firstName.indexOf("@") + 1))
-      val secondIndex = Integer.parseInt(secondName.substring(secondName.indexOf("@") + 1))
-      firstIndex > secondIndex
-    }else {
-      false
-    }
-  }
 
   private var _translated: viper.carbon.boogie.Program = null
   def translated = _translated

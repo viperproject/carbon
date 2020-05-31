@@ -24,7 +24,8 @@ object PrettyPrinter {
   private val names = new BoogieNameGenerator()
 
   /**
-    * The current mapping from unique Boogie names to the original identifiers.
+    * The current mapping from unique Boogie names to the original identifiers (inverse mapping of idnMap,
+    * where the names of the identifiers are used directly).
     */
   val backMap = collection.mutable.HashMap[String, String]()
 

@@ -16,14 +16,20 @@ import scala.collection.mutable
 
  */
 trait FuncPredModule extends Module {
-  def translateFunction(f: sil.Function, names: Option[mutable.Map[String, Option[String]]]): Seq[Decl]
+  /* Translate a function. If the second parameter is defined, also record the Boogie names of all translated Viper
+   * variables to the given map.
+   */
+  def translateFunction(f: sil.Function, names: Option[mutable.Map[String, String]]): Seq[Decl]
 
   def translateFuncApp(fa: sil.FuncApp): Exp
 
   // wrap an expression in a dummy function with "true" value (sometimes useful for triggering)
   def dummyFuncApp(e: Exp): Exp
 
-  def translatePredicate(p: sil.Predicate, names: Option[mutable.Map[String, Option[String]]]): Seq[Decl]
+  /* Translate a predicate. If the second parameter is defined, also record the Boogie names of all translated Viper
+   * variables to the given map.
+   */
+  def translatePredicate(p: sil.Predicate, names: Option[mutable.Map[String, String]]): Seq[Decl]
 
   def predicateVersionType : Type
 

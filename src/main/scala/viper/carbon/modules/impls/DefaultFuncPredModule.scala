@@ -193,9 +193,9 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     predicateFrames = FrameInfos()
   }
 
-    override def translateFunction(f: sil.Function, names: Option[mutable.Map[String, Option[String]]]): Seq[Decl] = {
+    override def translateFunction(f: sil.Function, names: Option[mutable.Map[String, String]]): Seq[Decl] = {
     env = Environment(verifier, f)
-    ErrorMethodMapping.currentMember = f
+    ErrorMemberMapping.currentMember = f
     val res = MaybeCommentedDecl(s"Translation of function ${f.name}",
       MaybeCommentedDecl("Uninterpreted function definitions", functionDefinitions(f), size = 1) ++
         (if (f.isAbstract) Nil else
@@ -210,11 +210,11 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     if (names.isDefined){
       val usedNames = env.currentNameMapping
       // add all local vars
-      usedNames.foreach(e => names.get.update(e._1, Some(e._2)))
+      names.get ++= usedNames
     }
 
     env = null
-    ErrorMethodMapping.currentMember = null
+    ErrorMemberMapping.currentMember = null
     res
   }
 
@@ -778,10 +778,10 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   // --------------------------------------------
 
-  override def translatePredicate(p: sil.Predicate, names: Option[mutable.Map[String, Option[String]]]): Seq[Decl] = {
+  override def translatePredicate(p: sil.Predicate, names: Option[mutable.Map[String, String]]): Seq[Decl] = {
 
     env = Environment(verifier, p)
-    ErrorMethodMapping.currentMember = p
+    ErrorMemberMapping.currentMember = p
     val args = p.formalArgs
     val translatedArgs = p.formalArgs map translateLocalVarDecl
     val predAcc = sil.PredicateAccess(args map (_.localVar),p)(p.pos,p.info,p.errT)
@@ -797,11 +797,11 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
     if (names.isDefined){
       // add all local vars
-      usedNames.foreach(e => names.get.update(e._1, Some(e._2)))
+      names.get ++= usedNames
     }
 
     env = null
-    ErrorMethodMapping.currentMember = null
+    ErrorMemberMapping.currentMember = null
     res
   }
 

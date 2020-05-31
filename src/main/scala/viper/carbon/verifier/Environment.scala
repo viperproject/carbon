@@ -22,6 +22,7 @@ case class Environment(verifier: Verifier, member: sil.Node) {
   /** The current mapping of variables. */
   private val currentMapping = collection.mutable.HashMap[sil.LocalVar, LocalVar]()
 
+  /** Records the generated Boogie names of all translated Viper variables. */
   private val allUsedNames = collection.mutable.HashMap[String, String]()
 
   // register types from member
