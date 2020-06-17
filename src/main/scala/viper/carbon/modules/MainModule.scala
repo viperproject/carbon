@@ -31,6 +31,11 @@ trait MainModule extends Module {
     translateLocalVarSig(l.typ,l.localVar)
   }
 
+  /**
+    * Return predicate if method call encodes a havoc (see Voila option "disableSiliconSpecificHavocking")
+    */
+  def methodCallEncodesHavocHack(m: sil.MethodCall) : Option[sil.Predicate]
+
 
   /** The current environment. */
   var env: Environment = null

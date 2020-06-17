@@ -116,58 +116,62 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
             checkDefinedness(transformedExp, errors.AssertFailed(a), insidePackageStmt = insidePackageStmt, ignoreIfInWand = true) :: backup :: exhaleStmt :: Nil
         }
       case mc@sil.MethodCall(methodName, args, targets) =>
-        val method = verifier.program.findMethod(methodName)
-        // save pre-call state
-        val (preCallStateStmt, state) = stateModule.freshTempState("PreCall")
-        val preCallState = stateModule.state
-        val oldState = stateModule.oldState
-        stateModule.replaceState(state)
-        val toUndefine = collection.mutable.ListBuffer[sil.LocalVar]()
-        val actualArgs = args.zipWithIndex map (a => {
-          val (actual, i) = a
-          // use the concrete argument if it is just a variable or constant (to avoid code bloat)
-          val useConcrete = actual match {
-            case v: sil.LocalVar if !targets.contains(v) => true
-            case _: sil.Literal => true
-            case _ => false
-          }
-          if (!useConcrete) {
-            val silFormal = method.formalArgs(i)
-            val tempArg = sil.LocalVar("arg_" + silFormal.name, silFormal.typ)()
-            mainModule.env.define(tempArg)
-            toUndefine.append(tempArg)
-            val translatedTempArg = translateExp(tempArg)
-            val translatedActual = translateExp(actual)
-            val stmt = translatedTempArg := translatedActual
-            (tempArg, stmt, Some(actual))
-          } else {
-            (args(i), Nil: Stmt, None)
-          }
-        })
-        val neededRenamings : Seq[(sil.AbstractLocalVar, sil.Exp)] = actualArgs.filter((_._3.isDefined)).map(element => (element._1.asInstanceOf[sil.LocalVar],element._3.get))
-        val removingTriggers: (errors.ErrorNode => errors.ErrorNode) =
-          ((n: errors.ErrorNode) => n.transform{case q: sil.Forall => q.copy(triggers = Nil)(q.pos, q.info, q.errT)})
-        val renamingArguments : (errors.ErrorNode => errors.ErrorNode) = ((n:errors.ErrorNode) => removingTriggers(n).transform({
-          case e:sil.Exp => Expressions.instantiateVariables[sil.Exp](e,neededRenamings map (_._1), neededRenamings map (_._2))
-        }))
+        if(mainModule.methodCallEncodesHavocHack(mc).isDefined) {
+          Seq()
+        } else {
+          val method = verifier.program.findMethod(methodName)
+          // save pre-call state
+          val (preCallStateStmt, state) = stateModule.freshTempState("PreCall")
+          val preCallState = stateModule.state
+          val oldState = stateModule.oldState
+          stateModule.replaceState(state)
+          val toUndefine = collection.mutable.ListBuffer[sil.LocalVar]()
+          val actualArgs = args.zipWithIndex map (a => {
+            val (actual, i) = a
+            // use the concrete argument if it is just a variable or constant (to avoid code bloat)
+            val useConcrete = actual match {
+              case v: sil.LocalVar if !targets.contains(v) => true
+              case _: sil.Literal => true
+              case _ => false
+            }
+            if (!useConcrete) {
+              val silFormal = method.formalArgs(i)
+              val tempArg = sil.LocalVar("arg_" + silFormal.name, silFormal.typ)()
+              mainModule.env.define(tempArg)
+              toUndefine.append(tempArg)
+              val translatedTempArg = translateExp(tempArg)
+              val translatedActual = translateExp(actual)
+              val stmt = translatedTempArg := translatedActual
+              (tempArg, stmt, Some(actual))
+            } else {
+              (args(i), Nil: Stmt, None)
+            }
+          })
+          val neededRenamings: Seq[(sil.AbstractLocalVar, sil.Exp)] = actualArgs.filter((_._3.isDefined)).map(element => (element._1.asInstanceOf[sil.LocalVar], element._3.get))
+          val removingTriggers: (errors.ErrorNode => errors.ErrorNode) =
+            ((n: errors.ErrorNode) => n.transform { case q: sil.Forall => q.copy(triggers = Nil)(q.pos, q.info, q.errT) })
+          val renamingArguments: (errors.ErrorNode => errors.ErrorNode) = ((n: errors.ErrorNode) => removingTriggers(n).transform({
+            case e: sil.Exp => Expressions.instantiateVariables[sil.Exp](e, neededRenamings map (_._1), neededRenamings map (_._2))
+          }))
 
-        val pres = method.pres map (e => Expressions.instantiateVariables(e, method.formalArgs ++ method.formalReturns, (actualArgs map (_._1)) ++ targets, mainModule.env.allDefinedNames(program)))
-        val posts = method.posts map (e => Expressions.instantiateVariables(e, method.formalArgs ++ method.formalReturns, (actualArgs map (_._1)) ++ targets, mainModule.env.allDefinedNames(program)))
-        val res = preCallStateStmt ++
-          (targets map (e => checkDefinedness(e, errors.CallFailed(mc), insidePackageStmt = insidePackageStmt))) ++
-          (args map (e => checkDefinedness(e, errors.CallFailed(mc), insidePackageStmt = insidePackageStmt))) ++
-          (actualArgs map (_._2)) ++
-          Havoc((targets map translateExp).asInstanceOf[Seq[Var]]) ++
-          MaybeCommentBlock("Exhaling precondition", executeUnfoldings(pres, (pre => errors.PreconditionInCallFalse(mc).withReasonNodeTransformed(renamingArguments))) ++
-            exhale(pres map (e => (e, errors.PreconditionInCallFalse(mc).withReasonNodeTransformed(renamingArguments))), statesStackForPackageStmt = statesStack, insidePackageStmt = insidePackageStmt)) ++ {
-          stateModule.replaceOldState(preCallState)
-          val res = MaybeCommentBlock("Inhaling postcondition", inhale(posts, statesStack, insidePackageStmt) ++
-            executeUnfoldings(posts, (post => errors.Internal(post).withReasonNodeTransformed(renamingArguments))))
-          stateModule.replaceOldState(oldState)
-          toUndefine map mainModule.env.undefine
+          val pres = method.pres map (e => Expressions.instantiateVariables(e, method.formalArgs ++ method.formalReturns, (actualArgs map (_._1)) ++ targets, mainModule.env.allDefinedNames(program)))
+          val posts = method.posts map (e => Expressions.instantiateVariables(e, method.formalArgs ++ method.formalReturns, (actualArgs map (_._1)) ++ targets, mainModule.env.allDefinedNames(program)))
+          val res = preCallStateStmt ++
+            (targets map (e => checkDefinedness(e, errors.CallFailed(mc), insidePackageStmt = insidePackageStmt))) ++
+            (args map (e => checkDefinedness(e, errors.CallFailed(mc), insidePackageStmt = insidePackageStmt))) ++
+            (actualArgs map (_._2)) ++
+            Havoc((targets map translateExp).asInstanceOf[Seq[Var]]) ++
+            MaybeCommentBlock("Exhaling precondition", executeUnfoldings(pres, (pre => errors.PreconditionInCallFalse(mc).withReasonNodeTransformed(renamingArguments))) ++
+              exhale(pres map (e => (e, errors.PreconditionInCallFalse(mc).withReasonNodeTransformed(renamingArguments))), statesStackForPackageStmt = statesStack, insidePackageStmt = insidePackageStmt)) ++ {
+            stateModule.replaceOldState(preCallState)
+            val res = MaybeCommentBlock("Inhaling postcondition", inhale(posts, statesStack, insidePackageStmt) ++
+              executeUnfoldings(posts, (post => errors.Internal(post).withReasonNodeTransformed(renamingArguments))))
+            stateModule.replaceOldState(oldState)
+            toUndefine map mainModule.env.undefine
+            res
+          }
           res
         }
-        res
       case w@sil.While(cond, invs, body) =>
         val guard = translateExp(cond)
         MaybeCommentBlock("Exhale loop invariant before loop",

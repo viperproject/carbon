@@ -77,6 +77,8 @@ class DefaultHeapModule(val verifier: Verifier)
   private val heap2Name = Identifier("Heap2")
   private val exhaleHeapName = Identifier("ExhaleHeap")
   private val exhaleHeap = LocalVar(exhaleHeapName, heapTyp)
+  private val havocHeapName = Identifier("HavocHeap")
+  private val havocHeap = LocalVar(havocHeapName, heapTyp)
   private val originalHeap = GlobalVar(heapName, heapTyp)
   private val qpHeapName = Identifier("QPHeap")
   private val qpHeap = LocalVar(qpHeapName, heapTyp)
@@ -91,6 +93,7 @@ class DefaultHeapModule(val verifier: Verifier)
   private val succHeapName = Identifier("succHeap")
   private val succHeapTransName = Identifier("succHeapTrans")
   private val identicalOnKnownLocsName = Identifier("IdenticalOnKnownLocations")
+  private val identicalHavocName = Identifier("IdenticalHavoc")
   private val isPredicateFieldName = Identifier("IsPredicateField")
   private var PredIdMap:Map[String, BigInt] = Map()
   private var NextPredicateId:BigInt = 0
@@ -107,6 +110,7 @@ class DefaultHeapModule(val verifier: Verifier)
     val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
     val predField = LocalVarDecl(Identifier("pm_f")(axiomNamespace),
       predicateVersionFieldType("C"))
+    
     TypeDecl(refType) ++
       GlobalVarDecl(heapName, heapTyp) ++
       ConstDecl(nullName, refType) ++
@@ -130,6 +134,9 @@ class DefaultHeapModule(val verifier: Verifier)
         Bool) ++
       Func(identicalOnKnownLocsName,
         Seq(LocalVarDecl(heapName, heapTyp), LocalVarDecl(exhaleHeapName, heapTyp)) ++ staticMask,
+        Bool) ++
+      Func(identicalHavocName,
+        Seq(LocalVarDecl(heapName, heapTyp), LocalVarDecl(exhaleHeapName, heapTyp), LocalVarDecl(Identifier("pred_id"), Int)) ++ staticMask,
         Bool) ++
       Func(isPredicateFieldName,
         Seq(LocalVarDecl(Identifier("f"), fieldType)),
@@ -208,6 +215,7 @@ class DefaultHeapModule(val verifier: Verifier)
                 )
               )
         )), size = 1) ++
+      IdenticalHavocAxioms() ++
       (if(enableAllocationEncoding) // preserve "allocated" knowledge, where already true
         MaybeCommentedDecl("All previously-allocated references are still allocated", Axiom(Forall(
           vars ++ Seq(obj),
@@ -253,6 +261,74 @@ class DefaultHeapModule(val verifier: Verifier)
           ))
         }, size = 1)
     }
+  }
+
+  private def IdenticalHavocAxioms() : Seq[Decl] = {
+    val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
+    val obj2 = LocalVarDecl(Identifier("o2")(axiomNamespace), refType)
+    val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
+    val predField = LocalVarDecl(Identifier("pm_f")(axiomNamespace),
+      predicateVersionFieldType("C"))
+
+    val predId = LocalVarDecl(Identifier("pred_id")(axiomNamespace), Int)
+
+    val h = LocalVarDecl(heapName, heapTyp)
+    val eh = LocalVarDecl(exhaleHeapName, heapTyp)
+    val vars = Seq(h, eh, predId) ++ staticMask
+    val identicalFuncApp = FuncApp(identicalHavocName, vars map (_.l), Bool)
+    // frame all locations with direct permission
+    MaybeCommentedDecl("Frame all non-predicate locations with direct permissions (Havoc Predicate)", Axiom(Forall(
+      vars ++ Seq(obj, field),
+      //        Trigger(Seq(identicalFuncApp, lookup(h.l, obj.l, field.l))) ++
+      Trigger(Seq(identicalFuncApp, lookup(eh.l, obj.l, field.l))),
+      identicalFuncApp ==>
+        ((staticPermissionPositive(obj.l, field.l) && UnExp(Not, isPredicateField((field.l)))) ==>
+          (lookup(h.l, obj.l, field.l) === lookup(eh.l, obj.l, field.l))))
+    ), size = 1) ++
+      MaybeCommentedDecl("Frame predicate locations that  with direct permissions that are not havoced(Havoc Predicate)", Axiom(Forall(
+        vars ++ Seq(obj, field),
+        //        Trigger(Seq(identicalFuncApp, lookup(h.l, obj.l, field.l))) ++
+        Trigger(Seq(identicalFuncApp, lookup(eh.l, obj.l, field.l))),
+        identicalFuncApp ==>
+          ((staticPermissionPositive(obj.l, field.l) && isPredicateField((field.l)) && (getPredicateId(field.l) !== predId.l))  ==>
+            (lookup(h.l, obj.l, field.l) === lookup(eh.l, obj.l, field.l))))
+      ), size = 1) ++
+      // frame all predicate masks
+      MaybeCommentedDecl("Frame all predicate mask locations of predicates with direct permission (Havoc Predicate)", Axiom(Forall(
+        vars ++ Seq(predField),
+        Trigger(Seq(identicalFuncApp, isPredicateField(predField.l), lookup(eh.l, nullLit, predicateMaskField(predField.l)))),
+        identicalFuncApp ==>
+          (((staticPermissionPositive(nullLit, predField.l) && isPredicateField(predField.l)) && (getPredicateId(predField.l) !== predId.l)) ==>
+            (lookup(h.l, nullLit, predicateMaskField(predField.l)) === lookup(eh.l, nullLit, predicateMaskField(predField.l)))))
+      ), size = 1) ++
+      // frame all locations with direct permission
+      MaybeCommentedDecl("Frame all locations with known folded permissions (Havoc Predicate)", Axiom(Forall(
+        vars ++ Seq(predField),
+        //Trigger(Seq(identicalFuncApp, lookup(h.l, nullLit, predicateMaskField(predField.l)), isPredicateField(predField.l))) ++
+        Trigger(Seq(identicalFuncApp, lookup(eh.l, nullLit, predField.l), isPredicateField(predField.l))) /*++
+            Trigger(Seq(identicalFuncApp, lookup(eh.l, nullLit, predicateMaskField(predField.l)), isPredicateField(predField.l))) ++
+            (verifier.program.predicates map (pred =>
+              Trigger(Seq(identicalFuncApp, predicateTriggerAnyState(pred, predField.l), isPredicateField(predField.l))))
+              )*/,
+        identicalFuncApp ==>
+          (
+            (staticPermissionPositive(nullLit, predField.l) && isPredicateField(predField.l) && (getPredicateId(predField.l) !== predId.l)) ==>
+              Forall(Seq(obj2, field),
+                //Trigger(Seq(lookup(h.l, obj2.l, field.l))) ++
+                Trigger(Seq(lookup(eh.l, obj2.l, field.l))),
+                (lookup(lookup(h.l, nullLit, predicateMaskField(predField.l)), obj2.l, field.l) ==>
+                  (lookup(h.l, obj2.l, field.l) === lookup(eh.l, obj2.l, field.l))),
+                field.typ.freeTypeVars
+              )
+            )
+      )), size = 1) ++
+      MaybeCommentedDecl("IdenticalHavoc Heaps are Successor Heaps",
+        Axiom(Forall(
+          vars,
+          Trigger(Seq(identicalFuncApp))
+          ,
+          identicalFuncApp ==> FuncApp(succHeapName, Seq(h.l, eh.l), Bool)
+        )), size = 1)
   }
 
   override def successorHeapState(first: Seq[LocalVarDecl], second: Seq[LocalVarDecl]): Exp = {
@@ -430,11 +506,28 @@ class DefaultHeapModule(val verifier: Verifier)
 
       stmt => (
         s match {
-          case sil.MethodCall(_, _, targets) if enableAllocationEncoding =>
+          case mc@sil.MethodCall(_, _, targets) if mainModule.methodCallEncodesHavocHack(mc).isEmpty && enableAllocationEncoding =>
             stmt ++ (targets filter (_.typ == sil.Ref) map translateExp map {
               t =>
                 Assume(validReference(t))
             })
+          case mc@sil.MethodCall(_, _, _) if mainModule.methodCallEncodesHavocHack(mc).isDefined => {
+            val predicate = mainModule.methodCallEncodesHavocHack(mc).get
+            //havoc predicate
+            /*
+            val obj = LocalVarDecl(Identifier("o"), refType)
+            val field = LocalVarDecl(Identifier("f"), fieldType)
+            val fieldVar = LocalVar(Identifier("f"), fieldType)
+
+            val independentLocations = Assume(Forall(Seq(obj,field), Seq(),
+              ((obj.l !== translateNull) ||  isPredicateField(fieldVar).not || (getPredicateId(fieldVar) !== IntLit(getPredicateId(predicate.name)) ))  ==>
+                (lookup(havocHeap, obj.l,field.l) === lookup(heapExp,obj.l,field.l))))
+            */
+
+            val assumeIdenticalHavoc = Assume(FuncApp(identicalHavocName, Seq(heapExp, havocHeap, IntLit(getPredicateId(predicate.name))) ++ currentMask, Bool))
+
+            Havoc(havocHeap) ++ assumeIdenticalHavoc ++ (heapVar := havocHeap)
+          }
           case sil.Fold(sil.PredicateAccessPredicate(loc, perm)) => // AS: this should really be taken care of in the FuncPredModule (and factored out to share code with unfolding case, if possible)
             stmt ++ ({val newVersion = LocalVar(Identifier("freshVersion"), funcPredModule.predicateVersionType)
               val resetPredicateInfo : Stmt = (predicateMask(loc) := zeroPMask) ++

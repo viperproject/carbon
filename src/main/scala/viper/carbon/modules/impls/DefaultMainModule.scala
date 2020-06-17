@@ -225,6 +225,18 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
     }
   }
 
+  override def methodCallEncodesHavocHack(m: sil.MethodCall): Option[sil.Predicate] =  {
+    val splitMethodName = m.methodName.split("___silicon_hack407_havoc_all_")
+    if(splitMethodName.size == 2) {
+      val actualMethodName = splitMethodName(1)
+      val predicate = verifier.program.findPredicate(actualMethodName)
+      
+      return Some(predicate)
+    } else {
+      return None
+    }
+  }
+
   def translateDomainDecl(d: sil.Domain): Seq[Decl] = {
     env = Environment(verifier, d)
     val res = translateDomain(d)
