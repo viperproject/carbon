@@ -280,10 +280,9 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       val collectDefinedPredicates = (p: sil.Node) =>
         p.shallowCollect {
           case pacc: PredicateAccess => Some(predicateTrigger(heap map (_.l), pacc))
-          case quantified: sil.QuantifiedExp => None
+          case _: sil.QuantifiedExp => None
           //we might be able to support the Let case, but it's not clear if this is desired
-          case let: sil.Let => None
-          case forperm: sil.ForPerm => None
+          case _: sil.Let => None
         }
       (f.pres.flatMap(p => collectDefinedPredicates(p))).flatten
     } else {
@@ -907,7 +906,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           Nil
         }
 
-        (before, after)
+        (before _ , after _ )
       }
       case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(args, predicateName), _) if duringUnfold && currentPhaseId == 0 =>
         val oldVersion = LocalVar(Identifier("oldVersion"), predicateVersionType)
