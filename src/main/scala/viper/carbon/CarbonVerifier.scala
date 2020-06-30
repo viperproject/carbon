@@ -12,8 +12,8 @@ import viper.silver.ast.Program
 import viper.silver.utility.Paths
 import viper.silver.verifier._
 import verifier.{BoogieDependency, BoogieInterface, Verifier}
-import java.io.{BufferedOutputStream, File, FileOutputStream}
-
+import java.io.{BufferedOutputStream, File, FileOutputStream, IOException}
+import viper.silver.frontend.MissingDependencyException
 
 /**
  * The main class to perform verification of Viper programs.  Deals with command-line arguments, configuration
@@ -112,12 +112,18 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
     List(new BoogieDependency(boogiePath), new Dependency {
       def name = "Z3"
       def version = {
-        val v = List(z3Path, "-version").lineStream.to[List]
-        if (v.size == 1 && v(0).startsWith("Z3 version ")) {
-          v(0).substring("Z3 version ".size)
-        } else {
-          unknownVersion
+        try {
+          val v = List(z3Path, "-version").lineStream.to[List]
+          if (v.size == 1 && v(0).startsWith("Z3 version ")) {
+            v(0).substring("Z3 version ".size)
+          } else {
+            unknownVersion
+          }
         }
+        catch {
+          case _: IOException => throw MissingDependencyException("Z3 couldn't be found.")
+        }
+
       }
       def location = z3Path
     })
