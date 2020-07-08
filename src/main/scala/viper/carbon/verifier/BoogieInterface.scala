@@ -147,8 +147,12 @@ trait BoogieInterface {
   def stopBoogie(){
     if(_boogieProcess!= null){
       _boogieProcess.destroy()
-      _boogieProcess.exitValue() //TODO: this blocks if an underlying z3 instance remains running
-    }
+     // _boogieProcess.exitValue()  // Issue 225: I understood by the documentation of this API that by destroying the
+    }                               // processes, the pipe connecting input and output is also deleted. Therefore
+                                    // there's no need to sync with a dying processes. Instead we are free to start a
+                                    // a new instance of Boogie/Z3. This was tested on a Mac successfully. However more
+                                    // testing is necessary and should it failed to work properly on all platforms, this
+                                    // line should be uncommented and the issue reopened.
   }
 
 /*  // TODO: investigate why passing the program directly does not work
