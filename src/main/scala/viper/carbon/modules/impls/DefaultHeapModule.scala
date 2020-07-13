@@ -513,16 +513,6 @@ class DefaultHeapModule(val verifier: Verifier)
             })
           case mc@sil.MethodCall(_, _, _) if mainModule.methodCallEncodesHavocHack(mc).isDefined => {
             val predicate = mainModule.methodCallEncodesHavocHack(mc).get
-            //havoc predicate
-            /*
-            val obj = LocalVarDecl(Identifier("o"), refType)
-            val field = LocalVarDecl(Identifier("f"), fieldType)
-            val fieldVar = LocalVar(Identifier("f"), fieldType)
-
-            val independentLocations = Assume(Forall(Seq(obj,field), Seq(),
-              ((obj.l !== translateNull) ||  isPredicateField(fieldVar).not || (getPredicateId(fieldVar) !== IntLit(getPredicateId(predicate.name)) ))  ==>
-                (lookup(havocHeap, obj.l,field.l) === lookup(heapExp,obj.l,field.l))))
-            */
 
             val assumeIdenticalHavoc = Assume(FuncApp(identicalHavocName, Seq(heapExp, havocHeap, IntLit(getPredicateId(predicate.name))) ++ currentMask, Bool))
 
