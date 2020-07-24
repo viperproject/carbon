@@ -499,7 +499,7 @@ class DefaultHeapModule(val verifier: Verifier)
    * Adds the permissions from the body of a predicate to its permission mask.
    */
   private def addPermissionToPMask(loc: sil.PredicateAccess): Stmt = {
-    val predBody = loc.predicateBody(verifier.program).get
+    val predBody = loc.predicateBody(verifier.program, env.allDefinedNames(program)).get
     addPermissionToPMaskHelper(predBody, loc, predicateMask(loc,heap))
   }
   /**
@@ -508,14 +508,14 @@ class DefaultHeapModule(val verifier: Verifier)
   private def addPermissionToPMaskHelper(e: sil.Exp, loc: sil.PredicateAccess, pmask: Exp): Stmt = {
     e match {
       case QuantifiedPermissionAssertion(forall, cond, acc: sil.FieldAccessPredicate) =>
-        val v = forall.variables.head // TODO: Generalise to multiple quantified variables
+        val vs = forall.variables // TODO: Generalise to multiple quantified variables
         val fieldAccess = acc.loc
 
         // alpha renaming, to avoid clashes in context
-        val vFresh = env.makeUniquelyNamed(v);
-        env.define(vFresh.localVar);
+        val vsFresh = vs.map(v => env.makeUniquelyNamed(v))
+        vsFresh.foreach(vFresh => env.define(vFresh.localVar))
 
-        def renaming[E <: sil.Exp] = (e:E) => Expressions.instantiateVariables(e, v.localVar,  vFresh.localVar)
+        def renaming[E <: sil.Exp] = (e:E) => Expressions.instantiateVariables(e, vs.map(_.localVar),  vsFresh.map(_.localVar))
 
         val (renamingCond,renamingFieldAccess) = (renaming(cond),renaming(fieldAccess))
         val translatedCond = translateExp(renamingCond)
@@ -529,9 +529,9 @@ class DefaultHeapModule(val verifier: Verifier)
           MaybeComment("register all known folded permissions guarded by predicate " + loc.predicateName,
             Havoc(newPMask) ++
               Assume(Forall(Seq(obj, field), Seq(Trigger(pm2)), (pm1 ==> pm2))) ++
-                Assume(Forall(translateLocalVarDecl(vFresh),Seq(),translatedCond ==> (translateLocationAccess(renamingFieldAccess, newPMask) === TrueLit()) ))) ++
+                Assume(Forall(vsFresh.map(vFresh => translateLocalVarDecl(vFresh)),Seq(),translatedCond ==> (translateLocationAccess(renamingFieldAccess, newPMask) === TrueLit()) ))) ++
             (pmask := newPMask)
-        env.undefine(vFresh.localVar)
+        vsFresh.foreach(vFresh => env.undefine(vFresh.localVar))
         res
       case sil.FieldAccessPredicate(loc, perm) =>
         translateLocationAccess(loc, pmask) := TrueLit()

@@ -30,8 +30,11 @@ import viper.carbon.boogie.Implicits._
 import viper.silver.ast.utility._
 import viper.carbon.modules.components.{DefinednessComponent, ExhaleComponent, InhaleComponent}
 import viper.silver.verifier.{NullPartialVerificationError, PartialVerificationError, errors}
+
 import scala.collection.mutable.ListBuffer
 import viper.silver.ast.utility.QuantifiedPermissions.QuantifiedPermissionAssertion
+
+import scala.collection.mutable
 
 /**
  * The default implementation of a [[viper.carbon.modules.FuncPredModule]].
@@ -190,8 +193,9 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     predicateFrames = FrameInfos()
   }
 
-    override def translateFunction(f: sil.Function): Seq[Decl] = {
+    override def translateFunction(f: sil.Function, names: Option[mutable.Map[String, String]]): Seq[Decl] = {
     env = Environment(verifier, f)
+    ErrorMemberMapping.currentMember = f
     val res = MaybeCommentedDecl(s"Translation of function ${f.name}",
       MaybeCommentedDecl("Uninterpreted function definitions", functionDefinitions(f), size = 1) ++
         (if (f.isAbstract) Nil else
@@ -202,7 +206,15 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         MaybeCommentedDecl("State-independent trigger function", triggerFunctionStateless(f), size = 1) ++
         MaybeCommentedDecl("Check contract well-formedness and postcondition", checkFunctionDefinedness(f), size = 1)
       , nLines = 2)
+
+    if (names.isDefined){
+      val usedNames = env.currentNameMapping
+      // add all local vars
+      names.get ++= usedNames
+    }
+
     env = null
+    ErrorMemberMapping.currentMember = null
     res
   }
 
@@ -261,10 +273,31 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     // In either case, the function must have been mentioned *somewhere* in the program (not necessarily the state in which its definition is triggered) with the corresponding combination of function arguments.
     val recursiveCallsAndUnfoldings : Seq[(silverFuncApp,Seq[Unfolding])] = Functions.recursiveCallsAndSurroundingUnfoldings(f)
     val outerUnfoldings : Seq[Unfolding] = recursiveCallsAndUnfoldings.map((pair) => pair._2.headOption).flatten
-    val predicateTriggers : Seq[Exp] = if (recursiveCallsAndUnfoldings.isEmpty) // then any predicate in the precondition will do (at the moment, regardless of position - seems OK since there is no recursion)
-      (f.pres map (p => p.shallowCollect{case pacc : PredicateAccess => pacc})).flatten map (p => predicateTrigger(heap map (_.l), p))
-    else
-    outerUnfoldings.map{case Unfolding(PredicateAccessPredicate(predacc : PredicateAccess,perm),exp) => predicateTrigger(heap map (_.l), predacc)}
+
+    val predicateTriggers : Seq[Exp] = if (recursiveCallsAndUnfoldings.isEmpty) {
+      // then any predicate in the precondition that does not contain bound variables will do (at the moment, regardless of position - seems OK since there is no recursion)
+      // (can maybe do something better if bound variables occur)
+      val collectDefinedPredicates = (p: sil.Node) =>
+        p.shallowCollect {
+          case pacc: PredicateAccess => Some(predicateTrigger(heap map (_.l), pacc))
+          case _: sil.QuantifiedExp => None
+          //we might be able to support the Let case, but it's not clear if this is desired
+          case _: sil.Let => None
+        }
+      (f.pres.flatMap(p => collectDefinedPredicates(p))).flatten
+    } else {
+      // since outerUnfoldings may include unfoldings that access predicates using bound variables, we make sure we
+      // only include triggers for predicate accesses that do not refer to bound variables (can maybe relax this)
+      val silArgsLocalVar = f.formalArgs map (decl => decl.localVar)
+      val hasOnlyDefinedVars = (pacc: PredicateAccess) =>
+         pacc.args.forall(arg => !arg.existsDefined[Unit]({case v:sil.LocalVar if !silArgsLocalVar.contains(v) => }  ))
+
+      outerUnfoldings.flatMap {
+        case Unfolding(PredicateAccessPredicate(predacc: PredicateAccess, perm), exp)
+          if hasOnlyDefinedVars(predacc) => Some(predicateTrigger(heap map (_.l), predacc))
+        case _ => None}.flatten
+    }
+
 
     Axiom(Forall(
       stateModule.staticStateContributions() ++ args,
@@ -367,7 +400,16 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val funcApp = FuncApp(name, funcFrameInfo._1 ++ (realArgs map (_.l)), typ)
     val funcApp2 = translateFuncApp(f.name, args map (_.l), f.typ)
     val outerUnfoldings : Seq[Unfolding] = Functions.recursiveCallsAndSurroundingUnfoldings(f).map((pair) => pair._2.headOption).flatten
-    val predicateTriggers = outerUnfoldings.map{case Unfolding(PredicateAccessPredicate(predacc : PredicateAccess,perm),exp) => predicateTrigger(heap map (_.l), predacc)}
+
+    //only include predicate accesses that do not refer to bound variables
+    val silArgsLocalVar = f.formalArgs map (decl => decl.localVar)
+    val hasOnlyDefinedVars = (pacc: PredicateAccess) =>
+      pacc.args.forall(arg => !arg.existsDefined[Unit]({case v:sil.LocalVar if !silArgsLocalVar.contains(v) => }  ))
+
+    val predicateTriggers : Seq[Exp] = outerUnfoldings.flatMap {
+      case Unfolding(PredicateAccessPredicate(predacc: PredicateAccess, perm), exp)
+        if hasOnlyDefinedVars(predacc) => Some(predicateTrigger(heap map (_.l), predacc))
+      case _ => None}.flatten
 
     Seq(func) ++
       Seq(Axiom(Forall(
@@ -425,7 +467,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         val freshParams = freshParamDeclarations map (_.localVar)
         freshParams map (lv => env.define(lv))
         val freshBoogies = freshParamDeclarations map translateLocalVarDecl
-        val renaming = ((e:sil.Exp) => Expressions.instantiateVariables(e,formalArgs,freshParams))
+        val renaming = ((e:sil.Exp) => Expressions.instantiateVariables(e,formalArgs,freshParams, env.allDefinedNames(program)))
         val (frame, declarations) = computeFrame(assertions, renaming, name, freshBoogies)
         info.put(name, (frame, frameState, freshBoogies, declarations))
         freshParams map (lv => env.undefine(lv))
@@ -493,7 +535,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       case sil.CondExp(con, thn, els) =>
         frameFragment(CondExp(translateExp(renaming(con)), computeFrameHelper(thn,renaming,name,args), computeFrameHelper(els,renaming,name,args)))
       case sil.Let(varDeclared,boundTo,inBody) =>
-        computeFrameHelper(Expressions.instantiateVariables(inBody,varDeclared,boundTo),renaming,name,args)
+        computeFrameHelper(Expressions.instantiateVariables(inBody,varDeclared,boundTo, env.allDefinedNames(program)),renaming,name,args)
       case e if e.isPure =>
         emptyFrame
       // should be no default case! Some explicit cases should be added - e.g. let expressions (see issue 222)
@@ -507,13 +549,13 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     (for ((condFunc,qp) <- qps) yield {
       qp match {
         case QuantifiedPermissionAssertion(forall, condition, acc: sil.AccessPredicate) => // same works for field or predicate accesses!
-          val lvd = forall.variables.head // TODO: Generalise to multiple quantified variables
+          val lvds = forall.variables // TODO: Generalise to multiple quantified variables
           val perm = acc.perm
           val locationAccess = acc.loc
 
-          val vFresh = env.makeUniquelyNamed(lvd);
-          env.define(vFresh.localVar)
-          def renaming(origExpr: sil.Exp) = Expressions.instantiateVariables(origExpr, Seq(lvd), vFresh.localVar)
+          val vsFresh = lvds.map(lvd => env.makeUniquelyNamed(lvd))
+          vsFresh.foreach(vFresh => env.define(vFresh.localVar))
+          def renaming(origExpr: sil.Exp) = Expressions.instantiateVariables(origExpr, lvds, vsFresh.map(_.localVar), env.allDefinedNames(program))
 
 
           val (_, curState) = stateModule.freshTempState("Heap2")
@@ -541,17 +583,17 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
           val funApp2 = FuncApp(condFunc.name, (heap2++origArgs) map (_.l), condFunc.typ)
 
-          val triggers = if (locationAccess.contains(lvd)) Seq(Trigger(Seq(locationAccess1,locationAccess2))) else Seq() // TODO: we could (also in general) raise an error/warning if the tools fail to find triggers
+          val triggers = if (locationAccess.exists(lvds.toSet)) Seq(Trigger(Seq(locationAccess1,locationAccess2))) else Seq() // TODO: we could (also in general) raise an error/warning if the tools fail to find triggers
 
           val res = CommentedDecl("Function used for framing of quantified permission " + qp.toString() +  " in " + originalName,
             condFunc ++
             Axiom(
               Forall(heap1 ++ heap2 ++ origArgs, Seq(Trigger(Seq(funApp1, funApp2, heapModule.successorHeapState(heap1,heap2)))),
-                  (Forall(Seq(translateLocalVarDecl(vFresh)), triggers,
+                  (Forall(vsFresh.map(vFresh => translateLocalVarDecl(vFresh)), triggers,
                     (translatedCond1 <==> translatedCond2) && (translatedCond1 ==> (locationAccess1 === locationAccess2))) ==> (funApp1 === funApp2))
                   ))
           );
-          env.undefine(vFresh.localVar)
+          vsFresh.foreach(vFresh => env.undefine(vFresh.localVar))
           stateModule.replaceState(curState)
           res
         case e => sys.error("invalid quantified permission input into method: got " + e)
@@ -691,7 +733,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       case fa@sil.FuncApp(f, args) => {
         (() => Nil, if(makeChecks) () => {
         val funct = verifier.program.findFunction(f);
-        val pres = funct.pres map (e => Expressions.instantiateVariables(e, funct.formalArgs, args))
+        val pres = funct.pres map (e => Expressions.instantiateVariables(e, funct.formalArgs, args, env.allDefinedNames(program)))
         //if (pres.isEmpty) noStmt // even for empty pres, the assumption made below is important
         NondetIf(
           // This is where termination checks could/should be added
@@ -707,7 +749,6 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     }
   }
 
-
   override def toExpressionsUsedInTriggers(inputs: Seq[Exp]): Seq[Seq[Exp]] = {
     val res = if (inputs.isEmpty) Seq()
       else if (inputs.size == 1) toExpressionsUsedInTriggers(inputs.head) map (Seq(_))
@@ -720,7 +761,9 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   override def toExpressionsUsedInTriggers(e: Exp): Seq[Exp] = {
     val inter = transformFuncAppsToLimitedOrTriggerForm(e,-1,true)
     val seqsDone = seqModule.rewriteToTermsInTriggers(inter)
-    val res = flattenConditionalsInTriggers(seqsDone)
+    val res = if (seqsDone != inter)
+      (flattenConditionalsInTriggers(seqsDone) ++ flattenConditionalsInTriggers(inter)).distinct
+      else flattenConditionalsInTriggers(seqsDone)
     res
   }
 
@@ -734,9 +777,10 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   // --------------------------------------------
 
-  override def translatePredicate(p: sil.Predicate): Seq[Decl] = {
+  override def translatePredicate(p: sil.Predicate, names: Option[mutable.Map[String, String]]): Seq[Decl] = {
 
     env = Environment(verifier, p)
+    ErrorMemberMapping.currentMember = p
     val args = p.formalArgs
     val translatedArgs = p.formalArgs map translateLocalVarDecl
     val predAcc = sil.PredicateAccess(args map (_.localVar),p)(p.pos,p.info,p.errT)
@@ -747,7 +791,16 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       predicateGhostFieldDecl(p)) ++
     Axiom(Forall(heapModule.staticStateContributions(true, true) ++ translatedArgs, Seq(Trigger(trigger)), anystate)) ++
       (if (p.isAbstract) Nil else translateCondAxioms("predicate "+p.name, p.formalArgs, framingFunctionsToDeclare))
+
+    val usedNames = env.currentNameMapping
+
+    if (names.isDefined){
+      // add all local vars
+      names.get ++= usedNames
+    }
+
     env = null
+    ErrorMemberMapping.currentMember = null
     res
   }
 
@@ -773,7 +826,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
                            , statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): (Stmt,Stmt) = {
     duringFold = true
     foldInfo = acc
-    val stmt = exhale(Seq((Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program).get,acc.perm), error)), havocHeap = false,
+    val stmt = exhale(Seq((Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program, env.allDefinedNames(program)).get,acc.perm), error)), havocHeap = false,
       statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt) ++
       inhale(acc, statesStackForPackageStmt, insidePackageStmt)
     val stmtLast =  Assume(predicateTrigger(heapModule.currentStateExps, acc.loc)) ++ {
@@ -820,7 +873,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       } ++
       (if(exhaleUnfoldedPredicate)
           exhale(Seq((acc, error)), havocHeap = false, statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
-      else Nil) ++ inhale(Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program).get,acc.perm), statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
+      else Nil) ++ inhale(Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program, env.allDefinedNames(program)).get,acc.perm), statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
     unfoldInfo = oldUnfoldInfo
     duringUnfold = oldDuringUnfold
     duringFold = oldDuringFold
@@ -828,20 +881,32 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     stmt
   }
 
-  override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
+  override def exhaleExpBeforeAfter(e: sil.Exp, error: PartialVerificationError): (() => Stmt, () => Stmt) = {
     e match {
-      case sil.Unfolding(acc, _) => if (duringUnfoldingExtraUnfold) Nil else // execute the unfolding, since this may gain information
+      case sil.Unfolding(acc, _) => if (duringUnfoldingExtraUnfold) (() => Nil, () => Nil) else // execute the unfolding, since this may gain information
       {
         duringUnfoldingExtraUnfold = true
         tmpStateId += 1
         val tmpStateName = if (tmpStateId == 0) "Unfolding" else s"Unfolding$tmpStateId"
         val (stmt, state) = stateModule.freshTempState(tmpStateName)
-        val stmts = stmt ++ unfoldPredicate(acc, NullPartialVerificationError, isUnfolding = true, exhaleUnfoldedPredicate = false) // skip removing the predicate instance, since this will have happened earlier in the assertion being exhaled
-        tmpStateId -= 1
-        stateModule.replaceState(state)
-        duringUnfoldingExtraUnfold = false
+        def before() : Stmt = {
+          val result = CommentBlock("Execute unfolding (for extra information)",
+            // skip removing the predicate instance, since this will have happened earlier in the assertion being exhaled
+            // TODO: note that this means that perm expressions for predicates might not behave as expected, this should be investigated
+            // see Carbon issue #348
+            stmt ++ unfoldPredicate(acc, NullPartialVerificationError, isUnfolding = true, exhaleUnfoldedPredicate = false)
+          )
+          duringUnfoldingExtraUnfold = false
+          result
+        }
 
-        CommentBlock("Execute unfolding (for extra information)",stmts)
+        def after():Stmt = {
+          tmpStateId -= 1
+          stateModule.replaceState(state)
+          Nil
+        }
+
+        (before _ , after _ )
       }
       case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(args, predicateName), _) if duringUnfold && currentPhaseId == 0 =>
         val oldVersion = LocalVar(Identifier("oldVersion"), predicateVersionType)
@@ -851,13 +916,13 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
            Havoc(Seq(newVersion)) ++
               //          Assume(oldVersion < newVersion) ++ // this only made sense with integer versions. In the new model, we even want to allow the possibility of the new version being equal to the old
               (curVersion := newVersion)
-        MaybeCommentBlock("Update version of predicate",
-          If(UnExp(Not,hasDirectPerm(loc)), stmt, Nil))
+        ( () => MaybeCommentBlock("Update version of predicate",
+          If(UnExp(Not,hasDirectPerm(loc)), stmt, Nil)), () => Nil)
       case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(_, _), _) if duringFold =>
-        MaybeCommentBlock("Record predicate instance information",
-          insidePredicate(foldInfo, pap))
+        ( () => MaybeCommentBlock("Record predicate instance information",
+          insidePredicate(foldInfo, pap)), () => Nil)
 
-      case _ => Nil
+      case _ => (() => Nil, () => Nil)
     }
   }
 

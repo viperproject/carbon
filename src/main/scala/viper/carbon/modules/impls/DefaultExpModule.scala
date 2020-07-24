@@ -97,19 +97,23 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         val translatedExp = translateExp(exp) // expression to bind "v" to
       val v = env.makeUniquelyNamed(lvardecl) // choose a fresh "v" binder
         env.define(v.localVar)
-        val translatedBody = translateExp(Expressions.instantiateVariables(body, Seq(lvardecl), Seq(v.localVar))) // translate body with "v" in place of bound variable
+        val translatedBody = translateExp(Expressions.instantiateVariables(body, Seq(lvardecl), Seq(v.localVar), env.allDefinedNames(program))) // translate body with "v" in place of bound variable
       val substitutedBody = translatedBody.replace(env.get(v.localVar), translatedExp) // now replace all "v"s with expression. Doing this after translation avoids constructs such as heap-dependant expressions getting reevaluated after substitution in the wrong heaps (e.g. if substituted into an "old" expression).
         env.undefine(v.localVar)
         substitutedBody
       case sil.CondExp(cond, thn, els) =>
         CondExp(translateExp(cond), translateExp(thn), translateExp(els))
-      case sil.Exists(vars, exp) => {
+      case sil.Exists(vars, triggers, exp) => {
         // alpha renaming, to avoid clashes in context
         val renamedVars: Seq[sil.LocalVarDecl] = vars map (v => {
           val v1 = env.makeUniquelyNamed(v); env.define(v1.localVar); v1
         });
         val renaming = (e: sil.Exp) => Expressions.instantiateVariables(e, (vars map (_.localVar)), renamedVars map (_.localVar))
-        val res = Exists(renamedVars map translateLocalVarDecl, translateExp(renaming(exp)))
+        val ts : Seq[Trigger] = (triggers map
+          (t => (funcPredModule.toExpressionsUsedInTriggers(t.exps map (e => translateExp(renaming(e)))))
+            map (Trigger(_)) // build a trigger for each sequence element returned (in general, one original trigger can yield multiple alternative new triggers)
+            )).flatten
+        val res = Exists(renamedVars map translateLocalVarDecl, ts, translateExp(renaming(exp)))
         renamedVars map (v => env.undefine(v.localVar))
         res
       }
@@ -360,7 +364,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             }
         }
       case _ =>
-        def translate: Seqn = {
+        def translate(e: sil.Exp): Seqn = {
           val checks = components map (_.partialCheckDefinedness(e, error, makeChecks = makeChecks))
           val stmt = checks map (_._1())
           // AS: note that some implementations of the definedness checks rely on the order of these calls (i.e. parent nodes are checked before children, and children *are* always checked after parents.
@@ -383,10 +387,11 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         }
 
         if (e.isInstanceOf[sil.QuantifiedExp]) {
-          val bound_vars = e.asInstanceOf[sil.QuantifiedExp].variables
+          val orig_vars = e.asInstanceOf[sil.QuantifiedExp].variables
+          val bound_vars = orig_vars.map(v => env.makeUniquelyNamed(v))
           bound_vars map (v => env.define(v.localVar))
           val res = if (e.isInstanceOf[sil.ForPerm]) {
-            val eAsForallRef = e.asInstanceOf[sil.ForPerm]
+            val eAsForallRef = Expressions.renameVariables(e, orig_vars.map(_.localVar), bound_vars.map(_.localVar)).asInstanceOf[sil.ForPerm]
 
             if (eAsForallRef.variables.length != 1) sys.error("Carbon only supports a single quantified variable in forperm, see Carbon issue #243")
             if (eAsForallRef.variables.head.typ != Ref) sys.error("Carbon only supports Ref type in forperm, see Carbon issue #243")
@@ -396,22 +401,17 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
               case _ =>
             }
 
-            val bound_var = eAsForallRef.variables.head
-            val perLocFilter: sil.Location => LocationAccess = loc => loc match {
-              case f: sil.Field => sil.FieldAccess(bound_var.localVar, f)(loc.pos, loc.info)
-              case p: sil.Predicate => sil.PredicateAccess(Seq(bound_var.localVar), p)(loc.pos, loc.info, loc.errT)
-            }
             val filter: Exp = hasDirectPerm(eAsForallRef.resource.asInstanceOf[LocationAccess])
 
-            handleQuantifiedLocals(bound_vars, If(filter, translate, Nil))
-          } else handleQuantifiedLocals(bound_vars, translate)
+            handleQuantifiedLocals(bound_vars, If(filter, translate(eAsForallRef), Nil))
+          } else handleQuantifiedLocals(bound_vars, translate(Expressions.renameVariables(e, orig_vars.map(_.localVar), bound_vars.map(_.localVar))))
           bound_vars map (v => env.undefine(v.localVar))
           res
         } else e match {
           case sil.Old(_) =>
             val prevState = stateModule.state
             stateModule.replaceState(stateModule.oldState)
-            val res = translate
+            val res = translate(e)
             stateModule.replaceState(prevState)
             res
           case sil.LabelledOld(_, oldLabel) =>
@@ -420,11 +420,11 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
               findLabel = "lhs"+wandModule.getActiveLhs()
             val prevState = stateModule.state
             stateModule.replaceState(stateModule.stateRepositoryGet(findLabel).get)
-            val res = translate
+            val res = translate(e)
             stateModule.replaceState(prevState)
             res
           case _ =>
-            translate
+            translate(e)
         }
     }
   }
@@ -573,6 +573,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         e match {
           case sil.MagicWand(_,_) => Nil
           case sil.Forall(_,_,_) => Nil
+          case sil.Exists(_,_,_) => Nil
           case sil.Let(v, e, body) => {
             val u = env.makeUniquelyNamed(v) // choose a fresh "v" binder
             env.define(u.localVar)

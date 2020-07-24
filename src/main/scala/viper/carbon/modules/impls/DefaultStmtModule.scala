@@ -151,8 +151,8 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           case e:sil.Exp => Expressions.instantiateVariables[sil.Exp](e,neededRenamings map (_._1), neededRenamings map (_._2))
         }))
 
-        val pres = method.pres map (e => Expressions.instantiateVariables(e, method.formalArgs ++ method.formalReturns, (actualArgs map (_._1)) ++ targets))
-        val posts = method.posts map (e => Expressions.instantiateVariables(e, method.formalArgs ++ method.formalReturns, (actualArgs map (_._1)) ++ targets))
+        val pres = method.pres map (e => Expressions.instantiateVariables(e, method.formalArgs ++ method.formalReturns, (actualArgs map (_._1)) ++ targets, mainModule.env.allDefinedNames(program)))
+        val posts = method.posts map (e => Expressions.instantiateVariables(e, method.formalArgs ++ method.formalReturns, (actualArgs map (_._1)) ++ targets, mainModule.env.allDefinedNames(program)))
         val res = preCallStateStmt ++
           (targets map (e => checkDefinedness(e, errors.CallFailed(mc), insidePackageStmt = insidePackageStmt))) ++
           (args map (e => checkDefinedness(e, errors.CallFailed(mc), insidePackageStmt = insidePackageStmt))) ++
@@ -200,12 +200,6 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
             Assume(guard.not) ++ stateModule.assumeGoodState ++
               inhale(w.invs) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv)))
           )
-      case fr@sil.Fresh(vars) =>
-        MaybeCommentBlock(s"Translation of statement ${fr})", components map (_.freshReads(vars)))
-      case fb@sil.Constraining(vars, body) =>
-        MaybeCommentBlock(s"Start of constraining(${vars.mkString(", ")})", components map (_.enterConstrainingBlock(fb))) ++
-          translateStmt(body) ++
-          MaybeCommentBlock(s"End of constraining(${vars.mkString(", ")})", components map (_.leaveConstrainingBlock(fb)))
       case i@sil.If(cond, thn, els) =>
         checkDefinedness(cond, errors.IfFailed(cond), insidePackageStmt = insidePackageStmt) ++
         If((allStateAssms) ==> translateExpInWand(cond),
@@ -257,10 +251,6 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
         comment = s"Translating statement: if ($cond)"
       case sil.While(cond, invs, body) =>
         comment = s"Translating statement: while ($cond)"
-      case fr@sil.Fresh(vars)  =>
-        comment = s"Translating statement: fresh ${vars.mkString(", ")} "
-      case cs@sil.Constraining(vars,body) =>
-        comment = s"Translating statement: constraining(${vars.mkString(", ")})"
       case _ =>
     }
 

@@ -17,6 +17,7 @@ import viper.silver.verifier.reasons.InternalReason
 import viper.carbon.boogie.Assert
 import viper.carbon.boogie.Program
 
+
 class BoogieDependency(_location: String) extends Dependency {
   def name = "Boogie"
   def location = _location
@@ -40,6 +41,7 @@ trait BoogieInterface {
   private var _boogieProcess:Process = null
 
   var errormap: Map[Int, VerificationError] = Map()
+  var models : collection.mutable.ListBuffer[String] = new collection.mutable.ListBuffer[String]
   def invokeBoogie(program: Program, options: Seq[String]): (String,VerificationResult) = {
     // find all errors and assign everyone a unique id
     errormap = Map()
@@ -55,9 +57,16 @@ trait BoogieInterface {
     parse(output) match {
       case (version,Nil) =>
         (version,Success)
-      case (version,errorIds) =>
-        val errors = errorIds map (errormap.get(_).get)
+      case (version,errorIds) => {
+        val errors = (0 until errorIds.length).map(i => {
+          val id = errorIds(i)
+          val error = errormap.get(id).get
+          if (models.nonEmpty)
+            error.counterexample = Some(SimpleCounterexample(Model(models(i))))
+          error
+        })
         (version,Failure(errors))
+      }
     }
   }
 
@@ -79,8 +88,16 @@ trait BoogieInterface {
       errormap += (otherErrId -> internalError)
     }
 
+    var parsingModel : Option[StringBuilder] = None
     for (l <- output.linesIterator) {
       l match {
+        case "*** END_MODEL" if parsingModel.isDefined =>
+          models.append(parsingModel.get.toString())
+          parsingModel = None
+        case _ if parsingModel.isDefined =>
+          parsingModel.get.append(l).append("\n")
+        case "*** MODEL" if parsingModel.isEmpty =>
+          parsingModel = Some(new StringBuilder)
         case LogoPattern(version) =>
           version_found = version
         case ErrorPattern(id) =>
@@ -130,8 +147,12 @@ trait BoogieInterface {
   def stopBoogie(){
     if(_boogieProcess!= null){
       _boogieProcess.destroy()
-      _boogieProcess.exitValue() //TODO: this blocks if an underlying z3 instance remains running
-    }
+     // _boogieProcess.exitValue()  // Issue 225: I understood by the documentation of this API that by destroying the
+    }                               // processes, the pipe connecting input and output is also deleted. Therefore
+                                    // there's no need to sync with a dying processes. Instead we are free to start a
+                                    // a new instance of Boogie/Z3. This was tested on a Mac successfully. However more
+                                    // testing is necessary and should it failed to work properly on all platforms, this
+                                    // line should be uncommented and the issue reopened.
   }
 
 /*  // TODO: investigate why passing the program directly does not work

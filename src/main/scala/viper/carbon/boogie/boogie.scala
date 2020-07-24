@@ -7,8 +7,11 @@
 package viper.carbon.boogie
 
 import UnicodeString.string2unicodestring
+import viper.silver.ast.Member
 import viper.silver.ast.pretty._
 import viper.silver.verifier.VerificationError
+
+import scala.collection.mutable
 
 /** The root of the Boogie AST. */
 sealed trait Node {
@@ -178,8 +181,8 @@ sealed trait Exp extends Node with PrettyExpression {
   def <==>(other: Exp) = BinExp(this, Equiv, other)
   def forall(vars: Seq[LocalVarDecl], triggers: Seq[Trigger]) =
     Forall(vars, triggers, this)
-  def exists(vars: Seq[LocalVarDecl]) =
-    Exists(vars, this)
+  def exists(vars: Seq[LocalVarDecl], triggers: Seq[Trigger]) =
+    Exists(vars, triggers, this)
   def not = UnExp(Not, this)
   def thn(thn: Exp) = PartialCondExp(this, thn)
   def transform(f: PartialFunction[Exp, Option[Exp]]) = Nodes.transform(this, f)
@@ -260,7 +263,7 @@ object MaybeForall {
     else Forall(vars, triggers, exp)
   }
 }
-case class Exists(vars: Seq[LocalVarDecl], exp: Exp) extends QuantifiedExp
+case class Exists(vars: Seq[LocalVarDecl], triggers: Seq[Trigger], exp: Exp) extends QuantifiedExp
 case class Trigger(exps: Seq[Exp]) extends Node
 
 case class CondExp(cond: Exp, thn: Exp, els: Exp) extends Exp
@@ -308,10 +311,19 @@ case class Assume(exp: Exp) extends Stmt
 case class AssertImpl(exp: Exp, error: VerificationError) extends Stmt {
   var id = AssertIds.next // Used for mapping errors in the output back to VerificationErrors
 }
+object ErrorMemberMapping {
+  val mapping = mutable.HashMap[VerificationError, Member]()
+  var currentMember : Member = null
+}
 object Assert {
   def apply(exp: Exp, error: VerificationError) = {
     if (error == null) Statements.EmptyStmt
-    else AssertImpl(exp, error)
+    else {
+      if (ErrorMemberMapping.currentMember != null) {
+        ErrorMemberMapping.mapping.update(error, ErrorMemberMapping.currentMember)
+      }
+      AssertImpl(exp, error)
+    }
   }
   def unapply(a: AssertImpl) = Some((a.exp, a.error))
 }

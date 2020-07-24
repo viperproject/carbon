@@ -58,7 +58,7 @@ object Statements {
       (s1 ++ s2).distinct
     }
     def addDecls(n: Node, decls: Seq[LocalVarDecl]) = n match {
-      case Exists(v, _) => decls ++ v
+      case Exists(v, _, _) => decls ++ v
       case Forall(v, _, _, _) => decls ++ v
       case _ => decls
     }
@@ -132,7 +132,7 @@ object Nodes {
           case MapUpdate(map, idxs, value) => Seq(map) ++ idxs ++ Seq(value)
           case Old(exp) => Seq(exp)
           case CondExp(cond, thn, els) => Seq(cond, thn, els)
-          case Exists(v, exp) => v ++ Seq(exp)
+          case Exists(v, triggers, exp) => v ++ triggers ++ Seq(exp)
           case Forall(v, triggers, exp, tv) => v ++ triggers ++ Seq(exp)
           case BinExp(left, binop, right) => Seq(left, right)
           case UnExp(unop, exp) => Seq(exp)
@@ -165,7 +165,7 @@ object Nodes {
           case MapUpdate(map, idxs, value) => MapUpdate(func(map), idxs map func, func(value))
           case Old(e) => Old(func(e))
           case CondExp(cond, thn, els) => CondExp(func(cond), func(thn), func(els))
-          case Exists(v, e) => Exists(v, func(e))
+          case Exists(v, triggers, e) => Exists(v, (triggers map (_ match {case Trigger(es) => Trigger(es map func)})), func(e))
           case Forall(v, triggers, e, tv) => Forall(v, (triggers map (_ match {case Trigger(es) => Trigger(es map func)})), func(e), tv)
           case BinExp(left, binop, right) => BinExp(func(left), binop, func(right))
           case UnExp(unop, e) => UnExp(unop, func(e))

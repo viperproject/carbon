@@ -6,7 +6,7 @@
 
 package viper.carbon.modules.components
 
-import viper.carbon.boogie.Stmt
+import viper.carbon.boogie.{Statements, Stmt}
 import viper.silver.{ast => sil}
 import viper.silver.verifier.PartialVerificationError
 
@@ -19,5 +19,13 @@ trait ExhaleComponent extends Component {
   /**
    * Exhale a single expression.
    */
-  def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt
+  def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = Statements.EmptyStmt
+
+  /**
+    * The first part of the result is used before exhaling the expression, and finally after exhaling the expression
+    * the second part of the result is used.
+    */
+  def exhaleExpBeforeAfter(e: sil.Exp, error: PartialVerificationError): (() => Stmt, () => Stmt) =
+    (() => exhaleExp(e, error), () => Statements.EmptyStmt)
+
 }

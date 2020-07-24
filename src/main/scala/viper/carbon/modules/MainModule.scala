@@ -17,8 +17,10 @@ import viper.carbon.verifier.Environment
 trait MainModule extends Module {
   /**
    * Translate a Viper program into a Boogie program.
+   * Returns a Boogie program along with a map that maps Viper names to their respective Boogie names,
+   * i.e. Viper member name -> (Viper variable name -> Boogie variable name)
    */
-  def translate(p: sil.Program): Program
+  def translate(p: sil.Program): (Program, Map[String, Map[String, String]])
 
   /**
    * Translate a local variable along with its type (into a boogie declaration).  Assumes that the variable is already
