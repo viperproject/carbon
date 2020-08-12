@@ -38,6 +38,7 @@ import viper.carbon.boogie.TypeAlias
 import viper.carbon.boogie.FuncApp
 import viper.carbon.verifier.Verifier
 import viper.silver.ast.utility.rewriter.Traverse
+import viper.silver.ast.Implies
 
 import scala.collection.mutable.ListBuffer
 import viper.silver.ast.utility.QuantifiedPermissions.SourceQuantifiedPermissionAssertion
@@ -430,7 +431,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   def translateExhale(e: sil.Forall, error: PartialVerificationError): Stmt =  {
     val stmt = e match {
-      case SourceQuantifiedPermissionAssertion(forall, cond, expr)  =>
+      case SourceQuantifiedPermissionAssertion(forall, Implies(cond, expr))  =>
         val vs = forall.variables
 
         val res = expr match {
@@ -916,7 +917,7 @@ class QuantifiedPermModule(val verifier: Verifier)
       translate inhaling a forall expressions
    */
   def translateInhale(e: sil.Forall): Stmt = e match{
-    case SourceQuantifiedPermissionAssertion(forall, cond, expr) =>
+    case SourceQuantifiedPermissionAssertion(forall, Implies(cond, expr)) =>
       val vs = forall.variables // TODO: Generalise to multiple quantified variables
 
        val res = expr match {
@@ -1173,7 +1174,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   //renamed Localvariable and Condition
   def getMapping(v: sil.LocalVarDecl, cond:sil.Exp, expr:sil.Exp): Seq[Exp] = {
     val res = expr match {
-      case SourceQuantifiedPermissionAssertion(forall, cond, expr)  =>
+      case SourceQuantifiedPermissionAssertion(forall, Implies(cond, expr))  =>
         Nil
       case sil.FieldAccessPredicate(fa@sil.FieldAccess(rcvr, f), gain) =>
         Nil
