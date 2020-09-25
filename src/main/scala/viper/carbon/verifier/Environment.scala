@@ -41,7 +41,10 @@ case class Environment(verifier: Verifier, member: sil.Node) {
       }
     case f@sil.DomainFunc(name, args, typ, unique) =>
       for (v <- args) {
-        define(v.localVar)
+        v match {
+          case n: sil.LocalVarDecl => define(n.localVar)
+          case u: sil.UnnamedLocalVarDecl => define(sil.LocalVar(uniqueName(f.name + "_param"), u.typ)(u.pos, u.info, u.errT))
+        }
       }
     case _ =>
   }
@@ -94,7 +97,7 @@ case class Environment(verifier: Verifier, member: sil.Node) {
   /**
    * Takes a string and tries to produce a similar string that is not already used.
    */
-  private def uniqueName(s: String): String = {
+  def uniqueName(s: String): String = {
     names.createUniqueIdentifier(s)
   }
 }
