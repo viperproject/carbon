@@ -506,7 +506,7 @@ class QuantifiedPermModule(val verifier: Verifier)
             val invAssm2 = Forall(Seq(obj), Trigger(invFuns.map(invFun => FuncApp(invFun.name, Seq(obj.l), invFun.typ))), (condInv && (permGt(permInv, noPerm) && rangeFunApp)) ==> (rcvInv === obj.l) )
 
 
-            //check that given the permission evaluates to true, the permission held should be greater than 0
+            //check that given the condition, the permission held should be non-negative
             val permPositive = Assert(Forall(vsFresh.map(v => translateLocalVarDecl(v)),tr1, (translatedCond && funcPredModule.dummyFuncApp(translateLocationAccess(translatedRecv, translatedLocation))) ==> permissionPositiveInternal(translatedPerms,None,true)),
               error.dueTo(reasons.NegativePermission(perms)))
 
@@ -658,8 +658,8 @@ class QuantifiedPermModule(val verifier: Verifier)
             val conjoinedInverseAssumptions = eqExpr.foldLeft(TrueLit():Exp)((soFar,exp) => BinExp(soFar,And,exp))
             val invAssm2 = Forall(freshFormalBoogieDecls, Trigger(invFunApps), ((condInv && permGt(permInv, noPerm)) && rangeFunApp) ==> conjoinedInverseAssumptions)
 
-            //check that the permission expression is positive for all predicates satisfying the condition
-            val permPositive = Assert(Forall(freshFormalBoogieDecls, Trigger(invFunApps), (condInv && rangeFunApp) ==> permissionPositive(permInv)),
+            //check that the permission expression is non-negative for all predicates satisfying the condition
+            val permPositive = Assert(Forall(freshFormalBoogieDecls, Trigger(invFunApps), (condInv && rangeFunApp) ==> permissionPositive(permInv, true)),
               error.dueTo(reasons.NegativePermission(perms)))
 
             //check that sufficient permission is held
