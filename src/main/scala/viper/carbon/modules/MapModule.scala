@@ -10,10 +10,10 @@ import viper.silver.{ast => sil}
 import viper.carbon.boogie.{Type, Exp}
 
 /**
- * A module for translating sets and multisets.
- */
-trait SetModule extends Module {
-  def translateSetExp(exp: sil.Exp): Exp
-  def translateSetType(setType: sil.SetType): Type
-  def translateMultisetType(setType: sil.MultisetType): Type
+  * A module for translating maps.
+  */
+trait MapModule extends Module {
+  def isUsed() : Boolean
+  def translateMapExp(exp : sil.Exp) : Exp
+  def translateMapType(mapType : sil.MapType) : Type
 }

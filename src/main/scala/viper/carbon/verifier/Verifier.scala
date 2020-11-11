@@ -31,6 +31,7 @@ trait Verifier {
   val domainModule: DomainModule
   val seqModule: SeqModule
   val setModule: SetModule
+  val mapModule: MapModule
   val wandModule: WandModule
 
   /**
@@ -38,7 +39,8 @@ trait Verifier {
    */
   lazy val allModules: Seq[Module] = {
     Seq(mainModule, stateModule, heapModule, permModule, stmtModule, expModule, typeModule,
-      exhaleModule, inhaleModule, funcPredModule, domainModule, seqModule, setModule, wandModule)
+      exhaleModule, inhaleModule, funcPredModule, domainModule, seqModule, setModule,
+      mapModule, wandModule)
   } ensuring {
     mods => true
   }

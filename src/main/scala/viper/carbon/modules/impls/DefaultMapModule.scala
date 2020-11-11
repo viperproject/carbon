@@ -1,0 +1,79 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2019 ETH Zurich.
+
+package viper.carbon.modules.impls
+
+import viper.carbon.boogie._
+import viper.carbon.modules.MapModule
+import viper.carbon.modules.components.DefinednessComponent
+import viper.carbon.modules.impls.map_axioms.MapAxiomatization
+import viper.carbon.verifier.Verifier
+import viper.silver.{ast => sil}
+
+class DefaultMapModule(val verifier: Verifier) extends MapModule with DefinednessComponent {
+  import verifier._
+  import typeModule._
+  import expModule._
+
+  /** The name of this module. */
+  override def name: String = "Map module"
+
+  implicit val namespace = verifier.freshNamespace("map")
+
+  /** Have maps been used so far (to determine if we need to include the set axiomatisation in the prelude). */
+  private var used = false
+
+  override def isUsed() : Boolean = used
+
+  override def preamble : Seq[Decl] =
+    if (used) Seq(LiteralDecl(MapAxiomatization.value)) else Seq()
+
+  override def translateMapExp(exp : sil.Exp) : Exp = {
+    used = true
+
+    def rec(e : sil.Exp) = translateExp(e) // recurse
+    val typ = translateType(exp.typ)
+
+    exp match {
+      case _: sil.EmptyMap => {
+        val fa = FuncApp(Identifier("Map#Empty"), Nil, typ)
+        fa.showReturnType = true // needed (in general) to avoid Boogie complaints about ambiguous type variable
+        fa
+      }
+
+      case exp: sil.ExplicitMap =>
+        translateMapExp(exp.desugared) // desugar into a series of map updates starting from an empty map
+      case sil.MapCardinality(base) =>
+        FuncApp(Identifier("Map#Card"), Seq(rec(base)), Int)
+      case sil.MapDomain(base) =>
+        FuncApp(Identifier("Map#Domain"), Seq(rec(base)), typ)
+      case sil.MapRange(base) =>
+        FuncApp(Identifier("Map#Values"), Seq(rec(base)), typ)
+      case sil.MapUpdate(base, key, value) =>
+        FuncApp(Identifier("Map#Build"), Seq(rec(base), rec(key), rec(value)), typ)
+      case exp: sil.MapContains =>
+        translateExp(exp.desugared)
+
+      case sil.MapLookup(base, key) => base.typ match {
+        case sil.MapType(keyType, valueType) => {
+          val mTyp = MapType(Seq(translateType(keyType)), translateType(valueType))
+          val mExp = FuncApp(Identifier("Map#Elements"), Seq(rec(base)), mTyp)
+          MapSelect(mExp, Seq(rec(key)))
+        }
+        case t => sys.error(s"expected a map type, but found $t")
+      }
+
+      case _ => sys.error("not a map expression")
+    }
+  }
+
+  override def translateMapType(mapType : sil.MapType) : Type = {
+    used = true
+    NamedType("Map", Seq(translateType(mapType.keyType), translateType(mapType.valueType)))
+  }
+
+  override def reset() : Unit = used = false
+}

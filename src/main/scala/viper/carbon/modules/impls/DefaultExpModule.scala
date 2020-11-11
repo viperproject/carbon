@@ -27,6 +27,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   import domainModule._
   import seqModule._
   import setModule._
+  import mapModule._
   import permModule._
   import inhaleModule._
   import funcPredModule._
@@ -193,6 +194,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             translateSetExp(e)
           case _: sil.MultisetType =>
             translateSetExp(e)
+          case _: sil.MapType =>
+            translateMapExp(e)
           case x if x == sil.Perm =>
             translatePermComparison(e)
           case _ =>
@@ -206,6 +209,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             translateSetExp(e)
           case _: sil.MultisetType =>
             translateSetExp(e)
+          case _: sil.MapType =>
+            translateMapExp(e)
           case x if x == sil.Perm =>
             translatePermComparison(e)
           case _ =>
@@ -281,6 +286,17 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       case setExp@sil.AnySetMinus(left, right) => translateSetExp(setExp)
       case setExp@sil.AnySetContains(left, right) => translateSetExp(setExp)
       case setExp@sil.AnySetCardinality(_) => translateSetExp(setExp)
+
+      case mapExp: sil.EmptyMap => translateMapExp(mapExp)
+      case mapExp: sil.ExplicitMap => translateMapExp(mapExp)
+      case mapExp: sil.KeyValuePair => translateMapExp(mapExp)
+      case mapExp: sil.MapCardinality => translateMapExp(mapExp)
+      case mapExp: sil.MapContains => translateMapExp(mapExp)
+      case mapExp: sil.MapDomain => translateMapExp(mapExp)
+      case mapExp: sil.MapRange => translateMapExp(mapExp)
+      case mapExp: sil.MapLookup => translateMapExp(mapExp)
+      case mapExp: sil.MapUpdate => translateMapExp(mapExp)
+
       case _ => sys.error("Viper expression didn't match any existing case.")
     }
   }
