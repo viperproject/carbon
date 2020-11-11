@@ -17,6 +17,7 @@ class DefaultMapModule(val verifier: Verifier) extends MapModule with Definednes
   import verifier._
   import typeModule._
   import expModule._
+  import DefaultMapModule._
 
   /** The name of this module. */
   override def name: String = "Map module"
@@ -39,7 +40,7 @@ class DefaultMapModule(val verifier: Verifier) extends MapModule with Definednes
 
     exp match {
       case _: sil.EmptyMap => {
-        val fa = FuncApp(Identifier("Map#Empty"), Nil, typ)
+        val fa = FuncApp(Identifier(mapEmptyOpName), Nil, typ)
         fa.showReturnType = true // needed (in general) to avoid Boogie complaints about ambiguous type variable
         fa
       }
@@ -47,20 +48,24 @@ class DefaultMapModule(val verifier: Verifier) extends MapModule with Definednes
       case exp: sil.ExplicitMap =>
         translateMapExp(exp.desugared) // desugar into a series of map updates starting from an empty map
       case sil.MapCardinality(base) =>
-        FuncApp(Identifier("Map#Card"), Seq(rec(base)), Int)
+        FuncApp(Identifier(mapCardOpName), Seq(rec(base)), Int)
       case sil.MapDomain(base) =>
-        FuncApp(Identifier("Map#Domain"), Seq(rec(base)), typ)
+        FuncApp(Identifier(mapDomainOpName), Seq(rec(base)), typ)
       case sil.MapRange(base) =>
-        FuncApp(Identifier("Map#Values"), Seq(rec(base)), typ)
+        FuncApp(Identifier(mapValuesOpName), Seq(rec(base)), typ)
       case sil.MapUpdate(base, key, value) =>
-        FuncApp(Identifier("Map#Build"), Seq(rec(base), rec(key), rec(value)), typ)
+        FuncApp(Identifier(mapBuildOpName), Seq(rec(base), rec(key), rec(value)), typ)
       case exp: sil.MapContains =>
         translateExp(exp.desugared)
+      case sil.EqCmp(left, right) =>
+        FuncApp(Identifier(mapEqualOpName), List(rec(left), rec(right)), typ)
+      case sil.NeCmp(left, right) =>
+        UnExp(Not, FuncApp(Identifier(mapEqualOpName), List(rec(left), rec(right)), typ))
 
       case sil.MapLookup(base, key) => base.typ match {
         case sil.MapType(keyType, valueType) => {
           val mTyp = MapType(Seq(translateType(keyType)), translateType(valueType))
-          val mExp = FuncApp(Identifier("Map#Elements"), Seq(rec(base)), mTyp)
+          val mExp = FuncApp(Identifier(mapElementsOpName), Seq(rec(base)), mTyp)
           MapSelect(mExp, Seq(rec(key)))
         }
         case t => sys.error(s"expected a map type, but found $t")
@@ -76,4 +81,16 @@ class DefaultMapModule(val verifier: Verifier) extends MapModule with Definednes
   }
 
   override def reset() : Unit = used = false
+}
+
+object DefaultMapModule {
+  private def opName(name : String) = s"Map#$name"
+
+  val mapBuildOpName : String = opName("Build")
+  val mapCardOpName : String = opName("Card")
+  val mapDomainOpName : String = opName("Domain")
+  val mapElementsOpName : String = opName("Elements")
+  val mapEmptyOpName : String = opName("Empty")
+  val mapEqualOpName : String = opName("Equal")
+  val mapValuesOpName : String = opName("Values")
 }
