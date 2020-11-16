@@ -11,6 +11,7 @@ import viper.carbon.modules.MapModule
 import viper.carbon.modules.components.DefinednessComponent
 import viper.carbon.modules.impls.map_axioms.MapAxiomatization
 import viper.carbon.verifier.Verifier
+import viper.silver.verifier.{PartialVerificationError, reasons}
 import viper.silver.{ast => sil}
 
 class DefaultMapModule(val verifier: Verifier) extends MapModule with DefinednessComponent {
@@ -31,6 +32,8 @@ class DefaultMapModule(val verifier: Verifier) extends MapModule with Definednes
 
   override def preamble : Seq[Decl] =
     if (used) Seq(LiteralDecl(MapAxiomatization.value)) else Seq()
+
+  override def start() : Unit = expModule.register(this)
 
   override def translateMapExp(exp : sil.Exp) : Exp = {
     used = true
@@ -78,6 +81,17 @@ class DefaultMapModule(val verifier: Verifier) extends MapModule with Definednes
   override def translateMapType(mapType : sil.MapType) : Type = {
     used = true
     NamedType("Map", Seq(translateType(mapType.keyType), translateType(mapType.valueType)))
+  }
+
+  override def simplePartialCheckDefinedness(exp: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
+    if (makeChecks) exp match {
+      case sil.MapLookup(base, key) => {
+        val containsExp = translateMapExp(sil.MapContains(key, base)(exp.pos, exp.info, exp.errT))
+        Assert(containsExp, error.dueTo(reasons.MapKeyNotContained(base, key)))
+      }
+      case _ => Statements.EmptyStmt
+    }
+    else Statements.EmptyStmt
   }
 
   override def reset() : Unit = used = false

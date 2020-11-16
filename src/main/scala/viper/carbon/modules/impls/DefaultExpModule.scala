@@ -289,7 +289,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
 
       case mapExp: sil.EmptyMap => translateMapExp(mapExp)
       case mapExp: sil.ExplicitMap => translateMapExp(mapExp)
-      case mapExp: sil.KeyValuePair => translateMapExp(mapExp)
+      case mapExp: sil.Maplet => translateMapExp(mapExp)
       case mapExp: sil.MapCardinality => translateMapExp(mapExp)
       case mapExp: sil.MapContains => translateMapExp(mapExp)
       case mapExp: sil.MapDomain => translateMapExp(mapExp)
