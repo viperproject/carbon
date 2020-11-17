@@ -136,7 +136,7 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
       case TypeVar(name) => name
       case NamedType(name, typVars) =>
         (if (typVars.size == 0) name
-        else text(if (spaceDelimitedContext) "(" else "") <> name <> space <> ssep((typVars map (x => (show(x,true)))).to[collection.immutable.Seq],space) <> (if (spaceDelimitedContext) ")" else "") <> "")
+        else text(if (spaceDelimitedContext) "(" else "") <> name <> space <> ssep((typVars map (x => (show(x,true)))).to(collection.immutable.Seq),space) <> (if (spaceDelimitedContext) ")" else "") <> "")
       case MapType(doms, range, typVars) =>
         showTypeVars(typVars) <> "[" <> commasep(doms) <> "]" <> showType(range,false)
     }
@@ -160,7 +160,7 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
       case HavocImpl(vars) =>
         text("havoc") <+> commasep(vars) <> char (';')
       case Goto(dests) =>
-        text("goto") <+> ssep((dests map (x => ident2doc(x.name))).to[collection.immutable.Seq], char (',') <> space) <> char (';')
+        text("goto") <+> ssep((dests map (x => ident2doc(x.name))).to(collection.immutable.Seq), char (',') <> space) <> char (';')
       case Assign(lhs, rhs) =>
         show(lhs) <+> ":=" <+> show(rhs) <> char (';')
       case Label(lbl) =>
@@ -207,16 +207,16 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
     // filter out statements that do not need to be printed such as
     // empty Seqn or LocalVarWhereDecl
     val ss = stmts filter needsPrinting
-    ssep(ss.to[collection.immutable.Seq] map show, line)
+    ssep(ss.to(collection.immutable.Seq) map show, line)
   }
 
   def showProgram(p: Program) = {
-    ssep((p.header map (s => value("// " + s))).to[collection.immutable.Seq], line) <> line <> line <>
+    ssep((p.header map (s => value("// " + s))).to(collection.immutable.Seq), line) <> line <> line <>
       showDecls(p.decls)
   }
 
   def showDecls(ds: Seq[Decl], sep: Cont = line <> line): Cont = {
-    ssep(ds.to[collection.immutable.Seq] map show, sep)
+    ssep(ds.to(collection.immutable.Seq) map show, sep)
   }
 
   /**
@@ -276,14 +276,14 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
         val undecl = body.undeclLocalVars filter (v1 => (ins ++ outs).forall(v2 => v2.name != v1.name))
         val vars = undecl map (v => LocalVarDecl(v.name, v.typ, whereMap.get(v.name)))
         val vars2 = vars map (v => text("var") <+> show(v) <> ";")
-        val vars3 = ssep(vars2.to[collection.immutable.Seq], line) <> (if (vars2.size == 0) nil else line)
+        val vars3 = ssep(vars2.to(collection.immutable.Seq), line) <> (if (vars2.size == 0) nil else line)
         text("procedure") <+>
           name <>
           parens(commasep(ins)) <+>
           "returns" <+>
           parens(commasep(outs)) <>
           line <> space <> space <>
-          "modifies" <+> ssep(modifies.to[collection.immutable.Seq], char (',') <> space) <> char (';')  <> line <>
+          "modifies" <+> ssep(modifies.to(collection.immutable.Seq), char (',') <> space) <> char (';')  <> line <>
           showBlock(vars3 <> body2)
       case CommentedDecl(s, d, size, nlines) =>
         var linesep = nil
@@ -328,7 +328,7 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
   /**
    * Show a list of nodes, separated by a comma and a space.
    */
-  def commasep(ns: Seq[Node]) = ssep((ns map show).to[collection.immutable.Seq], char (',') <> space)
+  def commasep(ns: Seq[Node]) = ssep((ns map show).to(collection.immutable.Seq), char (',') <> space)
 
   def showVar(variable: LocalVarDecl) = {
     ident2doc(variable.name) <> ":" <+> showType(variable.typ,true) <>
@@ -362,18 +362,18 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
           "::" <>
           nest(defaultIndent,
             line <>
-              ssep((triggers map show).to[collection.immutable.Seq], space) <> line <>
+              ssep((triggers map show).to(collection.immutable.Seq), space) <> line <>
               show(exp)
           ) <> line)
       case Forall(vars, triggers, exp, tv) =>
         parens(text("forall") <+>
-          "<" <> ssep((tv map show).to[collection.immutable.Seq], char (',') <> space) <> ">" <+>
+          "<" <> ssep((tv map show).to(collection.immutable.Seq), char (',') <> space) <> ">" <+>
           commasep(vars) <+>
           //("•" or "::") <+>
           "::" <>
           nest(defaultIndent,
             line <>
-              ssep((triggers map show).to[collection.immutable.Seq], space) <> line <>
+              ssep((triggers map show).to(collection.immutable.Seq), space) <> line <>
               show(exp)
           ) <> line)
       case Exists(vars, triggers, exp) =>
@@ -383,7 +383,7 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
           "::" <>
           nest(defaultIndent,
             line <>
-              ssep((triggers map show).to[collection.immutable.Seq], space) <> line <>
+              ssep((triggers map show).to(collection.immutable.Seq), space) <> line <>
               show(exp)
           ) <> line)
       case LocalVar(name, typ) => name

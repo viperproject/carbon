@@ -503,7 +503,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       case Nil => emptyFrame
       case pre +: Nil => computeFrameHelper(pre,renaming,functionName,args)
       case p +: ps => combineFrames(computeFrameHelper(p,renaming,functionName,args), computeFrame(ps,renaming,functionName,args)._1) // we don't need to return the list, since this is updated statefully
-    }, qpCondFuncs)
+    }, qpCondFuncs.toSeq)
   }
   private def combineFrames(a: Exp, b: Exp) = {
     if (a.equals(emptyFrame)) b else

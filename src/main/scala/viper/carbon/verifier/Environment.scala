@@ -45,6 +45,8 @@ case class Environment(verifier: Verifier, member: sil.Node) {
           case n: sil.LocalVarDecl => define(n.localVar)
           case u: sil.UnnamedLocalVarDecl => define(sil.LocalVar(uniqueName(f.name + "_param"), u.typ)(u.pos, u.info, u.errT))
         }
+      //? for (v <- args if (v.isInstanceOf[sil.LocalVarDecl])) {
+      //?   define(v.asInstanceOf[sil.LocalVarDecl].localVar)
       }
     case _ =>
   }

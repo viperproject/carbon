@@ -200,13 +200,13 @@ class QuantifiedPermModule(val verifier: Verifier)
         ))
     } ++ {
       MaybeCommentedDecl("Function for trigger used in checks which are never triggered",
-        triggerFuncs)
+        triggerFuncs.toSeq)
     } ++ {
       MaybeCommentedDecl("Functions used as inverse of receiver expressions in quantified permissions during inhale and exhale",
-        inverseFuncs)
+        inverseFuncs.toSeq)
     } ++ {
       MaybeCommentedDecl("Functions used to represent the range of the projection of each QP instance onto its receiver expressions for quantified permissions during inhale and exhale",
-        rangeFuncs)
+        rangeFuncs.toSeq)
     }
   }
 
@@ -1429,7 +1429,7 @@ class QuantifiedPermModule(val verifier: Verifier)
     rangeFuncs += rangeFun
     val triggerFun = Func(Identifier(triggerFunName+qpId), qvars,  Bool)
     triggerFuncs += triggerFun
-    (invFuns, rangeFun, triggerFun)
+    (invFuns.toSeq, rangeFun, triggerFun)
   }
 
   override def conservativeIsPositivePerm(e: sil.Exp): Boolean = splitter.conservativeStaticIsStrictlyPositivePerm(e)

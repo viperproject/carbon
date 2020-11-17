@@ -113,7 +113,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
       def name = "Z3"
       def version = {
         try {
-          val v = List(z3Path, "-version").lineStream.to[List]
+          val v = List(z3Path, "-version").lineStream.to(List)
           if (v.size == 1 && v(0).startsWith("Z3 version ")) {
             v(0).substring("Z3 version ".size)
           } else {
@@ -134,7 +134,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
 
     // reset all modules
     allModules map (m => m.reset())
-    heapModule.enableAllocationEncoding = config == null || !config.disableAllocEncoding.supplied // NOTE: config == null happens on the build server / via sbt test
+    heapModule.enableAllocationEncoding = config == null || !config.disableAllocEncoding.isSupplied // NOTE: config == null happens on the build server / via sbt test
 
     var transformNames = false
     if (config == null) Seq() else config.counterexample.toOption match {
