@@ -41,7 +41,9 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
     // For New: the operation translation (HeapModule) is added as a prefix to the code adding permissions (PermModule)
   }
 
-  val lblNamespace = verifier.freshNamespace("stmt.lbl")
+  private val lblNamespace = verifier.freshNamespace("stmt.lbl")
+
+  override def labelNamespace = lblNamespace
 
   def name = "Statement module"
 
@@ -209,10 +211,12 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
         val (stmt, currentState) = stateModule.freshTempState("Label" + name)
         stateModule.stateRepositoryPut(name, stateModule.state)
         stateModule.replaceState(currentState)
-        stmt ++ Label(Lbl(Identifier(name)(lblNamespace)))
+        stmt ++ Label(Lbl(Identifier(name)(labelNamespace)))
       }
       case sil.Goto(target) =>
-        Goto(Lbl(Identifier(target)(lblNamespace)))
+        /* Handled by loop module, since the loop module decides whether the goto should be translated as a goto.
+         */
+        Nil
       case pa@sil.Package(wand, proof) => {
         checkDefinedness(wand, errors.MagicWandNotWellformed(wand), insidePackageStmt = insidePackageStmt)
         translatePackage(pa, errors.PackageFailed(pa), statesStack, allStateAssms, insidePackageStmt)
