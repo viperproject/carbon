@@ -4,7 +4,7 @@ sealed trait LoopGenKind {
 
 }
 
-case class EnterLoop(loopId: Int) extends LoopGenKind
+case class BeforeEnterLoop(loopId: Int) extends LoopGenKind
 
 case class ExitLoops(loopIds: Seq[Int]) extends LoopGenKind
 

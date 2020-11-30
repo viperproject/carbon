@@ -34,11 +34,12 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
   import exhaleModule._
   import expModule._
   import permModule._
+  import heapModule._
 
   implicit val namespace = verifier.freshNamespace("loop")
 
   //separate masks for each loop to store the permissions which are framed away
-  private var framedMasksLoops: Map[Int, LocalVarDecl] = Map[Int, LocalVarDecl]();
+  private var frames: Map[Int, (LocalVarDecl,LocalVarDecl)] = Map[Int, (LocalVarDecl, LocalVarDecl)]();
 
   private var loopToInvs: Map[Int, Seq[sil.Exp]] = Map.empty
   private var labelLoopInfoMap: Map[String, LoopInfo] = Map.empty
@@ -50,8 +51,11 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
   private val sumMaskName : Identifier = Identifier("LoopSumMask")(namespace)
   private val sumMask = LocalVar(sumMaskName, maskType)
 
-  //if set to false, then loops are translated to Boogie loops and otherwise back edges are cut
-  private val cutBackedges = true
+  private val sumHeapName : Identifier = Identifier("LoopSumHeap")(namespace)
+  private val sumHeap = LocalVar(sumHeapName, heapType)
+
+  private var currentMethodIsAbstract = false;
+  private var useLoopDetector = false;
 
   override def start() = {
     /* loopModule should be after all other modules, since it needs to output code that must be output before due to
@@ -62,6 +66,26 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
   }
 
   override def initializeMethod(m: sil.Method): sil.Method = {
+    reset()
+
+    //only run the loop detector if the loop body has goto statements
+    val hasGotos =
+      m.body.fold(false)(body => body.existsDefined(
+        {
+          case _: sil.Goto => true
+        }
+      ))
+
+    if(hasGotos) {
+      useLoopDetector = true
+      initializeMethodWithGotos(m)
+    } else {
+      useLoopDetector = false
+      m
+    }
+  }
+
+  private def initializeMethodWithGotos(m: sil.Method): sil.Method = {
     def isComposite(s: sil.Stmt): Boolean = {
       s match {
         case sil.Seqn(_, _) => true
@@ -129,7 +153,13 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
           }
           case ifStmt@sil.If(b, thn, els) => {
             def getNewBranch(stmt: sil.Seqn): sil.Seqn = {
-              if (getFirstSimple(stmt.ss).map(b => isComposite(b)).getOrElse(false)) {
+              /**
+                * ensure that branch is 1) non-empty,
+                *                       2) first statement is not a composite statement
+                *                       3) first statement is not a label statement (to make sure that there is only one
+                *                       predecessor)
+                */
+              if (getFirstSimple(stmt.ss).map(firstStmt => isComposite(firstStmt) || firstStmt.isInstanceOf[sil.Label]).getOrElse(true)) {
                 sil.Seqn(getDummyNode() +: stmt.ss, stmt.scopedDecls)(stmt.pos, stmt.info, stmt.errT)
               } else {
                 stmt
@@ -140,6 +170,23 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
             val newElse = getNewBranch(els)
 
             sil.If(b, newThn, newElse)(ifStmt.pos, ifStmt.info, ifStmt.errT)
+          }
+          case whileStmt@sil.While(cond, invs, body) => {
+            //ensure that first and final statements in body are not composite.
+            val bodyLastOk =
+              if(isComposite(body.ss.last)) {
+                sil.Seqn(body.ss ++ Seq(getDummyNode()), body.scopedDecls)(body.pos, body.info, body.errT)
+              } else {
+                body
+              }
+
+            val bodyFirstOk =
+            if (getFirstSimple(bodyLastOk.ss).map(firstStmt => isComposite(firstStmt)).getOrElse(true)) {
+              sil.Seqn(getDummyNode() +: bodyLastOk.ss, bodyLastOk.scopedDecls)(bodyLastOk.pos, bodyLastOk.info, bodyLastOk.errT)
+            } else {
+              bodyLastOk
+            }
+            sil.While(cond, invs, bodyFirstOk)(whileStmt.pos, whileStmt.info, whileStmt.errT)
           }
         }
 
@@ -155,7 +202,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
               Seq((id, loopInfo, b))
             case (_,_) => Seq.empty
           }
-        case sif@sil.If(_,thn,els) => getFirstBasicStmts(thn, true) ++ getFirstBasicStmts(els, true)
+        case sil.If(_,thn,els) => getFirstBasicStmts(thn, true) ++ getFirstBasicStmts(els, true)
         case basicStmt : sil.Stmt =>
           (getLoopInfo(basicStmt), getIdInfo(basicStmt)) match {
             case (Some(loopInfo), Some(IdInfo(id))) =>
@@ -222,6 +269,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
     val result =
       m.body match {
         case Some(s) =>
+          currentMethodIsAbstract = false
           val normalizedBody =
             s.transform(
               rewriteDummyStatements, sil.utility.rewriter.Traverse.BottomUp
@@ -232,7 +280,9 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
           initializeMappings(loopInfoBody)
           captureRelevantNextStmts(loopInfoBody, Seq())
           m.copy(body = Some(loopInfoBody))(m.pos, m.info, m.errT)
-        case None => m
+        case None =>
+          currentMethodIsAbstract = true
+          m
       }
 
     ViperStrategy.forceRewrite = saved
@@ -240,7 +290,12 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
     result
   }
 
-  private def mustContainId(s: sil.Stmt) : Boolean = {
+  override def isLoopDummyStmt(stmt: sil.Stmt): Boolean =
+    stmt.info.getUniqueInfo[LoopDummyStmtInfo].nonEmpty
+
+  override def sumOfStatesAxiomRequired(): Boolean = useLoopDetector
+
+  private def relevantForLoops(s: sil.Stmt) : Boolean = {
     s match {
       case node@(_: sil.If | _: sil.Seqn) => false
       case _ => true
@@ -276,10 +331,12 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
           case sil.While(_, invs, _) =>
             val (_, info, _) = stmt.meta
             updateInvariantMap(info, invs)
-          case sil.Label(name, invs) =>
+          case lbl@sil.Label(name, invs) =>
             val (_, info, _) = stmt.meta
-            updateInvariantMap(info, invs)
             updateLabelMap(name, info)
+            if(lbl.info.getUniqueInfo[LoopInfo].fold(false)(loopInfo => loopInfo.head.nonEmpty)) {
+              updateInvariantMap(info, invs)
+            }
         }
     }
 
@@ -297,13 +354,18 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
           if (sourceOpt.fold(true)(source => source.loops.contains(headId))) {
             Seq(Backedge(headId))
           } else {
-            Seq(EnterLoop(headId))
+            /** Since we currently eliminate all backedges, we can generate all the code necessary when jumping to a
+             * loop head right at the loop head. Thus, we need not record an "EnterLoop" edge here.
+             * If backedges were not eliminated, this would not work (since some part of the shared code should not be
+              * executed then, such as storing the mask in the frame after exhaling the invariant).
+             */
+            //Seq(EnterLoop(headId))
+            Seq()
           }
         }
         case None => Seq()
       }
     }
-
 
     var exitedLoops : Seq[Int] = Seq()
     sourceOpt match {
@@ -332,72 +394,145 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
   private def handleEdges(edgesKind: Seq[LoopGenKind]): Seq[Stmt] = {
     edgesKind.foldRight[Seq[Stmt]](Seq())( (edgeKind, resultStmt) => {
       edgeKind match {
-        case EnterLoop(loopId) => enterLoop(loopId) +: resultStmt
         case ExitLoops(loopIds) => exitLoops(loopIds) +: resultStmt
         case Backedge(loopId) => backedgeJump(loopId) +: resultStmt
       }
     })
   }
 
-  override def handleStmt(s: sil.Stmt, statesStackOfPackageStmt: List[Any] = null, allStateAssms: Exp = TrueLit(), insidePackageStmt: Boolean = false): (Seqn => Seqn) =
-   inner => {
-     if(mustContainId(s)) {
-       val  stmtId = s.info.getUniqueInfo[IdInfo]
-       stmtId match {
-         case Some(IdInfo(id)) => {
-           //code related to incoming edges
-           val incomingEdges = nodeToCondLoopInfoOutput.get(id).fold[Seq[Stmt]](Seq())(edgesKind => { handleEdges(edgesKind) })
+  /*
+   * return invariants and written variables of loop
+   */
+  private def getWhileInformation(w: sil.While): (Seq[sil.Exp], Seq[sil.LocalVar]) = {
+    if(useLoopDetector) {
+      w.info.getUniqueInfo[LoopInfo] match {
+        case Some(LoopInfo(Some(loopHeadId), _)) =>
+          val invs = getLoopInvariants(loopHeadId)
+          val writtenVars = getWrittenVariables(loopHeadId) diff (w.body.transitiveScopedDecls.collect { case l: sil.LocalVarDecl => l } map (_.localVar))
+          (invs, writtenVars)
+        case None => sys.error("While loop is not a loop head")
+      }
+    } else {
+        val writtenVars = w.writtenVars diff (w.body.transitiveScopedDecls.collect {case l: sil.LocalVarDecl => l} map (_.localVar))
+        (w.invs, writtenVars)
+    }
+  }
 
-           //loop head code
-           val loopHead =
-             s.info.getUniqueInfo[LoopInfo] match {
-               case Some(LoopInfo(Some(loopId), _)) =>
-                 Seq(loopInit(loopId))
-               case _ => Seq()
-             }
+  private def handleWhile(w: sil.While): Stmt = {
+        val guard = translateExp(w.cond)
+        val (invs, writtenVars) = getWhileInformation(w)
 
-           //code related to outgoing edges
-           val outgoingEdges = nodeToLoopInfoOutput.get(id).fold[Seq[Stmt]](Seq())(edgesKind => { handleEdges(edgesKind) })
-           val isBackedge = nodeToLoopInfoOutput.get(id).fold(false)(edgesKind => edgesKind.exists(edgeKind => edgeKind.isInstanceOf[Backedge]))
+        beforeLoopHead(invs, w.info.getUniqueInfo[LoopInfo].map(loopInfo => loopInfo.head.get)) ++
+        MaybeCommentBlock("Havoc loop written variables (except locals)",
+          Havoc((writtenVars map translateExp).asInstanceOf[Seq[Var]]) ++
+            (writtenVars map (v => mainModule.allAssumptionsAboutValue(v.typ,mainModule.translateLocalVarSig(v.typ, v),false)))
+        ) ++
+        MaybeCommentBlock("Check definedness of invariant", NondetIf(
+          (invs map (inv => checkDefinednessOfSpecAndInhale(inv, errors.ContractNotWellformed(inv)))) ++
+            Assume(FalseLit())
+        )) ++
+        MaybeCommentBlock("Check the loop body", NondetIf({
+          val (freshStateStmt, prevState) = stateModule.freshTempState("loop")
+          val stmts = MaybeComment("Reset state", freshStateStmt ++ stateModule.initBoogieState) ++
+            MaybeComment("Inhale invariant", inhale(invs) ++ executeUnfoldings(invs, (inv => errors.Internal(inv)))) ++
+            Comment("Check and assume guard") ++
+            checkDefinedness(w.cond, errors.WhileFailed(w.cond)) ++
+            Assume(guard) ++ stateModule.assumeGoodState ++
+            MaybeCommentBlock("Translate loop body", stmtModule.translateStmt(w.body)) ++
+            MaybeComment("Exhale invariant", executeUnfoldings(invs, (inv => errors.LoopInvariantNotPreserved(inv))) ++ exhale(invs map (e => (e, errors.LoopInvariantNotPreserved(e))))) ++
+            MaybeComment("Terminate execution", Assume(FalseLit()))
+          stateModule.replaceState(prevState)
+          stmts
+        }
+        )) ++
+        MaybeCommentBlock("Inhale loop invariant after loop, and assume guard",
+          Assume(guard.not) ++ stateModule.assumeGoodState ++
+            inhale(invs) ++ executeUnfoldings(invs, (inv => errors.Internal(inv)))
+        )
+  }
 
-           //if statement is a goto, then it must be output at the end, otherwise code will not be reachable in Boogie
-           incomingEdges ++ inner ++ loopHead ++ outgoingEdges ++
-             (s match {
-               case sil.Goto(target) if !cutBackedges || !isBackedge => {
-                 Seq(Goto(Lbl(Identifier(target)(stmtModule.labelNamespace))))
-               }
-               case _ => Seq()
-             })
-         }
-         // this case should never happen
-         case None => sys.error("LoopModule: Stmt does not have unique identifier.")
-       }
-     } else {
-       inner
-     }
+  override def handleStmt(s: sil.Stmt, statesStackOfPackageStmt: List[Any] = null, allStateAssms: Exp = TrueLit(), insidePackageStmt: Boolean = false): (Seqn => Seqn) = {
+    if(useLoopDetector) {
+      handleStmtLoopDetector(s, statesStackOfPackageStmt, allStateAssms,insidePackageStmt)
+    } else {
+      inner =>
+        s match {
+          case w@sil.While(_,_,_) => inner ++ handleWhile(w)
+          case sil.Goto(_) => sys.error("Loop Module is incorrectly initialized: Goto is translated, but loop detector is not used")
+          case _ => inner
+        }
+    }
+  }
+
+  private def handleStmtLoopDetector(s: sil.Stmt, statesStackOfPackageStmt: List[Any] = null, allStateAssms: Exp = TrueLit(), insidePackageStmt: Boolean = false): (Seqn => Seqn) = {
+    inner => {
+      if (relevantForLoops(s)) {
+        val stmtId = s.info.getUniqueInfo[IdInfo]
+        stmtId match {
+          case Some(IdInfo(id)) => {
+            //code related to incoming edges
+            val incomingEdges = nodeToCondLoopInfoOutput.get(id).fold[Seq[Stmt]](Seq())(edgesKind => {
+              handleEdges(edgesKind)
+            })
+
+            //loop head code
+            val loopHead =
+              if (s.isInstanceOf[sil.While]) {
+                Seq(handleWhile(s.asInstanceOf[sil.While]))
+              } else {
+                s.info.getUniqueInfo[LoopInfo] match {
+                  case Some(LoopInfo(Some(loopId), _)) =>
+                    Seq(loopInit(loopId))
+                  case _ => Seq()
+                }
+              }
+
+            //code related to outgoing edges
+            val outgoingEdges = nodeToLoopInfoOutput.get(id).fold[Seq[Stmt]](Seq())(edgesKind => {
+              handleEdges(edgesKind)
+            })
+            val isBackedge = nodeToLoopInfoOutput.get(id).fold(false)(edgesKind => edgesKind.exists(edgeKind => edgeKind.isInstanceOf[Backedge]))
+
+            /* if statement is a goto, then it must be output at the end, otherwise code will not be reachable in Boogie
+     */
+            incomingEdges ++ inner ++ loopHead ++ outgoingEdges ++
+              (s match {
+                case sil.Goto(target) if !isBackedge => {
+                  Seq(Goto(Lbl(Identifier(target)(stmtModule.labelNamespace))))
+                }
+                case _ => Seq()
+              })
+          }
+          case None =>
+            /* This can occur whenever a statement is translated that was not part of the original body. */
+            inner
+        }
+      } else {
+        inner
+      }
+    }
   }
 
   private def loopInit(loopId: Int): Stmt = {
     val invs : Seq[sil.Exp] = getLoopInvariants(loopId)
     val writtenVars : Seq[sil.LocalVar] = getWrittenVariables(loopId)
-    val havocVarsOpt : Stmt =
-      if(cutBackedges) {
-        MaybeCommentBlock("Havoc loop written variables (except locals)",
-          Havoc((writtenVars map translateExp).asInstanceOf[Seq[Var]]) ++
-            (writtenVars map (v => mainModule.allAssumptionsAboutValue(v.typ, mainModule.translateLocalVarSig(v.typ, v), false)))
-        )
-      } else {
-        Nil
-      }
 
+    //this sharing of code before loop head only works with backedge elimination with the current approach
+    beforeLoopHead(invs, Some(loopId)) ++
     MaybeCommentBlock("Code for loop head " + loopId,
-        havocVarsOpt ++
-      MaybeCommentBlock("Check definedness of invariant", NondetIf(
+      MaybeCommentBlock("Havoc loop written variables (except locals)",
+        Havoc((writtenVars map translateExp).asInstanceOf[Seq[Var]]) ++
+          (writtenVars map (v => mainModule.allAssumptionsAboutValue(v.typ, mainModule.translateLocalVarSig(v.typ, v), false)))
+      ) ++
+        MaybeCommentBlock("Check definedness of invariant", NondetIf(
         (invs map (inv => checkDefinednessOfSpecAndInhale(inv, errors.ContractNotWellformed(inv)))) ++
           Assume(FalseLit())
       )) ++
       MaybeCommentBlock("Check the loop body",
-          MaybeComment("Reset state", stateModule.resetBoogieState) ++
+        /** FIXME: here we change the state without resetting it
+            As long as modules the state at this point refers to the original state, this is fine.
+         */
+          MaybeComment("Reset state", stateModule.initBoogieState) ++
           MaybeComment("Inhale invariant", inhale(invs) ++ executeUnfoldings(invs, (inv => errors.Internal(inv)))) ++
           stateModule.assumeGoodState
       )
@@ -416,20 +551,19 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
     )
   }
 
-  private def enterLoop(loopId: Int): Stmt = {
-    val loopMask: LocalVarDecl = getLoopMask(loopId)
-    val invs: Seq[sil.Exp] = getLoopInvariants(loopId)
-    MaybeCommentBlock("Before loop head" + loopId,
-      MaybeCommentBlock("Check definedness of invariant", NondetIf(
-        (invs map (inv => checkDefinednessOfSpecAndInhale(inv, errors.ContractNotWellformed(inv)))) ++
-          Assume(FalseLit())
-      )) ++
+  private def beforeLoopHead(invs: Seq[sil.Exp], loopIdOpt: Option[Int]): Stmt = {
+    MaybeCommentBlock("Before loop head" + loopIdOpt.fold("")(i => Integer.toString(i)),
       MaybeCommentBlock("Exhale loop invariant before loop",
         executeUnfoldings(invs, (inv => errors.LoopInvariantNotEstablished(inv))) ++ exhale(invs map (e => (e, errors.LoopInvariantNotEstablished(e))))
       ) ++
-      MaybeCommentBlock("Store frame in mask associated with loop",
-        Assign(loopMask.l, staticMask(0).l)
-      )
+        loopIdOpt.fold(Nil:Stmt)(loopId => {
+          val (frameMask, frameHeap) = getFrame(loopId)
+          MaybeCommentBlock("Store frame in mask associated with loop",
+            Seq(Assign(frameMask.l, currentMask(0)),
+                Assign(frameHeap.l, currentHeap(0))
+            )
+          )
+        } )
     )
   }
 
@@ -437,13 +571,19 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
     if(loopIds.isEmpty) {
       sys.error("Exit loop without any loop identifiers")
     } else {
-      MaybeCommentBlock("Exiting loops " + loopIds.foldLeft("")((output, i) => output + " " + i),
-        loopIds.foldLeft[Stmt](Nil)((curStmt, id) => {
+      MaybeCommentBlock("Exiting loops " + loopIds.foldLeft("")((output, i) => output + ", " + i),
+        loopIds.foldLeft[Stmt](Nil)((curStmt, loopId) => {
+            val (frameMask, frameHeap) = getFrame(loopId)
             curStmt ++
+              // sum masks and heaps
               Seq(
+                Havoc(Seq(sumHeap)),
                 Havoc(Seq(sumMask)),
-                Assume(permModule.sumMask(Seq(sumMask), currentMask, Seq(getLoopMask(id).l))),
-                Assign(currentMask(0), sumMask)
+                Assume(heapModule.sumHeap(sumHeap, currentHeap(0), currentMask(0), frameHeap.l, frameMask.l)),
+                Assign(currentHeap(0), sumHeap),
+                Assume(permModule.sumMask(Seq(sumMask), currentMask, Seq(frameMask.l))),
+                Assign(currentMask(0), sumMask),
+                stateModule.assumeGoodState
               )
           })
       )
@@ -452,15 +592,23 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
 
   override def name: String = "Loop module"
 
-  override def reset(): Unit = { framedMasksLoops = Map[Int, LocalVarDecl]() }
+  override def reset(): Unit = {
+    frames = Map.empty
+    nodeToLoopInfoOutput = Map.empty
+    nodeToCondLoopInfoOutput = Map.empty
+    loopToInvs = Map.empty
+    loopToWrittenVars = ImmutableMap.empty
+    useLoopDetector = false
+  }
 
-  private def getLoopMask(loopId: Int): LocalVarDecl = {
-    framedMasksLoops.get(loopId) match {
+  private def getFrame(loopId: Int): (LocalVarDecl, LocalVarDecl) = {
+    frames.get(loopId) match {
       case Some(fMask) => fMask
       case None => {
-        val freshDecl = LocalVarDecl(Identifier("frameMask" + loopId), permModule.maskType)
-        framedMasksLoops += (loopId -> freshDecl)
-        freshDecl
+        val freshMaskDecl = LocalVarDecl(Identifier("frameMask" + loopId), permModule.maskType)
+        val freshHeapDecl = LocalVarDecl(Identifier("frameHeap" + loopId), heapModule.heapType)
+        frames += (loopId -> (freshMaskDecl, freshHeapDecl))
+        (freshMaskDecl, freshHeapDecl)
       }
     }
   }
@@ -468,7 +616,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
   private def getLoopInvariants(loopId: Int): Seq[sil.Exp] = {
     loopToInvs.get(loopId) match {
       case Some(invs) => invs
-      case None => throw new RuntimeException("DefaultLoopModule: loop id not registered")
+      case None => sys.error("DefaultLoopModule: loop id " + loopId + " not registered")
     }
   }
 

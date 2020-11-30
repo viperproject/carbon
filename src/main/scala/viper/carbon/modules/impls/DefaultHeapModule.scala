@@ -91,11 +91,13 @@ class DefaultHeapModule(val verifier: Verifier)
   private val succHeapName = Identifier("succHeap")
   private val succHeapTransName = Identifier("succHeapTrans")
   private val identicalOnKnownLocsName = Identifier("IdenticalOnKnownLocations")
+  private val identicalOnKnownLocsLiberalName = Identifier("IdenticalOnKnownLocationsLiberal")
   private val isPredicateFieldName = Identifier("IsPredicateField")
   private var PredIdMap:Map[String, BigInt] = Map()
   private var NextPredicateId:BigInt = 0
   private val isWandFieldName = Identifier("IsWandField")
   private val getPredicateIdName = Identifier("getPredicateId")
+  private val sumHeapName = Identifier("SumHeap")
 
   override def refType = NamedType("Ref")
 
@@ -107,6 +109,8 @@ class DefaultHeapModule(val verifier: Verifier)
     val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
     val predField = LocalVarDecl(Identifier("pm_f")(axiomNamespace),
       predicateVersionFieldType("C"))
+    val useSumOfStatesAxioms = loopModule.sumOfStatesAxiomRequired
+
     TypeDecl(refType) ++
       GlobalVarDecl(heapName, heapTyp) ++
       ConstDecl(nullName, refType) ++
@@ -131,6 +135,13 @@ class DefaultHeapModule(val verifier: Verifier)
       Func(identicalOnKnownLocsName,
         Seq(LocalVarDecl(heapName, heapTyp), LocalVarDecl(exhaleHeapName, heapTyp)) ++ staticMask,
         Bool) ++
+      {
+        if(useSumOfStatesAxioms)
+          Func(identicalOnKnownLocsLiberalName,
+            Seq(LocalVarDecl(heapName, heapTyp), LocalVarDecl(exhaleHeapName, heapTyp)) ++ staticMask,
+            Bool)
+        else Nil
+      } ++
       Func(isPredicateFieldName,
         Seq(LocalVarDecl(Identifier("f"), fieldType)),
         Bool) ++
@@ -139,7 +150,15 @@ class DefaultHeapModule(val verifier: Verifier)
         Bool) ++
       Func(getPredicateIdName,
         Seq(LocalVarDecl(Identifier("f"), fieldType)),
-        Int) ++ {
+        Int) ++
+      {
+        if(useSumOfStatesAxioms)
+          Func(sumHeapName,
+            Seq(LocalVarDecl(heapName, heapTyp), LocalVarDecl(heap1Name, heapTyp), LocalVarDecl(Identifier("mask1"), maskType),
+              LocalVarDecl(heap2Name, heapTyp), LocalVarDecl(Identifier("mask2"), maskType)),
+            Bool)
+        else Nil
+      } ++ {
       val h = LocalVarDecl(heapName, heapTyp)
       val eh = LocalVarDecl(exhaleHeapName, heapTyp)
       val h0 = LocalVarDecl(heap0Name, heapTyp)
@@ -147,78 +166,12 @@ class DefaultHeapModule(val verifier: Verifier)
       val h2 = LocalVarDecl(heap2Name, heapTyp)
       val vars = Seq(h, eh) ++ staticMask
       val identicalFuncApp = FuncApp(identicalOnKnownLocsName, vars map (_.l), Bool)
-      // frame all locations with direct permission
-      MaybeCommentedDecl("Frame all locations with direct permissions", Axiom(Forall(
-        vars ++ Seq(obj, field),
-//        Trigger(Seq(identicalFuncApp, lookup(h.l, obj.l, field.l))) ++
-          Trigger(Seq(identicalFuncApp, lookup(eh.l, obj.l, field.l))),
-        identicalFuncApp ==>
-          (staticPermissionPositive(obj.l, field.l) ==>
-            (lookup(h.l, obj.l, field.l) === lookup(eh.l, obj.l, field.l)))
-      )), size = 1) ++
-        // frame all predicate masks
-        MaybeCommentedDecl("Frame all predicate mask locations of predicates with direct permission", Axiom(Forall(
-          vars ++ Seq(predField),
-          Trigger(Seq(identicalFuncApp, isPredicateField(predField.l), lookup(eh.l, nullLit, predicateMaskField(predField.l)))),
-          identicalFuncApp ==>
-            ((staticPermissionPositive(nullLit, predField.l) && isPredicateField(predField.l)) ==>
-              (lookup(h.l, nullLit, predicateMaskField(predField.l)) === lookup(eh.l, nullLit, predicateMaskField(predField.l))))
-        )), size = 1) ++
-        // frame all locations with direct permission
-        MaybeCommentedDecl("Frame all locations with known folded permissions", Axiom(Forall(
-          vars ++ Seq(predField),
-          //Trigger(Seq(identicalFuncApp, lookup(h.l, nullLit, predicateMaskField(predField.l)), isPredicateField(predField.l))) ++
-          Trigger(Seq(identicalFuncApp, lookup(eh.l, nullLit, predField.l), isPredicateField(predField.l))) /*++
-            Trigger(Seq(identicalFuncApp, lookup(eh.l, nullLit, predicateMaskField(predField.l)), isPredicateField(predField.l))) ++
-            (verifier.program.predicates map (pred =>
-              Trigger(Seq(identicalFuncApp, predicateTriggerAnyState(pred, predField.l), isPredicateField(predField.l))))
-              )*/,
-          identicalFuncApp ==>
-            (
-              (staticPermissionPositive(nullLit, predField.l) && isPredicateField(predField.l)) ==>
-                Forall(Seq(obj2, field),
-                  //Trigger(Seq(lookup(h.l, obj2.l, field.l))) ++
-                    Trigger(Seq(lookup(eh.l, obj2.l, field.l))),
-                  (lookup(lookup(h.l, nullLit, predicateMaskField(predField.l)), obj2.l, field.l) ==>
-                    (lookup(h.l, obj2.l, field.l) === lookup(eh.l, obj2.l, field.l))),
-                  field.typ.freeTypeVars
-                )
-              )
-        )), size = 1)  ++
-      // frame all wand masks
-      MaybeCommentedDecl("Frame all wand mask locations of wands with direct permission", Axiom(Forall(
-        vars ++ Seq(predField),
-        Trigger(Seq(identicalFuncApp, isWandField(predField.l), lookup(eh.l, nullLit, wandMaskField(predField.l)))),
-        identicalFuncApp ==>
-          ((staticPermissionPositive(nullLit, predField.l) && isWandField(predField.l)) ==>
-            (lookup(h.l, nullLit, wandMaskField(predField.l)) === lookup(eh.l, nullLit, wandMaskField(predField.l))))
-      )), size = 1) ++
-        MaybeCommentedDecl("Frame all locations in the footprint of magic wands", Axiom(Forall(
-          vars ++ Seq(predField),
-          Trigger(Seq(identicalFuncApp, isWandField(predField.l)))
-              ,
-          identicalFuncApp ==>
-            (
-              (staticPermissionPositive(nullLit, predField.l) && isWandField(predField.l)) ==>
-                Forall(Seq(obj2, field),
-                  Trigger(Seq(lookup(eh.l, obj2.l, field.l))),
-                  (lookup(lookup(h.l, nullLit, wandMaskField(predField.l)), obj2.l, field.l) ==>
-                    (lookup(h.l, obj2.l, field.l) === lookup(eh.l, obj2.l, field.l))),
-                  field.typ.freeTypeVars
-                )
-              )
-        )), size = 1) ++
-      (if(enableAllocationEncoding) // preserve "allocated" knowledge, where already true
-        MaybeCommentedDecl("All previously-allocated references are still allocated", Axiom(Forall(
-          vars ++ Seq(obj),
-          /*Trigger(Seq(identicalFuncApp, lookup(h.l, obj.l, Const(allocName)))) ++*/
-            Trigger(Seq(identicalFuncApp, lookup(eh.l, obj.l, Const(allocName)))),
-          identicalFuncApp ==>
-              (lookup(h.l, obj.l, Const(allocName)) ==> lookup(eh.l, obj.l, Const(allocName)))
-        )), size = 1) else Nil) ++
+      val identicalLiberalFuncApp = FuncApp(identicalOnKnownLocsLiberalName, vars map (_.l), Bool)
+
+      identicalOnKnownLocsAxioms(false) ++
         MaybeCommentedDecl("Updated Heaps are Successor Heaps", {
-          val value = LocalVarDecl(Identifier("v"),TypeVar("B"));
-          val upd = MapUpdate(h.l,Seq(obj.l,field.l),value.l)
+          val value = LocalVarDecl(Identifier("v"), TypeVar("B"));
+          val upd = MapUpdate(h.l, Seq(obj.l, field.l), value.l)
           Axiom(Forall(
             Seq(h, obj, field, value),
             Trigger(Seq(upd))
@@ -233,7 +186,20 @@ class DefaultHeapModule(val verifier: Verifier)
             ,
             identicalFuncApp ==> FuncApp(succHeapName, Seq(h.l, eh.l), Bool)
           )), size = 1) ++
-            MaybeCommentedDecl("Successor Heaps are Transitive Successor Heaps", {
+        {
+          if (useSumOfStatesAxioms) {
+            MaybeCommentedDecl("IdenticalOnKnownLiberalLocations Heaps are Successor Heaps",
+              Axiom(Forall(
+                vars,
+                Trigger(Seq(identicalLiberalFuncApp))
+                ,
+                identicalLiberalFuncApp ==> FuncApp(succHeapName, Seq(h.l, eh.l), Bool)
+              )), size = 1)
+          } else {
+            Nil
+          }
+        } ++
+      MaybeCommentedDecl("Successor Heaps are Transitive Successor Heaps", {
               val succHeapApp = FuncApp(succHeapName, Seq(h0.l, h1.l), Bool)
               Axiom(Forall(
                 Seq(h0, h1),
@@ -251,9 +217,166 @@ class DefaultHeapModule(val verifier: Verifier)
             ,
             (succHeapTransApp && succHeapApp) ==> FuncApp(succHeapTransName, Seq(h0.l, h2.l), Bool) // NOTE: ignore IDE warning - these parentheses are NOT spurious, due to how the overloaded && and ==> get desugared
           ))
-        }, size = 1)
+        }, size = 1) ++
+        {
+          if (useSumOfStatesAxioms) {
+            identicalOnKnownLocsAxioms(true) ++
+              MaybeCommentedDecl("Sum of heaps", {
+                val mask1 = LocalVarDecl(Identifier("Mask1"),maskType)
+                val mask2 = LocalVarDecl(Identifier("Mask2"),maskType)
+
+                val sumStateApp = sumHeap(h.l, h1.l, mask1.l, h2.l, mask2.l)
+
+                Axiom(Forall(
+                  Seq(h, h1, mask1, h2, mask2),
+                  Trigger(sumStateApp),
+                  sumStateApp <==> (
+                    FuncApp(identicalOnKnownLocsLiberalName, Seq(h1.l, h.l, mask1.l), Bool) &&
+                      FuncApp(identicalOnKnownLocsLiberalName, Seq(h2.l, h.l, mask2.l), Bool)
+                    )))
+              })
+          } else {
+            Nil
+          }
+        }
+      }
     }
+
+  private def identicalOnKnownLocsAxioms(liberal: Boolean):Seq[Decl] = {
+    val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
+    val obj2 = LocalVarDecl(Identifier("o2")(axiomNamespace), refType)
+    val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
+    val predField = LocalVarDecl(Identifier("pm_f")(axiomNamespace),
+      predicateVersionFieldType("C"))
+    val h = LocalVarDecl(heapName, heapTyp)
+    val eh = LocalVarDecl(exhaleHeapName, heapTyp)
+    val vars = Seq(h, eh) ++ staticMask
+
+    val funcName = if (liberal) {
+      identicalOnKnownLocsLiberalName
+    } else {
+      identicalOnKnownLocsName
+    }
+
+    val identicalFuncApp = FuncApp(funcName, vars map (_.l), Bool)
+    // frame all locations with direct permission
+    MaybeCommentedDecl("Frame all locations with direct permissions", Axiom(Forall(
+      vars ++ Seq(obj, field),
+      //        Trigger(Seq(identicalFuncApp, lookup(h.l, obj.l, field.l))) ++
+      Trigger(Seq(identicalFuncApp, lookup(eh.l, obj.l, field.l))),
+      identicalFuncApp ==>
+        (staticPermissionPositive(obj.l, field.l) ==>
+          (lookup(h.l, obj.l, field.l) === lookup(eh.l, obj.l, field.l)))
+    )), size = 1) ++
+    {
+      // frame all predicate masks
+      if(!liberal) {
+        //equate permission mask maps
+        MaybeCommentedDecl("Frame all predicate mask locations of predicates with direct permission", Axiom(Forall(
+          vars ++ Seq(predField),
+          Trigger(Seq(identicalFuncApp, isPredicateField(predField.l), lookup(eh.l, nullLit, predicateMaskField(predField.l)))),
+          identicalFuncApp ==>
+            ((staticPermissionPositive(nullLit, predField.l) && isPredicateField(predField.l)) ==>
+              (lookup(h.l, nullLit, predicateMaskField(predField.l)) === lookup(eh.l, nullLit, predicateMaskField(predField.l))))
+        )), size = 1)
+      } else {
+        //just propagate information that heap location is known-folded, but not that it is not known-folded
+        MaybeCommentedDecl("Frame all predicate mask locations of predicates with direct permission. But don't propagate information " +
+          " of locations that are not known-folded to allow for equating with multiple different (but compatible) heaps",
+          Axiom(Forall( vars ++ Seq(predField),
+          Trigger(Seq(identicalFuncApp, isPredicateField(predField.l), lookup(eh.l, nullLit, predicateMaskField(predField.l)))),
+          identicalFuncApp ==>
+            ((staticPermissionPositive(nullLit, predField.l) && isPredicateField(predField.l)) ==>
+              Forall(Seq(obj2, field),
+                Trigger(Seq(lookup(lookup(eh.l, nullLit, predicateMaskField(predField.l)), obj2.l, field.l))),
+                (lookup(lookup(h.l, nullLit, predicateMaskField(predField.l)), obj2.l, field.l) ==>
+                  lookup(lookup(eh.l, nullLit, predicateMaskField(predField.l)), obj2.l, field.l),
+                ),
+                field.typ.freeTypeVars
+              )
+        ))), size = 1)
+      }
+     }  ++
+      // frame all locations with known folded permission
+      MaybeCommentedDecl("Frame all locations with known folded permissions", Axiom(Forall(
+        vars ++ Seq(predField),
+        //Trigger(Seq(identicalFuncApp, lookup(h.l, nullLit, predicateMaskField(predField.l)), isPredicateField(predField.l))) ++
+        Trigger(Seq(identicalFuncApp, lookup(eh.l, nullLit, predField.l), isPredicateField(predField.l))) /*++
+          Trigger(Seq(identicalFuncApp, lookup(eh.l, nullLit, predicateMaskField(predField.l)), isPredicateField(predField.l))) ++
+          (verifier.program.predicates map (pred =>
+            Trigger(Seq(identicalFuncApp, predicateTriggerAnyState(pred, predField.l), isPredicateField(predField.l))))
+            )*/,
+        identicalFuncApp ==>
+          (
+            (staticPermissionPositive(nullLit, predField.l) && isPredicateField(predField.l)) ==>
+              Forall(Seq(obj2, field),
+                //Trigger(Seq(lookup(h.l, obj2.l, field.l))) ++
+                Trigger(Seq(lookup(eh.l, obj2.l, field.l))),
+                (lookup(lookup(h.l, nullLit, predicateMaskField(predField.l)), obj2.l, field.l) ==>
+                  (lookup(h.l, obj2.l, field.l) === lookup(eh.l, obj2.l, field.l))),
+                field.typ.freeTypeVars
+              )
+            )
+      )), size = 1)  ++ {
+      // frame all wand masks
+      if(!liberal) {
+        MaybeCommentedDecl("Frame all wand mask locations of wands with direct permission", Axiom(Forall(
+          vars ++ Seq(predField),
+          Trigger(Seq(identicalFuncApp, isWandField(predField.l), lookup(eh.l, nullLit, wandMaskField(predField.l)))),
+          identicalFuncApp ==>
+            ((staticPermissionPositive(nullLit, predField.l) && isWandField(predField.l)) ==>
+              (lookup(h.l, nullLit, wandMaskField(predField.l)) === lookup(eh.l, nullLit, wandMaskField(predField.l))))
+        )), size = 1)
+      } else {
+        MaybeCommentedDecl("Frame all wand mask locations of wands with direct permission (but don't propagate information" +
+          " about locations that are not known-folded)",
+          Axiom(Forall( vars ++ Seq(predField),
+          Trigger(Seq(identicalFuncApp, isWandField(predField.l), lookup(eh.l, nullLit, wandMaskField(predField.l)))),
+          identicalFuncApp ==>
+            ((staticPermissionPositive(nullLit, predField.l) && isWandField(predField.l)) ==>
+              Forall(Seq(obj2, field),
+                Trigger(Seq(lookup(lookup(eh.l, nullLit, wandMaskField(predField.l)), obj2.l, field.l))),
+                (lookup(lookup(h.l, nullLit, wandMaskField(predField.l)), obj2.l, field.l) ==>
+                  lookup(lookup(eh.l, nullLit, wandMaskField(predField.l)), obj2.l, field.l)
+                  ),
+                field.typ.freeTypeVars
+              )
+              )
+        )), size = 1)
+      }
+    } ++
+      MaybeCommentedDecl("Frame all locations in the footprint of magic wands", Axiom(Forall(
+        vars ++ Seq(predField),
+        Trigger(Seq(identicalFuncApp, isWandField(predField.l)))
+        ,
+        identicalFuncApp ==>
+          (
+            (staticPermissionPositive(nullLit, predField.l) && isWandField(predField.l)) ==>
+              Forall(Seq(obj2, field),
+                Trigger(Seq(lookup(eh.l, obj2.l, field.l))),
+                (lookup(lookup(h.l, nullLit, wandMaskField(predField.l)), obj2.l, field.l) ==>
+                  (lookup(h.l, obj2.l, field.l) === lookup(eh.l, obj2.l, field.l))),
+                field.typ.freeTypeVars
+              )
+            )
+      )), size = 1) ++
+      (if(enableAllocationEncoding) // preserve "allocated" knowledge, where already true
+        MaybeCommentedDecl("All previously-allocated references are still allocated", Axiom(Forall(
+          vars ++ Seq(obj),
+          /*Trigger(Seq(identicalFuncApp, lookup(h.l, obj.l, Const(allocName)))) ++*/
+          Trigger(Seq(identicalFuncApp, lookup(eh.l, obj.l, Const(allocName)))),
+          identicalFuncApp ==>
+            (lookup(h.l, obj.l, Const(allocName)) ==> lookup(eh.l, obj.l, Const(allocName)))
+        )), size = 1) else Nil)
   }
+
+
+  //evaluates to true if resultHeap is the sum of of heap1, where mask1 is defined, and heap2, where mask2 is defined
+  override def sumHeap(resultHeap: Exp, heap1: Exp, mask1: Exp, heap2: Exp, mask2: Exp): Exp = {
+    FuncApp(sumHeapName, Seq(resultHeap, heap1, mask1, heap2, mask2), Bool)
+  }
+
+  override def heapType: Type = heapTyp
 
   override def successorHeapState(first: Seq[LocalVarDecl], second: Seq[LocalVarDecl]): Exp = {
     FuncApp(succHeapTransName, (first ++ second) map (_.l), Bool)
@@ -635,5 +758,8 @@ class DefaultHeapModule(val verifier: Verifier)
   override def currentHeap = Seq(heap)
 
   override def identicalOnKnownLocations(otherHeap:Seq[Exp],otherMask:Seq[Exp]):Exp =
+    FuncApp(identicalOnKnownLocsName,otherHeap ++ heap ++ otherMask, Bool)
+
+  override def identicalOnKnownLocationsLiberal(otherHeap:Seq[Exp],otherMask:Seq[Exp]):Exp =
     FuncApp(identicalOnKnownLocsName,otherHeap ++ heap ++ otherMask, Bool)
 }
