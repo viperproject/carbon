@@ -759,7 +759,4 @@ class DefaultHeapModule(val verifier: Verifier)
 
   override def identicalOnKnownLocations(otherHeap:Seq[Exp],otherMask:Seq[Exp]):Exp =
     FuncApp(identicalOnKnownLocsName,otherHeap ++ heap ++ otherMask, Bool)
-
-  override def identicalOnKnownLocationsLiberal(otherHeap:Seq[Exp],otherMask:Seq[Exp]):Exp =
-    FuncApp(identicalOnKnownLocsName,otherHeap ++ heap ++ otherMask, Bool)
 }

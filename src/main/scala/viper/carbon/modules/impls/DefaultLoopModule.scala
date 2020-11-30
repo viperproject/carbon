@@ -313,7 +313,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
       info.getUniqueInfo[LoopInfo] match {
         case Some(LoopInfo(Some(headId), _)) =>
           loopToInvs = loopToInvs + (headId -> invs)
-        case None =>
+        case _ =>
       }
     }
 
@@ -396,6 +396,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
       edgeKind match {
         case ExitLoops(loopIds) => exitLoops(loopIds) +: resultStmt
         case Backedge(loopId) => backedgeJump(loopId) +: resultStmt
+        case BeforeEnterLoop(_) => sys.error("Unexpected edge kind")
       }
     })
   }
@@ -410,7 +411,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
           val invs = getLoopInvariants(loopHeadId)
           val writtenVars = getWrittenVariables(loopHeadId) diff (w.body.transitiveScopedDecls.collect { case l: sil.LocalVarDecl => l } map (_.localVar))
           (invs, writtenVars)
-        case None => sys.error("While loop is not a loop head")
+        case _ => sys.error("While loop is not a loop head")
       }
     } else {
         val writtenVars = w.writtenVars diff (w.body.transitiveScopedDecls.collect {case l: sil.LocalVarDecl => l} map (_.localVar))

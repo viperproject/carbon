@@ -1,6 +1,5 @@
 package viper.carbon.modules
 
-import viper.carbon.boogie.{Exp, Stmt}
 import viper.silver.{ast => sil}
 
 trait LoopModule extends Module {
