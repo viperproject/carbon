@@ -242,6 +242,10 @@ class DefaultHeapModule(val verifier: Verifier)
       }
     }
 
+  /* The liberal version does not equate the known-folded permission masks, but instead just propagates the information
+   * that known-folded locations remain known-folded (while locations that are not known-folded are underspecified).
+   * This permits taking the sum of two heaps that record different known-folded permission masks.
+   */
   private def identicalOnKnownLocsAxioms(liberal: Boolean):Seq[Decl] = {
     val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
     val obj2 = LocalVarDecl(Identifier("o2")(axiomNamespace), refType)
@@ -370,8 +374,6 @@ class DefaultHeapModule(val verifier: Verifier)
         )), size = 1) else Nil)
   }
 
-
-  //evaluates to true if resultHeap is the sum of of heap1, where mask1 is defined, and heap2, where mask2 is defined
   override def sumHeap(resultHeap: Exp, heap1: Exp, mask1: Exp, heap2: Exp, mask2: Exp): Exp = {
     FuncApp(sumHeapName, Seq(resultHeap, heap1, mask1, heap2, mask2), Bool)
   }

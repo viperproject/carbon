@@ -127,10 +127,8 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
       }
     }
 
-    /* add dummy statements to the method body such that:
-       (1) there are no empty Seqn nodes
-       (2) there are no empty then- or else-branches
-       (3) before every if-statement there is at least one non-if/non-while statement
+    /* Add dummy statements to the method body such that LoopDetector behaves properly. For example, this ensures that
+     * the first statement of branches in if-statements are non-composite.
      */
     val rewriteDummyStatements: PartialFunction[sil.Node, sil.Node] =
       (node: sil.Node) =>

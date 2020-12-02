@@ -132,7 +132,7 @@ trait PermModule extends Module with CarbonStateComponent {
     * @param resultMask
     * @param summandMask1
     * @param summandMask2
-    * @return expression for which its validity implies that the @{code resultMask} is the sum of the other two input
+    * @return expression for which its validity implies that @{code resultMask} is the sum of the other two input
     *         masks
     */
   def sumMask(resultMask: Seq[Exp], summandMask1: Seq[Exp], summandMask2: Seq[Exp]) : Exp
