@@ -18,6 +18,11 @@ import viper.silver.ast.{LocationAccess, MagicWand}
 trait HeapModule extends Module with CarbonStateComponent {
 
   /**
+    * The type used for heaps
+    */
+  def heapType: Type
+
+  /**
    * The type used for references.
    */
   def refType: Type
@@ -172,4 +177,8 @@ trait HeapModule extends Module with CarbonStateComponent {
 
   // adds permission to field e to the secondary mask of the wand
   def addPermissionToWMask(wMask: Exp, e: sil.Exp): Stmt
+
+  // If expression evaluates to true then resultHeap is the sum of of heap1, where mask1 is defined,
+  // and heap2, where mask2 is defined.
+  def sumHeap(resultHeap: Exp, heap1: Exp, mask1: Exp, heap2: Exp, mask2: Exp): Exp
 }
