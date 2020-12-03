@@ -60,7 +60,6 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
   val seqModule = new DefaultSeqModule(this)
   val setModule = new DefaultSetModule(this)
   val wandModule = new DefaultWandModule(this)
-  val loopModule = new DefaultLoopModule(this)
 
   // initialize all modules
   allModules foreach (m => {
