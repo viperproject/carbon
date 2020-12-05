@@ -30,8 +30,8 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
   private var _config: CarbonConfig = _
   def config = _config
 
-  def start() = {}
-  def stop() {
+  def start(): Unit = {}
+  def stop(): Unit = {
     if (allModules != null) {
       allModules foreach (m => {
         m.stop()
@@ -91,7 +91,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
   def copyright: String = "(c) 2013 ETH Zurich"
 
   def getDebugInfo = _debugInfo
-  def debugInfo(info: Seq[(String, Any)]) {
+  def debugInfo(info: Seq[(String, Any)]): Unit = {
     _debugInfo = info
   }
 
@@ -102,7 +102,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
     }))
   }
 
-  def parseCommandLine(options: Seq[String]) {
+  def parseCommandLine(options: Seq[String]): Unit = {
     _config = new CarbonConfig(options)
   }
 
@@ -214,7 +214,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
 
   private var _program: Program = null
   def program = _program
-  def program_=(p : Program) {
+  def program_=(p : Program): Unit = {
     _program = p
   }
 

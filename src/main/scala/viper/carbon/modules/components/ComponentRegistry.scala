@@ -32,7 +32,7 @@ trait ComponentRegistry[C <: Component] {
 
   /** Register a new component. */
   /* If C should be before c then c goes in the "before" sequence. If C should be after c, then c goes in the "after" sequence. Note that this used to be the other way around. */
-  def register(component: C, before: Seq[Component] = Nil, after: Seq[Component] = Nil) {
+  def register(component: C, before: Seq[Component] = Nil, after: Seq[Component] = Nil): Unit = {
     _components = _components :+ component
     beforePairs.add(component,component)
     for(c <- before) beforePairs.add((component,c))

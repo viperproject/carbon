@@ -62,7 +62,7 @@ trait CarbonStateComponent extends Component {
   /**
    * Throw away the current state and go back to a snapshot.
    */
-  def restoreState(previousState: Seq[Var])
+  def restoreState(previousState: Seq[Var]): Unit
 
   /**
    * Are we currently using an "old" state? Note: this is mainly as documentation that the states passed to other methods above will need wrapping in "olD2 when *used*, if we are currently using an old state. This method would typically be implemented by querying the corresponding StateModule

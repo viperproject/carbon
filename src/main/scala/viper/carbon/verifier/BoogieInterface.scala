@@ -122,11 +122,11 @@ trait BoogieInterface {
     }
     var res: String = ""
     var reserr: String = ""
-    def out(input: java.io.InputStream) {
+    def out(input: java.io.InputStream): Unit = {
       res += convertStreamToString(input)
       input.close()
     }
-    def err(in: java.io.InputStream) {
+    def err(in: java.io.InputStream): Unit = {
       reserr += convertStreamToString(in)
       in.close()
     }
@@ -144,7 +144,7 @@ trait BoogieInterface {
     reserr + res
   }
 
-  def stopBoogie(){
+  def stopBoogie(): Unit = {
     if(_boogieProcess!= null){
       _boogieProcess.destroy()
      // _boogieProcess.exitValue()  // Issue 225: I understood by the documentation of this API that by destroying the

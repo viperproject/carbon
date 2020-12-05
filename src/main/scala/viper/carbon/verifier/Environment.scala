@@ -91,7 +91,7 @@ case class Environment(verifier: Verifier, member: sil.Node) {
   def makeUniquelyNamed(decl: sil.LocalVarDecl) : sil.LocalVarDecl =
     if (isDefinedAt(decl.localVar)) new sil.LocalVarDecl(this.uniqueName(decl.localVar.name),decl.typ)(decl.pos, decl.info) else decl
 
-  def undefine(variable: sil.LocalVar) {
+  def undefine(variable: sil.LocalVar): Unit = {
     require(currentMapping.contains(variable))
     currentMapping.remove(variable)
   }

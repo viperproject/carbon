@@ -63,7 +63,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   def name = "Permission module"
 
-  override def start() {
+  override def start(): Unit = {
     stateModule.register(this)
     exhaleModule.register(this)
     inhaleModule.register(this)
@@ -258,7 +258,7 @@ class QuantifiedPermModule(val verifier: Verifier)
     Seq(LocalVar(Identifier(s"${name}Mask"), maskType))
   }
 
-  override def restoreState(s: Seq[Var]) {
+  override def restoreState(s: Seq[Var]): Unit = {
     mask = s(0)
   }
 
@@ -830,7 +830,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   var varMap:Map[Identifier,Boolean] = Map()
 
-  def containVars(n:Node) {
+  def containVars(n:Node): Unit = {
     if (n.isInstanceOf[Var]) {
       varMap+= (n.asInstanceOf[Var].name -> true)
     }

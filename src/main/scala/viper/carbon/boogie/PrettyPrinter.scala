@@ -178,7 +178,7 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
           )
       case Seqn(ss) =>
         showStmts(ss)
-      case LocalVarWhereDecl(v, w) => nil
+      case LocalVarWhereDecl(_, _) => nil
     }
   }
 
@@ -287,7 +287,7 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
           showBlock(vars3 <> body2)
       case CommentedDecl(s, d, size, nlines) =>
         var linesep = nil
-        for (i <- 1 to nlines) {
+        for (_ <- 1 to nlines) {
           linesep = line <> linesep
         }
         if (size > 1) {
@@ -386,8 +386,8 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
               ssep((triggers map show).to(collection.immutable.Seq), space) <> line <>
               show(exp)
           ) <> line)
-      case LocalVar(name, typ) => name
-      case GlobalVar(name, typ) => name
+      case LocalVar(name, _) => name
+      case GlobalVar(name, _) => name
       case Const(name) => name
       case Old(exp) => text("old") <> parens(show(exp))
       case MapSelect(map, idxs) =>
