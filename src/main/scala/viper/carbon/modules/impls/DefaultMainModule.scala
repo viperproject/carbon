@@ -237,23 +237,4 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
     env = null
     res
   }
-
-  def translateSMTFuncApp(fa: sil.SMTFuncApp): Exp = {
-    val funct = fa.smtFunc
-    val res = FuncApp(Identifier(funct.name), fa.args map translateExp, translateType(fa.typ))
-    res.showReturnType = true
-    res
-  }
-
-  private def translateSMTFunc(f: sil.SMTFunc): Seq[Decl] = {
-    env = Environment(verifier, f)
-    val t = translateType(f.typ)
-    val args = f.formalArgs map (x => LocalVarDecl(Identifier(x.name), translateType(x.typ)))
-    var attributes: Map[String, String] = Map()
-    attributes += "builtin" -> f.smtName
-    val func = Func(Identifier(f.name), args, t, attributes)
-    val res = MaybeCommentedDecl(s"Translation of domain function ${f.name}", func, size = 1)
-    env = null
-    res
-  }
 }

@@ -31,9 +31,6 @@ trait MainModule extends Module {
     translateLocalVarSig(l.typ,l.localVar)
   }
 
-  def translateSMTFuncApp(fa: sil.SMTFuncApp): Exp
-
-
   /** The current environment. */
   var env: Environment = null
 

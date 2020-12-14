@@ -239,7 +239,7 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
   def showAttributes(atts: Map[String, String]) = {
     if (atts.isEmpty) {
       text("")
-    }else{
+    } else {
       char('{') <+> ssep((atts map {case (k, v) => char(':') <> text(k) <+> char('"') <> text(v) <> char('"')}).toList, space) <+> char('}')
     }
   }

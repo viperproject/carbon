@@ -970,4 +970,29 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       case _ => Nil
     }
   }
+
+  def translateSMTFuncApp(fa: sil.SMTFuncApp): Exp = {
+    val funct = fa.smtFunc
+    // Do not use funcpred namespace, see translateSMTFunc.
+    val funcIdent = Identifier(funct.name)(silVarNamespace)
+    val res = FuncApp(funcIdent, fa.args map translateExp, translateType(fa.typ))
+    res.showReturnType = true
+    res
+  }
+
+  def translateSMTFunc(f: sil.SMTFunc): Seq[Decl] = {
+    // We do not use the funcpred namespace because based on the namespace, the funcpred module
+    // decides whether to stuff meant only for heap-dependent functions (like heights computation
+    // and limited functions).
+    val funcIdent=Identifier(f.name)(silVarNamespace)
+    env = Environment(verifier, f)
+    val t = translateType(f.typ)
+    val args = f.formalArgs map (x => LocalVarDecl(Identifier(x.name), translateType(x.typ)))
+    var attributes: Map[String, String] = Map()
+    attributes += "builtin" -> f.smtName
+    val func = Func(funcIdent, args, t, attributes)
+    val res = MaybeCommentedDecl(s"Translation of SMT function ${f.name}", func, size = 1)
+    env = null
+    res
+  }
 }
