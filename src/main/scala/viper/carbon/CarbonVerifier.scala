@@ -30,8 +30,8 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
   private var _config: CarbonConfig = _
   def config = _config
 
-  def start() = {}
-  def stop() {
+  def start(): Unit = {}
+  def stop(): Unit = {
     if (allModules != null) {
       allModules foreach (m => {
         m.stop()
@@ -91,7 +91,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
   def copyright: String = "(c) 2013 ETH Zurich"
 
   def getDebugInfo = _debugInfo
-  def debugInfo(info: Seq[(String, Any)]) {
+  def debugInfo(info: Seq[(String, Any)]): Unit = {
     _debugInfo = info
   }
 
@@ -102,7 +102,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
     }))
   }
 
-  def parseCommandLine(options: Seq[String]) {
+  def parseCommandLine(options: Seq[String]): Unit = {
     _config = new CarbonConfig(options)
   }
 
@@ -113,7 +113,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
       def name = "Z3"
       def version = {
         try {
-          val v = List(z3Path, "-version").lineStream.to[List]
+          val v = List(z3Path, "-version").lineStream.to(List)
           if (v.size == 1 && v(0).startsWith("Z3 version ")) {
             v(0).substring("Z3 version ".size)
           } else {
@@ -134,7 +134,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
 
     // reset all modules
     allModules map (m => m.reset())
-    heapModule.enableAllocationEncoding = config == null || !config.disableAllocEncoding.supplied // NOTE: config == null happens on the build server / via sbt test
+    heapModule.enableAllocationEncoding = config == null || !config.disableAllocEncoding.isSupplied // NOTE: config == null happens on the build server / via sbt test
 
     var transformNames = false
     if (config == null) Seq() else config.counterexample.toOption match {
@@ -214,7 +214,7 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
 
   private var _program: Program = null
   def program = _program
-  def program_=(p : Program) {
+  def program_=(p : Program): Unit = {
     _program = p
   }
 

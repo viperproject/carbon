@@ -172,7 +172,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       }, size = 1)
   }
 
-  override def start() {
+  override def start(): Unit = {
     expModule.register(this)
     inhaleModule.register(this, before = Seq(verifier.inhaleModule)) // this is because of inhaleExp definition, which tries to add extra information from executing the unfolding first
     exhaleModule.register(this, before = Seq(verifier.exhaleModule)) // this is because of exhaleExp definition, which tries to add extra information from executing the unfolding first
@@ -503,7 +503,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       case Nil => emptyFrame
       case pre +: Nil => computeFrameHelper(pre,renaming,functionName,args)
       case p +: ps => combineFrames(computeFrameHelper(p,renaming,functionName,args), computeFrame(ps,renaming,functionName,args)._1) // we don't need to return the list, since this is updated statefully
-    }, qpCondFuncs)
+    }, qpCondFuncs.toSeq)
   }
   private def combineFrames(a: Exp, b: Exp) = {
     if (a.equals(emptyFrame)) b else

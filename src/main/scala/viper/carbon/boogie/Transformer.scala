@@ -30,19 +30,19 @@ object Transformer {
         case LocalVarDecl(name, typ, None) =>
           LocalVarDecl(name, go(typ), None)
         case Trigger(exps) => Trigger(exps map go)
-        case t: Type => parent
+        case _: Type => parent
         case d: Decl =>
           d match {
             case ConstDecl(name, typ, unique) => ConstDecl(name, go(typ), unique)
-            case TypeDecl(name) => parent
+            case TypeDecl(_) => parent
             case TypeAlias(n, de) => TypeAlias(go(n), go(de))
             case Func(name, args, typ, attrs) => Func(name, args map go, go(typ), attrs)
             case Axiom(exp) => Axiom(go(exp))
             case GlobalVarDecl(name, typ) => GlobalVarDecl(name, go(typ))
             case Procedure(name, ins, outs, body) => Procedure(name, ins map go, outs map go, go(body))
             case CommentedDecl(s, ds, a, b) => CommentedDecl(s, ds map go, a, b)
-            case DeclComment(s) => parent
-            case LiteralDecl(s) => parent
+            case DeclComment(_) => parent
+            case LiteralDecl(_) => parent
           }
         case ss: Stmt =>
           ss match {
@@ -50,26 +50,26 @@ object Transformer {
             case Assert(e, error) => Assert(go(e), error)
             case Assume(e) => Assume(go(e))
             case HavocImpl(es) => HavocImpl(es map go)
-            case Comment(s) => parent
+            case Comment(_) => parent
             case CommentBlock(s, stmt) => CommentBlock(s, go(stmt))
             case Seqn(s) => Seqn(s map go)
             case If(cond, thn, els) => If(go(cond), go(thn), go(els))
             case NondetIf(thn, els) => NondetIf(go(thn), go(els))
-            case Label(name) => parent
-            case Goto(target) => parent
+            case Label(_) => parent
+            case Goto(_) => parent
             case LocalVarWhereDecl(idn, where) => LocalVarWhereDecl(idn, go(where))
           }
         case e: Exp =>
           // Note: If you have to update this pattern match to make it exhaustive, it
           // might also be necessary to update the PrettyPrinter.toParenDoc method.
           e match {
-            case IntLit(i) => parent
-            case BoolLit(b) => parent
-            case RealLit(b) => parent
+            case IntLit(_) => parent
+            case BoolLit(_) => parent
+            case RealLit(_) => parent
             case RealConv(exp) => RealConv(go(exp))
             case LocalVar(n, t) => LocalVar(n, go(t))
             case GlobalVar(n, t) => GlobalVar(n, go(t))
-            case Const(i) => parent
+            case Const(_) => parent
             case MapSelect(map, idxs) => MapSelect(go(map), idxs map go)
             case MapUpdate(map, idxs, value) => MapUpdate(go(map), idxs map go, go(value))
             case Old(exp) => Old(go(exp))
@@ -129,11 +129,11 @@ object DuplicatingTransformer {
           go(typ) map (LocalVarDecl(name, _, None))
         case Trigger(exps) =>
           goSeq(exps) map (Trigger(_))
-        case t: Type => Seq(parent)
+        case _: Type => Seq(parent)
         case d: Decl =>
           d match {
             case ConstDecl(name, typ, unique) => go(typ) map (ConstDecl(name, _, unique))
-            case TypeDecl(name) => Seq(parent)
+            case TypeDecl(_) => Seq(parent)
             case TypeAlias(n, de) => for {nResult <- go(n); deResult <- go(de)} yield TypeAlias(nResult, deResult)
             case Func(name, args, typ, attrs) => for {argsResult <- goSeq(args); typResult <- go(typ)} yield Func(name, argsResult, typResult, attrs)
             case Axiom(exp) => go(exp) map (Axiom(_))
@@ -142,8 +142,8 @@ object DuplicatingTransformer {
               for {insResult <- goSeq(ins); outsResult <- goSeq(outs); bodyResult <- go(body)} yield
                 Procedure(name, insResult, outsResult, bodyResult)
             case CommentedDecl(s, ds, a, b) => goSeq(ds) map (CommentedDecl(s, _, a, b))
-            case DeclComment(s) => Seq(parent)
-            case LiteralDecl(s) => Seq(parent)
+            case DeclComment(_) => Seq(parent)
+            case LiteralDecl(_) => Seq(parent)
           }
         case ss: Stmt =>
           ss match {
@@ -151,7 +151,7 @@ object DuplicatingTransformer {
             case Assert(e, error) => go(e) map (Assert(_, error))
             case Assume(e) => go(e) map (Assume(_))
             case HavocImpl(es) => goSeq(es) map (HavocImpl(_))
-            case Comment(s) => Seq(parent)
+            case Comment(_) => Seq(parent)
             case CommentBlock(s, stmt) => go(stmt) map (CommentBlock(s, _))
             case Seqn(s) => goSeq(s) map (Seqn(_))
             case If(cond, thn, els) =>
@@ -160,21 +160,21 @@ object DuplicatingTransformer {
             case NondetIf(thn, els) =>
               for {thnResult <- go(thn); elsResult <- go(els)} yield
                 (NondetIf(thnResult, elsResult))
-            case Label(name) => Seq(parent)
-            case Goto(target) => Seq(parent)
+            case Label(_) => Seq(parent)
+            case Goto(_) => Seq(parent)
             case LocalVarWhereDecl(idn, where) => go(where) map (LocalVarWhereDecl(idn, _))
           }
         case e: Exp =>
           // Note: If you have to update this pattern match to make it exhaustive, it
           // might also be necessary to update the PrettyPrinter.toParenDoc method.
           e match {
-            case IntLit(i) => Seq(parent)
-            case BoolLit(b) => Seq(parent)
-            case RealLit(b) => Seq(parent)
+            case IntLit(_) => Seq(parent)
+            case BoolLit(_) => Seq(parent)
+            case RealLit(_) => Seq(parent)
             case RealConv(exp) => go(exp) map (RealConv(_))
             case LocalVar(n, t) => go(t) map (LocalVar(n, _))
             case GlobalVar(n, t) => go(t) map (GlobalVar(n, _))
-            case Const(i) => Seq(parent)
+            case Const(_) => Seq(parent)
             case MapSelect(map, idxs) =>
               for {mapResult <- go(map); idxsResult <- goSeq(idxs)} yield MapSelect(mapResult, idxsResult)
             case MapUpdate(map, idxs, value) =>

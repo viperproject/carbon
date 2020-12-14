@@ -30,7 +30,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
   import funcPredModule._
   import wandModule._
 
-  override def start() {
+  override def start(): Unit = {
     // this is the main translation, so it should come at the "beginning"; it defines the innermost code used in the translation; other modules can wrap this with their own code
     register(this, before = Seq(verifier.heapModule,verifier.permModule))
     // NOTE: this builds up the translation inside-out, so the *first* component defines the innermost code.

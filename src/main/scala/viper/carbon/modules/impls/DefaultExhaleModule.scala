@@ -33,7 +33,7 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
     currentPhaseId = -1
   }
 
-  override def start() {
+  override def start(): Unit = {
     register(this)
   }
 

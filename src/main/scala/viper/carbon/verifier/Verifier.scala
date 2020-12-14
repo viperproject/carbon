@@ -71,7 +71,7 @@ trait Verifier {
   /**
    *  Replace the program with the provided one (for instance, to achieve whole-program transformations, including updating lookups of method definitions etc.)
    */
-  def replaceProgram(prog : sil.Program)
+  def replaceProgram(prog : sil.Program): Unit
 
 
 }

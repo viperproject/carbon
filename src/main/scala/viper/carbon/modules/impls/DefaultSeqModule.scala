@@ -44,7 +44,7 @@ class DefaultSeqModule(val verifier: Verifier)
     }
   }
 
-  override def start() {
+  override def start(): Unit = {
     expModule.register(this)
   }
 

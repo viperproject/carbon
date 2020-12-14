@@ -37,7 +37,7 @@ class DefaultHeapModule(val verifier: Verifier)
   // a fresh namespace for every axiom
   def axiomNamespace = verifier.freshNamespace("heap.axiom")
 
-  override def start() {
+  override def start(): Unit = {
     stateModule.register(this)
     stmtModule.register(this)
     expModule.register(this)
@@ -592,7 +592,7 @@ class DefaultHeapModule(val verifier: Verifier)
     Seq(LocalVar(Identifier(s"${name}Heap"), heapTyp))
   }
 
-  override def restoreState(s: Seq[Var]) {
+  override def restoreState(s: Seq[Var]): Unit = {
     heap = s(0) // note: this should be accessed via heapVar or heapExp as appropriate (whether a variable is essential or not)
   }
 

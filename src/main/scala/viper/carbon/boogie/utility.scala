@@ -80,63 +80,63 @@ object Nodes {
    */
   def subnodes(n: Node): Seq[Node] = {
     n match {
-      case Program(header, decls) =>
+      case Program(_, decls) =>
         decls
-      case LocalVarDecl(name, typ, where) =>
+      case LocalVarDecl(_, _, where) =>
         where match {
           case Some(e) => Seq(e)
           case None => Nil
         }
       case Trigger(exps) => exps
-      case t: Type => Nil
+      case _: Type => Nil
       case d: Decl =>
         d match {
-          case ConstDecl(name, typ, unique) => Nil
-          case TypeDecl(name) => Nil
-          case TypeAlias(n, d) => Nil
-          case Func(name, args, typ, attrs) => args
+          case ConstDecl(_, _, _) => Nil
+          case TypeDecl(_) => Nil
+          case TypeAlias(_, _) => Nil
+          case Func(_, args, _, _) => args
           case Axiom(exp) => Seq(exp)
-          case GlobalVarDecl(name, typ) => Nil
-          case Procedure(name, ins, outs, body) => ins ++ outs ++ Seq(body)
-          case CommentedDecl(s, ds, _, _) => ds
-          case DeclComment(s) => Nil
-          case LiteralDecl(s) => Nil
+          case GlobalVarDecl(_, _) => Nil
+          case Procedure(_, ins, outs, body) => ins ++ outs ++ Seq(body)
+          case CommentedDecl(_, ds, _, _) => ds
+          case DeclComment(_) => Nil
+          case LiteralDecl(_) => Nil
         }
       case ss: Stmt =>
         ss match {
           case Assign(lhs, rhs) => Seq(lhs, rhs)
-          case Assert(e, error) => Seq(e)
+          case Assert(e, _) => Seq(e)
           case Assume(e) => Seq(e)
           case HavocImpl(es) => es
-          case Comment(s) => Nil
-          case CommentBlock(s, stmt) => Seq(stmt)
+          case Comment(_) => Nil
+          case CommentBlock(_, stmt) => Seq(stmt)
           case Seqn(s) => s
           case If(cond, thn, els) => Seq(cond, thn, els)
           case NondetIf(thn, els) => Seq(thn, els)
-          case Label(name) => Nil
-          case Goto(target) => Nil
-          case LocalVarWhereDecl(idn, where) => Seq(where)
+          case Label(_) => Nil
+          case Goto(_) => Nil
+          case LocalVarWhereDecl(_, where) => Seq(where)
         }
       case e: Exp =>
         // Note: If you have to update this pattern match to make it exhaustive, it
         // might also be necessary to update the PrettyPrinter.toParenDoc method.
         e match {
-          case IntLit(i) => Nil
-          case BoolLit(b) => Nil
-          case RealLit(b) => Nil
+          case IntLit(_) => Nil
+          case BoolLit(_) => Nil
+          case RealLit(_) => Nil
           case RealConv(exp) => Seq(exp)
-          case LocalVar(n, t) => Nil
-          case GlobalVar(n, t) => Nil
-          case Const(i) => Nil
+          case LocalVar(_, _) => Nil
+          case GlobalVar(_, _) => Nil
+          case Const(_) => Nil
           case MapSelect(map, idxs) => Seq(map) ++ idxs
           case MapUpdate(map, idxs, value) => Seq(map) ++ idxs ++ Seq(value)
           case Old(exp) => Seq(exp)
           case CondExp(cond, thn, els) => Seq(cond, thn, els)
           case Exists(v, triggers, exp) => v ++ triggers ++ Seq(exp)
-          case Forall(v, triggers, exp, tv) => v ++ triggers ++ Seq(exp)
-          case BinExp(left, binop, right) => Seq(left, right)
-          case UnExp(unop, exp) => Seq(exp)
-          case FuncApp(func, args, typ) => args
+          case Forall(v, triggers, exp, _) => v ++ triggers ++ Seq(exp)
+          case BinExp(left, _, right) => Seq(left, right)
+          case UnExp(_, exp) => Seq(exp)
+          case FuncApp(_, args, _) => args
         }
     }
   }

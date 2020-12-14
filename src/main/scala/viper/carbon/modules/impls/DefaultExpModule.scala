@@ -34,7 +34,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   import stateModule._
   import mainModule._
 
-  override def start() {
+  override def start(): Unit = {
     register(this)
   }
 
