@@ -201,7 +201,7 @@ case class PartialCondExp(cond: Exp, thn: Exp) {
 }
 
 case class IntLit(i: BigInt) extends Exp
-case class RealLit(d: Double) extends Exp
+case class RealLit(i: BigDecimal) extends Exp
 case class TrueLit() extends BoolLit(true)
 case class FalseLit() extends BoolLit(false)
 sealed abstract class BoolLit(val b: Boolean) extends Exp

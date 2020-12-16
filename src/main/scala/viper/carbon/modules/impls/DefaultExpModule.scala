@@ -60,6 +60,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
     e match {
       case sil.IntLit(i) =>
         IntLit(i)
+      case sil.RealLit(r) =>
+        RealLit(r)
       case sil.BoolLit(b) =>
         BoolLit(b)
       case sil.NullLit() =>
@@ -226,15 +228,16 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       case sil.DomainBinExp(left, op, right) =>
         val bop = op match {
           case sil.OrOp => Or
-          case sil.LeOp => LeCmp
-          case sil.LtOp => LtCmp
-          case sil.GeOp => GeCmp
-          case sil.GtOp => GtCmp
-          case sil.AddOp => Add
-          case sil.SubOp => Sub
+          case sil.LeOp | sil.RealLeOp => LeCmp
+          case sil.LtOp | sil.RealLtOp => LtCmp
+          case sil.GeOp | sil.RealGeOp => GeCmp
+          case sil.GtOp | sil.RealGtOp => GtCmp
+          case sil.AddOp | sil.RealAddOp => Add
+          case sil.SubOp | sil.RealSubOp => Sub
           case sil.DivOp => IntDiv
+          case sil.RealDivOp => Div
           case sil.ModOp => Mod
-          case sil.MulOp => Mul
+          case sil.MulOp | sil.RealMulOp => Mul
           case sil.AndOp => And
           case sil.ImpliesOp => Implies
           case _ =>
@@ -242,6 +245,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         }
         BinExp(translateExp(left), bop, translateExp(right))
       case sil.Minus(exp) =>
+        UnExp(Minus, translateExp(exp))
+      case sil.RealMinus(exp) =>
         UnExp(Minus, translateExp(exp))
       case sil.Not(exp) =>
         UnExp(Not, translateExp(exp))

@@ -30,6 +30,8 @@ class DefaultTypeModule(val verifier: Verifier) extends TypeModule with Stateles
         Bool
       case sil.Int =>
         Int
+      case sil.Real =>
+        Real
       case sil.Ref =>
         refType
       case sil.Perm =>
