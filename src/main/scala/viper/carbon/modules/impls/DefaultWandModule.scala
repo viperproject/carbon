@@ -660,7 +660,7 @@ case class PackageSetup(hypState: StateRep, usedState: StateRep, initStmt: Stmt)
   }
 
 
-  override def start() {
+  override def start(): Unit = {
     stmtModule.register(this, before = Seq(verifier.heapModule,verifier.permModule, verifier.stmtModule)) // checks for field assignment should be made before the assignment itself
     expModule.register(this)
   }

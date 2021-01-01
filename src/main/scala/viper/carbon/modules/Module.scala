@@ -29,12 +29,12 @@ trait Module extends LifetimeComponent with StatefulComponent with viper.carbon.
    * where this method is called, all modules in Verifier have been set, but the other modules
    * might not have been fully initialized (by calling this method).
    */
-  def start() {}
+  def start(): Unit = {}
 
   /**
    * Currently not used.
    */
-  def stop() {}
+  def stop(): Unit = {}
 
   /**
    * The Boogie code that this module will insert into the preamble (optional).

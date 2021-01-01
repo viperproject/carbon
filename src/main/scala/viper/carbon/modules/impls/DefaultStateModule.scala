@@ -139,7 +139,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     freshTempState(name, true, init)
   }
 
-  override def replaceState(snapshot: StateSnapshot) {
+  override def replaceState(snapshot: StateSnapshot): Unit = {
     curState = snapshot._1
         for (c <- components) {
       c.restoreState(snapshot._1.get(c))
@@ -163,7 +163,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     (curOldState,true,false) // the chosen boolean values here seem sensible, but they probably shouldn't be used anyway
   }
 
-  override def replaceOldState(snapshot: StateSnapshot) {
+  override def replaceOldState(snapshot: StateSnapshot): Unit = {
     curOldState = snapshot._1
   }
 

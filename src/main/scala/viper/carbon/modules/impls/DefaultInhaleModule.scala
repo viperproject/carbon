@@ -25,7 +25,7 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule with Stat
 
   def name = "Inhale module"
 
-  override def start() {
+  override def start(): Unit = {
     register(this)
   }
 

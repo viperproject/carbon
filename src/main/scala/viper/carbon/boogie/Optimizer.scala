@@ -128,10 +128,10 @@ object Optimizer {
       case BinExp(RealLit(left), Mod, RealLit(right)) if right != 0 =>
         RealLit(left % right)
 
-      case If(TrueLit(), thn, els) => thn
-      case If(FalseLit(), thn, els) => els
+      case If(TrueLit(), thn, _) => thn
+      case If(FalseLit(), _, els) => els
 
-      case If(c, thn, els) if thn.children.isEmpty && els.children.isEmpty =>
+      case If(_, thn, els) if thn.children.isEmpty && els.children.isEmpty =>
         Statements.EmptyStmt
 
       case Assert(TrueLit(), _) => Statements.EmptyStmt

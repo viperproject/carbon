@@ -38,6 +38,7 @@ import viper.carbon.boogie.TypeAlias
 import viper.carbon.boogie.FuncApp
 import viper.carbon.verifier.Verifier
 import viper.silver.ast.utility.rewriter.Traverse
+import viper.silver.ast.Implies
 
 import scala.collection.mutable.ListBuffer
 import viper.silver.ast.utility.QuantifiedPermissions.SourceQuantifiedPermissionAssertion
@@ -62,7 +63,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   def name = "Permission module"
 
-  override def start() {
+  override def start(): Unit = {
     stateModule.register(this)
     exhaleModule.register(this)
     inhaleModule.register(this)
@@ -199,13 +200,13 @@ class QuantifiedPermModule(val verifier: Verifier)
         ))
     } ++ {
       MaybeCommentedDecl("Function for trigger used in checks which are never triggered",
-        triggerFuncs)
+        triggerFuncs.toSeq)
     } ++ {
       MaybeCommentedDecl("Functions used as inverse of receiver expressions in quantified permissions during inhale and exhale",
-        inverseFuncs)
+        inverseFuncs.toSeq)
     } ++ {
       MaybeCommentedDecl("Functions used to represent the range of the projection of each QP instance onto its receiver expressions for quantified permissions during inhale and exhale",
-        rangeFuncs)
+        rangeFuncs.toSeq)
     }
   }
 
@@ -257,7 +258,7 @@ class QuantifiedPermModule(val verifier: Verifier)
     Seq(LocalVar(Identifier(s"${name}Mask"), maskType))
   }
 
-  override def restoreState(s: Seq[Var]) {
+  override def restoreState(s: Seq[Var]): Unit = {
     mask = s(0)
   }
 
@@ -430,7 +431,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   def translateExhale(e: sil.Forall, error: PartialVerificationError): Stmt =  {
     val stmt = e match {
-      case SourceQuantifiedPermissionAssertion(forall, cond, expr)  =>
+      case SourceQuantifiedPermissionAssertion(forall, Implies(cond, expr))  =>
         val vs = forall.variables
 
         val res = expr match {
@@ -505,7 +506,7 @@ class QuantifiedPermModule(val verifier: Verifier)
             val invAssm2 = Forall(Seq(obj), Trigger(invFuns.map(invFun => FuncApp(invFun.name, Seq(obj.l), invFun.typ))), (condInv && (permGt(permInv, noPerm) && rangeFunApp)) ==> (rcvInv === obj.l) )
 
 
-            //check that given the permission evaluates to true, the permission held should be greater than 0
+            //check that given the condition, the permission held should be non-negative
             val permPositive = Assert(Forall(vsFresh.map(v => translateLocalVarDecl(v)),tr1, (translatedCond && funcPredModule.dummyFuncApp(translateLocationAccess(translatedRecv, translatedLocation))) ==> permissionPositiveInternal(translatedPerms,None,true)),
               error.dueTo(reasons.NegativePermission(perms)))
 
@@ -657,8 +658,8 @@ class QuantifiedPermModule(val verifier: Verifier)
             val conjoinedInverseAssumptions = eqExpr.foldLeft(TrueLit():Exp)((soFar,exp) => BinExp(soFar,And,exp))
             val invAssm2 = Forall(freshFormalBoogieDecls, Trigger(invFunApps), ((condInv && permGt(permInv, noPerm)) && rangeFunApp) ==> conjoinedInverseAssumptions)
 
-            //check that the permission expression is positive for all predicates satisfying the condition
-            val permPositive = Assert(Forall(freshFormalBoogieDecls, Trigger(invFunApps), (condInv && rangeFunApp) ==> permissionPositive(permInv)),
+            //check that the permission expression is non-negative for all predicates satisfying the condition
+            val permPositive = Assert(Forall(freshFormalBoogieDecls, Trigger(invFunApps), (condInv && rangeFunApp) ==> permissionPositive(permInv, true)),
               error.dueTo(reasons.NegativePermission(perms)))
 
             //check that sufficient permission is held
@@ -829,7 +830,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   var varMap:Map[Identifier,Boolean] = Map()
 
-  def containVars(n:Node) {
+  def containVars(n:Node): Unit = {
     if (n.isInstanceOf[Var]) {
       varMap+= (n.asInstanceOf[Var].name -> true)
     }
@@ -916,7 +917,7 @@ class QuantifiedPermModule(val verifier: Verifier)
       translate inhaling a forall expressions
    */
   def translateInhale(e: sil.Forall): Stmt = e match{
-    case SourceQuantifiedPermissionAssertion(forall, cond, expr) =>
+    case SourceQuantifiedPermissionAssertion(forall, Implies(cond, expr)) =>
       val vs = forall.variables // TODO: Generalise to multiple quantified variables
 
        val res = expr match {
@@ -1173,7 +1174,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   //renamed Localvariable and Condition
   def getMapping(v: sil.LocalVarDecl, cond:sil.Exp, expr:sil.Exp): Seq[Exp] = {
     val res = expr match {
-      case SourceQuantifiedPermissionAssertion(forall, cond, expr)  =>
+      case SourceQuantifiedPermissionAssertion(forall, Implies(cond, expr))  =>
         Nil
       case sil.FieldAccessPredicate(fa@sil.FieldAccess(rcvr, f), gain) =>
         Nil
@@ -1428,7 +1429,7 @@ class QuantifiedPermModule(val verifier: Verifier)
     rangeFuncs += rangeFun
     val triggerFun = Func(Identifier(triggerFunName+qpId), qvars,  Bool)
     triggerFuncs += triggerFun
-    (invFuns, rangeFun, triggerFun)
+    (invFuns.toSeq, rangeFun, triggerFun)
   }
 
   override def conservativeIsPositivePerm(e: sil.Exp): Boolean = splitter.conservativeStaticIsStrictlyPositivePerm(e)

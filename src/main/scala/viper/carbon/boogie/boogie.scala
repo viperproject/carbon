@@ -40,7 +40,7 @@ sealed trait Node {
   /**
    * Applies the function `f` to the AST node, then visits all subnodes.
    */
-  def visit(f: PartialFunction[Node, Unit]) {
+  def visit(f: PartialFunction[Node, Unit]): Unit = {
     Visitor.visit(this)(f)
   }
 
@@ -48,7 +48,7 @@ sealed trait Node {
    * Applies the function `f1` to the AST node, then visits all subnodes,
    * and finally calls `f2` to the AST node.
    */
-  def visit(n: Node, f1: PartialFunction[Node, Unit], f2: PartialFunction[Node, Unit]) {
+  def visit(n: Node, f1: PartialFunction[Node, Unit], f2: PartialFunction[Node, Unit]): Unit = {
     Visitor.visit(this, f1, f2)
   }
 
@@ -56,7 +56,7 @@ sealed trait Node {
    * Applies the function `f` to the AST node, then visits all subnodes if `f`
    * returned true.
    */
-  def visitOpt(n: Node)(f: Node => Boolean) {
+  def visitOpt(n: Node)(f: Node => Boolean): Unit = {
     Visitor.visitOpt(this)(f)
   }
 
@@ -64,7 +64,7 @@ sealed trait Node {
    * Applies the function `f1` to the AST node, then visits all subnodes if `f1`
    * returned true, and finally calls `f2` to the AST node.
    */
-  def visitOpt(n: Node, f1: Node => Boolean, f2: Node => Unit) {
+  def visitOpt(n: Node, f1: Node => Boolean, f2: Node => Unit): Unit = {
     Visitor.visitOpt(this, f1, f2)
   }
 
