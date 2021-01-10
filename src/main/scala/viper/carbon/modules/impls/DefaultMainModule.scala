@@ -60,9 +60,9 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
         Traverse.TopDown)
     )
 
-    val smtFuncs = new mutable.HashSet[sil.SMTFunc]()
+    val backendFuncs = new mutable.HashSet[sil.BackendFunc]()
     p.visit{
-      case sf: sil.SMTFuncApp => smtFuncs.add(sf.smtFunc)
+      case sf: sil.BackendFuncApp => backendFuncs.add(sf.backendFunc)
     }
 
     // We record the Boogie names of all Viper variables in this map.
@@ -83,7 +83,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
           (functions flatMap (f => translateFunction(f, nameMaps.get(f.name)))) ++
           (predicates flatMap (p => translatePredicate(p, nameMaps.get(p.name)))) ++
           (methods flatMap (m => translateMethodDecl(m, nameMaps.get(m.name)))) ++
-          (smtFuncs flatMap translateSMTFunc)
+          (backendFuncs flatMap translateBackendFunc)
 
         // get the preambles (only at the end, even if we add it at the beginning)
         val preambles = verifier.allModules flatMap {

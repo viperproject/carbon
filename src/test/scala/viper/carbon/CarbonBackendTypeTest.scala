@@ -1,8 +1,8 @@
 package viper.carbon
 
-import viper.silver.testing.SMTTypeTest
+import viper.silver.testing.BackendTypeTest
 import viper.silver.verifier.Verifier
 
-class CarbonSMTTypeTest extends SMTTypeTest {
+class CarbonBackendTypeTest extends BackendTypeTest {
   override val verifier: Verifier = CarbonVerifier()
 }

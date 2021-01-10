@@ -971,8 +971,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     }
   }
 
-  def translateSMTFuncApp(fa: sil.SMTFuncApp): Exp = {
-    val funct = fa.smtFunc
+  def translateBackendFuncApp(fa: sil.BackendFuncApp): Exp = {
+    val funct = fa.backendFunc
     // Do not use funcpred namespace, see translateSMTFunc.
     val funcIdent = Identifier(funct.name)(silVarNamespace)
     val res = FuncApp(funcIdent, fa.args map translateExp, translateType(fa.typ))
@@ -980,7 +980,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     res
   }
 
-  def translateSMTFunc(f: sil.SMTFunc): Seq[Decl] = {
+  def translateBackendFunc(f: sil.BackendFunc): Seq[Decl] = {
     // We do not use the funcpred namespace because based on the namespace, the funcpred module
     // decides whether to stuff meant only for heap-dependent functions (like heights computation
     // and limited functions).

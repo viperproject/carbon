@@ -57,6 +57,6 @@ trait FuncPredModule extends Module {
   def toExpressionsUsedInTriggers(e: Exp): Seq[Exp]
   def toExpressionsUsedInTriggers(e: Seq[Exp]): Seq[Seq[Exp]]
 
-  def translateSMTFuncApp(fa: sil.SMTFuncApp): Exp
-  def translateSMTFunc(f: sil.SMTFunc): Seq[Decl]
+  def translateBackendFuncApp(fa: sil.BackendFuncApp): Exp
+  def translateBackendFunc(f: sil.BackendFunc): Seq[Decl]
 }
