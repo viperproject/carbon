@@ -32,6 +32,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   import funcPredModule._
   import exhaleModule._
   import stateModule._
+  import mainModule._
 
   override def start(): Unit = {
     register(this)
@@ -249,6 +250,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         translateFuncApp(fa)
       case fa@sil.DomainFuncApp(_, _, _) =>
         translateDomainFuncApp(fa)
+      case fa@sil.BackendFuncApp(_, _) =>
+        translateBackendFuncApp(fa)
 
       case seqExp@sil.EmptySeq(elemTyp) =>
         translateSeqExp(seqExp)

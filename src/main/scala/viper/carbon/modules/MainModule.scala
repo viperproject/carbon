@@ -31,7 +31,6 @@ trait MainModule extends Module {
     translateLocalVarSig(l.typ,l.localVar)
   }
 
-
   /** The current environment. */
   var env: Environment = null
 
