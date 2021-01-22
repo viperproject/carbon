@@ -59,7 +59,6 @@ case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) exte
   val domainModule = new DefaultDomainModule(this)
   val seqModule = new DefaultSeqModule(this)
   val setModule = new DefaultSetModule(this)
-  val mapModule = new DefaultMapModule(this)
   val wandModule = new DefaultWandModule(this)
 
   // initialize all modules

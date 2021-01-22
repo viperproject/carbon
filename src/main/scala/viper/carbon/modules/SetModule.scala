@@ -11,6 +11,7 @@ import viper.carbon.boogie.{Type, Exp}
 
 /**
  * A module for translating sets and multisets.
+
  */
 trait SetModule extends Module {
   def translateSetExp(exp: sil.Exp): Exp
