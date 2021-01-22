@@ -22,6 +22,7 @@ class DefaultTypeModule(val verifier: Verifier) extends TypeModule with Stateles
   import permModule._
   import seqModule._
   import setModule._
+  import mapModule._
 
   def name = "Type module"
   override def translateType(t: sil.Type): Type = {
@@ -34,12 +35,14 @@ class DefaultTypeModule(val verifier: Verifier) extends TypeModule with Stateles
         refType
       case sil.Perm =>
         permType
-      case t@sil.SeqType(elemType) =>
+      case t: sil.SeqType =>
         translateSeqType(t)
-      case t@sil.SetType(elemType) =>
+      case t: sil.SetType =>
         translateSetType(t)
-      case t@sil.MultisetType(elemType) =>
+      case t: sil.MultisetType =>
         translateMultisetType(t)
+      case t: sil.MapType =>
+        translateMapType(t)
       case sil.InternalType =>
         sys.error("This is an internal type, not expected here")
       case sil.TypeVar(name) =>
