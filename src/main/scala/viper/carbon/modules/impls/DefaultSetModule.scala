@@ -47,7 +47,7 @@ class DefaultSetModule(val verifier: Verifier)
  // }
 
   override def preamble = {
-    if (used || verifier.mapModule.isUsed()) {
+    if (used) {
       LiteralDecl(SetAxiomatization.value)
     } else {
       Nil
