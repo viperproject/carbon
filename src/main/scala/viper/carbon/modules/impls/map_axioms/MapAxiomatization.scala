@@ -35,7 +35,9 @@ object MapAxiomatization {
       |// The set of Keys of a Map are available by Map#Domain, and the cardinality of that
       |// set is given by Map#Card.
       |
-      |axiom (forall<U,V> m: Map U V :: { Set#Card(Map#Domain(m)) }
+      |  /* added second trigger set */
+      |
+      |axiom (forall<U,V> m: Map U V :: { Set#Card(Map#Domain(m)) } { Map#Card(m) }
       |  Set#Card(Map#Domain(m)) == Map#Card(m));
       |
       |// The set of Values of a Map can be obtained by the function Map#Values, which is
@@ -45,41 +47,54 @@ object MapAxiomatization {
       |
       |function Map#Values<U,V>(Map U V) : Set V;
       |
+      |  /* split axiom into each direction */
+      |
       |axiom (forall<U,V> m: Map U V, v: V :: { Map#Values(m)[v] }
-      |  Map#Values(m)[v] ==
+      |  Map#Values(m)[v] ==>
       |	(exists u: U :: { Map#Domain(m)[u] } { Map#Elements(m)[u] }
       |	  Map#Domain(m)[u] &&
       |    v == Map#Elements(m)[u]));
       |
-      |// Here are the operations that produce Map values.
+      |axiom (forall<U,V> m: Map U V, u: U ::  { Map#Domain(m)[u] } { Map#Elements(m)[u] }
+      |	  Map#Domain(m)[u]
+      |    ==> Map#Values(m)[Map#Elements(m)[u]]);
+      |
+      | // Here are the operations that produce Map values.
       |
       |function Map#Empty<U, V>(): Map U V;
       |axiom (forall<U, V> u: U ::
       |        { Map#Domain(Map#Empty(): Map U V)[u] }
       |        !Map#Domain(Map#Empty(): Map U V)[u]);
+      |
       |axiom (forall<U, V> m: Map U V :: { Map#Card(m) }
       | (Map#Card(m) == 0 <==> m == Map#Empty()) &&
-      | (Map#Card(m) != 0 ==> (exists x: U :: Map#Domain(m)[x])));
+      | (Map#Card(m) != 0 ==> (exists x: U :: Map#Domain(m)[x])) &&
+      | ((forall x: U :: {Map#Domain(m)[x]} Map#Domain(m)[x] ==> Map#Card(m) != 0)));
       |
       |//Build is used in displays, and for map updates
       |function Map#Build<U, V>(Map U V, U, V): Map U V;
       |
+      |/* added second trigger set (cf. example3 test case, test3)
       |axiom (forall<U, V> m: Map U V, u: U, u': U, v: V ::
-      |  { Map#Domain(Map#Build(m, u, v))[u'] } { Map#Elements(Map#Build(m, u, v))[u'] }
+      |  { Map#Domain(Map#Build(m, u, v))[u'] } { Map#Domain(m)[u'],Map#Build(m, u, v) } { Map#Elements(Map#Build(m, u, v))[u'] }
       |  (u' == u ==> Map#Domain(Map#Build(m, u, v))[u'] &&
       |               Map#Elements(Map#Build(m, u, v))[u'] == v) &&
       |  (u' != u ==> Map#Domain(Map#Build(m, u, v))[u'] == Map#Domain(m)[u'] &&
       |               Map#Elements(Map#Build(m, u, v))[u'] == Map#Elements(m)[u']));
-      |axiom (forall<U, V> m: Map U V, u: U, v: V :: { Map#Card(Map#Build(m, u, v)) }
+      |/* added second trigger set (not sure of a test case needing it, though) */
+      |axiom (forall<U, V> m: Map U V, u: U, v: V :: { Map#Card(Map#Build(m, u, v)) }{ Map#Card(m),Map#Build(m, u, v) }
       |  Map#Domain(m)[u] ==> Map#Card(Map#Build(m, u, v)) == Map#Card(m));
-      |axiom (forall<U, V> m: Map U V, u: U, v: V :: { Map#Card(Map#Build(m, u, v)) }
+      |/* added second trigger set (not sure of a test case needing it, though) */
+      |axiom (forall<U, V> m: Map U V, u: U, v: V :: { Map#Card(Map#Build(m, u, v)) }{ Map#Card(m),Map#Build(m, u, v) }
       |  !Map#Domain(m)[u] ==> Map#Card(Map#Build(m, u, v)) == Map#Card(m) + 1);
       |
       |//equality for maps
+      |  // this axiom is only needed in one direction; the other is implied by the next axiom
+      |
       |function Map#Equal<U, V>(Map U V, Map U V): bool;
       |axiom (forall<U, V> m: Map U V, m': Map U V::
       |  { Map#Equal(m, m') }
-      |    Map#Equal(m, m') <==> (forall u : U :: Map#Domain(m)[u] == Map#Domain(m')[u]) &&
+      |    Map#Equal(m, m') ==> (forall u : U :: Map#Domain(m)[u] == Map#Domain(m')[u]) &&
       |                          (forall u : U :: Map#Domain(m)[u] ==> Map#Elements(m)[u] == Map#Elements(m')[u]));
       |// extensionality
       |axiom (forall<U, V> m: Map U V, m': Map U V::
@@ -87,8 +102,13 @@ object MapAxiomatization {
       |    Map#Equal(m, m') ==> m == m');
       |
       |function Map#Disjoint<U, V>(Map U V, Map U V): bool;
+      |// split in both directions
       |axiom (forall<U, V> m: Map U V, m': Map U V ::
       |  { Map#Disjoint(m, m') }
-      |    Map#Disjoint(m, m') <==> (forall o: U :: {Map#Domain(m)[o]} {Map#Domain(m')[o]} !Map#Domain(m)[o] || !Map#Domain(m')[o]));
+      |    Map#Disjoint(m, m') ==> (forall o: U :: {Map#Domain(m)[o]} {Map#Domain(m')[o]} !Map#Domain(m)[o] || !Map#Domain(m')[o]));
+      |axiom (forall<U, V> m: Map U V, m': Map U V ::
+      |  { Map#Disjoint(m, m') }
+      |    !Map#Disjoint(m, m') ==> (exists o: U :: {Map#Domain(m)[o]} {Map#Domain(m')[o]} Map#Domain(m)[o] && Map#Domain(m')[o]));
+      |
       |""".stripMargin
 }
