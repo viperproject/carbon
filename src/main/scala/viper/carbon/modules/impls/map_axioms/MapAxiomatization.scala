@@ -94,8 +94,8 @@ object MapAxiomatization {
       |function Map#Equal<U, V>(Map U V, Map U V): bool;
       |axiom (forall<U, V> m: Map U V, m': Map U V::
       |  { Map#Equal(m, m') }
-      |    Map#Equal(m, m') ==> (forall u : U :: Map#Domain(m)[u] == Map#Domain(m')[u]) &&
-      |                          (forall u : U :: Map#Domain(m)[u] ==> Map#Elements(m)[u] == Map#Elements(m')[u]));
+      |   (forall u : U :: Map#Domain(m)[u] == Map#Domain(m')[u]) &&
+      |     (forall u : U :: Map#Domain(m)[u] ==> Map#Elements(m)[u] == Map#Elements(m')[u]) ==> Map#Equal(m, m'));
       |// extensionality
       |axiom (forall<U, V> m: Map U V, m': Map U V::
       |  { Map#Equal(m, m') }
