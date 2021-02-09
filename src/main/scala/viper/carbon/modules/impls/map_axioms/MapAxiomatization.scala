@@ -74,7 +74,7 @@ object MapAxiomatization {
       |//Build is used in displays, and for map updates
       |function Map#Build<U, V>(Map U V, U, V): Map U V;
       |
-      |/* added second trigger set (cf. example3 test case, test3)
+      |/* added second trigger set (cf. example3 test case, test3) */
       |axiom (forall<U, V> m: Map U V, u: U, u': U, v: V ::
       |  { Map#Domain(Map#Build(m, u, v))[u'] } { Map#Domain(m)[u'],Map#Build(m, u, v) } { Map#Elements(Map#Build(m, u, v))[u'] }
       |  (u' == u ==> Map#Domain(Map#Build(m, u, v))[u'] &&
