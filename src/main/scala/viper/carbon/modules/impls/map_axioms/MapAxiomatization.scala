@@ -55,9 +55,15 @@ object MapAxiomatization {
       |	  Map#Domain(m)[u] &&
       |    v == Map#Elements(m)[u]));
       |
-      |axiom (forall<U,V> m: Map U V, u: U ::  { Map#Domain(m)[u] } { Map#Elements(m)[u] }
+      |axiom (forall<U,V> m: Map U V, u: U ::  { Map#Elements(m)[u] } // { Map#Domain(m)[u] } // REMOVED this trigger due to a potential for matching loops
       |	  Map#Domain(m)[u]
       |    ==> Map#Values(m)[Map#Elements(m)[u]]);
+      |// There's a potential for matching loops with the extra trigger if two maps have equal domains:
+      |// v in range(m1); some k in dom(m1) = dom(m2) s.t. m1[k] = v; m2[k] in range(m2); some k' in dom(m2) s.t. m2[k'] = m2[k]
+      |
+      |axiom (forall<U,V> m: Map U V, u: U ::  { Map#Domain(m)[u] } { Map#Elements(m)[u] }
+      |	  Map#Domain(m)[u]
+      |    ==> Set#Card(Map#Values(m)) > 0); // weaker property than above, with weaker triggers
       |
       | // Here are the operations that produce Map values.
       |
