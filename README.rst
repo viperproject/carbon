@@ -9,7 +9,7 @@ Carbon is a verification-condition-generation-based verifier for
 `Programming Methodology <http://www.pm.inf.ethz.ch/>`_ group
 at ETH Zurich.
 
-See `the documentation wiki <https://bitbucket.org/viperproject/documentation/>`_ for instructions on how to try out or install the Viper tools.
+See `the documentation wiki <https://github.com/viperproject/documentation/wiki>`_ for instructions on how to try out or install the Viper tools.
 
 |
 
