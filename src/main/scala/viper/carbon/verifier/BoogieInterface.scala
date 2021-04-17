@@ -16,6 +16,9 @@ import viper.silver.verifier.errors.Internal
 import viper.silver.verifier.reasons.InternalReason
 import viper.carbon.boogie.Assert
 import viper.carbon.boogie.Program
+import viper.silver.reporter.Reporter
+import viper.silver.reporter.BackendSubProcessReport
+import viper.silver.reporter.BackendSubProcessStages._
 
 
 class BoogieDependency(_location: String) extends Dependency {
@@ -29,6 +32,8 @@ class BoogieDependency(_location: String) extends Dependency {
  */
 
 trait BoogieInterface {
+
+  def reporter: Reporter
 
   def defaultOptions = Seq("/vcsCores:" + java.lang.Runtime.getRuntime.availableProcessors,
     "/errorTrace:0",
@@ -138,10 +143,12 @@ trait BoogieInterface {
     var res: String = ""
     var reserr: String = ""
     def out(input: java.io.InputStream): Unit = {
+      reporter report BackendSubProcessReport("carbon", boogiePath, onOutput/*, _boogieProcessPid*/)
       res += convertStreamToString(input)
       input.close()
     }
     def err(in: java.io.InputStream): Unit = {
+      reporter report BackendSubProcessReport("carbon", boogiePath, OnError/*, _boogieProcessPid*/)
       reserr += convertStreamToString(in)
       in.close()
     }
@@ -151,23 +158,30 @@ trait BoogieInterface {
     val stream = new BufferedOutputStream(new FileOutputStream(tmp))
     stream.write(input.getBytes)
     stream.close()
+    reporter report BackendSubProcessReport("carbon", boogiePath, BeforeInputSent/*, _boogieProcessPid*/)
 
     // Note: call exitValue to block until Boogie has finished
     // Note: we call boogie with an empty input "file" on stdin and parse the output
-    _boogieProcess = (Seq(boogiePath) ++ options ++ Seq(tmp.getAbsolutePath)).run(new ProcessIO(_.close(), out, err))
+    _boogieProcess = (Seq(boogiePath) ++ options ++ Seq(tmp.getAbsolutePath)).run(new ProcessIO((x: OutputStream) => {
+      x.close()
+      reporter report BackendSubProcessReport("carbon", boogiePath, AfterInputSent/*, _boogieProcessPid*/)
+    }, out, err))
     _boogieProcess.exitValue()
     reserr + res
   }
 
   def stopBoogie(): Unit = {
     if(_boogieProcess!= null){
+      reporter report BackendSubProcessReport("carbon", boogiePath, BeforeTermination/*, _boogieProcessPid*/)
       _boogieProcess.destroy()
+      reporter report BackendSubProcessReport("carbon", boogiePath, AfterTermination/*, _boogieProcessPid*/)
      // _boogieProcess.exitValue()  // Issue 225: I understood by the documentation of this API that by destroying the
-    }                               // processes, the pipe connecting input and output is also deleted. Therefore
+                                    // processes, the pipe connecting input and output is also deleted. Therefore
                                     // there's no need to sync with a dying processes. Instead we are free to start a
                                     // a new instance of Boogie/Z3. This was tested on a Mac successfully. However more
                                     // testing is necessary and should it failed to work properly on all platforms, this
                                     // line should be uncommented and the issue reopened.
+      }
   }
 
 /*  // TODO: investigate why passing the program directly does not work
