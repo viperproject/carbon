@@ -9,8 +9,8 @@ package viper.carbon.verifier
 import java.io._
 
 import viper.carbon.boogie.{Assert, Program}
-//import viper.silver.reporter.BackendSubProcessStages._
-//import viper.silver.reporter.{BackendSubProcessReport, Reporter}
+import viper.silver.reporter.BackendSubProcessStages._
+import viper.silver.reporter.{BackendSubProcessReport, Reporter}
 import viper.silver.verifier.errors.Internal
 import viper.silver.verifier.reasons.InternalReason
 import viper.silver.verifier.{Failure, _}
@@ -32,7 +32,7 @@ class BoogieDependency(_location: String) extends Dependency {
 
 trait BoogieInterface {
 
-  //  def reporter: Reporter
+  def reporter: Reporter
 
   def defaultOptions = Seq("/vcsCores:" + java.lang.Runtime.getRuntime.availableProcessors,
     "/errorTrace:0",
@@ -144,12 +144,12 @@ trait BoogieInterface {
     var res: String = ""
     var reserr: String = ""
     def out(input: InputStream): Unit = {
-      //      reporter report BackendSubProcessReport("carbon", boogiePath, onOutput, _boogieProcessPid)
+      reporter report BackendSubProcessReport("carbon", boogiePath, onOutput, _boogieProcessPid)
       res += convertStreamToString(input)
       input.close()
     }
     def err(in: InputStream): Unit = {
-      //      reporter report BackendSubProcessReport("carbon", boogiePath, OnError, _boogieProcessPid)
+      reporter report BackendSubProcessReport("carbon", boogiePath, OnError, _boogieProcessPid)
       reserr += convertStreamToString(in)
       in.close()
     }
@@ -161,7 +161,7 @@ trait BoogieInterface {
     stream.write(input.getBytes)
     stream.close()
 
-    //    reporter report BackendSubProcessReport("carbon", boogiePath, BeforeInputSent, _boogieProcessPid)
+    reporter report BackendSubProcessReport("carbon", boogiePath, BeforeInputSent, _boogieProcessPid)
 
     val cmd: Seq[String] = (Seq(boogiePath) ++ options ++ Seq(tmp.getAbsolutePath))
     val pb: ProcessBuilder = new ProcessBuilder(cmd.asJava)
@@ -172,19 +172,19 @@ trait BoogieInterface {
     proc.getOutputStream.close()
 
     _z3ProcessStream = Some(proc.descendants().toScala(LazyList))
-    //    reporter report BackendSubProcessReport("carbon", boogiePath, AfterInputSent, _boogieProcessPid)
+    reporter report BackendSubProcessReport("carbon", boogiePath, AfterInputSent, _boogieProcessPid)
     err(proc.getErrorStream)
     out(proc.getInputStream)
     proc.waitFor()
 
-    //    reporter report BackendSubProcessReport("carbon", boogiePath, OnExit, _boogieProcessPid)
+    reporter report BackendSubProcessReport("carbon", boogiePath, OnExit, _boogieProcessPid)
     reserr + res
   }
 
   def stopBoogie(): Unit = {
     _boogieProcess match {
       case Some(proc) =>
-        //        reporter report BackendSubProcessReport("carbon", boogiePath, BeforeTermination, _boogieProcessPid)
+        reporter report BackendSubProcessReport("carbon", boogiePath, BeforeTermination, _boogieProcessPid)
         proc.destroy()
         _z3ProcessStream match {
           case Some(stream) =>
@@ -193,7 +193,7 @@ trait BoogieInterface {
             })
           case None =>
         }
-      //        reporter report BackendSubProcessReport("carbon", boogiePath, AfterTermination, _boogieProcessPid)
+      reporter report BackendSubProcessReport("carbon", boogiePath, AfterTermination, _boogieProcessPid)
       case None =>
     }
   }
