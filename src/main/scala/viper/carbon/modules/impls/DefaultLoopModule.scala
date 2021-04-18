@@ -260,16 +260,12 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
       }
     }
 
-
-    val saved = ViperStrategy.forceRewrite
-    ViperStrategy.forceRewrite = true
-
     val result =
       m.body match {
         case Some(s) =>
           currentMethodIsAbstract = false
           val normalizedBody =
-            s.transform(
+            s.transformForceCopy(
               rewriteDummyStatements, sil.utility.rewriter.Traverse.BottomUp
             ).asInstanceOf[sil.Seqn]
 
@@ -282,8 +278,6 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
           currentMethodIsAbstract = true
           m
       }
-
-    ViperStrategy.forceRewrite = saved
 
     result
   }
