@@ -168,7 +168,9 @@ class DefaultHeapModule(val verifier: Verifier)
         MaybeCommentedDecl("Frame all locations with known folded permissions", Axiom(Forall(
           vars ++ Seq(predField),
           //Trigger(Seq(identicalFuncApp, lookup(h.l, nullLit, predicateMaskField(predField.l)), isPredicateField(predField.l))) ++
-          Trigger(Seq(identicalFuncApp, lookup(eh.l, nullLit, predField.l), isPredicateField(predField.l))) /*++
+          // Trigger(Seq(identicalFuncApp, lookup(eh.l, nullLit, predField.l), isPredicateField(predField.l)))
+          Trigger(Seq(identicalFuncApp, isPredicateField(predField.l)))
+          /*++
             Trigger(Seq(identicalFuncApp, lookup(eh.l, nullLit, predicateMaskField(predField.l)), isPredicateField(predField.l))) ++
             (verifier.program.predicates map (pred =>
               Trigger(Seq(identicalFuncApp, predicateTriggerAnyState(pred, predField.l), isPredicateField(predField.l))))
