@@ -9,7 +9,7 @@ package viper.carbon.modules.impls
 import viper.carbon.modules.{StatelessComponent, StmtModule}
 import viper.carbon.modules.components.SimpleStmtComponent
 import viper.silver.ast.utility.Expressions.{whenExhaling, whenInhaling}
-import viper.silver.{ast => sil}
+import viper.silver.{ast, ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.Verifier
 import Implicits._
@@ -42,11 +42,33 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
   }
 
   val lblNamespace = verifier.freshNamespace("stmt.lbl")
+  var lblVarsNamespace = verifier.freshNamespace("var.lbl")
 
   def name = "Statement module"
 
   /**
-   * Takes a list of assertions, and executes all of the unfolding expressions inside. In particular, this means that the correct
+    * For each label we track a boolean that indicates whether the label has been defined in the trace
+    */
+  var labelBooleanGuards : collection.mutable.Map[String, LocalVarDecl] = new collection.mutable.HashMap[String, LocalVarDecl]()
+
+  override def initStmt(methodBody: sil.Stmt): Stmt = {
+    labelBooleanGuards = new collection.mutable.HashMap[String, LocalVarDecl]()
+
+    //create a boolean variable declaration for each label
+    methodBody.visit(
+      n => n match {
+        case sil.Label(name,_) =>
+          labelBooleanGuards.put(name, LocalVarDecl(Identifier(name)(lblVarsNamespace), Bool))
+      }
+    )
+
+    for (boolDecls <- labelBooleanGuards.values.toList) yield {
+      boolDecls.l := FalseLit()
+    }
+  }
+
+  /**
+    * Takes a list of assertions, and executes all of the unfolding expressions inside. In particular, this means that the correct
    * predicate definitions get assumed, under the correct conditionals. Most checking of definedness is disabled (by the "false"
    * parameter to checkDefinedness), however, note that checking that the predicates themselves are held when unfolding is still
    * performed, because the code for that is an exhale. Because of this, it may be necessary to make sure that this operation is
@@ -205,11 +227,19 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
         If((allStateAssms) ==> translateExpInWand(cond),
           translateStmt(thn, statesStack, allStateAssms, insidePackageStmt),
           translateStmt(els, statesStack, allStateAssms, insidePackageStmt))
-      case sil.Label(name, invs) => {
-        val (stmt, currentState) = stateModule.freshTempState("Label" + name)
-        stateModule.stateRepositoryPut(name, stateModule.state)
-        stateModule.replaceState(currentState)
-        stmt ++ Label(Lbl(Identifier(name)(lblNamespace)))
+      case sil.Label(name, _) => {
+        val labelState =
+          stateModule.stateRepositoryGet(name).fold({
+            val s = stateModule.freshTempStateKeepCurrent("Label"+name)
+            stateModule.stateRepositoryPut(name, s)
+            s
+          }
+        )(identity)
+
+        //first label, then init statement: otherwise gotos to this label will skip the initialization
+        Label(Lbl(Identifier(name)(lblNamespace))) ++
+          stateModule.initToCurrentStmt(labelState) ++
+          (labelBooleanGuards(name).l := TrueLit())  //label is defined
       }
       case sil.Goto(target) =>
         Goto(Lbl(Identifier(target)(lblNamespace)))

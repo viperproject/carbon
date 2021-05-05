@@ -90,7 +90,14 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         if(findLabel.equals("lhs"))
           findLabel = findLabel+wandModule.getActiveLhs()
         val prevState = stateModule.state
-        stateModule.replaceState(stateModule.stateRepositoryGet(findLabel).get)
+        val labelState = stateModule.stateRepositoryGet(findLabel).fold(
+          {
+            val s = stateModule.freshTempStateKeepCurrent("Label"+findLabel)
+            stateModule.stateRepositoryPut(findLabel, s)
+            s
+          })(identity)
+
+        stateModule.replaceState(labelState)
         val res = translateExp(exp)
         stateModule.replaceState(prevState)
         res
