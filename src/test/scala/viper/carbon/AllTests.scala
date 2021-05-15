@@ -12,7 +12,7 @@ import viper.silver.frontend.Frontend
 import java.nio.file.Path
 
 import viper.silver.logger.SilentLogger
-import viper.silver.reporter.NoopReporter
+import viper.silver.reporter.{NoopReporter, StdIOReporter}
 
 /** All tests for carbon.
 
@@ -31,5 +31,5 @@ class AllTests extends SilSuite {
     fe
   }
 
-  lazy val verifiers = List(CarbonVerifier())
+  lazy val verifiers = List(CarbonVerifier(StdIOReporter()))
 }
