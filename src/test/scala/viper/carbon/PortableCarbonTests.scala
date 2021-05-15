@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2011-2019 ETH Zurich.
+// Copyright (c) 2011-2021 ETH Zurich.
 
 package viper.carbon
 
@@ -76,11 +76,12 @@ class PortableCarbonTests extends SilSuite with StatisticalTestSuite {
   override val targetLocationPropertyName = "CARBONTESTS_TARGET"
   override val csvFilePropertyName = "CARBONTESTS_CSV"
 
-  override def verifier: CarbonVerifier = CarbonVerifier()
+  val reporter = NoopReporter
+  override def verifier: CarbonVerifier = CarbonVerifier(reporter)
 
   override def frontend(verifier: Verifier, files: Seq[Path]): Frontend = {
     require(files.length == 1, "tests should consist of exactly one file")
-    val fe = new CarbonFrontend(NoopReporter, SilentLogger().get)
+    val fe = new CarbonFrontend(reporter, SilentLogger().get)
     fe.init(verifier)
     fe.reset(files.head)
     fe

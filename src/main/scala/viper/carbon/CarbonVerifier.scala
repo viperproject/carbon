@@ -13,7 +13,9 @@ import viper.silver.utility.Paths
 import viper.silver.verifier._
 import verifier.{BoogieDependency, BoogieInterface, Verifier}
 import java.io.{BufferedOutputStream, File, FileOutputStream, IOException}
+
 import viper.silver.frontend.MissingDependencyException
+import viper.silver.reporter.Reporter
 
 /**
  * The main class to perform verification of Viper programs.  Deals with command-line arguments, configuration
@@ -21,9 +23,8 @@ import viper.silver.frontend.MissingDependencyException
  *
  * Debug information can either be set using the constructor argument or the setter.
  */
-case class CarbonVerifier(private var _debugInfo: Seq[(String, Any)] = Nil) extends Verifier with viper.silver.verifier.Verifier with BoogieInterface {
-
-  def this() = this(Nil)
+case class CarbonVerifier(override val reporter: Reporter,
+                          private var _debugInfo: Seq[(String, Any)] = Nil) extends Verifier with viper.silver.verifier.Verifier with BoogieInterface {
 
   var env = null
 
