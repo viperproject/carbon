@@ -59,7 +59,10 @@ trait BoogieInterface {
 
   private var _boogieProcess: Option[Process] = None
   private var _boogieProcessPid: Option[Long] = None
-  private var _z3ProcessStream: Option[LazyList[ProcessHandle]] = None
+
+  // Z3 processes cannot be collected this way, perhaps because they are not created using Java 9 API (but via Boogie).
+  // Hence, for now we have to trust Boogie to manage its own sub-processes.
+  // private var _z3ProcessStream: Option[LazyList[ProcessHandle]] = None
 
   var errormap: Map[Int, VerificationError] = Map()
   var models : collection.mutable.ListBuffer[String] = new collection.mutable.ListBuffer[String]
@@ -144,7 +147,7 @@ trait BoogieInterface {
     var res: String = ""
     var reserr: String = ""
     def out(input: InputStream): Unit = {
-      reporter report BackendSubProcessReport("carbon", boogiePath, onOutput, _boogieProcessPid)
+      reporter report BackendSubProcessReport("carbon", boogiePath, OnOutput, _boogieProcessPid)
       res += convertStreamToString(input)
       input.close()
     }
@@ -171,7 +174,7 @@ trait BoogieInterface {
 
     proc.getOutputStream.close()
 
-    _z3ProcessStream = Some(proc.descendants().toScala(LazyList))
+    // _z3ProcessStream = Some(proc.descendants().toScala(LazyList))
     reporter report BackendSubProcessReport("carbon", boogiePath, AfterInputSent, _boogieProcessPid)
     err(proc.getErrorStream)
     out(proc.getInputStream)
@@ -186,14 +189,14 @@ trait BoogieInterface {
       case Some(proc) =>
         reporter report BackendSubProcessReport("carbon", boogiePath, BeforeTermination, _boogieProcessPid)
         proc.destroy()
-        _z3ProcessStream match {
+        /*_z3ProcessStream match {
           case Some(stream) =>
             stream.foreach((ph: ProcessHandle) => {
               ph.destroy()
             })
           case None =>
-        }
-      reporter report BackendSubProcessReport("carbon", boogiePath, AfterTermination, _boogieProcessPid)
+        }*/
+        reporter report BackendSubProcessReport("carbon", boogiePath, AfterTermination, _boogieProcessPid)
       case None =>
     }
   }
