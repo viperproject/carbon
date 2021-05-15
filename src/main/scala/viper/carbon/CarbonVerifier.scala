@@ -13,7 +13,6 @@ import viper.silver.utility.Paths
 import viper.silver.verifier._
 import verifier.{BoogieDependency, BoogieInterface, Verifier}
 import java.io.{BufferedOutputStream, File, FileOutputStream, IOException}
-
 import viper.silver.frontend.MissingDependencyException
 import viper.silver.reporter.Reporter
 
