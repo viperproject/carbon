@@ -235,7 +235,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
         //first label, then init statement: otherwise gotos to this label will skip the initialization
         Label(Lbl(Identifier(name)(lblNamespace))) ++
           stateModule.initToCurrentStmt(labelState) ++
-          (labelBooleanGuards(name).l := TrueLit())  //label is defined
+          labelBooleanGuards.get(name).fold[Stmt](Nil)(labelGuardDecl => Seq(labelGuardDecl.l := TrueLit()))  //label is defined
       }
       case sil.Goto(target) =>
         Goto(Lbl(Identifier(target)(lblNamespace)))
@@ -315,7 +315,11 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
     if(makeChecks) {
       e match {
         case labelOld@sil.LabelledOld(_, labelName) =>
-          Assert(labelBooleanGuards(labelName).l, error.dueTo(reasons.LabelledStateNotReached(labelOld)))
+          labelBooleanGuards.get(labelName) match {
+            case Some(labelGuardDecl) =>
+              Assert(labelGuardDecl.l, error.dueTo(reasons.LabelledStateNotReached(labelOld)))
+            case None => Nil
+          }
         case _ => Nil
       }
     } else Nil
