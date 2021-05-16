@@ -7,20 +7,19 @@
 package viper.carbon.modules.impls
 
 import viper.carbon.modules.{StatelessComponent, StmtModule}
-import viper.carbon.modules.components.SimpleStmtComponent
+import viper.carbon.modules.components.{DefinednessComponent, SimpleStmtComponent}
 import viper.silver.ast.utility.Expressions.{whenExhaling, whenInhaling}
-import viper.silver.{ast, ast => sil}
+import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.Verifier
 import Implicits._
-import viper.silver.verifier.errors
-import viper.silver.verifier.PartialVerificationError
+import viper.silver.verifier.{PartialVerificationError, errors, reasons}
 import viper.silver.ast.utility.Expressions
 
 /**
  * The default implementation of a [[viper.carbon.modules.StmtModule]].
  */
-class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleStmtComponent with StatelessComponent {
+class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleStmtComponent with StatelessComponent with DefinednessComponent {
 
   import verifier._
   import expModule._
@@ -39,6 +38,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
     // For Field assignments: Heap module (which goes last) adds the translation of the actual operation as a postfix the other code (which checks well-definedness)
     // For MethodCall: assumptions about return values are added by the HeapModule as a postfix to the main translation in StmtModule
     // For New: the operation translation (HeapModule) is added as a prefix to the code adding permissions (PermModule)
+    expModule.register(this)
   }
 
   val lblNamespace = verifier.freshNamespace("stmt.lbl")
@@ -58,7 +58,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
     methodBody.visit(
       n => n match {
         case sil.Label(name,_) =>
-          labelBooleanGuards.put(name, LocalVarDecl(Identifier(name)(lblVarsNamespace), Bool))
+          labelBooleanGuards.put(name, LocalVarDecl(Identifier(name+"_lblGuard")(lblVarsNamespace), Bool))
       }
     )
 
@@ -228,14 +228,10 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           translateStmt(thn, statesStack, allStateAssms, insidePackageStmt),
           translateStmt(els, statesStack, allStateAssms, insidePackageStmt))
       case sil.Label(name, _) => {
-        val labelState =
-          stateModule.stateRepositoryGet(name).fold({
-            val s = stateModule.freshTempStateKeepCurrent("Label"+name)
-            stateModule.stateRepositoryPut(name, s)
-            s
-          }
-        )(identity)
-
+        val labelState = LabelHelper.getLabelState[stateModule.StateSnapshot](
+          name,
+          stateModule.freshTempStateKeepCurrent,
+          stateModule.stateRepositoryGet, stateModule.stateRepositoryPut)
         //first label, then init statement: otherwise gotos to this label will skip the initialization
         Label(Lbl(Identifier(name)(lblNamespace))) ++
           stateModule.initToCurrentStmt(labelState) ++
@@ -312,5 +308,16 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
       Nil
 
     CommentBlock(comment + s" -- ${stmt.pos}", translation)
+  }
+
+
+  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
+    if(makeChecks) {
+      e match {
+        case labelOld@sil.LabelledOld(_, labelName) =>
+          Assert(labelBooleanGuards(labelName).l, error.dueTo(reasons.LabelledStateNotReached(labelOld)))
+        case _ => Nil
+      }
+    } else Nil
   }
 }

@@ -57,6 +57,14 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
     }
   }
 
+  def getLabelState(labelName: String): StateSnapshot = {
+    stateModule.stateRepositoryGet(labelName).fold(
+      {
+        val s = stateModule.freshTempStateKeepCurrent("Label"+labelName)
+        stateModule.stateRepositoryPut(labelName, s)
+        s
+      })(identity)
+  }
 
   override def translateExp(e: sil.Exp): Exp = {
     e match {
@@ -90,13 +98,10 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         if(findLabel.equals("lhs"))
           findLabel = findLabel+wandModule.getActiveLhs()
         val prevState = stateModule.state
-        val labelState = stateModule.stateRepositoryGet(findLabel).fold(
-          {
-            val s = stateModule.freshTempStateKeepCurrent("Label"+findLabel)
-            stateModule.stateRepositoryPut(findLabel, s)
-            s
-          })(identity)
-
+        val labelState = LabelHelper.getLabelState[stateModule.StateSnapshot](
+          findLabel,
+          stateModule.freshTempStateKeepCurrent,
+          stateModule.stateRepositoryGet, stateModule.stateRepositoryPut)
         stateModule.replaceState(labelState)
         val res = translateExp(exp)
         stateModule.replaceState(prevState)
@@ -442,7 +447,11 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             if(findLabel.equals("lhs"))
               findLabel = "lhs"+wandModule.getActiveLhs()
             val prevState = stateModule.state
-            stateModule.replaceState(stateModule.stateRepositoryGet(findLabel).get)
+            val labelState = LabelHelper.getLabelState[stateModule.StateSnapshot](
+              findLabel,
+              stateModule.freshTempStateKeepCurrent,
+              stateModule.stateRepositoryGet, stateModule.stateRepositoryPut)
+            stateModule.replaceState(labelState)
             val res = translate(e)
             stateModule.replaceState(prevState)
             res
