@@ -57,15 +57,6 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
     }
   }
 
-  def getLabelState(labelName: String): StateSnapshot = {
-    stateModule.stateRepositoryGet(labelName).fold(
-      {
-        val s = stateModule.freshTempStateKeepCurrent("Label"+labelName)
-        stateModule.stateRepositoryPut(labelName, s)
-        s
-      })(identity)
-  }
-
   override def translateExp(e: sil.Exp): Exp = {
     e match {
       case sil.IntLit(i) =>
