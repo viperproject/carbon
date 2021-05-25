@@ -25,7 +25,7 @@ import viper.carbon.boogie.{Exp, Stmt, TrueLit}
 trait StmtModule extends Module with ComponentRegistry[StmtComponent] {
 
   /**
-    * Return initial statement to be used at beginning method body encoding (for example, code for labels).
+    * Return initial statement to be used at the beginning of the method body encoding (for example, code for labels).
     * This method also sets up the internal state of the module and should thus be invoked before any statements are
     * translated
     */

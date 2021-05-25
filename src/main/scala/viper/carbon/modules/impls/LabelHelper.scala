@@ -5,7 +5,7 @@ import viper.carbon.modules.StateModule
 object LabelHelper {
 
   /**
-    * Would prefer to use a method that takes a state module as input, but since it would have a dependent return
+    * Would prefer to use a method that takes a state module as input, but since it would have a dependent return type
     * (stateModule.StateSnapshot) IntelliJ can report false errors for callers.
     * @param labelName
     * @param freshTempStateNoSideEffect provide a fresh state without any side effects
