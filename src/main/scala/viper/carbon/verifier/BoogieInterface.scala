@@ -2,20 +2,22 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2011-2019 ETH Zurich.
+// Copyright (c) 2011-2021 ETH Zurich.
 
 package viper.carbon.verifier
 
-import viper.silver.verifier._
-
-import sys.process._
 import java.io._
 
-import viper.silver.verifier.Failure
+import viper.carbon.boogie.{Assert, Program}
+import viper.silver.reporter.BackendSubProcessStages._
+import viper.silver.reporter.{BackendSubProcessReport, Reporter}
 import viper.silver.verifier.errors.Internal
 import viper.silver.verifier.reasons.InternalReason
-import viper.carbon.boogie.Assert
-import viper.carbon.boogie.Program
+import viper.silver.verifier.{Failure, _}
+
+import scala.jdk.CollectionConverters._
+import scala.jdk.StreamConverters._
+
 
 
 class BoogieDependency(_location: String) extends Dependency {
@@ -25,10 +27,12 @@ class BoogieDependency(_location: String) extends Dependency {
 }
 
 /**
- * Defines a clean interface to invoke Boogie and get a list of errors back.
- */
+  * Defines a clean interface to invoke Boogie and get a list of errors back.
+  */
 
 trait BoogieInterface {
+
+  def reporter: Reporter
 
   def defaultOptions = Seq("/vcsCores:" + java.lang.Runtime.getRuntime.availableProcessors,
     "/errorTrace:0",
@@ -53,7 +57,12 @@ trait BoogieInterface {
   /** The (resolved) path where Z3 is supposed to be located. */
   def z3Path: String
 
-  private var _boogieProcess:Process = null
+  private var _boogieProcess: Option[Process] = None
+  private var _boogieProcessPid: Option[Long] = None
+
+  // Z3 processes cannot be collected this way, perhaps because they are not created using Java 9 API (but via Boogie).
+  // Hence, for now we have to trust Boogie to manage its own sub-processes.
+  // private var _z3ProcessStream: Option[LazyList[ProcessHandle]] = None
 
   var errormap: Map[Int, VerificationError] = Map()
   var models : collection.mutable.ListBuffer[String] = new collection.mutable.ListBuffer[String]
@@ -86,8 +95,8 @@ trait BoogieInterface {
   }
 
   /**
-   * Parse the output of Boogie. Returns a pair of the detected version number and a sequence of error identifiers.
-   */
+    * Parse the output of Boogie. Returns a pair of the detected version number and a sequence of error identifiers.
+    */
   private def parse(output: String): (String,Seq[Int]) = {
     val LogoPattern = "Boogie program verifier version ([0-9.]+),.*".r
     val SummaryPattern = "Boogie program verifier finished with ([0-9]+) verified, ([0-9]+) error.*".r
@@ -128,8 +137,8 @@ trait BoogieInterface {
   }
 
   /**
-   * Invoke Boogie.
-   */
+    * Invoke Boogie.
+    */
   private def run(input: String, options: Seq[String]): String = {
     def convertStreamToString(is: java.io.InputStream) = {
       val s = new java.util.Scanner(is).useDelimiter("\\A")
@@ -137,11 +146,13 @@ trait BoogieInterface {
     }
     var res: String = ""
     var reserr: String = ""
-    def out(input: java.io.InputStream): Unit = {
+    def out(input: InputStream): Unit = {
+      reporter report BackendSubProcessReport("carbon", boogiePath, OnOutput, _boogieProcessPid)
       res += convertStreamToString(input)
       input.close()
     }
-    def err(in: java.io.InputStream): Unit = {
+    def err(in: InputStream): Unit = {
+      reporter report BackendSubProcessReport("carbon", boogiePath, OnError, _boogieProcessPid)
       reserr += convertStreamToString(in)
       in.close()
     }
@@ -152,47 +163,66 @@ trait BoogieInterface {
     stream.write(input.getBytes)
     stream.close()
 
-    // Note: call exitValue to block until Boogie has finished
-    // Note: we call boogie with an empty input "file" on stdin and parse the output
-    _boogieProcess = (Seq(boogiePath) ++ options ++ Seq(tmp.getAbsolutePath)).run(new ProcessIO(_.close(), out, err))
-    _boogieProcess.exitValue()
+    reporter report BackendSubProcessReport("carbon", boogiePath, BeforeInputSent, _boogieProcessPid)
+
+    val cmd: Seq[String] = (Seq(boogiePath) ++ options ++ Seq(tmp.getAbsolutePath))
+    val pb: ProcessBuilder = new ProcessBuilder(cmd.asJava)
+    val proc: Process = pb.start()
+    _boogieProcess = Some(proc)
+    _boogieProcessPid = Some(proc.pid)
+
+    proc.getOutputStream.close()
+
+    // _z3ProcessStream = Some(proc.descendants().toScala(LazyList))
+    reporter report BackendSubProcessReport("carbon", boogiePath, AfterInputSent, _boogieProcessPid)
+    err(proc.getErrorStream)
+    out(proc.getInputStream)
+    proc.waitFor()
+
+    reporter report BackendSubProcessReport("carbon", boogiePath, OnExit, _boogieProcessPid)
     reserr + res
   }
 
   def stopBoogie(): Unit = {
-    if(_boogieProcess!= null){
-      _boogieProcess.destroy()
-     // _boogieProcess.exitValue()  // Issue 225: I understood by the documentation of this API that by destroying the
-    }                               // processes, the pipe connecting input and output is also deleted. Therefore
-                                    // there's no need to sync with a dying processes. Instead we are free to start a
-                                    // a new instance of Boogie/Z3. This was tested on a Mac successfully. However more
-                                    // testing is necessary and should it failed to work properly on all platforms, this
-                                    // line should be uncommented and the issue reopened.
+    _boogieProcess match {
+      case Some(proc) =>
+        reporter report BackendSubProcessReport("carbon", boogiePath, BeforeTermination, _boogieProcessPid)
+        proc.destroy()
+        /*_z3ProcessStream match {
+          case Some(stream) =>
+            stream.foreach((ph: ProcessHandle) => {
+              ph.destroy()
+            })
+          case None =>
+        }*/
+        reporter report BackendSubProcessReport("carbon", boogiePath, AfterTermination, _boogieProcessPid)
+      case None =>
+    }
   }
 
-/*  // TODO: investigate why passing the program directly does not work
-  private def runX(input: String, options: Seq[String]): String = {
-    def convertStreamToString(is: java.io.InputStream) = {
-      val s = new java.util.Scanner(is).useDelimiter("\\A")
-      if (s.hasNext) s.next() else ""
-    }
-    var res: String = ""
-    var reserr: String = ""
-    def out(input: java.io.InputStream) {
-      res += convertStreamToString(input)
-      input.close()
-    }
-    def err(in: java.io.InputStream) {
-      reserr += convertStreamToString(in)
-      in.close()
-    }
-    def in(output: java.io.OutputStream) {
-      output.write(input.getBytes)
-      output.close()
-    }
-    // Note: call exitValue to block until Boogie has finished
-    // Note: we call boogie with an empty input "file" on stdin and parse the output
-    (Seq(boogiePath) ++ options ++ Seq("stdin.bpl")).run(new ProcessIO(in, out, err)).exitValue()
-    reserr + res
-  }*/
+  /*  // TODO: investigate why passing the program directly does not work
+    private def runX(input: String, options: Seq[String]): String = {
+      def convertStreamToString(is: java.io.InputStream) = {
+        val s = new java.util.Scanner(is).useDelimiter("\\A")
+        if (s.hasNext) s.next() else ""
+      }
+      var res: String = ""
+      var reserr: String = ""
+      def out(input: java.io.InputStream) {
+        res += convertStreamToString(input)
+        input.close()
+      }
+      def err(in: java.io.InputStream) {
+        reserr += convertStreamToString(in)
+        in.close()
+      }
+      def in(output: java.io.OutputStream) {
+        output.write(input.getBytes)
+        output.close()
+      }
+      // Note: call exitValue to block until Boogie has finished
+      // Note: we call boogie with an empty input "file" on stdin and parse the output
+      (Seq(boogiePath) ++ options ++ Seq("stdin.bpl")).run(new ProcessIO(in, out, err)).exitValue()
+      reserr + res
+    }*/
 }
