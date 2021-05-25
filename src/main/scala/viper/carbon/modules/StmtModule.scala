@@ -23,5 +23,15 @@ import viper.carbon.boogie.{Exp, Stmt, TrueLit}
   * For more details refer to the general note in 'wandModule'.
   */
 trait StmtModule extends Module with ComponentRegistry[StmtComponent] {
+
+  /**
+    * Return initial statement to be used at the beginning of the method body encoding (for example, code for labels).
+    * This method also sets up the internal state of the module and should thus be invoked before any statements are
+    * translated
+    */
+  def initStmt(methodBody: sil.Stmt) : Stmt
+
   def translateStmt(stmt: sil.Stmt, statesStackForPackageStmt: List[Any] = null, allStateAssms: Exp = TrueLit(), insidePackageStmt: Boolean = false): Stmt
+
+
 }

@@ -13,6 +13,7 @@ import viper.carbon.boogie.Implicits._
 import viper.carbon.modules.components.CarbonStateComponent
 
 import scala.collection.mutable
+import scala.jdk.CollectionConverters.CollectionHasAsScala
 
 /**
  * The default implementation of a [[viper.carbon.modules.StateModule]].
@@ -132,6 +133,24 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     }
     usingOldState = false // we have now set up a temporary state in terms of "old" - this could happen when an unfolding expression is inside an "old"
     (s, previousState)
+  }
+
+  override def freshTempStateKeepCurrent(name: String) : StateSnapshot = {
+    val freshState = new StateComponentMapping()
+
+    for (c <- components) yield {
+      val tmpExps = c.freshTempState(name)
+      freshState.put(c, tmpExps)
+    }
+
+    (freshState, false, false)
+  }
+
+  override def initToCurrentStmt(snapshot: StateSnapshot) : Stmt = {
+    for (e <- snapshot._1.entrySet().asScala.toSeq) yield {
+      val s: Stmt = (e.getValue zip e.getKey.currentStateExps) map (x => x._1 := x._2)
+      s
+    }
   }
 
   def freshEmptyState(name: String, init: Boolean = false): (Stmt, StateSnapshot) =

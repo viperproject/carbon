@@ -57,7 +57,6 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
     }
   }
 
-
   override def translateExp(e: sil.Exp): Exp = {
     e match {
       case sil.IntLit(i) =>
@@ -90,7 +89,11 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         if(findLabel.equals("lhs"))
           findLabel = findLabel+wandModule.getActiveLhs()
         val prevState = stateModule.state
-        stateModule.replaceState(stateModule.stateRepositoryGet(findLabel).get)
+        val labelState = LabelHelper.getLabelState[stateModule.StateSnapshot](
+          findLabel,
+          stateModule.freshTempStateKeepCurrent,
+          stateModule.stateRepositoryGet, stateModule.stateRepositoryPut)
+        stateModule.replaceState(labelState)
         val res = translateExp(exp)
         stateModule.replaceState(prevState)
         res
@@ -435,7 +438,11 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             if(findLabel.equals("lhs"))
               findLabel = "lhs"+wandModule.getActiveLhs()
             val prevState = stateModule.state
-            stateModule.replaceState(stateModule.stateRepositoryGet(findLabel).get)
+            val labelState = LabelHelper.getLabelState[stateModule.StateSnapshot](
+              findLabel,
+              stateModule.freshTempStateKeepCurrent,
+              stateModule.stateRepositoryGet, stateModule.stateRepositoryPut)
+            stateModule.replaceState(labelState)
             val res = translate(e)
             stateModule.replaceState(prevState)
             res
