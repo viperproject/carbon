@@ -7,7 +7,6 @@
 package viper.carbon.verifier
 
 import java.io._
-
 import viper.carbon.boogie.{Assert, Program}
 import viper.silver.reporter.BackendSubProcessStages._
 import viper.silver.reporter.{BackendSubProcessReport, Reporter}
@@ -16,14 +15,26 @@ import viper.silver.verifier.reasons.InternalReason
 import viper.silver.verifier.{Failure, _}
 
 import scala.jdk.CollectionConverters._
-import scala.jdk.StreamConverters._
-
-
 
 class BoogieDependency(_location: String) extends Dependency {
   def name = "Boogie"
   def location = _location
   var version = "" // filled-in when Boogie is invoked
+}
+
+class InputStreamConsumer(val is: InputStream, actionBeforeConsumption: () => Unit) extends Runnable {
+  var result : Option[String] = None
+
+  private def convertStreamToString(is: InputStream) = {
+    val s = new java.util.Scanner(is).useDelimiter("\\A")
+    if (s.hasNext) s.next() else ""
+  }
+
+  def run(): Unit = {
+    actionBeforeConsumption()
+    result = Some(convertStreamToString(is))
+    is.close()
+  }
 }
 
 /**
@@ -139,23 +150,7 @@ trait BoogieInterface {
   /**
     * Invoke Boogie.
     */
-  private def run(input: String, options: Seq[String]): String = {
-    def convertStreamToString(is: java.io.InputStream) = {
-      val s = new java.util.Scanner(is).useDelimiter("\\A")
-      if (s.hasNext) s.next() else ""
-    }
-    var res: String = ""
-    var reserr: String = ""
-    def out(input: InputStream): Unit = {
-      reporter report BackendSubProcessReport("carbon", boogiePath, OnOutput, _boogieProcessPid)
-      res += convertStreamToString(input)
-      input.close()
-    }
-    def err(in: InputStream): Unit = {
-      reporter report BackendSubProcessReport("carbon", boogiePath, OnError, _boogieProcessPid)
-      reserr += convertStreamToString(in)
-      in.close()
-    }
+  private def run(input: String, options: Seq[String]) = {
     // write program to a temporary file
     val tmp = File.createTempFile("carbon", ".bpl")
     tmp.deleteOnExit()
@@ -175,12 +170,31 @@ trait BoogieInterface {
 
     // _z3ProcessStream = Some(proc.descendants().toScala(LazyList))
     reporter report BackendSubProcessReport("carbon", boogiePath, AfterInputSent, _boogieProcessPid)
-    err(proc.getErrorStream)
-    out(proc.getInputStream)
+
+    val errorConsumer =
+      new InputStreamConsumer(proc.getErrorStream, () => reporter report BackendSubProcessReport("carbon", boogiePath, OnError, _boogieProcessPid))
+    val errorStreamThread = new Thread(errorConsumer)
+    val inputConsumer =
+      new InputStreamConsumer(proc.getInputStream, () => reporter report BackendSubProcessReport("carbon", boogiePath, OnOutput, _boogieProcessPid))
+    val inputStreamThread = new Thread(inputConsumer)
+
+    errorStreamThread.start()
+    inputStreamThread.start()
+
     proc.waitFor()
 
-    reporter report BackendSubProcessReport("carbon", boogiePath, OnExit, _boogieProcessPid)
-    reserr + res
+    errorStreamThread.join()
+    inputStreamThread.join()
+
+    try {
+      val errorOutput = errorConsumer.result.get
+      val normalOutput = inputConsumer.result.get
+      reporter report BackendSubProcessReport("carbon", boogiePath, OnExit, _boogieProcessPid)
+
+      errorOutput + normalOutput
+    } catch {
+      case _: NoSuchElementException => sys.error("Could not retrieve output from Boogie")
+    }
   }
 
   def stopBoogie(): Unit = {
