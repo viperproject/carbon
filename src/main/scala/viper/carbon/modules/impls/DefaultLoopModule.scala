@@ -265,7 +265,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
         case Some(s) =>
           currentMethodIsAbstract = false
           val normalizedBody =
-            s.transformForceCopy(
+            s.transform(
               rewriteDummyStatements, sil.utility.rewriter.Traverse.BottomUp
             ).asInstanceOf[sil.Seqn]
 

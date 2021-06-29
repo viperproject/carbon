@@ -111,7 +111,6 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
   }
 
   def translateMethodDecl(m: sil.Method, names: Option[mutable.Map[String, String]]): Seq[Decl] = {
-    //TODO
     val mWithLoopInfo = loopModule.initializeMethod(m)
 
     env = Environment(verifier, mWithLoopInfo)
