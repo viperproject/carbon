@@ -114,7 +114,7 @@ case class CarbonVerifier(override val reporter: Reporter,
       def name = "Z3"
       def version = {
         try {
-          val v = List(z3Path, "-version").lineStream.to(List)
+          val v = List(z3Path, "-version").lazyLines.to(List)
           if (v.size == 1 && v(0).startsWith("Z3 version ")) {
             v(0).substring("Z3 version ".size)
           } else {

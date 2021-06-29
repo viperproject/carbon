@@ -23,7 +23,6 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
 
   import verifier._
   import heapModule._
-  import mainModule._
   import domainModule._
   import seqModule._
   import setModule._
@@ -65,19 +64,19 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         BoolLit(b)
       case sil.NullLit() =>
         translateNull
-      case l@sil.LocalVar(name, _) =>
+      case l@sil.LocalVar(_, _) =>
         translateLocalVar(l)
       case r@sil.Result(_) =>
         translateResult(r)
-      case f@sil.FieldAccess(rcv, field) =>
+      case f@sil.FieldAccess(_, _) =>
         translateLocationAccess(f)
-      case sil.InhaleExhaleExp(a, b) =>
+      case sil.InhaleExhaleExp(_, _) =>
         sys.error("should not occur here (either, we inhale or exhale this expression, in which case whenInhaling/whenExhaling should be used, or the expression is not allowed to occur.")
-      case p@sil.PredicateAccess(rcv, predicateName) =>
+      case p@sil.PredicateAccess(_, _) =>
         translateLocationAccess(p)
-      case sil.Unfolding(acc, exp) =>
+      case sil.Unfolding(_, exp) =>
         translateExp(exp)
-      case sil.Applying(wand, exp) => translateExp(exp)
+      case sil.Applying(_, exp) => translateExp(exp)
       case sil.Old(exp) =>
         val prevState = stateModule.state
         stateModule.replaceState(stateModule.oldState)
@@ -184,11 +183,11 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         translatePerm(e)
       case sil.PermMinus(_) =>
         translatePerm(e)
-      case sil.CurrentPerm(loc) =>
+      case sil.CurrentPerm(_) =>
         translatePerm(e)
-      case sil.FractionalPerm(left, right) =>
+      case sil.FractionalPerm(_, _) =>
         translatePerm(e)
-      case sil.AccessPredicate(loc, perm) =>
+      case sil.AccessPredicate(_, _) =>
         sys.error("not handled by expression module")
       case sil.EqCmp(left, right) =>
         left.typ match {
@@ -261,36 +260,36 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       case fa@sil.BackendFuncApp(_, _) =>
         translateBackendFuncApp(fa)
 
-      case seqExp@sil.EmptySeq(elemTyp) =>
+      case seqExp@sil.EmptySeq(_) =>
         translateSeqExp(seqExp)
-      case seqExp@sil.ExplicitSeq(elems) =>
+      case seqExp@sil.ExplicitSeq(_) =>
         translateSeqExp(seqExp)
-      case seqExp@sil.RangeSeq(low, high) =>
+      case seqExp@sil.RangeSeq(_, _) =>
         translateSeqExp(seqExp)
-      case seqExp@sil.SeqAppend(left, right) =>
+      case seqExp@sil.SeqAppend(_, _) =>
         translateSeqExp(seqExp)
-      case seqExp@sil.SeqIndex(seq, idx) =>
+      case seqExp@sil.SeqIndex(_, _) =>
         translateSeqExp(seqExp)
-      case seqExp@sil.SeqTake(seq, n) =>
+      case seqExp@sil.SeqTake(_, _) =>
         translateSeqExp(seqExp)
-      case seqExp@sil.SeqDrop(seq, n) =>
+      case seqExp@sil.SeqDrop(_, _) =>
         translateSeqExp(seqExp)
-      case seqExp@sil.SeqContains(elem, seq) =>
+      case seqExp@sil.SeqContains(_, _) =>
         translateSeqExp(seqExp)
-      case seqExp@sil.SeqUpdate(seq, idx, elem) =>
+      case seqExp@sil.SeqUpdate(_, _, _) =>
         translateSeqExp(seqExp)
-      case seqExp@sil.SeqLength(seq) =>
+      case seqExp@sil.SeqLength(_) =>
         translateSeqExp(seqExp)
 
-      case setExp@sil.EmptySet(elemTyp) => translateSetExp(setExp)
-      case setExp@sil.ExplicitSet(elems) => translateSetExp(setExp)
-      case setExp@sil.EmptyMultiset(elemTyp) => translateSetExp(setExp)
-      case setExp@sil.ExplicitMultiset(elems) => translateSetExp(setExp)
-      case setExp@sil.AnySetUnion(left, right) => translateSetExp(setExp)
-      case setExp@sil.AnySetIntersection(left, right) => translateSetExp(setExp)
-      case setExp@sil.AnySetSubset(left, right) => translateSetExp(setExp)
-      case setExp@sil.AnySetMinus(left, right) => translateSetExp(setExp)
-      case setExp@sil.AnySetContains(left, right) => translateSetExp(setExp)
+      case setExp@sil.EmptySet(_) => translateSetExp(setExp)
+      case setExp@sil.ExplicitSet(_) => translateSetExp(setExp)
+      case setExp@sil.EmptyMultiset(_) => translateSetExp(setExp)
+      case setExp@sil.ExplicitMultiset(_) => translateSetExp(setExp)
+      case setExp@sil.AnySetUnion(_, _) => translateSetExp(setExp)
+      case setExp@sil.AnySetIntersection(_, _) => translateSetExp(setExp)
+      case setExp@sil.AnySetSubset(_, _) => translateSetExp(setExp)
+      case setExp@sil.AnySetMinus(_, _) => translateSetExp(setExp)
+      case setExp@sil.AnySetContains(_, _) => translateSetExp(setExp)
       case setExp@sil.AnySetCardinality(_) => translateSetExp(setExp)
 
       case mapExp: sil.EmptyMap => translateMapExp(mapExp)
@@ -315,11 +314,11 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
 
     val stmt: Stmt = (if (makeChecks)
       e match {
-        case sil.Div(a, b) =>
+        case sil.Div(_, b) =>
             Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
-        case sil.Mod(a, b) =>
+        case sil.Mod(_, b) =>
             Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
-        case sil.FractionalPerm(a, b) =>
+        case sil.FractionalPerm(_, b) =>
             Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
         case _ => Nil
       }
@@ -339,7 +338,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       stateModule.replaceState(wandModule.UNIONState.asInstanceOf[StateRep].state)
     }
 
-    var stmt =
+    val stmt =
       MaybeCommentBlock(s"Check definedness of $e",
       MaybeStmt(checkDefinednessImpl(e, error, makeChecks = makeChecks),
         if(duringPackageStmt) wandModule.exchangeAssumesWithBoolean(stateModule.assumeGoodState, wandModule.getCurOpsBoolvar()) else stateModule.assumeGoodState))
@@ -368,9 +367,9 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         checkDefinednessImpl(e1, error, makeChecks = makeChecks) :: // short-circuiting evaluation:
           If(UnExp(Not, translateExp(e1)), checkDefinednessImpl(e2, error, makeChecks = makeChecks), Statements.EmptyStmt) ::
           Nil
-      case w@sil.MagicWand(lhs, rhs) =>
+      case w@sil.MagicWand(_, _) =>
         checkDefinednessWand(w, error, makeChecks = makeChecks)
-      case l@sil.Let(v, e, body) =>
+      case sil.Let(v, e, body) =>
         checkDefinednessImpl(e, error, makeChecks = makeChecks) ::
         {
           val u = env.makeUniquelyNamed(v) // choose a fresh "v" binder
@@ -393,7 +392,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           val stmt3 = checks map (_._2())
 
           e match {
-            case sil.MagicWand(lhs, rhs) =>
+            case sil.MagicWand(_, _) =>
               sys.error("wand subnodes:" + e.subnodes.toString() +
                 "stmt:" + stmt.toString() +
                 "stmt2:" + stmt2.toString() +
@@ -519,7 +518,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             else
               If(translateExp(c), checkDefinednessOfSpecAndInhale(e1, error, statesStack, duringPackageStmt), checkDefinednessOfSpecAndInhale(e2, error, statesStack, duringPackageStmt))
           }
-      case l@sil.Let(v, exp, body) =>
+      case sil.Let(v, exp, body) =>
         checkDefinedness(exp, error, true) ::
           {
             val u = env.makeUniquelyNamed(v) // choose a fresh "v" binder
@@ -560,7 +559,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           If(translateExp(c),
             checkDefinednessOfSpecAndExhale(e1, definednessError, exhaleError, statesStack, duringPackageStmt),
             checkDefinednessOfSpecAndExhale(e2, definednessError, exhaleError, statesStack, duringPackageStmt))
-      case l@sil.Let(v, exp, body) =>
+      case sil.Let(v, exp, body) =>
         checkDefinedness(exp, definednessError, true) ::
           {
             val u = env.makeUniquelyNamed(v) // choose a fresh "v" binder

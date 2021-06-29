@@ -17,7 +17,7 @@ import viper.silver.verifier.{Verifier => SilVerifier}
  * The main object for Carbon containing the execution start-point.
  */
 object Carbon extends CarbonFrontend(StdIOReporter("carbon_reporter"), ViperStdOutLogger("Carbon", "INFO").get) {
-  def main(args: Array[String]) {
+  def main(args: Array[String]): Unit = {
     execute(args)
     specifyAppExitCode()
     sys.exit(appExitCode)
