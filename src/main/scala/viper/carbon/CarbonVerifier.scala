@@ -12,9 +12,12 @@ import viper.silver.ast.Program
 import viper.silver.utility.Paths
 import viper.silver.verifier._
 import verifier.{BoogieDependency, BoogieInterface, Verifier}
+
 import java.io.{BufferedOutputStream, File, FileOutputStream, IOException}
 import viper.silver.frontend.MissingDependencyException
-import viper.silver.reporter.Reporter
+import viper.silver.reporter.{Reporter}
+
+import java.util.concurrent.{Callable, Executors, TimeUnit, TimeoutException}
 
 /**
  * The main class to perform verification of Viper programs.  Deals with command-line arguments, configuration
@@ -131,6 +134,32 @@ case class CarbonVerifier(override val reporter: Reporter,
   }
 
   def verify(program: Program) = {
+    val executor = Executors.newSingleThreadExecutor()
+
+    val future = executor.submit(new Callable[VerificationResult] {
+      def call(): VerificationResult = verifyProgram(program)
+    })
+
+    try {
+      if (config == null || config.timeout.toOption.getOrElse(0) == 0)
+        future.get(180, TimeUnit.SECONDS)
+      else
+        future.get(config.timeout(), TimeUnit.SECONDS)
+    } catch { /* Catch exceptions thrown during verification (errors are not caught) */
+      case e: TimeoutException =>
+        if(config != null)
+          Failure(TimeoutOccurred(config.timeout(), "second(s)") :: Nil)
+        else
+          throw e
+    } finally {
+      stop()
+      /* http://docs.oracle.com/javase/7/docs/api/java/util/concurrent/ExecutorService.html */
+      executor.shutdown()
+      executor.shutdownNow()
+    }
+  }
+
+  def verifyProgram(program: Program) = {
     _program = program
 
     // reset all modules
