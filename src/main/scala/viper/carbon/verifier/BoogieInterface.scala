@@ -124,8 +124,14 @@ trait BoogieInterface {
     }
 
     var parsingModel : Option[StringBuilder] = None
+    var stateInitialBlock = false
     for (l <- output.linesIterator) {
       l match {
+        case "*** END_STATE" =>
+          stateInitialBlock = false
+        case "*** STATE <initial>" =>
+          stateInitialBlock = true
+        case _ if stateInitialBlock => //ignore everything within state block
         case "*** END_MODEL" if parsingModel.isDefined =>
           models.append(parsingModel.get.toString())
           parsingModel = None
