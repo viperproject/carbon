@@ -32,7 +32,7 @@ class CarbonFrontend(override val reporter: PluginAwareReporter,
   private var carbonInstance: CarbonVerifier = _
 
   def createVerifier(fullCmd: String) = {
-    carbonInstance = CarbonVerifier(Seq("Arguments: " -> fullCmd))
+    carbonInstance = CarbonVerifier(reporter.reporter, Seq("Arguments: " -> fullCmd))
 
     carbonInstance
   }
