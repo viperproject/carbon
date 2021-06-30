@@ -401,7 +401,17 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
       w.info.getUniqueInfo[LoopInfo] match {
         case Some(LoopInfo(Some(loopHeadId), _)) =>
           val invs = getLoopInvariants(loopHeadId)
-          val writtenVars = getWrittenVariables(loopHeadId) diff (w.body.transitiveScopedDecls.collect { case l: sil.LocalVarDecl => l } map (_.localVar))
+          /** FIXME
+           If loopToWrittenVars.get(loopHeadId).isEmpty evaluates to true, then it may be that the while loop may
+           not be a natural loop in the CFG. In this case, it's not clear what the behaviour should be, so we just
+           take the written variables via the AST (w.writtenVars).
+          */
+          val allWrittenVars = loopToWrittenVars.getOrElse(loopHeadId, w.writtenVars)
+          /* FIXME
+           * Not sure if the RHS of diff makes sense in the "normal" case where the written variables are
+           * obtained from the LoopDetector. If syntactic and natural loops coincide, it might be fine.
+           */
+          val writtenVars = allWrittenVars diff (w.body.transitiveScopedDecls.collect { case l: sil.LocalVarDecl => l } map (_.localVar))
           (invs, writtenVars)
         case _ => sys.error("While loop is not a loop head")
       }
