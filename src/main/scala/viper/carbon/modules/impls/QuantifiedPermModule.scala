@@ -76,7 +76,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   private val axiomNamespace = verifier.freshNamespace("perm.axiom")
   private val permTypeName = "Perm"
   private val maskTypeName = "MaskType"
-  private val maskType = NamedType(maskTypeName)
+  override val maskType = NamedType(maskTypeName)
   private val pmaskTypeName = "PMaskType"
   override val pmaskType = NamedType(pmaskTypeName)
   private val maskName = Identifier("Mask")
@@ -293,8 +293,11 @@ class QuantifiedPermModule(val verifier: Verifier)
     }
   }
 
-  def sumMask(summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp =
+  override def sumMask(summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp =
     FuncApp(sumMasks, currentMask++summandMask1++summandMask2,Bool)
+
+  override def sumMask(resultMask: Seq[Exp], summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp =
+    FuncApp(sumMasks, resultMask++summandMask1++summandMask2,Bool)
 
   override def containsWildCard(e: sil.Exp): Boolean = {
     e match {

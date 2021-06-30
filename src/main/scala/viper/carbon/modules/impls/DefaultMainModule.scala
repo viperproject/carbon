@@ -111,22 +111,24 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
   }
 
   def translateMethodDecl(m: sil.Method, names: Option[mutable.Map[String, String]]): Seq[Decl] = {
-    env = Environment(verifier, m)
-    ErrorMemberMapping.currentMember = m
-        val res = m match {
+    val mWithLoopInfo = loopModule.initializeMethod(m)
+
+    env = Environment(verifier, mWithLoopInfo)
+    ErrorMemberMapping.currentMember = mWithLoopInfo
+        val res = mWithLoopInfo match {
           case method @ sil.Method(name, formalArgs, formalReturns, pres, posts, _) =>
             val initOldStateComment = "Initializing of old state"
             val ins: Seq[LocalVarDecl] = formalArgs map translateLocalVarDecl
             val outs: Seq[LocalVarDecl] = formalReturns map translateLocalVarDecl
             val init = MaybeCommentBlock("Initializing the state", stateModule.initBoogieState ++ assumeAllFunctionDefinitions ++ stmtModule.initStmt(method.bodyOrAssumeFalse))
             val initOld = MaybeCommentBlock("Initializing the old state", stateModule.initOldState)
-            val paramAssumptions = m.formalArgs map (a => allAssumptionsAboutValue(a.typ, translateLocalVarDecl(a), true))
+            val paramAssumptions = mWithLoopInfo.formalArgs map (a => allAssumptionsAboutValue(a.typ, translateLocalVarDecl(a), true))
             val inhalePre = translateMethodDeclPre(pres)
             val checkPost: Stmt = if (posts.nonEmpty) {
               translateMethodDeclCheckPosts(posts)
             }
             else Nil
-            val postsWithErrors = posts map (p => (p, errors.PostconditionViolated(p, m)))
+            val postsWithErrors = posts map (p => (p, errors.PostconditionViolated(p, mWithLoopInfo)))
             val exhalePost = MaybeCommentBlock("Exhaling postcondition", exhale(postsWithErrors))
             val body: Stmt = translateStmt(method.bodyOrAssumeFalse)
               /* TODO: Might be worth special-casing on methods with empty bodies */
