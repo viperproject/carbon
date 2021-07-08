@@ -7,6 +7,7 @@
 package viper.carbon.modules.components
 
 import viper.carbon.boogie.Stmt
+import viper.silver.verifier.PartialVerificationError
 import viper.silver.{ast => sil}
 
 /**
@@ -18,5 +19,5 @@ trait InhaleComponent extends Component {
   /**
    * Inhale a single expression.
    */
-  def inhaleExp(exp: sil.Exp): Stmt
+  def inhaleExp(exp: sil.Exp, error: PartialVerificationError): Stmt
 }

@@ -189,7 +189,8 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           MaybeCommentBlock("Exhaling precondition", executeUnfoldings(pres, (pre => errors.PreconditionInCallFalse(mc).withReasonNodeTransformed(renamingArguments))) ++
             exhale(pres map (e => (e, errors.PreconditionInCallFalse(mc).withReasonNodeTransformed(renamingArguments))), statesStackForPackageStmt = statesStack, insidePackageStmt = insidePackageStmt)) ++ {
           stateModule.replaceOldState(preCallState)
-          val res = MaybeCommentBlock("Inhaling postcondition", inhale(posts, statesStack, insidePackageStmt) ++
+          val res = MaybeCommentBlock("Inhaling postcondition",
+            inhale(posts map (e => (e, errors.PostconditionInCallFalse(mc).withReasonNodeTransformed(renamingArguments))), statesStack, insidePackageStmt) ++
             executeUnfoldings(posts, (post => errors.Internal(post).withReasonNodeTransformed(renamingArguments))))
           stateModule.replaceOldState(oldState)
           toUndefine map mainModule.env.undefine

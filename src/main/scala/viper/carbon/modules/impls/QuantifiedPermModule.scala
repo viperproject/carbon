@@ -773,8 +773,8 @@ class QuantifiedPermModule(val verifier: Verifier)
     Nil
   }
 
-  override def inhaleExp(e: sil.Exp): Stmt = {
-    inhaleAux(e, Assume)
+  override def inhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
+    inhaleAux(e, Assume, error)
   }
 
   override def inhaleWandFt(w: sil.MagicWand): Stmt = {
@@ -794,12 +794,25 @@ class QuantifiedPermModule(val verifier: Verifier)
    * Boogie program
    * Note: right now (05.04.15) inhale AND transferAdd both use this function
    */
-  private def inhaleAux(e: sil.Exp, assmsToStmt: Exp => Stmt):Stmt = {
+  private def inhaleAux(e: sil.Exp, assmsToStmt: Exp => Stmt, error: PartialVerificationError):Stmt = {
     e match {
       case sil.AccessPredicate(loc: LocationAccess, prm) =>
         val perm = PermissionSplitter.normalizePerm(prm)
         val curPerm = currentPermission(loc)
         val permVar = LocalVar(Identifier("perm"), permType)
+
+        /*
+      case sil.AccessPredicate(loc: LocationAccess, prm) =>
+        val p = PermissionSplitter.normalizePerm(prm)
+        val perms = PermissionSplitter.splitPerm(p) filter (x => x._1 - 1 == exhaleModule.currentPhaseId)
+        (if (exhaleModule.currentPhaseId == 0)
+          (if (!p.isInstanceOf[sil.WildcardPerm])
+            Assert(permissionPositiveInternal(translatePerm(p), Some(p), true), error.dueTo(reasons.NegativePermission(p))) else Nil: Stmt) ++ Nil // check amount is non-negative
+        else Nil) ++
+         */
+
+
+
         val (permVal, stmts): (Exp, Stmt) =
           if (perm.isInstanceOf[WildcardPerm]) {
             val w = LocalVar(Identifier("wildcard"), Real)
@@ -808,9 +821,13 @@ class QuantifiedPermModule(val verifier: Verifier)
             (translatePerm(perm), Nil)
           }
         stmts ++
-          (permVar := permVal) ++
-          assmsToStmt(permissionPositiveInternal(permVar, Some(perm), true)) ++
-          assmsToStmt(permissionPositiveInternal(permVar, Some(perm), false) ==> checkNonNullReceiver(loc)) ++
+         (permVar := permVal) ++
+          (if (perm.isInstanceOf[WildcardPerm])
+            assmsToStmt(checkNonNullReceiver(loc))
+          else
+            Assert(permissionPositiveInternal(permVar, Some(perm), true), error.dueTo(reasons.NegativePermission(perm))) ++
+            assmsToStmt(permissionPositiveInternal(permVar, Some(perm), false) ==> checkNonNullReceiver(loc))
+          ) ++
           (if (!usingOldState) curPerm := permAdd(curPerm, permVar) else Nil)
       case w@sil.MagicWand(left,right) =>
         val wandRep = wandModule.getWandRepresentation(w)

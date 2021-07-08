@@ -9,6 +9,7 @@ package viper.carbon.modules
 import components.{ComponentRegistry, InhaleComponent}
 import viper.silver.{ast => sil}
 import viper.carbon.boogie.Stmt
+import viper.silver.verifier.PartialVerificationError
 
 /**
  * A module for translating inhale statements.  The module takes care of the basic
@@ -28,5 +29,5 @@ trait InhaleModule extends Module with InhaleComponent with ComponentRegistry[In
     * The 'statesStackForPackageStmt' and 'insidePackageStmt' are used when translating statements during packaging a wand.
     * For more details refer to the general note in 'wandModule'.
     */
-  def inhale(exp: Seq[sil.Exp], statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt
+  def inhale(exp: Seq[(sil.Exp, PartialVerificationError)], statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt
 }
