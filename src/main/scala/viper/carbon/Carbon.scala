@@ -95,11 +95,5 @@ class CarbonConfig(args: Seq[String]) extends SilFrontendConfig(args, "Carbon") 
     noshort = true
   )
 
-  val checkInjectivity = opt[Boolean]("checkInjectivity",
-    descr = "Check injectivity of the receiver for QPs instead of assuming it (default: disabled)",
-    default = None,
-    noshort = true
-  )
-
   verify()
 }

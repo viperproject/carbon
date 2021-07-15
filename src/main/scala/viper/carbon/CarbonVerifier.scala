@@ -87,7 +87,11 @@ case class CarbonVerifier(override val reporter: Reporter,
     case None => z3Default
   } else z3Default
 
-  def checkInjectivity = if (config != null) config.checkInjectivity.isSupplied else false
+  def checkInjectivity = if (config != null) config.checkInjectivity.toOption match {
+    case Some(b) => b
+    case None => false
+  }
+  else false
 
 
   def name: String = "carbon"
