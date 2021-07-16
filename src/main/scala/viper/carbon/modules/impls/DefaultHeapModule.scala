@@ -14,6 +14,7 @@ import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
 import viper.carbon.verifier.Verifier
 import viper.silver.ast.utility.QuantifiedPermissions.QuantifiedPermissionAssertion
+import viper.silver.verifier.PartialVerificationError
 
 /**
  * The default implementation of a [[viper.carbon.modules.HeapModule]].
@@ -740,7 +741,7 @@ class DefaultHeapModule(val verifier: Verifier)
     else Nil
   }
 
-  override def inhaleExp(e: sil.Exp): Stmt = {
+  override def inhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
       case sil.Unfolding(sil.PredicateAccessPredicate(loc, perm), exp) =>
         addPermissionToPMask(loc)

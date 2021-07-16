@@ -828,7 +828,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     foldInfo = acc
     val stmt = exhale(Seq((Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program, env.allDefinedNames(program)).get,acc.perm), error)), havocHeap = false,
       statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt) ++
-      inhale(acc, statesStackForPackageStmt, insidePackageStmt)
+      inhale(Seq((acc, error)), statesStackForPackageStmt, insidePackageStmt)
     val stmtLast =  Assume(predicateTrigger(heapModule.currentStateExps, acc.loc)) ++ {
       val location = acc.loc
       val predicate = verifier.program.findPredicate(location.predicateName)
@@ -873,7 +873,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       } ++
       (if(exhaleUnfoldedPredicate)
           exhale(Seq((acc, error)), havocHeap = false, statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
-      else Nil) ++ inhale(Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program, env.allDefinedNames(program)).get,acc.perm), statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
+      else Nil) ++ inhale(Seq((Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program, env.allDefinedNames(program)).get,acc.perm), error)), statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
     unfoldInfo = oldUnfoldInfo
     duringUnfold = oldDuringUnfold
     duringFold = oldDuringFold
@@ -937,7 +937,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   var exhaleTmpStateId = -1
   var extraUnfolding = false
-  override def inhaleExp(e: sil.Exp): Stmt = {
+  override def inhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
       case sil.Unfolding(acc, _) => if (duringUnfoldingExtraUnfold) Nil else // execute the unfolding, since this may gain information
       {

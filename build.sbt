@@ -22,6 +22,8 @@ lazy val carbon = (project in file("."))
         Test / fork := true,
         Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-u", "target/test-reports", "-oD"),
 
+		Compile / fork := true,
+
         // Assembly settings
         assembly / assemblyJarName := "carbon.jar",             // JAR filename
         assembly / mainClass := Some("viper.carbon.Carbon"),    // Define JAR's entry point
