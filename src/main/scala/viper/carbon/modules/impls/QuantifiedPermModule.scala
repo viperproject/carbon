@@ -1095,7 +1095,7 @@ class QuantifiedPermModule(val verifier: Verifier)
              else Nil) ++
              CommentBlock("Define Inverse Function", Assume(invAssm1) ++
                Assume(invAssm2)) ++
-             MaybeComment("Check that permission expression is non-negative for all fields", permPositive) ++
+             (if (!isWildcard) MaybeComment("Check that permission expression is non-negative for all fields", permPositive) else Nil) ++
              CommentBlock("Assume set of fields is nonNull", nonNullAssumptions) ++
             // CommentBlock("Assume injectivity", injectiveAssumption) ++
              CommentBlock("Define permissions", Assume(Forall(obj,triggerForPermissionUpdateAxiom, condTrueLocations&&condFalseLocations )) ++
@@ -1252,7 +1252,7 @@ class QuantifiedPermModule(val verifier: Verifier)
              else Nil) ++
              CommentBlock("Define Inverse Function", Assume(invAssm1) ++
                Assume(invAssm2)) ++
-             MaybeComment("Check that permission expression is non-negative for all fields", permPositive) ++
+             (if (!isWildcard) (MaybeComment("Check that permission expression is non-negative for all fields", permPositive)) else Nil) ++
              CommentBlock("Define updated permissions", permissionsMap) ++
              CommentBlock("Define independent locations", (independentLocations ++
              independentPredicate)) ++
