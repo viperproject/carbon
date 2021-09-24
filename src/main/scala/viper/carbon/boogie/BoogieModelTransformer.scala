@@ -1,6 +1,7 @@
 package viper.carbon.boogie
 
-import viper.silver.verifier.{AbstractError, Model, ModelEntry, SimpleCounterexample, VerificationError}
+import viper.carbon.verifier.FailureContextImpl
+import viper.silver.verifier.{AbstractError, Counterexample, FailureContext, Model, ModelEntry, SimpleCounterexample, VerificationError}
 
 import scala.collection.mutable
 
@@ -17,10 +18,10 @@ object BoogieModelTransformer {
       val ve = e.asInstanceOf[VerificationError]
       val methodName = ErrorMemberMapping.mapping.get(ve).get.name
       val namesInMember = names.get(methodName).get.map(e => e._2 -> e._1)
-      val originalEntries = ve.counterexample.get.model.entries
+      val originalEntries = ve.failureContexts(0).counterExample.get.model.entries
 
       val model = transformModelEntries(originalEntries, namesInMember)
-      ve.counterexample = Some(SimpleCounterexample(model))
+      ve.failureContexts = Seq(FailureContextImpl(Some(SimpleCounterexample(model))))
     }
   }
 

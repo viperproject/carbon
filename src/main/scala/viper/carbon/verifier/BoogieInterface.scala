@@ -37,6 +37,8 @@ class InputStreamConsumer(val is: InputStream, actionBeforeConsumption: () => Un
   }
 }
 
+case class FailureContextImpl(counterExample: Option[Counterexample]) extends FailureContext
+
 /**
   * Defines a clean interface to invoke Boogie and get a list of errors back.
   */
@@ -97,7 +99,7 @@ trait BoogieInterface {
           val id = errorIds(i)
           val error = errormap.get(id).get
           if (models.nonEmpty)
-            error.counterexample = Some(SimpleCounterexample(Model(models(i))))
+            error.failureContexts = Seq(FailureContextImpl(Some(SimpleCounterexample(Model(models(i))))))
           error
         })
         (version,Failure(errors))
