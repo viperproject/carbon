@@ -208,7 +208,7 @@ case class CarbonVerifier(override val reporter: Reporter,
 
         result match {
           case Failure(errors) if transformNames => {
-            errors.foreach(e =>  BoogieModelTransformer.transformCounterexample(e, translatedNames))
+            errors.foreach(e =>  BoogieModelTransformer.transformCounterexample(e, translatedNames, program))
           }
           case _ => result
         }
