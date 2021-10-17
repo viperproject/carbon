@@ -1,7 +1,7 @@
 package viper.carbon.boogie
 
 import viper.carbon.verifier.FailureContextImpl
-import viper.silver.verifier.{AbstractError, ApplicationEntry, ConstantEntry, Counterexample, ExtractedHeap, FailureContext, FieldHeapEntry, HeapEntry, MapEntry, Model, ModelEntry, PredHeapEntry, Rational, SimpleCounterexample, ValueEntry, VarEntry, VerificationError}
+import viper.silver.verifier.{AbstractError, ApplicationEntry, CompleteCounterexample, ConstantEntry, Counterexample, ExtractedHeap, ExtractedModel, ExtractedModelEntry, FailureContext, FieldHeapEntry, HeapEntry, LitBoolEntry, LitIntEntry, LitPermEntry, MapEntry, Model, ModelEntry, NullRefEntry, PredHeapEntry, Rational, RefEntry, SimpleCounterexample, ValueEntry, VarEntry, VerificationError}
 import viper.silver.{ast => sil}
 
 import scala.collection.mutable
@@ -14,56 +14,72 @@ object BoogieModelTransformer {
   /**
     * Adds a counterexample to the given error if one is available.
     */
-  def transformCounterexample(e: AbstractError, names: Map[String, Map[String, String]], program: sil.Program) : Unit = {
+  def transformCounterexample(e: AbstractError, names: Map[String, Map[sil.LocalVarDecl, String]], program: sil.Program) : Unit = {
     if (e.isInstanceOf[VerificationError] && ErrorMemberMapping.mapping.contains(e.asInstanceOf[VerificationError])){
       val ve = e.asInstanceOf[VerificationError]
       val methodName = ErrorMemberMapping.mapping.get(ve).get.name
       val namesInMember = names.get(methodName).get.map(e => e._2 -> e._1)
-      val originalEntries = ve.failureContexts(0).counterExample.get.model.entries
+      val model = ve.failureContexts(0).counterExample.get.model
 
-      val model = transformModelEntries(originalEntries, namesInMember.toMap)
+      val store = transformModelEntries(model, namesInMember.toMap)
 
-      // TODO: get primary heap and mask
-      val primaryMask = getNewestVersion("Mask", ve.failureContexts(0).counterExample.get.model)
-      val primaryHeap = getNewestVersion("Heap", ve.failureContexts(0).counterExample.get.model)
-      val primaryExtractedHeap = extractHeap(primaryMask, primaryHeap, ve.failureContexts(0).counterExample.get.model, program)
+      // get primary heap and mask
+      val primaryMask = getNewestVersion("Mask", model)
+      val primaryHeap = getNewestVersion("Heap", model)
+      val primaryExtractedHeap = extractHeap(primaryMask, primaryHeap, model, program)
 
-      // TODO: get old heap and mask
-      val oldMask = getOldVersion("Mask", ve.failureContexts(0).counterExample.get.model)
-      val oldHeap = getOldVersion("Heap", ve.failureContexts(0).counterExample.get.model)
+      // get old heap and mask
+      val oldMask = getOldVersion("Mask", model)
+      val oldHeap = getOldVersion("Heap", model)
       val oldExtractedHeap = (oldMask, oldHeap) match {
-        case (Some(msk), Some(hp)) => Some(extractHeap(msk, hp, ve.failureContexts(0).counterExample.get.model, program))
+        case (Some(msk), Some(hp)) => Some(extractHeap(msk, hp, model, program))
         case _ => None
       }
 
-      // TODO: get label heaps and masks
+      // get label heaps and masks
+      val labelStates = getOldStates(model)
+      val labelExtractedHeaps = labelStates.map{
+        case (name, (msk, hp)) => name -> extractHeap(msk, hp, model, program)
+      }.toMap
 
-      /*
-      val maskEntries = getMapEntries(model.entries.get("Mask").get.asInstanceOf[ConstantEntry],  ve.failureContexts(0).counterExample.get.model)
-      val realConversion = originalEntries("U_2_real").asInstanceOf[MapEntry]
-      val maskEntriesWithPerms: Map[(ValueEntry, ValueEntry), ValueEntry] = maskEntries.map({
-        case (k, v) => k -> realConversion.options.get(Seq(v)).get
-      })
-      val nonZeroMaskEntries = maskEntriesWithPerms.filter(_._2 != ConstantEntry("0.0"))
+      val exModel = ExtractedModel(store, primaryExtractedHeap, oldExtractedHeap, labelExtractedHeaps)
 
-      val heapEntries = getMapEntries(model.entries.get("Heap").get.asInstanceOf[ConstantEntry],  ve.failureContexts(0).counterExample.get.model)
-
-      val relevantHeapEntries = nonZeroMaskEntries.map({
-        case (k, v) if heapEntries.contains(k) => k -> heapEntries.get(k).get
-        case (k, v) => k -> ConstantEntry("?")
-      })
-
-      println("Store")
-      println(model)
-      println("Heap")
-      nonZeroMaskEntries.foreach({
-        case (k, v) if heapEntries.contains(k) => println(s"$k --($v)--> ${heapEntries.get(k).get}")
-        case (k, v) => k ->  println(s"$k --($v)--> ?")
-      })
-      */
-      //ve.failureContexts = Seq(FailureContextImpl(Some(SimpleCounterexample(model))))
-      ve.failureContexts = Seq(FailureContextImpl(Some(SimpleCounterexample(model))))
+      ve.failureContexts = Seq(FailureContextImpl(Some(CompleteCounterexample(model, exModel))))
     }
+  }
+
+  def translateValue(entry: ValueEntry, typ: sil.Type, model: Model) : ExtractedModelEntry = {
+    typ match {
+      case sil.Int => {
+        entry match {
+          case ConstantEntry(value) => LitIntEntry(value.toInt)
+        }
+      }
+      case sil.Bool =>
+        entry match {
+          case ConstantEntry("true") => LitBoolEntry(true)
+          case ConstantEntry("false") => LitBoolEntry(false)
+        }
+      case sil.Ref => {
+        val nullEntry = model.entries.get("null")
+        entry match {
+          case ce@ConstantEntry(value) if nullEntry == Some(ce) => NullRefEntry(value)
+          case ConstantEntry(value) => RefEntry(value)
+        }
+      }
+      case sil.Perm => {
+        LitPermEntry(convertPermission(entry))
+      }
+    }
+  }
+
+  def getOldStates(model: Model): Map[String, (ConstantEntry, ConstantEntry)] = {
+    val nameOptions = model.entries.keys.filter(n => n.startsWith("Label") && n.endsWith("Mask")).map(n => n.substring(5, n.length - 4))
+    val result = nameOptions.collect{
+      case n if model.entries.contains(s"Label${n}Heap") => n -> (model.entries.get(s"Label${n}Mask").get.asInstanceOf[ConstantEntry],
+                                                                  model.entries.get(s"Label${n}Heap").get.asInstanceOf[ConstantEntry])
+    }.toMap
+    result
   }
 
   def getOldVersion(varName: String, model: Model): Option[ConstantEntry] = {
@@ -119,7 +135,6 @@ object BoogieModelTransformer {
         val fieldEntry = model.entries.find({
           case (name, entry) => entry == valEntry && PrettyPrinter.backMap.contains(name)
         })
-        println(fieldEntry)
         val origName = PrettyPrinter.backMap.get(fieldEntry.get._1).get
         val field = program.fields.find(_.name == origName).get
         fields.update(fieldEntry.get._2.asInstanceOf[ConstantEntry], field)
@@ -133,48 +148,33 @@ object BoogieModelTransformer {
         }
       }
     })
-    println(fields)
 
     val entries: Seq[HeapEntry] = nonZeroMaskEntries.flatMap{
-      //case (k, v) if heapEntries.contains(k) => FieldHeapEntry(VarEntry(k._1.toString), "fieldName", None, )//k -> heapEntries.get(k).get
       case ((receiverEntry, fieldEntry), permEntry) => {
         if (fields.contains(fieldEntry.asInstanceOf[ConstantEntry])) {
           val field = fields.get(fieldEntry.asInstanceOf[ConstantEntry]).get
           val perm = convertPermission(permEntry)
           val value = if (heapEntries.contains((receiverEntry, fieldEntry))) {
-            VarEntry(heapEntries.get((receiverEntry, fieldEntry)).get.asInstanceOf[ConstantEntry].value)
+            translateValue(heapEntries.get((receiverEntry, fieldEntry)).get, field.typ, model)
           } else {
             VarEntry("?")
           }
-          Some(FieldHeapEntry(VarEntry(receiverEntry.asInstanceOf[ConstantEntry].value), field.name, Some(perm), value))
+          Some(FieldHeapEntry(VarEntry(receiverEntry.asInstanceOf[ConstantEntry].value), field.name, perm, value))
         }else{
           val possiblePred = predicates.get(fieldEntry.asInstanceOf[ConstantEntry])
           if (possiblePred.isDefined){
             val pred = possiblePred.get._1
             val args = possiblePred.get._2
-            Some(PredHeapEntry(pred.name, args.map(a => VarEntry(a.toString))))
+            val translatedArgs = (pred.formalArgs zip args).map({
+              case (fArg, arg) => translateValue(arg.asInstanceOf[ValueEntry], fArg.typ, model)
+            })
+            Some(PredHeapEntry(pred.name, translatedArgs, convertPermission(permEntry)))
           }else{
             None
           }
         }
       }
     }.toSeq
-
-    // TODO: Convert values, by type
-    // TODO: convert perm values
-    // TODO:
-
-    /*
-    val entries = nonZeroMaskEntries.map({
-      case (k, v) if heapEntries.contains(k) => FieldHeapEntry(VarEntry(k._1.toString), "fieldName", None, )//k -> heapEntries.get(k).get
-      case (k, v) => //k -> ConstantEntry("?")
-    })
-
-    println("Heap")
-    nonZeroMaskEntries.foreach({
-      case (k, v) if heapEntries.contains(k) => println(s"$k --($v)--> ${heapEntries.get(k).get}")
-      case (k, v) => k ->  println(s"$k --($v)--> ?")
-    })*/
 
     ExtractedHeap(entries)
   }
@@ -219,8 +219,9 @@ object BoogieModelTransformer {
     * @param namesInMember Mapping from Boogie names to Viper names for the Viper member belonging to this error.
     * @return
     */
-  def transformModelEntries(originalEntries: Map[String, ModelEntry], namesInMember: Map[String, String]) : Model = {
-    val newEntries = mutable.HashMap[String, ModelEntry]()
+  def transformModelEntries(model: Model, namesInMember: Map[String, sil.LocalVarDecl]) : Map[String, ExtractedModelEntry] = {
+    val originalEntries = model.entries
+    val result = mutable.HashMap[String, ExtractedModelEntry]()
     val currentEntryForName = mutable.HashMap[String, String]()
     for ((vname, e) <- originalEntries) {
       var originalName = vname
@@ -234,16 +235,17 @@ object BoogieModelTransformer {
       if (PrettyPrinter.backMap.contains(originalName)){
         originalName = PrettyPrinter.backMap.get(originalName).get
         if (namesInMember.contains(originalName)){
-          val viperName = namesInMember.get(originalName).get
+          val viperVar = namesInMember.get(originalName).get
+          val viperName = viperVar.name
           if (!currentEntryForName.contains(viperName) ||
             isLaterVersion(vname, originalName, currentEntryForName.get(viperName).get)){
-            newEntries.update(viperName, e)
+            result.update(viperName, translateValue(e.asInstanceOf[ValueEntry], viperVar.typ, model))
             currentEntryForName.update(viperName, vname)
           }
         }
       }
     }
-    Model(newEntries.toMap)
+    result.toMap
   }
 
   /**

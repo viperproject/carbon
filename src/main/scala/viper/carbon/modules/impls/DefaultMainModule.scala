@@ -49,7 +49,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
     LocalVarDecl(name, t)
   }
 
-  override def translate(p: sil.Program): (Program, Map[String, Map[String, String]]) = {
+  override def translate(p: sil.Program): (Program, Map[String, Map[sil.LocalVarDecl, String]]) = {
 
     verifier.replaceProgram(
       p.transform(
@@ -67,7 +67,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
 
     // We record the Boogie names of all Viper variables in this map.
     // The format is Viper member name -> (Viper variable name -> Boogie variable name).
-    var nameMaps : Map[String, mutable.HashMap[String, String]] = null
+    var nameMaps : Map[String, mutable.HashMap[sil.LocalVarDecl, String]] = null
 
     val output = verifier.program match {
       case sil.Program(domains, fields, functions, predicates, methods, extensions) =>
@@ -77,7 +77,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
         // evaluation happens lazily, which can lead to incorrect behaviour (evaluation order is important here)
         val translateFields =
           MaybeCommentedDecl("Translation of all fields", (fields flatMap translateField).toList)
-        nameMaps = (methods ++ functions ++ predicates).map(_.name -> new mutable.HashMap[String, String]()).toMap
+        nameMaps = (methods ++ functions ++ predicates).map(_.name -> new mutable.HashMap[sil.LocalVarDecl, String]()).toMap
         val members = (domains flatMap translateDomainDecl) ++
           translateFields ++
           (functions flatMap (f => translateFunction(f, nameMaps.get(f.name)))) ++
@@ -110,7 +110,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
     (output.optimize.asInstanceOf[Program], nameMaps.map(e => e._1 -> e._2.toMap))
   }
 
-  def translateMethodDecl(m: sil.Method, names: Option[mutable.Map[String, String]]): Seq[Decl] = {
+  def translateMethodDecl(m: sil.Method, names: Option[mutable.Map[sil.LocalVarDecl, String]]): Seq[Decl] = {
     val mWithLoopInfo = loopModule.initializeMethod(m)
 
     env = Environment(verifier, mWithLoopInfo)
@@ -143,8 +143,11 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
 
     if (names.isDefined){
       val usedNames = env.currentNameMapping
+      val fieldNameMap = m.deepCollect{
+        case v@sil.LocalVarDecl(n, _) if usedNames.contains(n) => v -> usedNames.get(n).get
+      }
       // add all local vars
-      names.get ++= usedNames
+      names.get ++= fieldNameMap
     }
 
     env = null

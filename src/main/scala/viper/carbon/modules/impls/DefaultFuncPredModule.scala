@@ -193,7 +193,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     predicateFrames = FrameInfos()
   }
 
-    override def translateFunction(f: sil.Function, names: Option[mutable.Map[String, String]]): Seq[Decl] = {
+    override def translateFunction(f: sil.Function, names: Option[mutable.Map[sil.LocalVarDecl, String]]): Seq[Decl] = {
     env = Environment(verifier, f)
     ErrorMemberMapping.currentMember = f
     val res = MaybeCommentedDecl(s"Translation of function ${f.name}",
@@ -209,8 +209,11 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
     if (names.isDefined){
       val usedNames = env.currentNameMapping
+      val fieldNameMap = f.deepCollect{
+        case v@sil.LocalVarDecl(n, _) if usedNames.contains(n) => v -> usedNames.get(n).get
+      }
       // add all local vars
-      names.get ++= usedNames
+      names.get ++= fieldNameMap
     }
 
     env = null
@@ -777,7 +780,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   // --------------------------------------------
 
-  override def translatePredicate(p: sil.Predicate, names: Option[mutable.Map[String, String]]): Seq[Decl] = {
+  override def translatePredicate(p: sil.Predicate, names: Option[mutable.Map[sil.LocalVarDecl, String]]): Seq[Decl] = {
 
     env = Environment(verifier, p)
     ErrorMemberMapping.currentMember = p
@@ -795,8 +798,11 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val usedNames = env.currentNameMapping
 
     if (names.isDefined){
+      val fieldNameMap = p.deepCollect{
+        case v@sil.LocalVarDecl(n, _) if usedNames.contains(n) => v -> usedNames.get(n).get
+      }
       // add all local vars
-      names.get ++= usedNames
+      names.get ++= fieldNameMap
     }
 
     env = null

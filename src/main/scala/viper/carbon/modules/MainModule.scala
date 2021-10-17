@@ -20,7 +20,7 @@ trait MainModule extends Module {
    * Returns a Boogie program along with a map that maps Viper names to their respective Boogie names,
    * i.e. Viper member name -> (Viper variable name -> Boogie variable name)
    */
-  def translate(p: sil.Program): (Program, Map[String, Map[String, String]])
+  def translate(p: sil.Program): (Program, Map[String, Map[sil.LocalVarDecl, String]])
 
   /**
    * Translate a local variable along with its type (into a boogie declaration).  Assumes that the variable is already

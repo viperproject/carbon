@@ -148,7 +148,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
 
   override def initToCurrentStmt(snapshot: StateSnapshot) : Stmt = {
     for (e <- snapshot._1.entrySet().asScala.toSeq) yield {
-      val s: Stmt = (e.getValue zip e.getKey.currentStateExps) map (x => x._1 := x._2)
+      val s: Stmt = (e.getValue zip e.getKey.currentStateExps) map (x => Assume(x._1 === x._2))
       s
     }
   }
