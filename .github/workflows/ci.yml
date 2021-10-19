@@ -13,10 +13,11 @@ jobs:
     container: gobraverifier/gobra-base:v5_z3_4.8.7 # Thank you, Gobra team
     env:
       BOOGIE_EXE: "/home/runner/boogie/Boogie"
+      LINUX_BOOGIE_URL: "https://github.com/viperproject/boogie-builder/releases/download/bae82d3a7b383161/boogie-linux.zip"
     steps:
     - name: Download Boogie
-      run:
-        wget https://github.com/viperproject/boogie-builder/releases/download/bae82d3a7b383161/boogie-linux.zip
+      run: |
+        curl --fail --silent --show-error -L ${{ env.LINUX_BOOGIE_URL }} --output boogie-linux.zip
         unzip boogie-linux.zip
         rm -rf boogie-linux.zip
         mv binaries-linux boogie
