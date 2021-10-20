@@ -52,9 +52,9 @@ jobs:
       uses: actions/cache@v2
       with:
         path: |
-          viperserver/sbt-cache/.sbtboot
-          viperserver/sbt-cache/.boot
-          viperserver/sbt-cache/.ivy/cache
+          carbon/sbt-cache/.sbtboot
+          carbon/sbt-cache/.boot
+          carbon/sbt-cache/.ivy/cache
         # <x>/project/target and <x>/target, where <x> is e.g. 'viperserver', are intentionally not
         # included as several occurrences of NoSuchMethodError exceptions have been observed during CI runs. It seems
         # like sbt is unable to correctly compute source files that require a recompilation. Therefore, we have
