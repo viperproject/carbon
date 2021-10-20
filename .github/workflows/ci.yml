@@ -81,6 +81,6 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         name: carbon-jar
-        path: carbon/target/scala-2.13/viperserver.jar
+        path: carbon/target/scala-2.13/carbon.jar
         retention-days: 14
         if-no-files-found: error        
