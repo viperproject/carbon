@@ -22,6 +22,7 @@ jobs:
         rm -rf boogie-linux.zip
         mv binaries-linux boogie
         chmod +x boogie/Boogie
+        pwd
     - name: Checkout Carbon
       uses: actions/checkout@v2  
       with:
