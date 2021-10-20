@@ -15,12 +15,6 @@ jobs:
       BOOGIE_EXE: "boogie/Boogie"
       LINUX_BOOGIE_URL: "https://github.com/viperproject/boogie-builder/releases/download/bae82d3a7b383161/boogie-linux.zip"
     steps:
-    - name: Download Boogie
-      run: |
-        curl --fail --silent --show-error -L ${{ env.LINUX_BOOGIE_URL }} --output boogie-linux.zip
-        unzip boogie-linux.zip
-        rm -rf boogie-linux.zip
-        mv binaries-linux boogie
     - name: Checkout Carbon
       uses: actions/checkout@v2  
       with:
@@ -34,7 +28,6 @@ jobs:
       run: java --version
     - name: Z3 Version
       run: z3 -version
-
     - name: Create version file
       run: |
         echo "Carbon: commit $(git -C carbon rev-parse HEAD)" >> versions.txt
@@ -67,6 +60,14 @@ jobs:
         # like sbt is unable to correctly compute source files that require a recompilation. Therefore, we have
         # disabled caching of compiled source files altogether
         key: ${{ runner.os }}-sbt-no-precompiled-sources-${{ hashFiles('**/build.sbt') }}
+    - name: Download Boogie
+      run: |
+        curl --fail --silent --show-error -L ${{ env.LINUX_BOOGIE_URL }} --output boogie-linux.zip
+        unzip boogie-linux.zip
+        rm -rf boogie-linux.zip
+        mv binaries-linux boogie
+        pwd
+      working-directory: carbon
 
     - name: Test Carbon
       run: sbt test
