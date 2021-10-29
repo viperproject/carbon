@@ -16,6 +16,8 @@ import viper.silver.{ast => sil}
  */
 trait PermModule extends Module with CarbonStateComponent {
 
+  val zeroMask: Const
+
   /**
    * The type used to represent permissions.
    */
@@ -87,6 +89,8 @@ trait PermModule extends Module with CarbonStateComponent {
     * The type used for masks.
     */
   def maskType: Type
+
+  def goodMask(m: Exp): Exp
 
   /**
    * The type used to for predicate masks.

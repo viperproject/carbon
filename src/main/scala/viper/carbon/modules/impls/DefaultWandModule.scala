@@ -14,7 +14,8 @@ import viper.carbon.boogie.Implicits._
 import viper.carbon.modules.components.{DefinednessComponent, StmtComponent}
 import viper.silver.ast.utility.Expressions
 import viper.silver.ast.{MagicWand, MagicWandStructure}
-import viper.silver.verifier.{PartialVerificationError, reasons}
+import viper.silver.cfg.silver.CfgGenerator.EmptyStmt
+import viper.silver.verifier.{PartialVerificationError, VerificationError, reasons}
 import viper.silver.{ast => sil}
 
 class
@@ -29,6 +30,11 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
   type WandShape = Func
   //This needs to be resettable, which is why "lazy val" is not used. See also: wandToShapes method
   private var lazyWandToShapes: Option[Map[MagicWandStructure.MagicWandStructure, WandShape]] = None
+
+
+
+
+
   /** CONSTANTS FOR TRANSFER START**/
 
   /* denotes amount of permission to add/remove during a specific transfer */
@@ -205,7 +211,409 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
   }
 
 
+
+
+
+  // -------------------------------------------------------------
+  // TD: Sound package
+  // -------------------------------------------------------------
+
+  val H: LocalVar = LocalVar(Identifier("H")(transferNamespace), MapType(Seq(heapModule.heapType), Bool))
+  val H_temp: LocalVar = LocalVar(Identifier("H_temp")(transferNamespace), MapType(Seq(heapModule.heapType), Bool))
+  val M: LocalVar = LocalVar(Identifier("M")(transferNamespace), MapType(Seq(heapModule.heapType), maskType))
+  val M_temp: LocalVar = LocalVar(Identifier("M_temp")(transferNamespace), MapType(Seq(heapModule.heapType), maskType))
+  val Theta: LocalVar = LocalVar(Identifier("Theta")(transferNamespace), MapType(Seq(heapModule.heapType), maskType))
+  val Theta_temp: LocalVar = LocalVar(Identifier("Theta_temp")(transferNamespace), MapType(Seq(heapModule.heapType), maskType))
+
+
+  val obj = LocalVarDecl(Identifier("o")(transferNamespace), heapModule.refType)
+  val field = LocalVarDecl(Identifier("f")(transferNamespace), heapModule.fieldType)
+
+  def initPackage(): Stmt = {
+
+    val (_, state) = stateModule.freshTempState("temp")
+    val t: LocalVar = heapModule.currentHeap.head.asInstanceOf[LocalVar]
+    val decl = LocalVarDecl(t.name, t.typ)
+    val H_h: Exp = MapSelect(H, Seq(t))
+    val M_h: Exp = MapSelect(M, Seq(t))
+
+
+    //val H_h: Exp = MapSelect(H, Seq(h.l))
+    // Can be ignored because H is underspecified
+    // Because of GoodMask
+    //val H_true: Exp = Forall(Seq(decl), Trigger(H_h), H_h)
+    val M_zero: Exp = Forall(Seq(decl), Trigger(M_h), M_h === zeroMask)
+
+
+    stateModule.replaceState(state) // go back to the original state
+
+    MaybeCommentBlock("Initialization for package",
+      Seq(Havoc(H), Havoc(M), Assume(M_zero)))
+  }
+
+  def updateValid(H_h: Exp, M_temp_h: Exp, H_temp_h: Exp, decl: LocalVarDecl): Stmt = {
+    val asm1: Exp = Forall(Seq(decl), Seq(Trigger(H_h), Trigger(H_temp_h)), H_temp_h <==> (H_h && goodMask(M_temp_h)))
+    val h_xf: Exp = MapSelect(decl.l, Seq(obj.l, field.l))
+    val m_xf: Exp = MapSelect(M_temp_h, Seq(obj.l, field.l))
+    val asm2: Exp = Forall(Seq(decl), Seq(Trigger(H_h), Trigger(H_temp_h)), H_temp_h <==> H_h && (
+      Forall(Seq(obj, field), Seq(Trigger(h_xf), Trigger(m_xf)),
+        (m_xf > boogieNoPerm) ==> (h_xf !== heapModule.translateNull),
+        heapModule.fieldType.freeTypeVars
+      )
+    ))
+
+    Seqn(Seq(Assume(asm1), Assume(asm2)))
+  }
+
+  def updateValidWithTheta(H_h: Exp, M_temp_h: Exp, H_temp_h: Exp, Theta_h: Exp, Theta_temp_h: Exp, decl: LocalVarDecl): Stmt = {
+
+    val asm_sum: Exp = Forall(Seq(decl), Trigger(Theta_temp_h),
+      sumMask(Theta_temp_h, M_temp_h, Theta_h))
+
+    val asm1: Exp = Forall(Seq(decl), Seq(Trigger(H_h), Trigger(H_temp_h), Trigger(Theta_temp_h)),
+      H_temp_h <==> (H_h && goodMask(Theta_temp_h)))
+
+    val h_xf: Exp = MapSelect(decl.l, Seq(obj.l, field.l))
+    val Theta_xf: Exp = MapSelect(Theta_temp_h, Seq(obj.l, field.l))
+
+    val asm2: Exp = Forall(Seq(decl), Seq(Trigger(H_h), Trigger(H_temp_h)), H_temp_h <==> H_h && (
+      Forall(Seq(obj, field), Seq(Trigger(h_xf), Trigger(Theta_xf)),
+        (Theta_xf > boogieNoPerm) ==> (h_xf !== heapModule.translateNull),
+        heapModule.fieldType.freeTypeVars
+      )
+      ))
+
+    Seqn(Seq(Havoc(Theta_temp), Seq(Assume(asm_sum)), Seq(Assume(asm1), Assume(asm2))))
+  }
+
+
+  def inhaleLHS(A: sil.Exp, pc: Exp = TrueLit()): Stmt = {
+
+    val (_, state) = stateModule.freshTempState("temp")
+    val t: LocalVar = heapModule.currentHeap.head.asInstanceOf[LocalVar]
+    val decl = LocalVarDecl(t.name, t.typ)
+    val H_h: Exp = MapSelect(H, Seq(t))
+    val H_temp_h: Exp = MapSelect(H_temp, Seq(t))
+    val M_h: Exp = MapSelect(M, Seq(t))
+    val M_temp_h: Exp = MapSelect(M_temp, Seq(t))
+
+    val r: Stmt =
+      A match {
+        case _ if A.isPure =>
+          val e: Exp = expModule.translateExp(A)
+          val asm: Exp = Forall(Seq(decl), Trigger(H_temp_h), H_temp_h <==> H_h && (pc ==> e))
+          MaybeCommentBlock("inhaling pure expression for all states",
+            Seq(Havoc(H_temp), Assume(asm), Assign(H, H_temp)))
+        case sil.And(a, b) => Seqn(Seq(inhaleLHS(a, pc), inhaleLHS(b, pc)))
+        case sil.FieldAccessPredicate(fieldAccess@sil.FieldAccess(recv, f), prm) =>
+          val rr: Exp = expModule.translateExp(recv)
+          val ff: Exp = heapModule.translateLocation(fieldAccess)
+          val rf: Seq[Exp] = Seq(rr, ff)
+          val update_mask: Exp = Forall(Seq(decl), Seq(Trigger(M_temp_h), Trigger(M_h)), pc ==> (M_temp_h === MapUpdate(M_h, rf, MapSelect(M_h, rf) + expModule.translateExp(prm))))
+          val same_mask: Exp = Forall(Seq(decl), Seq(Trigger(M_temp_h), Trigger(M_h)), UnExp(Not, pc) ==> (M_temp_h === M_h))
+          MaybeCommentBlock("inhaling heap location permission",
+            Seq(Havoc(H_temp), Havoc(M_temp), Assume(update_mask), Assume(same_mask), updateValid(H_h, M_temp_h, H_temp_h, decl), Assign(H, H_temp), Assign(M, M_temp)))
+        case sil.Implies(cond, a) => inhaleLHS(a, pc && expModule.translateExp(cond))
+        case sil.CondExp(cond, a, b) =>
+          val tcond = expModule.translateExp(cond)
+          Seqn(Seq(inhaleLHS(a, pc && tcond), inhaleLHS(b, pc && UnExp(Not, tcond))))
+      }
+    stateModule.replaceState(state) // go back to the original state
+    r
+  }
+
+  // More fine-grained:
+  // Could check for which fields we can use a minimum
+  def accessesDetGaurav(a: sil.Exp): Boolean = {
+    a.existsDefined(
+      e1 => e1 match {
+        case sil.FieldAccessPredicate(_, prm) if prm.existsDefined(
+          e2 => e2 match {
+            case sil.FieldAccess(_, _) => true
+          }
+        ) => true
+      }
+    )
+  }
+
+  // heap_loc and p should not depend on h, only on the state from outside
+  // hence we do not create a fresh state
+  // m is a mask
+  // should have enough perm from heuristic
+  def addPermFromOutside(heap_loc: Seq[Exp], m: LocalVar, error: VerificationError): Stmt = {
+
+    val newMask: LocalVarDecl = LocalVarDecl(Identifier("newMask")(transferNamespace), maskType)
+
+    val curr_perm: Exp = MapSelect(currentMask.head, heap_loc)
+    val old_heap = heapModule.currentHeap.head
+    val old_mask = currentMask.head
+
+
+    var rstate = stateModule.freshTempState("temp")
+    val t: LocalVar = heapModule.currentHeap.head.asInstanceOf[LocalVar]
+    val decl = LocalVarDecl(t.name, t.typ)
+    val H_h: Exp = MapSelect(H, Seq(t))
+    val H_temp_h: Exp = MapSelect(H_temp, Seq(t))
+    val M_h: Exp = MapSelect(M, Seq(t))
+    val M_temp_h: Exp = MapSelect(M_temp, Seq(t))
+    val Theta_h: Exp = MapSelect(Theta, Seq(t))
+    val Theta_temp_h: Exp = MapSelect(Theta_temp, Seq(t))
+
+    val M_temp_xf: Exp = MapSelect(M_temp_h, Seq(obj.l, field.l))
+    val M_xf: Exp = MapSelect(M_h, Seq(obj.l, field.l))
+    val m_xf: Exp = MapSelect(m, Seq(obj.l, field.l))
+    val mask_xf: Exp = MapSelect(old_mask, Seq(obj.l, field.l))
+    val new_mask_xf: Exp = MapSelect(newMask.l, Seq(obj.l, field.l))
+
+    val old_heap_xf = MapSelect(old_heap, Seq(obj.l, field.l))
+
+    val h_xf = MapSelect(t, Seq(obj.l, field.l))
+
+
+
+    // Should have enough permission
+    val update_masks: Exp = Forall(Seq(decl, obj, field), Seq(Trigger(M_temp_xf), Trigger(M_xf)), M_temp_xf === M_xf + m_xf)
+    val equateMasks: Exp = Forall(Seq(decl), Seq(Trigger(H_temp_h), Trigger(H_h)), H_temp_h <==> (H_h &&
+      (Forall(Seq(obj, field), Seq(Trigger(m_xf), Trigger(old_heap_xf), Trigger(h_xf)), (m_xf > boogieNoPerm ==>
+        (old_heap_xf === h_xf)), heapModule.fieldType.freeTypeVars))
+    ))
+    val subtract_mask: Exp =
+      Forall(Seq(obj, field), Seq(Trigger(new_mask_xf), Trigger(mask_xf), Trigger(m_xf)),
+        new_mask_xf === mask_xf - m_xf
+      )
+
+    stateModule.replaceState(rstate._2) // go back to the original state
+
+    MaybeCommentBlock("adding permission from outside",
+    Seq(
+      Havoc(newMask.l),
+      Assume(subtract_mask),
+      Assign(old_mask, newMask.l),
+      //Assign(curr_perm, curr_perm - p),
+      Havoc(M_temp),
+      Havoc(H_temp),
+      Assume(update_masks),
+      Assume(equateMasks),
+      updateValidWithTheta(H_h, M_temp_h, H_temp_h, Theta_h, Theta_temp_h, decl),
+      Assign(H, H_temp),
+      Assign(M, M_temp)
+    ))
+  }
+
+  // Should be enough to sat one, but incomplete
+  def heuristicHowMuchPerm(heap_loc: Seq[Exp], ff: Exp, p: Exp, pc: Exp, error: VerificationError, can_use_minimum: Boolean): (LocalVarDecl, Stmt) = {
+    val m: LocalVarDecl = LocalVarDecl(Identifier("m")(transferNamespace), maskType)
+
+
+    val currentPerm: Exp = MapSelect(currentMask.head, heap_loc)
+    val old_mask = currentMask.head
+
+    var rstate = stateModule.freshTempState("temp")
+    val t: LocalVar = heapModule.currentHeap.head.asInstanceOf[LocalVar]
+    val decl = LocalVarDecl(t.name, t.typ)
+    val H_h: Exp = MapSelect(H, Seq(t))
+    val H_temp_h: Exp = MapSelect(H_temp, Seq(t))
+    val M_h: Exp = MapSelect(M, Seq(t))
+    val M_temp_h: Exp = MapSelect(M_temp, Seq(t))
+
+
+    val possible: Exp = Forall(Seq(decl), Seq(Trigger(M_h), Trigger(H_h)), (H_h && pc) ==> (
+        MapSelect(M_h, heap_loc) + currentPerm >= p
+      ))
+    // Needs a forall
+    val any_hl = Seq(obj.l, field.l)
+    val old_hl = MapSelect(old_mask, any_hl)
+    val m_hl = MapSelect(m.l, any_hl)
+    val smaller: Exp = Forall(Seq(obj, field), Seq(Trigger(m_hl), Trigger(old_hl)),
+      old_hl >= m_hl
+      )
+
+
+
+    val sufficient: Exp = Forall(Seq(decl), Seq(Trigger(M_h), Trigger(H_h)), (H_h && pc) ==> (
+      MapSelect(M_h, heap_loc) + MapSelect(m.l, heap_loc) >= p
+      ))
+
+
+    val no_ref_evaluates_to_this: Exp = Forall(Seq(obj), Trigger(MapSelect(m.l, Seq(obj.l, ff))),
+      (Forall(Seq(decl), Trigger(H_h),
+        H_h ==> (heap_loc.head !== obj.l)
+      )) ==>
+        (MapSelect(m.l, Seq(obj.l, ff)) === boogieNoPerm)
+    )
+
+    val other_fields_same: Exp = Forall(Seq(obj, field), Trigger(m_hl),
+      (field.l !== ff) ==> (m_hl === boogieNoPerm))
+
+    // Needs to add that this can be minimum, that is there exists one for which equality holds
+    // Unsound but temporarily ok
+
+    val evaluates_minimum: Exp = {
+      if (can_use_minimum) {
+        Forall(Seq(obj), Trigger(MapSelect(m.l, Seq(obj.l, ff))),
+          (Exists(Seq(decl), Trigger(H_h),
+            H_h && (heap_loc.head === obj.l)
+          )) ==>
+            (Exists(Seq(decl), Seq(Trigger(H_h), Trigger(M_h)),
+              H_h && (heap_loc.head === obj.l) &&
+                MapSelect(M_h, heap_loc) + MapSelect(m.l, heap_loc) === p
+            ))
+        )
+      } else TrueLit()
+    }
+
+
+    val candidate = LocalVarDecl(Identifier("minimumCandidate")(transferNamespace), permType)
+
+    val assert_exists_minimum_forall: Exp = Forall(Seq(obj), Trigger(MapSelect(m.l, Seq(obj.l, ff))),
+      Exists(Seq(candidate), Seq(),
+        (Exists(Seq(decl), Seq(Trigger(H_h), Trigger(M_h)),
+          H_h && (heap_loc.head === obj.l) &&
+            MapSelect(M_h, heap_loc) + candidate.l === p
+        ))
+       && (Forall(Seq(decl), Seq(Trigger(M_h), Trigger(H_h)), (H_h && pc) ==> (
+            MapSelect(M_h, heap_loc) + candidate.l >= p
+            )))))
+
+    stateModule.replaceState(rstate._2) // go back to the original state
+
+    (m, MaybeCommentBlock("determining how much to take from the outside (heuristic)",
+      Seq(
+        Assert(possible, error),
+        Havoc(m.l),
+        Assume(smaller),
+        Assume(sufficient),
+        Assume(no_ref_evaluates_to_this),
+        Assume(other_fields_same),
+        //Assert(assert_exists_minimum_forall, error),
+        Assume(evaluates_minimum)
+      )))
+  }
+
+  def initTheta(): Stmt = {
+    val (_, state) = stateModule.freshTempState("temp")
+    val t: LocalVar = heapModule.currentHeap.head.asInstanceOf[LocalVar]
+    val decl = LocalVarDecl(t.name, t.typ)
+    val Theta_h: Exp = MapSelect(Theta, Seq(t))
+    val Theta_zero: Exp = Forall(Seq(decl), Trigger(Theta_h), Theta_h === zeroMask)
+
+    stateModule.replaceState(state) // go back to the original state
+
+    MaybeCommentBlock("Initialization of theta for exhale RHS",
+      Seq(Havoc(Theta), Assume(Theta_zero)))
+  }
+
+
+
+  def exhaleRHS(A: sil.Exp, mainError: PartialVerificationError, can_use_minimum: Boolean, pc: Exp = TrueLit()): Stmt = {
+
+    var rstate = stateModule.freshTempState("temp")
+    val t: LocalVar = heapModule.currentHeap.head.asInstanceOf[LocalVar]
+    val decl = LocalVarDecl(t.name, t.typ)
+    val H_h: Exp = MapSelect(H, Seq(t))
+    val H_temp_h: Exp = MapSelect(H_temp, Seq(t))
+    val M_h: Exp = MapSelect(M, Seq(t))
+    val M_temp_h: Exp = MapSelect(M_temp, Seq(t))
+    val error: VerificationError = mainError.dueTo(reasons.AssertionFalse(A))
+
+    A match {
+      case _ if A.isPure =>
+        val e: Exp = expModule.translateExp(A)
+        val asm: Exp = Forall(Seq(decl), Trigger(H_h), (H_h && pc) ==> e)
+        stateModule.replaceState(rstate._2) // go back to the original state
+        MaybeComment("exhaling pure expression for all states",
+            Assert(asm, error))
+      case sil.And(a, b) =>
+        stateModule.replaceState(rstate._2) // go back to the original state
+        Seqn(Seq(exhaleRHS(a, mainError, can_use_minimum, pc), exhaleRHS(b, mainError, can_use_minimum, pc)))
+      case sil.FieldAccessPredicate(fieldAccess@sil.FieldAccess(recv, f), prm) =>
+        val rr: Exp = expModule.translateExp(recv)
+        val ff: Exp = heapModule.translateLocation(fieldAccess)
+        val rf: Seq[Exp] = Seq(rr, ff)
+        val p: Exp = expModule.translateExp(prm)
+
+        stateModule.replaceState(rstate._2) // go back to the original state
+
+        val (m, s1) = heuristicHowMuchPerm(rf, ff, p, pc, error, can_use_minimum)
+        val s2 = addPermFromOutside(rf, m.l, error)
+        rstate = stateModule.freshTempState("temp")
+
+        // 1: Assert that we have enough
+        val assert: Exp = Forall(Seq(decl), Seq(Trigger(M_h), Trigger(H_h)), (H_h && pc) ==> (MapSelect(M_h, rf) >= p))
+
+        val update_mask: Exp = Forall(Seq(decl), Seq(Trigger(M_temp_h), Trigger(H_h), Trigger(M_h)), (H_h && pc) ==>
+          (M_temp_h === MapUpdate(M_h, rf, MapSelect(M_h, rf) - p)))
+        val same_mask: Exp = Forall(Seq(decl), Seq(Trigger(M_temp_h), Trigger(H_h), Trigger(M_h)), UnExp(Not, H_h && pc) ==> (M_temp_h === M_h))
+
+
+        val Theta_h: Exp = MapSelect(Theta, Seq(t))
+        val Theta_temp_h: Exp = MapSelect(Theta_temp, Seq(t))
+
+        val update_mask_theta: Exp = Forall(Seq(decl), Seq(Trigger(Theta_temp_h), Trigger(H_h), Trigger(Theta_h)), (H_h && pc) ==>
+          (Theta_temp_h === MapUpdate(Theta_h, rf, MapSelect(Theta_h, rf) + p)))
+        val same_mask_theta: Exp = Forall(Seq(decl), Seq(Trigger(Theta_temp_h), Trigger(H_h), Trigger(Theta_h)), UnExp(Not, H_h && pc) ==> (Theta_temp_h === Theta_h))
+
+
+
+
+        stateModule.replaceState(rstate._2) // go back to the original state
+        MaybeCommentBlock("exhaling heap location permission",
+          //Seq(Havoc(H_temp), Havoc(M_temp), Assume(update_mask), Assume(same_mask), updateValid(), Assign(H, H_temp), Assign(M, M_temp)))
+          Seq(
+            s1,
+            s2,
+
+            MaybeCommentBlock("removing permission from the states",
+              Seq(Assert(assert, error),
+
+            Havoc(M_temp), Assume(update_mask), Assume(same_mask), Assign(M, M_temp),
+
+            Havoc(Theta_temp), Assume(update_mask_theta), Assume(same_mask_theta), Assign(Theta, Theta_temp)
+              ))))
+      case sil.Implies(cond, a) =>
+        val tcond = expModule.translateExp(cond)
+        stateModule.replaceState(rstate._2) // go back to the original state
+        exhaleRHS(a, mainError, can_use_minimum, pc && tcond)
+      case sil.CondExp(cond, a, b) =>
+        val tcond = expModule.translateExp(cond)
+        stateModule.replaceState(rstate._2) // go back to the original state
+        Seqn(Seq(exhaleRHS(a, mainError, can_use_minimum, pc && tcond), exhaleRHS(b, mainError, can_use_minimum, pc && UnExp(Not, tcond))))
+    }
+  }
+
+
   override def translatePackage(p: sil.Package, error: PartialVerificationError, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false):Stmt = {
+
+
+    val proofScript = p.proofScript
+    p match {
+      case pa@sil.Package(wand, proof) =>
+        val can_use_minimum = !accessesDetGaurav(wand)
+        println("Checking wand", wand, can_use_minimum)
+        wand match {
+          case w@sil.MagicWand(left, right) =>
+           // saving the old variables as they would be overwritten in the case of nested magic wands
+
+            val addWand = inhaleModule.inhale(Seq((w, error)), statesStack, inWand)
+
+            val stmt = initPackage() ++ inhaleLHS(left) ++ initTheta() ++ exhaleRHS(right, error, can_use_minimum)
+
+           val retStmt = stmt ++ addWand ++ heapModule.endExhale
+            retStmt
+
+          case _ => sys.error("Package only defined for wands.")
+        }
+    }
+  }
+
+  // -------------------------------------------------------------
+  // TD: End of sound package
+  // -------------------------------------------------------------
+
+
+
+
+  def old_translatePackage(p: sil.Package, error: PartialVerificationError, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false):Stmt = {
     val proofScript = p.proofScript
     p match {
       case pa@sil.Package(wand, proof) =>

@@ -85,7 +85,8 @@ class QuantifiedPermModule(val verifier: Verifier)
   private def maskVar : Var = {assert (!usingOldState); mask}
   private def maskExp : Exp = (if (usingOldState) Old(mask) else mask)
   private val zeroMaskName = Identifier("ZeroMask")
-  private val zeroMask = Const(zeroMaskName)
+  // TD: Wands
+  val zeroMask: Const = Const(zeroMaskName)
   private val zeroPMaskName = Identifier("ZeroPMask")
   override val zeroPMask = Const(zeroPMaskName)
   private val noPermName = Identifier("NoPerm")
@@ -249,6 +250,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   }
 
   def staticGoodMask = FuncApp(goodMaskName, LocalVar(maskName, maskType), Bool)
+  def goodMask(m: Exp) = FuncApp(goodMaskName, m, Bool)
 
   private def permAdd(a: Exp, b: Exp): Exp = a + b
   private def permSub(a: Exp, b: Exp): Exp = a - b
