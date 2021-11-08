@@ -6,25 +6,12 @@
 
 package viper.carbon.modules.impls
 
-import viper.carbon.boogie.Bool
-import viper.carbon.boogie.CondExp
-import viper.carbon.boogie.Exp
-import viper.carbon.boogie.FalseLit
-import viper.carbon.boogie.Forall
-import viper.carbon.boogie.If
-import viper.carbon.boogie.Int
-import viper.carbon.boogie.IntLit
-import viper.carbon.boogie.LocalVar
-import viper.carbon.boogie.LocalVarDecl
-import viper.carbon.boogie.Stmt
-import viper.carbon.boogie.Trigger
-import viper.carbon.boogie.TypeVar
+import viper.carbon.boogie.{Bool, CondExp, Exp, FalseLit, Forall, If, Int, IntLit, LocalVar, LocalVarDecl, MaybeCommentBlock, Stmt, Trigger, TypeVar, _}
 import viper.carbon.modules._
 import viper.silver.ast.{FuncApp => silverFuncApp}
 import viper.silver.ast.utility.Expressions.{contains, whenExhaling, whenInhaling}
 import viper.silver.ast.{NoPerm, PermGtCmp, PredicateAccess, PredicateAccessPredicate, Unfolding}
 import viper.silver.{ast => sil}
-import viper.carbon.boogie._
 import viper.carbon.verifier.{Environment, Verifier}
 import viper.carbon.boogie.Implicits._
 import viper.silver.ast.utility._
@@ -623,6 +610,27 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     definednessChecks
   }
 
+  /** check that body of predicate is self-framing */
+  private def checkPredicateDefinedness(p: sil.Predicate) : Option[Procedure] = {
+    if(p.isAbstract) {
+      return None
+    }
+
+    val args = p.formalArgs map translateLocalVarDecl
+    val init : Stmt = MaybeCommentBlock("Initializing the state",
+      stateModule.initBoogieState ++ (p.formalArgs map (a => allAssumptionsAboutValue(a.typ,mainModule.translateLocalVarDecl(a),true)))
+    )
+
+    val predicateBody = p.body.get
+
+    val procedureBody =
+      MaybeCommentBlock("Check definedness of predicate body of " + p.name, init ++ checkDefinednessOfSpecAndInhale(predicateBody, errors.ContractNotWellformed(predicateBody)))
+
+    val predicateCheck = Procedure(Identifier(p.name  + "#definedness"), args, Seq(), procedureBody)
+
+    Some(predicateCheck)
+  }
+
   private def checkFunctionPostconditionDefinedness(f: sil.Function): Stmt with Product with Serializable = {
     if (contains[sil.InhaleExhaleExp](f.posts)) {
       // Postcondition contains InhaleExhale expression.
@@ -791,7 +799,9 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val res = MaybeCommentedDecl(s"Translation of predicate ${p.name}",
       predicateGhostFieldDecl(p)) ++
     Axiom(Forall(heapModule.staticStateContributions(true, true) ++ translatedArgs, Seq(Trigger(trigger)), anystate)) ++
-      (if (p.isAbstract) Nil else translateCondAxioms("predicate "+p.name, p.formalArgs, framingFunctionsToDeclare))
+      (if (p.isAbstract) Nil else
+        translateCondAxioms("predicate "+p.name, p.formalArgs, framingFunctionsToDeclare))  ++
+      checkPredicateDefinedness(p)
 
     val usedNames = env.currentNameMapping
 
