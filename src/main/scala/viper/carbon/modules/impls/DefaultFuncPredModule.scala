@@ -335,7 +335,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
           } else Some(FuncApp(Identifier(recf.name + limitedPostfix), recargs map (_.transform(transformer)), t))
 
-      case fa@Forall(vs,ts,e,tvs) => Some(Forall(vs,ts,e.transform(transformer),tvs)) // avoid recursing into the triggers of nested foralls (which will typically get translated via another call to this anyway)
+      case Forall(vs,ts,e,tvs) => Some(Forall(vs,ts,e.transform(transformer),tvs)) // avoid recursing into the triggers of nested foralls (which will typically get translated via another call to this anyway)
+      case Exists(vs,ts,e) => Some(Exists(vs,ts,e.transform(transformer))) // avoid recursing into the triggers of nested exists (which will typically get translated via another call to this anyway)
     }
   val res = exp transform transformer
     res
