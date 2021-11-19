@@ -13,7 +13,7 @@ import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
 import viper.carbon.modules.components.{DefinednessComponent, StmtComponent}
 import viper.silver.ast.utility.Expressions
-import viper.silver.ast.{MagicWand, MagicWandStructure}
+import viper.silver.ast.{FullPerm, MagicWand, MagicWandStructure}
 import viper.silver.cfg.silver.CfgGenerator.EmptyStmt
 import viper.silver.verifier.{PartialVerificationError, VerificationError, reasons}
 import viper.silver.{ast => sil}
@@ -225,6 +225,9 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
   val Theta: LocalVar = LocalVar(Identifier("Theta")(transferNamespace), MapType(Seq(heapModule.heapType), maskType))
   val Theta_temp: LocalVar = LocalVar(Identifier("Theta_temp")(transferNamespace), MapType(Seq(heapModule.heapType), maskType))
 
+  val bm: LocalVar = LocalVar(Identifier("bm")(transferNamespace),
+    MapType(Seq(heapModule.heapType, heapModule.refType, heapModule.fieldType), Bool, Seq(TypeVar("A"), TypeVar("B"))))
+
 
   val obj = LocalVarDecl(Identifier("o")(transferNamespace), heapModule.refType)
   val field = LocalVarDecl(Identifier("f")(transferNamespace), heapModule.fieldType)
@@ -357,6 +360,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
     val M_h: Exp = MapSelect(M, Seq(t))
     val M_temp_h: Exp = MapSelect(M_temp, Seq(t))
     val Theta_h: Exp = MapSelect(Theta, Seq(t))
+    val Theta_h_xf: Exp = MapSelect(Theta_h, Seq(obj.l, field.l))
     val Theta_temp_h: Exp = MapSelect(Theta_temp, Seq(t))
 
     val M_temp_xf: Exp = MapSelect(M_temp_h, Seq(obj.l, field.l))
@@ -372,11 +376,35 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
 
 
     // Should have enough permission
-    val update_masks: Exp = Forall(Seq(decl, obj, field), Seq(Trigger(M_temp_xf), Trigger(M_xf)), M_temp_xf === M_xf + m_xf)
+    // if combinableWands, then we flatten the mask
+    val update_masks: Exp = {
+      if (verifier.wandType == 0)
+        Forall(Seq(decl, obj, field), Seq(Trigger(M_temp_xf), Trigger(M_xf)), M_temp_xf === M_xf + m_xf)
+      else
+        Forall(Seq(decl, obj, field), Seq(Trigger(M_temp_xf), Trigger(M_xf), Trigger(Theta_h_xf)),
+          M_temp_xf === permModule.minReal(M_xf + m_xf, permModule.fullPerm - Theta_h_xf))
+    }
     val equateMasks: Exp = Forall(Seq(decl), Seq(Trigger(H_temp_h), Trigger(H_h)), H_temp_h <==> (H_h &&
       (Forall(Seq(obj, field), Seq(Trigger(m_xf), Trigger(old_heap_xf), Trigger(h_xf)), (m_xf > boogieNoPerm ==>
         (old_heap_xf === h_xf)), heapModule.fieldType.freeTypeVars))
     ))
+
+
+    val bm_h_hl: Exp = MapSelect(bm, Seq(t, obj.l, field.l))
+
+    val pruneStates: Exp = {
+      if (verifier.wandType >= 2) {
+        Forall(Seq(decl), Seq(Trigger(H_temp_h), Trigger(H_h)), H_temp_h <==> (H_h &&
+          (Forall(Seq(obj, field),
+            Seq(Trigger(bm_h_hl), Trigger(m_xf)),
+            bm_h_hl ==> (m_xf === boogieNoPerm),
+            heapModule.fieldType.freeTypeVars))
+          ))
+      }
+      else H === H_temp
+    }
+
+
     val subtract_mask: Exp =
       Forall(Seq(obj, field), Seq(Trigger(new_mask_xf), Trigger(mask_xf), Trigger(m_xf)),
         new_mask_xf === mask_xf - m_xf
@@ -390,10 +418,21 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
       Assume(subtract_mask),
       Assign(old_mask, newMask.l),
       //Assign(curr_perm, curr_perm - p),
+
+
+      Havoc(H_temp),
+      Assume(pruneStates),
+      Assign(H, H_temp),
+
+      Havoc(H_temp),
+      Assume(equateMasks),
+      Assign(H, H_temp),
+
+
       Havoc(M_temp),
       Havoc(H_temp),
+
       Assume(update_masks),
-      Assume(equateMasks),
       updateValidWithTheta(H_h, M_temp_h, H_temp_h, Theta_h, Theta_temp_h, decl),
       Assign(H, H_temp),
       Assign(M, M_temp)
@@ -490,6 +529,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
       )))
   }
 
+  // Also initalizes bm(h, hl): Bool
   def initTheta(): Stmt = {
     val (_, state) = stateModule.freshTempState("temp")
     val t: LocalVar = heapModule.currentHeap.head.asInstanceOf[LocalVar]
@@ -497,10 +537,21 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
     val Theta_h: Exp = MapSelect(Theta, Seq(t))
     val Theta_zero: Exp = Forall(Seq(decl), Trigger(Theta_h), Theta_h === zeroMask)
 
+    val M_h: Exp = MapSelect(M, Seq(t))
+    val M_h_hl: Exp = MapSelect(M_h, Seq(obj.l, field.l))
+
+    val bm_h_hl: Exp = MapSelect(bm, Seq(t, obj.l, field.l))
+    val bm_init: Exp = Forall(
+      Seq(decl, obj, field),
+      Seq(Trigger(bm_h_hl), Trigger(M_h_hl)),
+      bm_h_hl <==> (M_h_hl >= permModule.fullPerm)
+    )
+
+
     stateModule.replaceState(state) // go back to the original state
 
-    MaybeCommentBlock("Initialization of theta for exhale RHS",
-      Seq(Havoc(Theta), Assume(Theta_zero)))
+    MaybeCommentBlock("Initialization of theta and bm for exhale RHS",
+      Seq(Havoc(Theta), Assume(Theta_zero), Havoc(bm), Assume(bm_init)))
   }
 
 

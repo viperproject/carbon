@@ -95,5 +95,11 @@ class CarbonConfig(args: Seq[String]) extends SilFrontendConfig(args, "Carbon") 
     noshort = true
   )
 
+  val combinableWands = opt[Int]("combinableWands",
+    descr = "0: Normal wands (default), 1: restricted definition, 2: lightened definition",
+    default = None,
+    noshort = true
+  )
+
   verify()
 }

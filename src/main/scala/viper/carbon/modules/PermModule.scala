@@ -16,7 +16,9 @@ import viper.silver.{ast => sil}
  */
 trait PermModule extends Module with CarbonStateComponent {
 
+  // TD: Wands
   val zeroMask: Const
+  val fullPerm: Const
 
   /**
    * The type used to represent permissions.
@@ -161,5 +163,8 @@ trait PermModule extends Module with CarbonStateComponent {
 
   // removes permission to w#ft (footprint of the magic wand) (See Heap module for w#ft description)
   def exhaleWandFt(w: sil.MagicWand): Stmt
+
+  // TD: For combinable wands
+  def minReal(a: Exp, b: Exp): Exp
 
 }

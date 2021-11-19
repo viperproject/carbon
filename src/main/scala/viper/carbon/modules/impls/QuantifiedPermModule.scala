@@ -92,7 +92,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   private val noPermName = Identifier("NoPerm")
   private val noPerm = Const(noPermName)
   private val fullPermName = Identifier("FullPerm")
-  private val fullPerm = Const(fullPermName)
+  val fullPerm = Const(fullPermName)
   private val permAddName = Identifier("PermAdd")
   private val permSubName = Identifier("PermSub")
   private val permDivName = Identifier("PermDiv")
@@ -121,12 +121,29 @@ class QuantifiedPermModule(val verifier: Verifier)
   private var rangeFuncs: ListBuffer[Func] = new ListBuffer[Func](); //list of inverse functions used for inhale/exhale qp
   private var triggerFuncs: ListBuffer[Func] = new ListBuffer[Func](); //list of inverse functions used for inhale/exhale qp
 
+  // TD: For wands
+  private val minFun = Identifier("min")
+
+
+  def minReal(a: Exp, b: Exp) = FuncApp(minFun, Seq(a, b), Real)
+
   override def preamble = {
     val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
     val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
     val permInZeroMask = MapSelect(zeroMask, Seq(obj.l, field.l))
     val permInZeroPMask = MapSelect(zeroPMask, Seq(obj.l, field.l))
-    // permission type
+    // TD: Wands
+    val a = LocalVarDecl(Identifier("a"), Real)
+    val b = LocalVarDecl(Identifier("b"), Real)
+    val vmin = FuncApp(minFun, Seq(a.l, b.l), Real)
+    Func(minFun, Seq(a, b), Real) ::
+      Axiom(Forall(
+        Seq(a, b), Trigger(vmin), (a.l >= b.l) ==> (vmin === b.l),
+      )) ::
+      Axiom(Forall(
+        Seq(a, b), Trigger(vmin), (b.l >= a.l) ==> (vmin === a.l),
+      )) ::
+      // permission type
     TypeAlias(permType, Real) ::
       // mask and mask type
       TypeAlias(maskType, MapType(Seq(refType, fieldType), permType, fieldType.freeTypeVars)) ::

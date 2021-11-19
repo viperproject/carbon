@@ -93,6 +93,13 @@ case class CarbonVerifier(override val reporter: Reporter,
   }
   else false
 
+  def wandType = if (config != null) config.combinableWands.toOption match {
+    case Some(i) => i
+    case None => 0
+  }
+  else 0
+
+
 
   def name: String = "carbon"
   def version: String = "1.0"
