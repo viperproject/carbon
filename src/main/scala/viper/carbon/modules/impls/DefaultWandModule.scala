@@ -704,14 +704,26 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
         (oldTheta := Theta) ++
         exhaleRHS(a, error, can_use_minimum, pc) ++
         Havoc(M_temp) ++ Assume(restore) ++ (M := M_temp) ++ (Theta := oldTheta)
+
+      case sil.Fold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(_, _), perm)) =>
+        // TODO: Check definedness acc, check definedness perm
+        val body: sil.Exp = sil.utility.Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program, mainModule.env.allDefinedNames(program)).get, acc.perm)
+        exhaleRHS(body, error, can_use_minimum, pc) ++ inhaleLHS(acc, error, pc)
+
+      case sil.Unfold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(_, _), perm)) =>
+        // TODO: Check definedness acc, check definedness perm
+        val body: sil.Exp = sil.utility.Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program, mainModule.env.allDefinedNames(program)).get, acc.perm)
+        exhaleRHS(acc, error, can_use_minimum, pc) ++ inhaleLHS(body, error, pc)
+
+
+
+
     }
   }
 
-
   override def translatePackage(p: sil.Package, error: PartialVerificationError, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false):Stmt = {
 
-
-    p match {
+  p match {
       case pa@sil.Package(wand, proofScript: sil.Seqn) =>
         val can_use_minimum = !accessesDetGaurav(wand)
         println("Checking wand", wand, can_use_minimum)
