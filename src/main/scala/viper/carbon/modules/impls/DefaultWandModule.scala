@@ -225,6 +225,8 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
   val Theta: LocalVar = LocalVar(Identifier("Theta")(transferNamespace), MapType(Seq(heapModule.heapType), maskType))
   val Theta_temp: LocalVar = LocalVar(Identifier("Theta_temp")(transferNamespace), MapType(Seq(heapModule.heapType), maskType))
 
+  val oldTheta: LocalVar = LocalVar(Identifier("oldTheta")(transferNamespace), MapType(Seq(heapModule.heapType), maskType))
+
   val bm: LocalVar = LocalVar(Identifier("bm")(transferNamespace),
     MapType(Seq(heapModule.heapType, heapModule.refType, heapModule.fieldType), Bool, Seq(TypeVar("A"), TypeVar("B"))))
 
@@ -671,13 +673,46 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
     }
   }
 
+  def handleProofScript(P: sil.Stmt, error: PartialVerificationError, can_use_minimum: Boolean, pc: Exp = TrueLit()): Stmt = {
+
+    var rstate = stateModule.freshTempState("temp")
+    val t: LocalVar = heapModule.currentHeap.head.asInstanceOf[LocalVar]
+    stateModule.replaceState(rstate._2) // go back to the original state
+
+    val decl = LocalVarDecl(t.name, t.typ)
+    val M_h: Exp = MapSelect(M, Seq(t))
+    val M_h_xf: Exp = MapSelect(M_h, Seq(obj.l, field.l))
+    val M_temp_h: Exp = MapSelect(M_temp, Seq(t))
+    val M_temp_h_xf: Exp = MapSelect(M_temp_h, Seq(obj.l, field.l))
+
+    val Theta_h: Exp = MapSelect(Theta, Seq(t))
+    val Theta_h_xf: Exp = MapSelect(Theta_h, Seq(obj.l, field.l))
+    val oldTheta_h: Exp = MapSelect(oldTheta, Seq(t))
+    val oldTheta_h_xf: Exp = MapSelect(oldTheta_h, Seq(obj.l, field.l))
+
+
+    P match {
+      case sil.Seqn(ss, _) => ss.map(handleProofScript(_, error, can_use_minimum, pc))
+      case sil.If(cond, s1, s2) =>
+        rstate = stateModule.freshTempState("temp")
+        val tcond = expModule.translateExp(cond)
+        stateModule.replaceState(rstate._2) // go back to the original state
+        Seqn(Seq(handleProofScript(s1, error, can_use_minimum, pc && tcond), handleProofScript(s2, error, can_use_minimum, pc && UnExp(Not, tcond))))
+      case sil.Assert(a) =>
+        val restore: Exp = Forall(Seq(decl, obj, field), Seq(Trigger(M_temp_h_xf), Trigger(M_h_xf), Trigger(Theta_h_xf), Trigger(oldTheta_h_xf)),
+          (M_temp_h_xf === (M_h_xf + (Theta_h_xf - oldTheta_h_xf))))
+        (oldTheta := Theta) ++
+        exhaleRHS(a, error, can_use_minimum, pc) ++
+        Havoc(M_temp) ++ Assume(restore) ++ (M := M_temp) ++ (Theta := oldTheta)
+    }
+  }
+
 
   override def translatePackage(p: sil.Package, error: PartialVerificationError, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false):Stmt = {
 
 
-    val proofScript = p.proofScript
     p match {
-      case pa@sil.Package(wand, proof) =>
+      case pa@sil.Package(wand, proofScript: sil.Seqn) =>
         val can_use_minimum = !accessesDetGaurav(wand)
         println("Checking wand", wand, can_use_minimum)
         wand match {
@@ -686,7 +721,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
 
             val addWand = inhaleModule.inhale(Seq((w, error)), statesStack, inWand)
 
-            val stmt = initPackage() ++ inhaleLHS(left, error) ++ initTheta() ++ exhaleRHS(right, error, can_use_minimum)
+            val stmt = initPackage() ++ inhaleLHS(left, error) ++ initTheta() ++ handleProofScript(proofScript, error, can_use_minimum) ++ exhaleRHS(right, error, can_use_minimum)
 
            val retStmt = stmt ++ addWand ++ heapModule.endExhale
             retStmt
