@@ -290,7 +290,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
   }
 
 
-  def inhaleLHS(A: sil.Exp, pc: Exp = TrueLit()): Stmt = {
+  def inhaleLHS(A: sil.Exp, error: PartialVerificationError, pc: Exp = TrueLit()): Stmt = {
 
     val (_, state) = stateModule.freshTempState("temp")
     val t: LocalVar = heapModule.currentHeap.head.asInstanceOf[LocalVar]
@@ -307,19 +307,25 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
           val asm: Exp = Forall(Seq(decl), Trigger(H_temp_h), H_temp_h <==> H_h && (pc ==> e))
           MaybeCommentBlock("inhaling pure expression for all states",
             Seq(Havoc(H_temp), Assume(asm), Assign(H, H_temp)))
-        case sil.And(a, b) => Seqn(Seq(inhaleLHS(a, pc), inhaleLHS(b, pc)))
-        case sil.FieldAccessPredicate(fieldAccess@sil.FieldAccess(recv, f), prm) =>
-          val rr: Exp = expModule.translateExp(recv)
-          val ff: Exp = heapModule.translateLocation(fieldAccess)
-          val rf: Seq[Exp] = Seq(rr, ff)
-          val update_mask: Exp = Forall(Seq(decl), Seq(Trigger(M_temp_h), Trigger(M_h)), pc ==> (M_temp_h === MapUpdate(M_h, rf, MapSelect(M_h, rf) + expModule.translateExp(prm))))
+        case sil.And(a, b) => Seqn(Seq(inhaleLHS(a, error, pc), inhaleLHS(b, error, pc)))
+        case sil.AccessPredicate(loc: sil.LocationAccess, prm: sil.Exp) =>
+          val perm = translatePerm(prm)
+          val rf: Seq[Exp] = loc match {
+            case sil.FieldAccess(rcv, field) =>
+              Seq(expModule.translateExp(rcv), heapModule.translateLocation(loc))
+            case sil.PredicateAccess(_, _) =>
+              Seq(heapModule.translateNull, heapModule.translateLocation(loc))
+          }
+          val update_mask: Exp = Forall(Seq(decl), Seq(Trigger(M_temp_h), Trigger(M_h)), pc ==> (M_temp_h === MapUpdate(M_h, rf, MapSelect(M_h, rf) + perm)))
+          val perm_pos: Stmt = Assert(Forall(Seq(decl), Seq(Trigger(M_temp_h), Trigger(M_h)),
+            (pc && H_h)==> (perm > boogieNoPerm)), error.dueTo(reasons.NegativePermission(prm)))
           val same_mask: Exp = Forall(Seq(decl), Seq(Trigger(M_temp_h), Trigger(M_h)), UnExp(Not, pc) ==> (M_temp_h === M_h))
-          MaybeCommentBlock("inhaling heap location permission",
-            Seq(Havoc(H_temp), Havoc(M_temp), Assume(update_mask), Assume(same_mask), updateValid(H_h, M_temp_h, H_temp_h, decl), Assign(H, H_temp), Assign(M, M_temp)))
-        case sil.Implies(cond, a) => inhaleLHS(a, pc && expModule.translateExp(cond))
+          MaybeCommentBlock("inhaling location permission (heap loc or predicate)",
+            Seq(perm_pos, Havoc(H_temp), Havoc(M_temp), Assume(update_mask), Assume(same_mask), updateValid(H_h, M_temp_h, H_temp_h, decl), Assign(H, H_temp), Assign(M, M_temp)))
+        case sil.Implies(cond, a) => inhaleLHS(a, error, pc && expModule.translateExp(cond))
         case sil.CondExp(cond, a, b) =>
           val tcond = expModule.translateExp(cond)
-          Seqn(Seq(inhaleLHS(a, pc && tcond), inhaleLHS(b, pc && UnExp(Not, tcond))))
+          Seqn(Seq(inhaleLHS(a, error, pc && tcond), inhaleLHS(b, error, pc && UnExp(Not, tcond))))
       }
     stateModule.replaceState(state) // go back to the original state
     r
@@ -377,12 +383,23 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
 
     // Should have enough permission
     // if combinableWands, then we flatten the mask
+    // Only for heap locations
+
+
+    //((staticGoodMask && heapModule.isPredicateField(field.l).not && heapModule.isWandField(field.l).not) ==> perm <= fullPerm )))
+
     val update_masks: Exp = {
       if (verifier.wandType == 0)
         Forall(Seq(decl, obj, field), Seq(Trigger(M_temp_xf), Trigger(M_xf)), M_temp_xf === M_xf + m_xf)
-      else
-        Forall(Seq(decl, obj, field), Seq(Trigger(M_temp_xf), Trigger(M_xf), Trigger(Theta_h_xf)),
-          M_temp_xf === permModule.minReal(M_xf + m_xf, permModule.fullPerm - Theta_h_xf))
+      else {
+        ((Forall(Seq(decl, obj, field), Seq(Trigger(M_temp_xf), Trigger(M_xf), Trigger(Theta_h_xf)),
+          (heapModule.isPredicateField(field.l).not && heapModule.isWandField(field.l).not)
+            ==> (M_temp_xf === permModule.minReal(M_xf + m_xf, permModule.fullPerm - Theta_h_xf))))
+        &&
+        (Forall(Seq(decl, obj, field), Seq(Trigger(M_temp_xf), Trigger(M_xf), Trigger(Theta_h_xf)),
+          (heapModule.isPredicateField(field.l) || heapModule.isWandField(field.l))
+          ==> (M_temp_xf === M_xf + m_xf))))
+      }
     }
     val equateMasks: Exp = Forall(Seq(decl), Seq(Trigger(H_temp_h), Trigger(H_h)), H_temp_h <==> (H_h &&
       (Forall(Seq(obj, field), Seq(Trigger(m_xf), Trigger(old_heap_xf), Trigger(h_xf)), (m_xf > boogieNoPerm ==>
@@ -541,12 +558,12 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
     val M_h_hl: Exp = MapSelect(M_h, Seq(obj.l, field.l))
 
     val bm_h_hl: Exp = MapSelect(bm, Seq(t, obj.l, field.l))
+    // Only for fields
     val bm_init: Exp = Forall(
       Seq(decl, obj, field),
       Seq(Trigger(bm_h_hl), Trigger(M_h_hl)),
-      bm_h_hl <==> (M_h_hl >= permModule.fullPerm)
-    )
-
+      bm_h_hl <==> (heapModule.isPredicateField(field.l).not && heapModule.isWandField(field.l).not &&
+        (M_h_hl >= permModule.fullPerm)))
 
     stateModule.replaceState(state) // go back to the original state
 
@@ -577,9 +594,31 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
       case sil.And(a, b) =>
         stateModule.replaceState(rstate._2) // go back to the original state
         Seqn(Seq(exhaleRHS(a, mainError, can_use_minimum, pc), exhaleRHS(b, mainError, can_use_minimum, pc)))
-      case sil.FieldAccessPredicate(fieldAccess@sil.FieldAccess(recv, f), prm) =>
-        val rr: Exp = expModule.translateExp(recv)
-        val ff: Exp = heapModule.translateLocation(fieldAccess)
+
+      case sil.AccessPredicate(loc: sil.LocationAccess, prm: sil.Exp) =>
+        val (rr, ff) = loc match {
+          case sil.FieldAccess(rcv, field) =>
+            (expModule.translateExp(rcv), heapModule.translateLocation(loc))
+          case sil.PredicateAccess(_, _) =>
+            (heapModule.translateNull, heapModule.translateLocation(loc))
+        }
+
+        /*
+        val perm = translatePerm(prm)
+       val update_mask: Exp = Forall(Seq(decl), Seq(Trigger(M_temp_h), Trigger(M_h)), pc ==> (M_temp_h === MapUpdate(M_h, rf, MapSelect(M_h, rf) + perm)))
+        val perm_pos: Stmt = Assert(Forall(Seq(decl), Seq(Trigger(M_temp_h), Trigger(M_h)),
+          (pc && H_h)==> (perm > boogieNoPerm)), error.dueTo(reasons.NegativePermission(prm)))
+        val same_mask: Exp = Forall(Seq(decl), Seq(Trigger(M_temp_h), Trigger(M_h)), UnExp(Not, pc) ==> (M_temp_h === M_h))
+        MaybeCommentBlock("inhaling location permission (heap loc or predicate)",
+          Seq(perm_pos, Havoc(H_temp), Havoc(M_temp), Assume(update_mask), Assume(same_mask), updateValid(H_h, M_temp_h, H_temp_h, decl), Assign(H, H_temp), Assign(M, M_temp)))
+         */
+
+
+
+
+      //case sil.FieldAccessPredicate(fieldAccess@sil.FieldAccess(recv, f), prm) =>
+        //val rr: Exp = expModule.translateExp(recv)
+        //val ff: Exp = heapModule.translateLocation(fieldAccess)
         val rf: Seq[Exp] = Seq(rr, ff)
         val p: Exp = expModule.translateExp(prm)
 
@@ -647,7 +686,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
 
             val addWand = inhaleModule.inhale(Seq((w, error)), statesStack, inWand)
 
-            val stmt = initPackage() ++ inhaleLHS(left) ++ initTheta() ++ exhaleRHS(right, error, can_use_minimum)
+            val stmt = initPackage() ++ inhaleLHS(left, error) ++ initTheta() ++ exhaleRHS(right, error, can_use_minimum)
 
            val retStmt = stmt ++ addWand ++ heapModule.endExhale
             retStmt
