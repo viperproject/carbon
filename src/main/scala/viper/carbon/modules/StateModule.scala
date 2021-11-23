@@ -22,6 +22,7 @@ trait StateModule extends Module with ComponentRegistry[CarbonStateComponent] wi
    * Returns an assumption that the current state is 'good', or well-formed.
    */
   def assumeGoodState: Stmt
+  def state(h: Exp, m: Exp): Exp
 
   /**
    * Returns a static invocation of the 'is good state' function with the arguments from

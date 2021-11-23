@@ -31,6 +31,8 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     Assume(currentGoodState)
   }
 
+  override def state(h: Exp, m: Exp) = FuncApp(Identifier(isGoodState), Seq(h, m), Bool)
+
   override def preamble = {
     Func(Identifier(isGoodState), staticStateContributions(), Bool)
   }

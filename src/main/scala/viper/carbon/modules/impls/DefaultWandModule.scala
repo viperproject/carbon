@@ -257,7 +257,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
   }
 
   def updateValid(H_h: Exp, M_temp_h: Exp, H_temp_h: Exp, decl: LocalVarDecl): Stmt = {
-    val asm1: Exp = Forall(Seq(decl), Seq(Trigger(H_h), Trigger(H_temp_h)), H_temp_h <==> (H_h && goodMask(M_temp_h)))
+    val asm1: Exp = Forall(Seq(decl), Seq(Trigger(H_h), Trigger(H_temp_h)), H_temp_h <==> (H_h && stateModule.state(decl.l, M_temp_h)))
     val h_xf: Exp = MapSelect(decl.l, Seq(obj.l, field.l))
     val m_xf: Exp = MapSelect(M_temp_h, Seq(obj.l, field.l))
     val asm2: Exp = Forall(Seq(decl), Seq(Trigger(H_h), Trigger(H_temp_h)), H_temp_h <==> H_h && (
@@ -292,7 +292,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
   }
 
 
-  def inhaleLHS(A: sil.Exp, error: PartialVerificationError, pc: Exp = TrueLit()): Stmt = {
+  def inhaleLHS(A: sil.Exp, pc: Exp = TrueLit()): Stmt = {
 
     val (_, state) = stateModule.freshTempState("temp")
     val t: LocalVar = heapModule.currentHeap.head.asInstanceOf[LocalVar]
@@ -309,7 +309,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
           val asm: Exp = Forall(Seq(decl), Trigger(H_temp_h), H_temp_h <==> H_h && (pc ==> e))
           MaybeCommentBlock("inhaling pure expression for all states",
             Seq(Havoc(H_temp), Assume(asm), Assign(H, H_temp)))
-        case sil.And(a, b) => Seqn(Seq(inhaleLHS(a, error, pc), inhaleLHS(b, error, pc)))
+        case sil.And(a, b) => Seqn(Seq(inhaleLHS(a, pc), inhaleLHS(b, pc)))
         case sil.AccessPredicate(loc: sil.LocationAccess, prm: sil.Exp) =>
           val perm = translatePerm(prm)
           val rf: Seq[Exp] = loc match {
@@ -319,15 +319,22 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
               Seq(heapModule.translateNull, heapModule.translateLocation(loc))
           }
           val update_mask: Exp = Forall(Seq(decl), Seq(Trigger(M_temp_h), Trigger(M_h)), pc ==> (M_temp_h === MapUpdate(M_h, rf, MapSelect(M_h, rf) + perm)))
-          val perm_pos: Stmt = Assert(Forall(Seq(decl), Seq(Trigger(M_temp_h), Trigger(M_h)),
-            (pc && H_h)==> (perm > boogieNoPerm)), error.dueTo(reasons.NegativePermission(prm)))
+          //val perm_pos: Stmt = Assert(Forall(Seq(decl), Seq(Trigger(M_temp_h), Trigger(M_h)),
+           // (pc && H_h)==> (perm > boogieNoPerm)), error.dueTo(reasons.NegativePermission(prm)))
           val same_mask: Exp = Forall(Seq(decl), Seq(Trigger(M_temp_h), Trigger(M_h)), UnExp(Not, pc) ==> (M_temp_h === M_h))
           MaybeCommentBlock("inhaling location permission (heap loc or predicate)",
-            Seq(perm_pos, Havoc(H_temp), Havoc(M_temp), Assume(update_mask), Assume(same_mask), updateValid(H_h, M_temp_h, H_temp_h, decl), Assign(H, H_temp), Assign(M, M_temp)))
-        case sil.Implies(cond, a) => inhaleLHS(a, error, pc && expModule.translateExp(cond))
+            Seq(Havoc(H_temp), Havoc(M_temp), Assume(update_mask), Assume(same_mask), updateValid(H_h, M_temp_h, H_temp_h, decl), Assign(H, H_temp), Assign(M, M_temp)))
+        case w@sil.MagicWand(_, _) =>
+          val perm = boogieFullPerm
+          val rf: Seq[Exp] = Seq(heapModule.translateNull, getWandRepresentation(w))
+          val update_mask: Exp = Forall(Seq(decl), Seq(Trigger(M_temp_h), Trigger(M_h)), pc ==> (M_temp_h === MapUpdate(M_h, rf, MapSelect(M_h, rf) + perm)))
+          val same_mask: Exp = Forall(Seq(decl), Seq(Trigger(M_temp_h), Trigger(M_h)), UnExp(Not, pc) ==> (M_temp_h === M_h))
+          MaybeCommentBlock("inhaling permission to wand",
+            Seq(Havoc(H_temp), Havoc(M_temp), Assume(update_mask), Assume(same_mask), updateValid(H_h, M_temp_h, H_temp_h, decl), Assign(H, H_temp), Assign(M, M_temp)))
+        case sil.Implies(cond, a) => inhaleLHS(a, pc && expModule.translateExp(cond))
         case sil.CondExp(cond, a, b) =>
           val tcond = expModule.translateExp(cond)
-          Seqn(Seq(inhaleLHS(a, error, pc && tcond), inhaleLHS(b, error, pc && UnExp(Not, tcond))))
+          Seqn(Seq(inhaleLHS(a, pc && tcond), inhaleLHS(b,  pc && UnExp(Not, tcond))))
       }
     stateModule.replaceState(state) // go back to the original state
     r
@@ -459,7 +466,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
   }
 
   // Should be enough to sat one, but incomplete
-  def heuristicHowMuchPerm(heap_loc: Seq[Exp], ff: Exp, p: Exp, pc: Exp, error: VerificationError, can_use_minimum: Boolean): (LocalVarDecl, Stmt) = {
+  def heuristicHowMuchPerm(heap_loc: Seq[Exp], heap_loc_out: Seq[Exp], ff: Exp, p: Exp, pc: Exp, error: VerificationError, can_use_minimum: Boolean): (LocalVarDecl, Stmt) = {
     val m: LocalVarDecl = LocalVarDecl(Identifier("m")(transferNamespace), maskType)
 
 
@@ -474,10 +481,13 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
     val M_h: Exp = MapSelect(M, Seq(t))
     val M_temp_h: Exp = MapSelect(M_temp, Seq(t))
 
+    val conj: Exp = H_h && pc
 
-    val possible: Exp = Forall(Seq(decl), Seq(Trigger(M_h), Trigger(H_h)), (H_h && pc) ==> (
+
+    val possible: Exp = Forall(Seq(decl), Seq(Trigger(M_h), Trigger(H_h)), conj ==> (
         MapSelect(M_h, heap_loc) + currentPerm >= p
       ))
+
     // Needs a forall
     val any_hl = Seq(obj.l, field.l)
     val old_hl = MapSelect(old_mask, any_hl)
@@ -488,32 +498,33 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
 
 
 
-    val sufficient: Exp = Forall(Seq(decl), Seq(Trigger(M_h), Trigger(H_h)), (H_h && pc) ==> (
+    val sufficient: Exp = Forall(Seq(decl), Seq(Trigger(M_h), Trigger(H_h)), conj ==> (
       MapSelect(M_h, heap_loc) + MapSelect(m.l, heap_loc) >= p
       ))
 
+    val ff_out = heap_loc_out.tail.head
 
-    val no_ref_evaluates_to_this: Exp = Forall(Seq(obj), Trigger(MapSelect(m.l, Seq(obj.l, ff))),
+    val no_ref_evaluates_to_this: Exp = Forall(Seq(obj), Trigger(MapSelect(m.l, Seq(obj.l, ff_out))),
       (Forall(Seq(decl), Trigger(H_h),
-        H_h ==> (heap_loc.head !== obj.l)
+        conj ==> (heap_loc.head !== obj.l)
       )) ==>
-        (MapSelect(m.l, Seq(obj.l, ff)) === boogieNoPerm)
+        (MapSelect(m.l, Seq(obj.l, ff_out)) === boogieNoPerm)
     )
 
     val other_fields_same: Exp = Forall(Seq(obj, field), Trigger(m_hl),
-      (field.l !== ff) ==> (m_hl === boogieNoPerm))
+      (field.l !== ff_out) ==> (m_hl === boogieNoPerm))
 
     // Needs to add that this can be minimum, that is there exists one for which equality holds
     // Unsound but temporarily ok
 
     val evaluates_minimum: Exp = {
       if (can_use_minimum) {
-        Forall(Seq(obj), Trigger(MapSelect(m.l, Seq(obj.l, ff))),
+        Forall(Seq(obj), Trigger(MapSelect(m.l, Seq(obj.l, ff_out))),
           (Exists(Seq(decl), Trigger(H_h),
-            H_h && (heap_loc.head === obj.l)
+            conj && (heap_loc.head === obj.l)
           )) ==>
             (Exists(Seq(decl), Seq(Trigger(H_h), Trigger(M_h)),
-              H_h && (heap_loc.head === obj.l) &&
+              conj && (heap_loc.head === obj.l) &&
                 MapSelect(M_h, heap_loc) + MapSelect(m.l, heap_loc) === p
             ))
         )
@@ -521,23 +532,11 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
     }
 
 
-    val candidate = LocalVarDecl(Identifier("minimumCandidate")(transferNamespace), permType)
-
-    val assert_exists_minimum_forall: Exp = Forall(Seq(obj), Trigger(MapSelect(m.l, Seq(obj.l, ff))),
-      Exists(Seq(candidate), Seq(),
-        (Exists(Seq(decl), Seq(Trigger(H_h), Trigger(M_h)),
-          H_h && (heap_loc.head === obj.l) &&
-            MapSelect(M_h, heap_loc) + candidate.l === p
-        ))
-       && (Forall(Seq(decl), Seq(Trigger(M_h), Trigger(H_h)), (H_h && pc) ==> (
-            MapSelect(M_h, heap_loc) + candidate.l >= p
-            )))))
-
     stateModule.replaceState(rstate._2) // go back to the original state
 
     (m, MaybeCommentBlock("determining how much to take from the outside (heuristic)",
       Seq(
-        Assert(possible, error),
+        MaybeComment("POSSIBLE", Assert(possible, error)),
         Havoc(m.l),
         Assume(smaller),
         Assume(sufficient),
@@ -588,12 +587,17 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
 
     A match {
       case _ if A.isPure =>
-        val e: Exp = expModule.translateExp(A)
+        // Removing old[lhs]
+        val e: Exp = expModule.translateExp(
+          A.transform({
+            case sil.LabelledOld(e, "lhs") => e
+          }))
         val asm: Exp = Forall(Seq(decl), Trigger(H_h), (H_h && pc) ==> e)
         stateModule.replaceState(rstate._2) // go back to the original state
         MaybeComment("exhaling pure expression for all states",
             Assert(asm, error))
-      case sil.And(a, b) =>
+
+    case sil.And(a, b) =>
         stateModule.replaceState(rstate._2) // go back to the original state
         Seqn(Seq(exhaleRHS(a, mainError, can_use_minimum, pc), exhaleRHS(b, mainError, can_use_minimum, pc)))
 
@@ -605,28 +609,23 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
             (heapModule.translateNull, heapModule.translateLocation(loc))
         }
 
-        /*
-        val perm = translatePerm(prm)
-       val update_mask: Exp = Forall(Seq(decl), Seq(Trigger(M_temp_h), Trigger(M_h)), pc ==> (M_temp_h === MapUpdate(M_h, rf, MapSelect(M_h, rf) + perm)))
-        val perm_pos: Stmt = Assert(Forall(Seq(decl), Seq(Trigger(M_temp_h), Trigger(M_h)),
-          (pc && H_h)==> (perm > boogieNoPerm)), error.dueTo(reasons.NegativePermission(prm)))
-        val same_mask: Exp = Forall(Seq(decl), Seq(Trigger(M_temp_h), Trigger(M_h)), UnExp(Not, pc) ==> (M_temp_h === M_h))
-        MaybeCommentBlock("inhaling location permission (heap loc or predicate)",
-          Seq(perm_pos, Havoc(H_temp), Havoc(M_temp), Assume(update_mask), Assume(same_mask), updateValid(H_h, M_temp_h, H_temp_h, decl), Assign(H, H_temp), Assign(M, M_temp)))
-         */
-
-
-
-
-      //case sil.FieldAccessPredicate(fieldAccess@sil.FieldAccess(recv, f), prm) =>
-        //val rr: Exp = expModule.translateExp(recv)
-        //val ff: Exp = heapModule.translateLocation(fieldAccess)
         val rf: Seq[Exp] = Seq(rr, ff)
         val p: Exp = expModule.translateExp(prm)
 
         stateModule.replaceState(rstate._2) // go back to the original state
 
-        val (m, s1) = heuristicHowMuchPerm(rf, ff, p, pc, error, can_use_minimum)
+        val (rr_out, ff_out) = loc match {
+          case sil.FieldAccess(rcv, field) =>
+            (expModule.translateExp(rcv), heapModule.translateLocation(loc))
+          case sil.PredicateAccess(_, _) =>
+            (heapModule.translateNull, heapModule.translateLocation(loc))
+        }
+
+        val rf_out: Seq[Exp] = Seq(rr_out, ff_out)
+
+
+
+        val (m, s1) = heuristicHowMuchPerm(rf, rf_out, ff, p, pc, mainError.dueTo(reasons.InsufficientPermission(loc)), can_use_minimum)
         val s2 = addPermFromOutside(rf, m.l, error)
         rstate = stateModule.freshTempState("temp")
 
@@ -656,12 +655,50 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
             s2,
 
             MaybeCommentBlock("removing permission from the states",
-              Seq(Assert(assert, error),
-
-            Havoc(M_temp), Assume(update_mask), Assume(same_mask), Assign(M, M_temp),
-
+              Seq(Assert(assert, mainError.dueTo(reasons.InsufficientPermission(loc))),
+                  Havoc(M_temp), Assume(update_mask), Assume(same_mask), Assign(M, M_temp),
             Havoc(Theta_temp), Assume(update_mask_theta), Assume(same_mask_theta), Assign(Theta, Theta_temp)
               ))))
+
+      case w@sil.MagicWand(_, _) =>
+
+        val wandRep = wandModule.getWandRepresentation(w)
+        val (rr, ff) = (heapModule.translateNull, wandRep)
+        val rf: Seq[Exp] = Seq(rr, ff)
+
+        stateModule.replaceState(rstate._2) // go back to the original state
+
+        val p = boogieFullPerm
+        val (m, s1) = heuristicHowMuchPerm(rf, rf, ff, p, pc, error, can_use_minimum)
+        val s2 = addPermFromOutside(rf, m.l, error)
+        rstate = stateModule.freshTempState("temp")
+
+        // 1: Assert that we have enough
+        val assert: Exp = Forall(Seq(decl), Seq(Trigger(M_h), Trigger(H_h)), (H_h && pc) ==> (MapSelect(M_h, rf) >= p))
+
+        val update_mask: Exp = Forall(Seq(decl), Seq(Trigger(M_temp_h), Trigger(H_h), Trigger(M_h)), (H_h && pc) ==>
+          (M_temp_h === MapUpdate(M_h, rf, MapSelect(M_h, rf) - p)))
+        val same_mask: Exp = Forall(Seq(decl), Seq(Trigger(M_temp_h), Trigger(H_h), Trigger(M_h)), UnExp(Not, H_h && pc) ==> (M_temp_h === M_h))
+
+
+        val Theta_h: Exp = MapSelect(Theta, Seq(t))
+        val Theta_temp_h: Exp = MapSelect(Theta_temp, Seq(t))
+
+        val update_mask_theta: Exp = Forall(Seq(decl), Seq(Trigger(Theta_temp_h), Trigger(H_h), Trigger(Theta_h)), (H_h && pc) ==>
+          (Theta_temp_h === MapUpdate(Theta_h, rf, MapSelect(Theta_h, rf) + p)))
+        val same_mask_theta: Exp = Forall(Seq(decl), Seq(Trigger(Theta_temp_h), Trigger(H_h), Trigger(Theta_h)), UnExp(Not, H_h && pc) ==> (Theta_temp_h === Theta_h))
+
+        stateModule.replaceState(rstate._2) // go back to the original state
+        MaybeCommentBlock("exhaling wand",
+          //Seq(Havoc(H_temp), Havoc(M_temp), Assume(update_mask), Assume(same_mask), updateValid(), Assign(H, H_temp), Assign(M, M_temp)))
+          Seq(s1, s2,
+            MaybeCommentBlock("removing permission from the states",
+              Seq(Assert(assert, error),
+                Havoc(M_temp), Assume(update_mask), Assume(same_mask), Assign(M, M_temp),
+
+                Havoc(Theta_temp), Assume(update_mask_theta), Assume(same_mask_theta), Assign(Theta, Theta_temp)
+              ))))
+
       case sil.Implies(cond, a) =>
         val tcond = expModule.translateExp(cond)
         stateModule.replaceState(rstate._2) // go back to the original state
@@ -691,6 +728,12 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
     val oldTheta_h_xf: Exp = MapSelect(oldTheta_h, Seq(obj.l, field.l))
 
 
+    def exhaleRestore(a: sil.Exp) =
+    {
+      (oldTheta := Theta) ++ exhaleRHS(a, error, can_use_minimum, pc) ++ (Theta := oldTheta)
+    }
+
+
     P match {
       case sil.Seqn(ss, _) => ss.map(handleProofScript(_, error, can_use_minimum, pc))
       case sil.If(cond, s1, s2) =>
@@ -708,23 +751,31 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
       case sil.Fold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(_, _), perm)) =>
         // TODO: Check definedness acc, check definedness perm
         val body: sil.Exp = sil.utility.Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program, mainModule.env.allDefinedNames(program)).get, acc.perm)
-        exhaleRHS(body, error, can_use_minimum, pc) ++ inhaleLHS(acc, error, pc)
+
+        exhaleRestore(body) ++ inhaleLHS(acc, pc)
 
       case sil.Unfold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(_, _), perm)) =>
         // TODO: Check definedness acc, check definedness perm
         val body: sil.Exp = sil.utility.Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program, mainModule.env.allDefinedNames(program)).get, acc.perm)
-        exhaleRHS(acc, error, can_use_minimum, pc) ++ inhaleLHS(body, error, pc)
+        exhaleRestore(acc) ++ inhaleLHS(body, pc)
 
-
-
+      case a@sil.Apply(w@sil.MagicWand(left, right)) =>
+        exhaleRestore(w) ++ exhaleRestore(left) ++ inhaleLHS(removeLabelLHS(right), pc)
 
     }
+  }
+
+  def removeLabelLHS(A: sil.Exp): sil.Exp = {
+    A.transform({
+      case sil.LabelledOld(e, s) if s == "lhs" => e
+    })
   }
 
   override def translatePackage(p: sil.Package, error: PartialVerificationError, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false):Stmt = {
 
   p match {
       case pa@sil.Package(wand, proofScript: sil.Seqn) =>
+
         val can_use_minimum = !accessesDetGaurav(wand)
         println("Checking wand", wand, can_use_minimum)
         wand match {
@@ -733,7 +784,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
 
             val addWand = inhaleModule.inhale(Seq((w, error)), statesStack, inWand)
 
-            val stmt = initPackage() ++ inhaleLHS(left, error) ++ initTheta() ++ handleProofScript(proofScript, error, can_use_minimum) ++ exhaleRHS(right, error, can_use_minimum)
+            val stmt = initPackage() ++ inhaleLHS(left) ++ initTheta() ++ handleProofScript(proofScript, error, can_use_minimum) ++ exhaleRHS(right, error, can_use_minimum)
 
            val retStmt = stmt ++ addWand ++ heapModule.endExhale
             retStmt

@@ -269,6 +269,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   def staticGoodMask = FuncApp(goodMaskName, LocalVar(maskName, maskType), Bool)
   def goodMask(m: Exp) = FuncApp(goodMaskName, m, Bool)
 
+
   private def permAdd(a: Exp, b: Exp): Exp = a + b
   private def permSub(a: Exp, b: Exp): Exp = a - b
   private def permDiv(a: Exp, b: Exp): Exp = a / b
