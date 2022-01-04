@@ -12,8 +12,9 @@ import viper.silver.ast.Program
 import viper.silver.utility.Paths
 import viper.silver.verifier._
 import verifier.{BoogieDependency, BoogieInterface, Verifier}
+
 import java.io.{BufferedOutputStream, File, FileOutputStream, IOException}
-import viper.silver.frontend.MissingDependencyException
+import viper.silver.frontend.{MissingDependencyException, NativeModel, VariablesModel}
 import viper.silver.reporter.Reporter
 
 /**
@@ -147,10 +148,8 @@ case class CarbonVerifier(override val reporter: Reporter,
 
     var transformNames = false
     if (config == null) Seq() else config.counterexample.toOption match {
-      case Some("native") =>
-      case Some("variables") => {
-        transformNames = true
-      }
+      case Some(NativeModel) =>
+      case Some(VariablesModel) => transformNames = true
       case None =>
       case Some(v) => sys.error("Invalid option: " + v)
     }
