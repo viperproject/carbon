@@ -248,24 +248,25 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
     // Because of GoodMask
     //val H_true: Exp = Forall(Seq(decl), Trigger(H_h), H_h)
     val M_zero: Exp = Forall(Seq(decl), Trigger(M_h), M_h === zeroMask)
-
+    // val H: state
+    val goodState: Exp = Forall(Seq(decl), Seq(Trigger(H_h)), H_h <==> stateModule.state(decl.l, M_h))
 
     stateModule.replaceState(state) // go back to the original state
 
     MaybeCommentBlock("Initialization for package",
-      Seq(Havoc(H), Havoc(M), Assume(M_zero)))
+      Seq(Havoc(H), Havoc(M), Assume(M_zero), Assume(goodState)))
   }
 
   def updateValid(H_h: Exp, M_temp_h: Exp, H_temp_h: Exp, decl: LocalVarDecl): Stmt = {
     val asm1: Exp = Forall(Seq(decl), Seq(Trigger(H_h), Trigger(H_temp_h)), H_temp_h <==> (H_h && stateModule.state(decl.l, M_temp_h)))
     val h_xf: Exp = MapSelect(decl.l, Seq(obj.l, field.l))
     val m_xf: Exp = MapSelect(M_temp_h, Seq(obj.l, field.l))
-    val asm2: Exp = Forall(Seq(decl), Seq(Trigger(H_h), Trigger(H_temp_h)), H_temp_h <==> H_h && (
+    val asm2: Exp = Forall(Seq(decl), Seq(Trigger(H_h), Trigger(H_temp_h)), H_temp_h <==> (H_h && (
       Forall(Seq(obj, field), Seq(Trigger(h_xf), Trigger(m_xf)),
         (m_xf > boogieNoPerm) ==> (h_xf !== heapModule.translateNull),
         heapModule.fieldType.freeTypeVars
       )
-    ))
+    )))
 
     Seqn(Seq(Assume(asm1), Assume(asm2)))
   }
@@ -281,12 +282,12 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
     val h_xf: Exp = MapSelect(decl.l, Seq(obj.l, field.l))
     val Theta_xf: Exp = MapSelect(Theta_temp_h, Seq(obj.l, field.l))
 
-    val asm2: Exp = Forall(Seq(decl), Seq(Trigger(H_h), Trigger(H_temp_h)), H_temp_h <==> H_h && (
+    val asm2: Exp = Forall(Seq(decl), Seq(Trigger(H_h), Trigger(H_temp_h)), H_temp_h <==> (H_h && (
       Forall(Seq(obj, field), Seq(Trigger(h_xf), Trigger(Theta_xf)),
         (Theta_xf > boogieNoPerm) ==> (h_xf !== heapModule.translateNull),
         heapModule.fieldType.freeTypeVars
       )
-      ))
+      )))
 
     Seqn(Seq(Havoc(Theta_temp), Seq(Assume(asm_sum)), Seq(Assume(asm1), Assume(asm2))))
   }
@@ -306,7 +307,8 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
       A match {
         case _ if A.isPure =>
           val e: Exp = expModule.translateExp(A)
-          val asm: Exp = Forall(Seq(decl), Trigger(H_temp_h), H_temp_h <==> H_h && (pc ==> e))
+          val asm: Exp = Forall(Seq(decl), Trigger(H_temp_h), H_temp_h <==> (H_h && (pc ==> e)))
+          //println(asm)
           MaybeCommentBlock("inhaling pure expression for all states",
             Seq(Havoc(H_temp), Assume(asm), Assign(H, H_temp)))
         case sil.And(a, b) => Seqn(Seq(inhaleLHS(a, pc), inhaleLHS(b, pc)))
@@ -342,16 +344,25 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
 
   // More fine-grained:
   // Could check for which fields we can use a minimum
-  def accessesDetGaurav(a: sil.Exp): Boolean = {
-    a.existsDefined(
+  def accessesDetGaurav(a: sil.Exp): Set[Object] = {
+    val cannot_use_minimum = scala.collection.mutable.Set[Object]()
+
+    a.foreach(
       e1 => e1 match {
-        case sil.FieldAccessPredicate(_, prm) if prm.existsDefined(
+        case sil.AccessPredicate(loc, prm) if prm.existsDefined(
           e2 => e2 match {
             case sil.FieldAccess(_, _) => true
           }
-        ) => true
+        ) => loc match {
+          case sil.PredicateAccess(_, name) => cannot_use_minimum.add(name)
+          case sil.FieldAccess(_, field) => cannot_use_minimum.add(field)
+          }
+
+        case _ => ()
       }
     )
+    //println("Cannot use min", cannot_use_minimum)
+    cannot_use_minimum.toSet
   }
 
   // heap_loc and p should not depend on h, only on the state from outside
@@ -465,8 +476,13 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
     ))
   }
 
+  // can_use_minimum --> cannot_use_minimum = set of Exp
+
   // Should be enough to sat one, but incomplete
-  def heuristicHowMuchPerm(heap_loc: Seq[Exp], heap_loc_out: Seq[Exp], ff: Exp, p: Exp, pc: Exp, error: VerificationError, can_use_minimum: Boolean): (LocalVarDecl, Stmt) = {
+  def heuristicHowMuchPerm(heap_loc: Seq[Exp], heap_loc_out: Seq[Exp], ff: Object, p: Exp, pc: Exp, error: VerificationError, cannot_use_minimum: Set[Object]): (LocalVarDecl, Stmt) = {
+
+    //println(heap_loc, heap_loc_out, p)
+
     val m: LocalVarDecl = LocalVarDecl(Identifier("m")(transferNamespace), maskType)
 
 
@@ -502,7 +518,8 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
       MapSelect(M_h, heap_loc) + MapSelect(m.l, heap_loc) >= p
       ))
 
-    val ff_out = heap_loc_out.tail.head
+    val ff_out: Exp = heap_loc_out.tail.head
+    //println("ff_out", ff_out)
 
     val no_ref_evaluates_to_this: Exp = Forall(Seq(obj), Trigger(MapSelect(m.l, Seq(obj.l, ff_out))),
       (Forall(Seq(decl), Trigger(H_h),
@@ -517,8 +534,10 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
     // Needs to add that this can be minimum, that is there exists one for which equality holds
     // Unsound but temporarily ok
 
+    // TD: Let's use ff_out as the key for "can_use_minimum"
+
     val evaluates_minimum: Exp = {
-      if (can_use_minimum) {
+      if (!cannot_use_minimum.contains(ff)) {
         Forall(Seq(obj), Trigger(MapSelect(m.l, Seq(obj.l, ff_out))),
           (Exists(Seq(decl), Trigger(H_h),
             conj && (heap_loc.head === obj.l)
@@ -574,7 +593,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
 
 
 
-  def exhaleRHS(A: sil.Exp, mainError: PartialVerificationError, can_use_minimum: Boolean, pc: Exp = TrueLit()): Stmt = {
+  def exhaleRHS(A: sil.Exp, mainError: PartialVerificationError, cannot_use_min: Set[Object], pc: Exp = TrueLit()): Stmt = {
 
     var rstate = stateModule.freshTempState("temp")
     val t: LocalVar = heapModule.currentHeap.head.asInstanceOf[LocalVar]
@@ -599,7 +618,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
 
     case sil.And(a, b) =>
         stateModule.replaceState(rstate._2) // go back to the original state
-        Seqn(Seq(exhaleRHS(a, mainError, can_use_minimum, pc), exhaleRHS(b, mainError, can_use_minimum, pc)))
+        Seqn(Seq(exhaleRHS(a, mainError, cannot_use_min, pc), exhaleRHS(b, mainError, cannot_use_min, pc)))
 
       case sil.AccessPredicate(loc: sil.LocationAccess, prm: sil.Exp) =>
         val (rr, ff) = loc match {
@@ -623,9 +642,12 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
 
         val rf_out: Seq[Exp] = Seq(rr_out, ff_out)
 
+        val which_field: Object = loc match {
+          case sil.FieldAccess(rcv, field) => field
+          case sil.PredicateAccess(_, name) => name
+        }
 
-
-        val (m, s1) = heuristicHowMuchPerm(rf, rf_out, ff, p, pc, mainError.dueTo(reasons.InsufficientPermission(loc)), can_use_minimum)
+        val (m, s1) = heuristicHowMuchPerm(rf, rf_out, which_field, p, pc, mainError.dueTo(reasons.InsufficientPermission(loc)), cannot_use_min)
         val s2 = addPermFromOutside(rf, m.l, error)
         rstate = stateModule.freshTempState("temp")
 
@@ -669,7 +691,8 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
         stateModule.replaceState(rstate._2) // go back to the original state
 
         val p = boogieFullPerm
-        val (m, s1) = heuristicHowMuchPerm(rf, rf, ff, p, pc, error, can_use_minimum)
+
+        val (m, s1) = heuristicHowMuchPerm(rf, rf, w, p, pc, error, cannot_use_min)
         val s2 = addPermFromOutside(rf, m.l, error)
         rstate = stateModule.freshTempState("temp")
 
@@ -702,15 +725,15 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
       case sil.Implies(cond, a) =>
         val tcond = expModule.translateExp(cond)
         stateModule.replaceState(rstate._2) // go back to the original state
-        exhaleRHS(a, mainError, can_use_minimum, pc && tcond)
+        exhaleRHS(a, mainError, cannot_use_min, pc && tcond)
       case sil.CondExp(cond, a, b) =>
         val tcond = expModule.translateExp(cond)
         stateModule.replaceState(rstate._2) // go back to the original state
-        Seqn(Seq(exhaleRHS(a, mainError, can_use_minimum, pc && tcond), exhaleRHS(b, mainError, can_use_minimum, pc && UnExp(Not, tcond))))
+        Seqn(Seq(exhaleRHS(a, mainError, cannot_use_min, pc && tcond), exhaleRHS(b, mainError, cannot_use_min, pc && UnExp(Not, tcond))))
     }
   }
 
-  def handleProofScript(P: sil.Stmt, error: PartialVerificationError, can_use_minimum: Boolean, pc: Exp = TrueLit()): Stmt = {
+  def handleProofScript(P: sil.Stmt, error: PartialVerificationError, cannot_use_min: Set[Object], pc: Exp = TrueLit()): Stmt = {
 
     var rstate = stateModule.freshTempState("temp")
     val t: LocalVar = heapModule.currentHeap.head.asInstanceOf[LocalVar]
@@ -730,22 +753,22 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
 
     def exhaleRestore(a: sil.Exp) =
     {
-      (oldTheta := Theta) ++ exhaleRHS(a, error, can_use_minimum, pc) ++ (Theta := oldTheta)
+      (oldTheta := Theta) ++ exhaleRHS(a, error, cannot_use_min, pc) ++ (Theta := oldTheta)
     }
 
 
     P match {
-      case sil.Seqn(ss, _) => ss.map(handleProofScript(_, error, can_use_minimum, pc))
+      case sil.Seqn(ss, _) => ss.map(handleProofScript(_, error, cannot_use_min, pc))
       case sil.If(cond, s1, s2) =>
         rstate = stateModule.freshTempState("temp")
         val tcond = expModule.translateExp(cond)
         stateModule.replaceState(rstate._2) // go back to the original state
-        Seqn(Seq(handleProofScript(s1, error, can_use_minimum, pc && tcond), handleProofScript(s2, error, can_use_minimum, pc && UnExp(Not, tcond))))
+        Seqn(Seq(handleProofScript(s1, error, cannot_use_min, pc && tcond), handleProofScript(s2, error, cannot_use_min, pc && UnExp(Not, tcond))))
       case sil.Assert(a) =>
         val restore: Exp = Forall(Seq(decl, obj, field), Seq(Trigger(M_temp_h_xf), Trigger(M_h_xf), Trigger(Theta_h_xf), Trigger(oldTheta_h_xf)),
           (M_temp_h_xf === (M_h_xf + (Theta_h_xf - oldTheta_h_xf))))
         (oldTheta := Theta) ++
-        exhaleRHS(a, error, can_use_minimum, pc) ++
+        exhaleRHS(a, error, cannot_use_min, pc) ++
         Havoc(M_temp) ++ Assume(restore) ++ (M := M_temp) ++ (Theta := oldTheta)
 
       case sil.Fold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(_, _), perm)) =>
@@ -776,15 +799,17 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
   p match {
       case pa@sil.Package(wand, proofScript: sil.Seqn) =>
 
-        val can_use_minimum = !accessesDetGaurav(wand)
-        println("Checking wand", wand, can_use_minimum)
+        val cannot_use_min = accessesDetGaurav(wand)
+        println("Checking wand", wand, cannot_use_min)
         wand match {
           case w@sil.MagicWand(left, right) =>
            // saving the old variables as they would be overwritten in the case of nested magic wands
 
+            // TODO: Assert that left and right are self-framing
+
             val addWand = inhaleModule.inhale(Seq((w, error)), statesStack, inWand)
 
-            val stmt = initPackage() ++ inhaleLHS(left) ++ initTheta() ++ handleProofScript(proofScript, error, can_use_minimum) ++ exhaleRHS(right, error, can_use_minimum)
+            val stmt = initPackage() ++ inhaleLHS(left) ++ initTheta() ++ handleProofScript(proofScript, error, cannot_use_min) ++ exhaleRHS(right, error, cannot_use_min)
 
            val retStmt = stmt ++ addWand ++ heapModule.endExhale
             retStmt
