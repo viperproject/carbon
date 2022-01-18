@@ -365,6 +365,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
     cannot_use_minimum.toSet
   }
 
+
   // heap_loc and p should not depend on h, only on the state from outside
   // hence we do not create a fresh state
   // m is a mask
@@ -479,7 +480,8 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
   // can_use_minimum --> cannot_use_minimum = set of Exp
 
   // Should be enough to sat one, but incomplete
-  def heuristicHowMuchPerm(heap_loc: Seq[Exp], heap_loc_out: Seq[Exp], ff: Object, p: Exp, pc: Exp, error: VerificationError, cannot_use_minimum: Set[Object]): (LocalVarDecl, Stmt) = {
+  def heuristicHowMuchPerm(heap_loc: Seq[Exp], ff: Object, p: Exp, pc: Exp, error: VerificationError, cannot_use_minimum: Set[Object], is_heap_dep_pred: Boolean = false): (LocalVarDecl, Stmt) = {
+    // heap_loc_out: Seq[Exp],
 
     //println(heap_loc, heap_loc_out, p)
 
@@ -489,7 +491,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
     val currentPerm: Exp = MapSelect(currentMask.head, heap_loc)
     val old_mask = currentMask.head
 
-    var rstate = stateModule.freshTempState("temp")
+    val rstate = stateModule.freshTempState("temp")
     val t: LocalVar = heapModule.currentHeap.head.asInstanceOf[LocalVar]
     val decl = LocalVarDecl(t.name, t.typ)
     val H_h: Exp = MapSelect(H, Seq(t))
@@ -518,37 +520,71 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
       MapSelect(M_h, heap_loc) + MapSelect(m.l, heap_loc) >= p
       ))
 
-    val ff_out: Exp = heap_loc_out.tail.head
+    //val ff_out: Exp = heap_loc_out.tail.head
     //println("ff_out", ff_out)
 
-    val no_ref_evaluates_to_this: Exp = Forall(Seq(obj), Trigger(MapSelect(m.l, Seq(obj.l, ff_out))),
+
+
+    val rff = heap_loc.tail.head
+    val m_hl_fixed = MapSelect(m.l, Seq(obj.l, rff))
+
+    var no_ref_evaluates_to_this: Exp = Forall(Seq(obj), Trigger(m_hl_fixed),
       (Forall(Seq(decl), Trigger(H_h),
         conj ==> (heap_loc.head !== obj.l)
-      )) ==>
-        (MapSelect(m.l, Seq(obj.l, ff_out)) === boogieNoPerm)
-    )
-
-    val other_fields_same: Exp = Forall(Seq(obj, field), Trigger(m_hl),
-      (field.l !== ff_out) ==> (m_hl === boogieNoPerm))
-
-    // Needs to add that this can be minimum, that is there exists one for which equality holds
-    // Unsound but temporarily ok
+      )) ==> (m_hl_fixed === boogieNoPerm))
 
     // TD: Let's use ff_out as the key for "can_use_minimum"
-
-    val evaluates_minimum: Exp = {
+    var evaluates_minimum: Exp = {
       if (!cannot_use_minimum.contains(ff)) {
-        Forall(Seq(obj), Trigger(MapSelect(m.l, Seq(obj.l, ff_out))),
+        Forall(Seq(obj), Trigger(m_hl_fixed),
           (Exists(Seq(decl), Trigger(H_h),
             conj && (heap_loc.head === obj.l)
           )) ==>
             (Exists(Seq(decl), Seq(Trigger(H_h), Trigger(M_h)),
               conj && (heap_loc.head === obj.l) &&
-                MapSelect(M_h, heap_loc) + MapSelect(m.l, heap_loc) === p
+                MapSelect(M_h, heap_loc) + m_hl_fixed <= p
             ))
         )
       } else TrueLit()
     }
+
+    var other_fields_same: Exp = Forall(Seq(obj, field), Trigger(m_hl),
+      (field.l !== rff) ==> (m_hl === boogieNoPerm))
+
+    if (is_heap_dep_pred)
+    {
+      println("Alternative encoding for predicates", heap_loc.tail.head)
+      no_ref_evaluates_to_this = Forall(Seq(obj, field), Trigger(m_hl),
+        (Forall(Seq(decl), Trigger(H_h),
+          conj ==> ((heap_loc.head !== obj.l) || (field.l !== rff))
+        )) ==>
+          (m_hl === boogieNoPerm))
+
+      // TD: Let's use ff_out as the key for "can_use_minimum"
+      evaluates_minimum = {
+        if (!cannot_use_minimum.contains(ff)) {
+          Forall(Seq(obj, field), Trigger(m_hl),
+            (Exists(Seq(decl), Trigger(H_h),
+              conj && (heap_loc.head === obj.l) && (field.l === rff)
+            )) ==>
+              (Exists(Seq(decl), Seq(Trigger(H_h), Trigger(M_h)),
+                conj && (heap_loc.head === obj.l) &&
+                  MapSelect(M_h, heap_loc) + m_hl <= p
+              ))
+          )
+        } else TrueLit()
+      }
+
+      other_fields_same = TrueLit()
+    }
+
+
+    /*
+     */
+
+    // Needs to add that this can be minimum, that is there exists one for which equality holds
+    // Unsound but temporarily ok
+
 
 
     stateModule.replaceState(rstate._2) // go back to the original state
@@ -620,12 +656,14 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
         stateModule.replaceState(rstate._2) // go back to the original state
         Seqn(Seq(exhaleRHS(a, mainError, cannot_use_min, pc), exhaleRHS(b, mainError, cannot_use_min, pc)))
 
-      case sil.AccessPredicate(loc: sil.LocationAccess, prm: sil.Exp) =>
-        val (rr, ff) = loc match {
+    case sil.AccessPredicate(loc: sil.LocationAccess, prm: sil.Exp) =>
+        val (rr, ff, is_pred) = loc match {
           case sil.FieldAccess(rcv, field) =>
-            (expModule.translateExp(rcv), heapModule.translateLocation(loc))
-          case sil.PredicateAccess(_, _) =>
-            (heapModule.translateNull, heapModule.translateLocation(loc))
+            (expModule.translateExp(rcv), heapModule.translateLocation(loc), false)
+          case p@sil.PredicateAccess(_, _) =>
+            (heapModule.translateNull, heapModule.translateLocation(loc),
+              (p.existsDefined(e2 => e2 match { case sil.FieldAccess(_, _) => true})) // Checks if the predicate is heap dependent
+            )
         }
 
         val rf: Seq[Exp] = Seq(rr, ff)
@@ -633,6 +671,9 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
 
         stateModule.replaceState(rstate._2) // go back to the original state
 
+        /*
+        // Wrong if heap dependent predicate
+        // Should not be translated with this heap
         val (rr_out, ff_out) = loc match {
           case sil.FieldAccess(rcv, field) =>
             (expModule.translateExp(rcv), heapModule.translateLocation(loc))
@@ -641,20 +682,24 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
         }
 
         val rf_out: Seq[Exp] = Seq(rr_out, ff_out)
+         */
 
         val which_field: Object = loc match {
           case sil.FieldAccess(rcv, field) => field
           case sil.PredicateAccess(_, name) => name
         }
 
-        val (m, s1) = heuristicHowMuchPerm(rf, rf_out, which_field, p, pc, mainError.dueTo(reasons.InsufficientPermission(loc)), cannot_use_min)
+        //println("ff_out", ff_out)
+
+        val (m, s1) = heuristicHowMuchPerm(rf, which_field, p, pc, mainError.dueTo(reasons.InsufficientPermission(loc)), cannot_use_min, is_pred)
         val s2 = addPermFromOutside(rf, m.l, error)
         rstate = stateModule.freshTempState("temp")
 
         // 1: Assert that we have enough
         val assert: Exp = Forall(Seq(decl), Seq(Trigger(M_h), Trigger(H_h)), (H_h && pc) ==> (MapSelect(M_h, rf) >= p))
+        //val do_we_actually_need_extract: Exp = Forall(Seq(decl), Seq(Trigger(M_h), Trigger(H_h)), (H_h && pc) ==> (MapSelect(M_h, rf) >= p))
 
-        val update_mask: Exp = Forall(Seq(decl), Seq(Trigger(M_temp_h), Trigger(H_h), Trigger(M_h)), (H_h && pc) ==>
+      val update_mask: Exp = Forall(Seq(decl), Seq(Trigger(M_temp_h), Trigger(H_h), Trigger(M_h)), (H_h && pc) ==>
           (M_temp_h === MapUpdate(M_h, rf, MapSelect(M_h, rf) - p)))
         val same_mask: Exp = Forall(Seq(decl), Seq(Trigger(M_temp_h), Trigger(H_h), Trigger(M_h)), UnExp(Not, H_h && pc) ==> (M_temp_h === M_h))
 
@@ -673,9 +718,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
         MaybeCommentBlock("exhaling heap location permission",
           //Seq(Havoc(H_temp), Havoc(M_temp), Assume(update_mask), Assume(same_mask), updateValid(), Assign(H, H_temp), Assign(M, M_temp)))
           Seq(
-            s1,
-            s2,
-
+            If(UnExp(Not, assert), Seqn(Seq(s1, s2)), Seqn(Seq())),
             MaybeCommentBlock("removing permission from the states",
               Seq(Assert(assert, mainError.dueTo(reasons.InsufficientPermission(loc))),
                   Havoc(M_temp), Assume(update_mask), Assume(same_mask), Assign(M, M_temp),
@@ -692,7 +735,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
 
         val p = boogieFullPerm
 
-        val (m, s1) = heuristicHowMuchPerm(rf, rf, w, p, pc, error, cannot_use_min)
+        val (m, s1) = heuristicHowMuchPerm(rf, w, p, pc, error, cannot_use_min)
         val s2 = addPermFromOutside(rf, m.l, error)
         rstate = stateModule.freshTempState("temp")
 
@@ -800,7 +843,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
       case pa@sil.Package(wand, proofScript: sil.Seqn) =>
 
         val cannot_use_min = accessesDetGaurav(wand)
-        println("Checking wand", wand, cannot_use_min)
+        //println("Checking wand", wand, cannot_use_min)
         wand match {
           case w@sil.MagicWand(left, right) =>
            // saving the old variables as they would be overwritten in the case of nested magic wands
