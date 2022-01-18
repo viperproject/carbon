@@ -553,7 +553,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
 
     if (is_heap_dep_pred)
     {
-      println("Alternative encoding for predicates", heap_loc.tail.head)
+      //println("Alternative encoding for predicates", heap_loc.tail.head)
       no_ref_evaluates_to_this = Forall(Seq(obj, field), Trigger(m_hl),
         (Forall(Seq(decl), Trigger(H_h),
           conj ==> ((heap_loc.head !== obj.l) || (field.l !== rff))
