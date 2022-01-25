@@ -623,7 +623,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
     val predicateBody = p.body.get
     val procedureBody =
-      MaybeCommentBlock("Check definedness of predicate body of " + p.name, init ++ checkDefinednessOfSpecAndInhale(predicateBody, errors.ContractNotWellformed(predicateBody)))
+      MaybeCommentBlock("Check definedness of predicate body of " + p.name, init ++ checkDefinednessOfSpecAndInhale(predicateBody, errors.PredicateNotWellformed(p)))
     val predicateCheck = Procedure(Identifier(p.name  + "#definedness"), args, Seq(), procedureBody)
 
     Some(predicateCheck)
