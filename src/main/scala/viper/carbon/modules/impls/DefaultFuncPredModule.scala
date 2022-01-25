@@ -618,7 +618,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
     val args = p.formalArgs map translateLocalVarDecl
     val init : Stmt = MaybeCommentBlock("Initializing the state",
-      stateModule.initBoogieState ++ (p.formalArgs map (a => allAssumptionsAboutValue(a.typ,mainModule.translateLocalVarDecl(a),true)))
+      stateModule.initBoogieState ++ assumeAllFunctionDefinitions ++ (p.formalArgs map (a => allAssumptionsAboutValue(a.typ,mainModule.translateLocalVarDecl(a),true)))
     )
 
     val predicateBody = p.body.get
