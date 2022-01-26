@@ -1091,7 +1091,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
            val res1 = Havoc(qpMask) ++
              stmts ++
-             (if (verifier.checkInjectivity) injectiveAssertion
+             (if (!verifier.assumeInjectivityOnInhale) injectiveAssertion
              else Nil) ++
              CommentBlock("Define Inverse Function", Assume(invAssm1) ++
                Assume(invAssm2)) ++
@@ -1248,7 +1248,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
            val res1 = Havoc(qpMask) ++
              stmts ++
-             (if (verifier.checkInjectivity) CommentBlock("check if receiver " + predAccPred.toString() + " is injective",injectiveAssertion)
+             (if (!verifier.assumeInjectivityOnInhale) CommentBlock("check if receiver " + predAccPred.toString() + " is injective",injectiveAssertion)
              else Nil) ++
              CommentBlock("Define Inverse Function", Assume(invAssm1) ++
                Assume(invAssm2)) ++
