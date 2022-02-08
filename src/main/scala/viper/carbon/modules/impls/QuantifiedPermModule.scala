@@ -120,15 +120,28 @@ class QuantifiedPermModule(val verifier: Verifier)
   private var rangeFuncs: ListBuffer[Func] = new ListBuffer[Func](); //list of inverse functions used for inhale/exhale qp
   private var triggerFuncs: ListBuffer[Func] = new ListBuffer[Func](); //list of inverse functions used for inhale/exhale qp
 
+  private val readMaskName = Identifier("readMask")
+  private val updateMaskName = Identifier("updMask")
+
+  private val readPMaskName = Identifier("readPMask")
+  private val updatePMaskName = Identifier("updPMask")
+
+  override val knownFoldedMaskRep = KnownFoldedMaskRep(NamedType(pmaskTypeName), readPMaskName, updatePMaskName)
+
   override def preamble = {
     val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
     val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
-    val permInZeroMask = MapSelect(zeroMask, Seq(obj.l, field.l))
-    val permInZeroPMask = MapSelect(zeroPMask, Seq(obj.l, field.l))
+    val permInZeroMask = currentPermission(zeroMask, obj.l, field.l)
+    val permInZeroPMask = currentPermission(zeroPMask, obj.l, field.l, true)
+    val maskRep = heapMapDesugarHelper.desugarMap(maskType, (readMaskName, updateMaskName), _ => permType)
+    val pmaskRep = heapMapDesugarHelper.desugarMap(pmaskType, (readPMaskName, updatePMaskName), _ => Bool)
+
     // permission type
     TypeAlias(permType, Real) ::
       // mask and mask type
-      TypeAlias(maskType, MapType(Seq(refType, fieldType), permType, fieldType.freeTypeVars)) ::
+      (if (verifier.usePolyMapsInEncoding)
+        TypeAlias(maskType, MapType(Seq(refType, fieldType), permType, fieldType.freeTypeVars))
+      else TypeDecl(maskType)) ::
       GlobalVarDecl(maskName, maskType) ::
       // zero mask
       ConstDecl(zeroMaskName, maskType) ::
@@ -137,7 +150,9 @@ class QuantifiedPermModule(val verifier: Verifier)
         Trigger(permInZeroMask),
         (permInZeroMask === noPerm))) ::
       // pmask type
-      TypeAlias(pmaskType, MapType(Seq(refType, fieldType), Bool, fieldType.freeTypeVars)) ::
+      (if(verifier.usePolyMapsInEncoding)
+        TypeAlias(pmaskType, MapType(Seq(refType, fieldType), Bool, fieldType.freeTypeVars))
+      else TypeDecl(pmaskType)) ::
       // zero pmask
       ConstDecl(zeroPMaskName, pmaskType) ::
       Axiom(Forall(
@@ -158,6 +173,15 @@ class QuantifiedPermModule(val verifier: Verifier)
       Axiom(fullPerm === RealLit(1)) ::
       // permission constructor
       Func(permConstructName, Seq(LocalVarDecl(Identifier("a"), Real), LocalVarDecl(Identifier("b"), Real)), permType) :: Nil ++
+      //read and update mask/pmask
+      (if(!verifier.usePolyMapsInEncoding) {
+        MaybeCommentedDecl("read and update permission mask",
+          maskRep.select ++ maskRep.store ++ maskRep.axioms) ++
+        MaybeCommentedDecl("read and update known-folded mask",
+            pmaskRep.select ++ pmaskRep.store ++ pmaskRep.axioms)
+      } else {
+        Nil
+      }) ++
       // good mask
       Func(goodMaskName, LocalVarDecl(maskName, maskType), Bool) ++
       Axiom(Forall(stateModule.staticStateContributions(),
@@ -352,14 +376,14 @@ class QuantifiedPermModule(val verifier: Verifier)
                 If(permVar !== noPerm,
                   Assert(permLe(permVar, curPerm), error.dueTo(reasons.InsufficientPermission(loc))), Nil)
               }) ++
-              (if (!usingOldState) curPerm := permSub(curPerm, permVar) else Nil)
+              (if (!usingOldState) currentMaskAssignUpdate(loc, permSub(curPerm, permVar)) else Nil)
           })
       case w@sil.MagicWand(_,_) =>
         val wandRep = wandModule.getWandRepresentation(w)
         val curPerm = currentPermission(translateNull, wandRep)
         Comment("permLe")++
           Assert(permLe(fullPerm, curPerm), error.dueTo(reasons.MagicWandChunkNotFound(w))) ++
-          (if (!usingOldState) curPerm := permSub(curPerm, fullPerm) else Nil)
+          (if (!usingOldState) currentMaskAssignUpdate(translateNull, wandRep, permSub(curPerm, fullPerm)) else Nil)
 
       case fa@sil.Forall(v, cond, expr) =>
 
@@ -766,7 +790,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   override def transferRemove(e:TransferableEntity, cond:Exp): Stmt = {
     val permVar = LocalVar(Identifier("perm"), permType)
     val curPerm = currentPermission(e.rcv,e.loc)
-    curPerm := permSub(curPerm,e.transferAmount)
+    currentMaskAssignUpdate(e.rcv, e.loc, permSub(curPerm,e.transferAmount))
   }
 
   override def transferValid(e:TransferableEntity):Seq[(Stmt,Exp)] = {
@@ -780,13 +804,13 @@ class QuantifiedPermModule(val verifier: Verifier)
   override def inhaleWandFt(w: sil.MagicWand): Stmt = {
     val wandRep = wandModule.getWandFtSmRepresentation(w, 0)
     val curPerm = currentPermission(translateNull, wandRep)
-    (if (!usingOldState) curPerm := permAdd(curPerm, fullPerm) else Nil)
+    if (!usingOldState) currentMaskAssignUpdate(translateNull, wandRep, permAdd(curPerm, fullPerm)) else Nil
   }
 
   override def exhaleWandFt(w: sil.MagicWand): Stmt = {
       val wandRep = wandModule.getWandFtSmRepresentation(w, 0)
       val curPerm = currentPermission(translateNull, wandRep)
-      (if (!usingOldState) curPerm := permSub(curPerm, fullPerm) else Nil)
+      (if (!usingOldState) currentMaskAssignUpdate(translateNull, wandRep, permSub(curPerm, fullPerm)) else Nil)
   }
 
   /*
@@ -828,11 +852,11 @@ class QuantifiedPermModule(val verifier: Verifier)
             Assert(permissionPositiveInternal(permVar, Some(perm), true), error.dueTo(reasons.NegativePermission(perm))) ++
             assmsToStmt(permissionPositiveInternal(permVar, Some(perm), false) ==> checkNonNullReceiver(loc))
           ) ++
-          (if (!usingOldState) curPerm := permAdd(curPerm, permVar) else Nil)
+          (if (!usingOldState) currentMaskAssignUpdate(loc, permAdd(curPerm, permVar)) else Nil)
       case w@sil.MagicWand(left,right) =>
         val wandRep = wandModule.getWandRepresentation(w)
         val curPerm = currentPermission(translateNull, wandRep)
-        (if (!usingOldState) curPerm := permAdd(curPerm, fullPerm) else Nil)
+        if (!usingOldState) currentMaskAssignUpdate(translateNull, wandRep, permAdd(curPerm, fullPerm)) else Nil
 
       //Quantified Permission Expression
       case fa@sil.Forall(_, _, _) =>
@@ -1314,7 +1338,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         case _ => Nil
       }
     } ++ */
-    (if (!usingOldState) curPerm := permAdd(curPerm, e.transferAmount) else Nil)
+    if (!usingOldState) currentMaskAssignUpdate(e.rcv, e.loc, permAdd(curPerm, e.transferAmount)) else Nil
   }
 
   override def tempInitMask(rcv: Exp, loc:Exp):(Seq[Exp], Stmt) = {
@@ -1323,8 +1347,13 @@ class QuantifiedPermModule(val verifier: Verifier)
     (tempMask, setMaskStmt)
   }
 
+  def rcvAndFieldExp(f: sil.LocationAccess) : (Exp, Exp) =
+    f match {
+      case sil.FieldAccess(rcv, _) => (translateExp(rcv), translateLocation(f))
+      case sil.PredicateAccess(_, _) => (translateNull, translateLocation(f))
+    }
 
-  def currentPermission(loc: sil.LocationAccess): MapSelect = {
+  def currentPermission(loc: sil.LocationAccess): Exp = {
     loc match {
       case sil.FieldAccess(rcv, field) =>
         currentPermission(translateExp(rcv), translateLocation(loc))
@@ -1333,15 +1362,39 @@ class QuantifiedPermModule(val verifier: Verifier)
     }
   }
 
-  def currentPermission(rcv: Exp, location: Exp): MapSelect = {
+  def currentPermission(rcv: Exp, location: Exp): Exp = {
     currentPermission(maskExp, rcv, location)
   }
-  def currentPermission(mask: Exp, rcv: Exp, location: Exp): MapSelect = {
-    MapSelect(mask, Seq(rcv, location))
+  def currentPermission(mask: Exp, rcv: Exp, location: Exp, isPMask: Boolean = false): Exp = {
+    if(verifier.usePolyMapsInEncoding)
+      MapSelect(mask, Seq(rcv, location))
+    else
+      FuncApp( if(isPMask) { readPMaskName } else { readMaskName }, Seq(mask, rcv, location), permType)
   }
 
   override def permissionLookup(la: sil.LocationAccess) : Exp = {
     currentPermission(la)
+  }
+
+  private def currentMaskAssignUpdate(loc: LocationAccess, newPerm: Exp) : Stmt = {
+    val (rcv, field) = rcvAndFieldExp(loc)
+    currentMaskAssignUpdate(rcv, field, newPerm)
+  }
+
+  private def currentMaskAssignUpdate(rcv: Exp, field: Exp, newPerm: Exp) : Stmt = {
+    mask := maskUpdate(mask, rcv, field, newPerm)
+  }
+
+  private def maskUpdate(mask: Exp, loc: LocationAccess, newPerm: Exp) : Exp = {
+    val (rcv, field) = rcvAndFieldExp(loc)
+    maskUpdate(mask, rcv, field, newPerm)
+  }
+
+  private def maskUpdate(mask: Exp, rcv: Exp, field: Exp, newPerm: Exp) : Exp = {
+    if(verifier.usePolyMapsInEncoding)
+      MapUpdate(mask, Seq(rcv, field), newPerm)
+    else
+      FuncApp(updateMaskName, Seq(mask, rcv, field, newPerm), maskType)
   }
 
   override def currentMask = Seq(maskExp)

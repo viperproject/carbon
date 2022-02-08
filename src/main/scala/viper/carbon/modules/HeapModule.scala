@@ -9,6 +9,7 @@ package viper.carbon.modules
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.modules.components.CarbonStateComponent
+import viper.carbon.utility.MapDesugarHelper
 import viper.silver.ast.{LocationAccess, MagicWand}
 
 /**
@@ -156,6 +157,9 @@ trait HeapModule extends Module with CarbonStateComponent {
 
   def currentHeap:Seq[Exp]
 
+  // store @{code newVal} at @{code loc} in the current heap
+  def currentHeapAssignUpdate(loc: sil.LocationAccess, newVal: Exp): Stmt
+
   def identicalOnKnownLocations(heap:Seq[Exp],mask:Seq[Exp]):Exp
 
   /**
@@ -181,4 +185,10 @@ trait HeapModule extends Module with CarbonStateComponent {
   // If expression evaluates to true then resultHeap is the sum of of heap1, where mask1 is defined,
   // and heap2, where mask2 is defined.
   def sumHeap(resultHeap: Exp, heap1: Exp, mask1: Exp, heap2: Exp, mask2: Exp): Exp
+
+  /**
+    * helps with desugaring maps where the key consists of a reference (first element) and a
+    * field (second element). The range type of the map can be chosen.
+    */
+  def heapMapDesugarHelper : MapDesugarHelper
 }

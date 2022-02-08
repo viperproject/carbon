@@ -10,6 +10,8 @@ import viper.carbon.boogie._
 import viper.carbon.modules.components.{CarbonStateComponent}
 import viper.silver.{ast => sil}
 
+case class KnownFoldedMaskRep(typeRep: Type, selectId: Identifier, storeId: Identifier)
+
 /**
  * The permission module determines the encoding of permissions and allows to add or remove
  * permission.
@@ -92,6 +94,9 @@ trait PermModule extends Module with CarbonStateComponent {
    * The type used to for predicate masks.
    */
   def pmaskType: Type
+
+  //TODO: merge with pmaskType
+  def knownFoldedMaskRep: KnownFoldedMaskRep
 
   def zeroPMask: Exp
 

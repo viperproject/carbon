@@ -78,4 +78,6 @@ trait Verifier {
 
   def checkInjectivity: Boolean
 
+  def usePolyMapsInEncoding: Boolean
+
 }

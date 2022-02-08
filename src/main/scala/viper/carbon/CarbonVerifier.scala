@@ -94,6 +94,7 @@ case class CarbonVerifier(override val reporter: Reporter,
   }
   else false
 
+  override def usePolyMapsInEncoding = false
 
   def name: String = "carbon"
   def version: String = "1.0"
