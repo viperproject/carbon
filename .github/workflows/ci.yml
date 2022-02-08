@@ -2,7 +2,7 @@ name: Carbon CI
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, staging, trying ]
   pull_request:
     branches: [ master ]
 
