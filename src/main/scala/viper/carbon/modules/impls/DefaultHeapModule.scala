@@ -678,7 +678,7 @@ class DefaultHeapModule(val verifier: Verifier)
     if(usingOldState) { sys.error("Updating wand mask while using old state") }
     e match {
       case sil.FieldAccessPredicate(loc, perm) =>
-        curHeapAssignUpdatePredWandMask(wMaskField, heapUpdateLoc(wandMask(wMaskField), loc, TrueLit()))
+        curHeapAssignUpdatePredWandMask(wMaskField, heapUpdateLoc(wandMask(wMaskField), loc, TrueLit(), true))
       case sil.PredicateAccessPredicate(loc, perm) =>
         val newPMask = LocalVar(Identifier("newPMask"), pmaskType)
         val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)

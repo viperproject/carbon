@@ -1342,8 +1342,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   }
 
   override def tempInitMask(rcv: Exp, loc:Exp):(Seq[Exp], Stmt) = {
-    val curPerm = currentPermission(tempMask,rcv,loc)
-    val setMaskStmt = (tempMask := zeroMask) ++ (curPerm := fullPerm)
+    val setMaskStmt = tempMask := maskUpdate(zeroMask, rcv, loc, fullPerm)
     (tempMask, setMaskStmt)
   }
 
@@ -1481,7 +1480,7 @@ class QuantifiedPermModule(val verifier: Verifier)
       s match {
         case n@sil.NewStmt(target, fields) =>
           stmts ++ (for (field <- fields) yield {
-            Assign(currentPermission(sil.FieldAccess(target, field)()), currentPermission(sil.FieldAccess(target, field)()) + fullPerm)
+            currentMaskAssignUpdate(sil.FieldAccess(target, field)(), currentPermission(sil.FieldAccess(target, field)()) + fullPerm)
           })
         case assign@sil.FieldAssign(fa, rhs) =>
            stmts ++ Assert(permGe(currentPermission(fa), fullPerm, true), errors.AssignmentFailed(assign).dueTo(reasons.InsufficientPermission(fa))) // add the check after the definedness checks for LHS/RHS (in heap module)
