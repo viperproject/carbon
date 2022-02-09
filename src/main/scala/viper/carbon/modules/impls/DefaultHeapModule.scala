@@ -318,9 +318,9 @@ class DefaultHeapModule(val verifier: Verifier)
           identicalFuncApp ==>
             ((staticPermissionPositive(nullLit, predField.l) && isPredicateField(predField.l)) ==>
               Forall(Seq(obj2, field),
-                Trigger(Seq(lookup(lookup(eh.l, nullLit, predicateMaskField(predField.l)), obj2.l, field.l))),
-                (lookup(lookup(h.l, nullLit, predicateMaskField(predField.l)), obj2.l, field.l) ==>
-                  lookup(lookup(eh.l, nullLit, predicateMaskField(predField.l)), obj2.l, field.l),
+                Trigger(Seq(lookup(lookup(eh.l, nullLit, predicateMaskField(predField.l)), obj2.l, field.l, true))),
+                (lookup(lookup(h.l, nullLit, predicateMaskField(predField.l)), obj2.l, field.l, true) ==>
+                  lookup(lookup(eh.l, nullLit, predicateMaskField(predField.l)), obj2.l, field.l, true),
                 ),
                 field.typ.freeTypeVars
               )
@@ -366,9 +366,9 @@ class DefaultHeapModule(val verifier: Verifier)
           identicalFuncApp ==>
             ((staticPermissionPositive(nullLit, predField.l) && isWandField(predField.l)) ==>
               Forall(Seq(obj2, field),
-                Trigger(Seq(lookup(lookup(eh.l, nullLit, wandMaskField(predField.l)), obj2.l, field.l))),
-                (lookup(lookup(h.l, nullLit, wandMaskField(predField.l)), obj2.l, field.l) ==>
-                  lookup(lookup(eh.l, nullLit, wandMaskField(predField.l)), obj2.l, field.l)
+                Trigger(Seq(lookup(lookup(eh.l, nullLit, wandMaskField(predField.l)), obj2.l, field.l, true))),
+                (lookup(lookup(h.l, nullLit, wandMaskField(predField.l)), obj2.l, field.l, true) ==>
+                  lookup(lookup(eh.l, nullLit, wandMaskField(predField.l)), obj2.l, field.l, true)
                   ),
                 field.typ.freeTypeVars
               )
@@ -548,6 +548,9 @@ class DefaultHeapModule(val verifier: Verifier)
   /** (should only be used for known-non-null references) */
   private def alloc(o: Exp) = lookup(heapExp, o, Const(allocName))
 
+  /** Returns assignment that updates heap to reflect that @{code ref} is assigned  */
+  private def allocUpdateRef(ref: Exp) : Stmt = currentHeapAssignUpdate(ref, Const(allocName), TrueLit())
+
   /** Returns a heap-lookup for o.f in a given heap h. */
   private def lookup(h: Exp, o: Exp, f: Exp, isPMask: Boolean = false) = {
     if(verifier.usePolyMapsInEncoding) {
@@ -592,9 +595,9 @@ class DefaultHeapModule(val verifier: Verifier)
   override def translateLocationAccess(f: sil.LocationAccess): Exp = {
     translateLocationAccess(f, heapExp)
   }
-  private def translateLocationAccess(f: sil.LocationAccess, heap: Exp): Exp = {
+  private def translateLocationAccess(f: sil.LocationAccess, heap: Exp, isPMask: Boolean = false): Exp = {
     val (rcvExp, fieldExp) = rcvAndFieldExp(f)
-    lookup(heap, rcvExp, fieldExp)
+    lookup(heap, rcvExp, fieldExp, isPMask)
   }
 
   override def translateLocationAccess(rcv: Exp, loc:Exp):Exp = {
@@ -658,7 +661,7 @@ class DefaultHeapModule(val verifier: Verifier)
           // in the encoding to get this fact (e.g. below for method targets, and also
           // for loops (see the StateModule implementation)
           Assume(if(enableAllocationEncoding) (freshObjectVar !== nullLit) && alloc(freshObjectVar).not else (freshObjectVar !== nullLit)) ::
-          (if(enableAllocationEncoding) (alloc(freshObjectVar) := TrueLit()) :: (translateExp(target) := freshObjectVar) :: Nil else (translateExp(target) := freshObjectVar) :: Nil)
+          (if(enableAllocationEncoding) allocUpdateRef(freshObjectVar) :: (translateExp(target) := freshObjectVar) :: Nil else (translateExp(target) := freshObjectVar) :: Nil)
       case _ => Statements.EmptyStmt
     }
   }
@@ -726,7 +729,7 @@ class DefaultHeapModule(val verifier: Verifier)
           MaybeComment("register all known folded permissions guarded by predicate " + loc.predicateName,
             Havoc(newPMask) ++
               Assume(Forall(Seq(obj, field), Seq(Trigger(pm2)), (pm1 ==> pm2))) ++
-                Assume(Forall(vsFresh.map(vFresh => translateLocalVarDecl(vFresh)),Seq(),translatedCond ==> (translateLocationAccess(renamingFieldAccess, newPMask) === TrueLit()) ))) ++
+                Assume(Forall(vsFresh.map(vFresh => translateLocalVarDecl(vFresh)),Seq(),translatedCond ==> (translateLocationAccess(renamingFieldAccess, newPMask, true) === TrueLit()) ))) ++
             curHeapAssignUpdatePredWandMask(pmask.maskField, newPMask)
         vsFresh.foreach(vFresh => env.undefine(vFresh.localVar))
         res
