@@ -724,7 +724,10 @@ class QuantifiedPermModule(val verifier: Verifier)
             val injectiveCond = unequalities && translatedCond && translatedCond2 && permGt(translatedPerms, noPerm) && permGt(translatedPerms2, noPerm);
             //val translatedArgs2= translatedArgs.map(x => x.replace(translatedLocal.l, translatedLocal2.l))
             val ineqs = (translatedArgs zip translatedArgs2).map(x => x._1 !== x._2)
-            val ineqExpr = ineqs.reduce((expr1, expr2) => (expr1) || (expr2))
+            val ineqExpr = {
+              if (ineqs.isEmpty) FalseLit()
+              else ineqs.reduce((expr1, expr2) => (expr1) || (expr2))
+            }
             val injectTrigger = Seq(Trigger(Seq(triggerFunApp, triggerFunApp2)))
             val injectiveAssertion = Assert(Forall((translatedLocals ++ translatedLocals2), injectTrigger,injectiveCond ==> ineqExpr), error.dueTo(reasons.ReceiverNotInjective(predAccPred.loc)))
 
@@ -1241,7 +1244,10 @@ class QuantifiedPermModule(val verifier: Verifier)
            val injectiveCond = unequalities && translatedCond && translatedCond2 && permGt(translatedPerms, noPerm) && permGt(translatedPerms2, noPerm);
            //val translatedArgs2= translatedArgs.map(x => x.replace(translatedLocal.l, translatedLocal2.l))
            val ineqs = (translatedArgs zip translatedArgs2).map(x => x._1 !== x._2)
-           val ineqExpr = ineqs.reduce((expr1, expr2) => (expr1) || (expr2))
+           val ineqExpr = {
+             if (ineqs.isEmpty) FalseLit()
+             else ineqs.reduce((expr1, expr2) => (expr1) || (expr2))
+           }
            val injectTrigger = Seq(Trigger(Seq(triggerFunApp, triggerFunApp2)))
            val injectiveAssertion = Assert(Forall((translatedLocals ++ translatedLocals2), injectTrigger,injectiveCond ==> ineqExpr), error.dueTo(reasons.ReceiverNotInjective(predAccPred.loc)))
 
