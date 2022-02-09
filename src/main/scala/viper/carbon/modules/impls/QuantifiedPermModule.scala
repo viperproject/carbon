@@ -42,6 +42,7 @@ import viper.silver.ast.Implies
 
 import scala.collection.mutable.ListBuffer
 import viper.silver.ast.utility.QuantifiedPermissions.SourceQuantifiedPermissionAssertion
+import viper.silver.verifier.errors.{ContractNotWellformed, PostconditionViolated}
 
 /**
  * An implementation of [[viper.carbon.modules.PermModule]] supporting quantified permissions.
@@ -568,7 +569,13 @@ class QuantifiedPermModule(val verifier: Verifier)
               notEquals = notEquals && (translatedLocals(i).l !== v2s(i).l)
             }
             val is_injective = Forall( translatedLocals++v2s,validateTriggers(translatedLocals++v2s, Seq(Trigger(Seq(triggerFunApp, triggerFunApp2)))),(  notEquals &&  translatedCond && translatedCond2 && permGt(translatedPerms, noPerm) && permGt(translatedPerms2, noPerm)) ==> (translatedRecv !== translatedRecv2))
-            val injectiveAssertion = Assert(is_injective,error.dueTo(reasons.ReceiverNotInjective(fieldAccess)))
+            val reas = reasons.ReceiverNotInjective(fieldAccess)
+            var err = error.dueTo(reas)
+            err = err match {
+              case PostconditionViolated(_, _, _, _) => ContractNotWellformed(e, reas)
+              case _ => err
+            }
+            val injectiveAssertion = Assert(is_injective, err)
 
             val res1 = Havoc(qpMask) ++
               MaybeComment("wild card assumptions", stmts ++
@@ -729,7 +736,14 @@ class QuantifiedPermModule(val verifier: Verifier)
               else ineqs.reduce((expr1, expr2) => (expr1) || (expr2))
             }
             val injectTrigger = Seq(Trigger(Seq(triggerFunApp, triggerFunApp2)))
-            val injectiveAssertion = Assert(Forall((translatedLocals ++ translatedLocals2), injectTrigger,injectiveCond ==> ineqExpr), error.dueTo(reasons.ReceiverNotInjective(predAccPred.loc)))
+
+            val reas = reasons.ReceiverNotInjective(predAccPred.loc)
+            var err = error.dueTo(reas)
+            err = err match {
+              case PostconditionViolated(_, _, _, _) => ContractNotWellformed(e, reas)
+              case _ => err
+            }
+            val injectiveAssertion = Assert(Forall((translatedLocals ++ translatedLocals2), injectTrigger,injectiveCond ==> ineqExpr), err)
 
             val res1 = Havoc(qpMask) ++
               MaybeComment("wildcard assumptions", stmts ++
@@ -1090,7 +1104,9 @@ class QuantifiedPermModule(val verifier: Verifier)
              notEquals = notEquals && (translatedLocals(i).l !== v2s(i).l)
            }
            val is_injective = Forall(translatedLocals ++ v2s, validateTriggers(translatedLocals ++ v2s, Seq(Trigger(Seq(triggerFunApp2)))), (notEquals && translatedCond && translatedCond2 && permGt(translatedPerms, noPerm) && permGt(translatedPerms2, noPerm)) ==> (translatedRecv !== translatedRecv2))
-           val injectiveAssertion = Assert(is_injective, error.dueTo(reasons.ReceiverNotInjective(fieldAccess)))
+           val err = ContractNotWellformed(e, reasons.ReceiverNotInjective(fieldAccess))
+
+           val injectiveAssertion = Assert(is_injective, err)
 
            val res1 = Havoc(qpMask) ++
              stmts ++
@@ -1249,7 +1265,8 @@ class QuantifiedPermModule(val verifier: Verifier)
              else ineqs.reduce((expr1, expr2) => (expr1) || (expr2))
            }
            val injectTrigger = Seq(Trigger(Seq(triggerFunApp, triggerFunApp2)))
-           val injectiveAssertion = Assert(Forall((translatedLocals ++ translatedLocals2), injectTrigger,injectiveCond ==> ineqExpr), error.dueTo(reasons.ReceiverNotInjective(predAccPred.loc)))
+           val err = error.dueTo(reasons.ReceiverNotInjective(predAccPred.loc))
+           val injectiveAssertion = Assert(Forall((translatedLocals ++ translatedLocals2), injectTrigger,injectiveCond ==> ineqExpr), err)
 
 
            val res1 = Havoc(qpMask) ++
