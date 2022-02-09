@@ -19,7 +19,6 @@ lazy val carbon = (project in file("."))
 
         // Fork test to a different JVM than SBT's, avoiding SBT's classpath interfering with
         // classpath used by Scala's reflection.
-        Compile / fork := true,
         Test / fork := true,
         Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-u", "target/test-reports", "-oD"),
 
