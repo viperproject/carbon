@@ -1,0 +1,2 @@
+status = ["build"]
+timeout_sec = 7200
