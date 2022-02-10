@@ -1104,8 +1104,9 @@ class QuantifiedPermModule(val verifier: Verifier)
              notEquals = notEquals && (translatedLocals(i).l !== v2s(i).l)
            }
            val is_injective = Forall(translatedLocals ++ v2s, validateTriggers(translatedLocals ++ v2s, Seq(Trigger(Seq(triggerFunApp2)))), (notEquals && translatedCond && translatedCond2 && permGt(translatedPerms, noPerm) && permGt(translatedPerms2, noPerm)) ==> (translatedRecv !== translatedRecv2))
-           val err = ContractNotWellformed(e, reasons.ReceiverNotInjective(fieldAccess))
 
+           val reas = reasons.ReceiverNotInjective(fieldAccess)
+           var err = error.dueTo(reas)
            val injectiveAssertion = Assert(is_injective, err)
 
            val res1 = Havoc(qpMask) ++
