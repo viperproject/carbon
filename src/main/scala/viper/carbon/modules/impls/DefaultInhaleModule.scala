@@ -30,7 +30,7 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule with Stat
     register(this)
   }
 
-  override def inhale(exps: Seq[(sil.Exp, PartialVerificationError)], statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt = {
+  override def inhale(exps: Seq[(sil.Exp, PartialVerificationError)], addDefinednessChecks: Boolean, statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt = {
     val current_state = stateModule.state
     if(insidePackageStmt){ // replace currentState with the correct state in which the inhale occurs during packaging the wand
       stateModule.replaceState(statesStackForPackageStmt(0).asInstanceOf[StateRep].state)
@@ -38,7 +38,7 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule with Stat
 
 
     val stmt =
-        (exps map (e => inhaleConnective(e._1.whenInhaling, e._2))) ++
+        (exps map (e => inhaleConnective(e._1.whenInhaling, e._2, addDefinednessChecks = addDefinednessChecks, insidePackageStmt = insidePackageStmt))) ++
           MaybeCommentBlock("Free assumptions",
             exps map (e => allFreeAssumptions(e._1))) ++
           assumeGoodState
@@ -63,32 +63,49 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule with Stat
    * Inhales Viper expression connectives (such as logical and/or) and forwards the
    * translation of other expressions to the inhale components.
    */
-  private def inhaleConnective(e: sil.Exp, error: PartialVerificationError): Stmt = {
+  private def inhaleConnective(e: sil.Exp, error: PartialVerificationError, addDefinednessChecks: Boolean, insidePackageStmt: Boolean = false): Stmt = {
+    def maybeDefCheck(eDef: sil.Exp) : Stmt = { if(addDefinednessChecks) checkDefinedness(eDef, error, insidePackageStmt = insidePackageStmt) else Statements.EmptyStmt }
+
     e match {
       case sil.And(e1, e2) =>
-        inhaleConnective(e1, error) ::
-          inhaleConnective(e2, error) ::
+        inhaleConnective(e1, error, addDefinednessChecks, insidePackageStmt) ::
+          inhaleConnective(e2, error, addDefinednessChecks, insidePackageStmt) ::
           Nil
       case sil.Implies(e1, e2) =>
-        If(translateExp(e1), inhaleConnective(e2, error), Statements.EmptyStmt)
+        val defCheck = maybeDefCheck(e1)
+        val lhsTranslation = if(insidePackageStmt) { wandModule.getCurOpsBoolvar() ==> translateExpInWand(e1) } else { translateExp(e1) }
+
+        defCheck ++
+        If(lhsTranslation, inhaleConnective(e2, error, addDefinednessChecks, insidePackageStmt), Statements.EmptyStmt)
       case sil.CondExp(c, e1, e2) =>
-        If(translateExp(c), inhaleConnective(e1, error), inhaleConnective(e2, error))
-      case sil.Let(declared,boundTo,body) if !body.isPure =>
+        val defCheck = maybeDefCheck(c)
+        val condTranslation = if(insidePackageStmt) { wandModule.getCurOpsBoolvar() ==> translateExpInWand(c) } else { translateExp(c) }
+
+        defCheck ++
+        If(condTranslation, inhaleConnective(e1, error, addDefinednessChecks, insidePackageStmt),
+                            inhaleConnective(e2, error, addDefinednessChecks, insidePackageStmt))
+      case sil.Let(declared,boundTo,body) if !body.isPure || addDefinednessChecks =>
       {
+        val defCheck = maybeDefCheck(boundTo)
         val u = env.makeUniquelyNamed(declared) // choose a fresh binder
         env.define(u.localVar)
+        defCheck ::
         Assign(translateLocalVar(u.localVar),translateExp(boundTo)) ::
-          inhaleConnective(body.replace(declared.localVar, u.localVar), error) ::
+          inhaleConnective(body.replace(declared.localVar, u.localVar), error, addDefinednessChecks, insidePackageStmt) ::
           {
             env.undefine(u.localVar)
             Nil
           }
       }
       case _ =>
+        val definednessChecks = maybeDefCheck(e)
         val stmt = components map (_.inhaleExp(e, error))
         if (stmt.children.isEmpty)
           sys.error(s"missing translation for inhaling of $e")
-        val retStmt = (if (containsFunc(e)) Seq(assumeGoodState) else Seq()) ++ stmt ++ (if (e.isPure) Seq() else Seq(assumeGoodState))
+        val retStmt = (if (containsFunc(e)) Seq(assumeGoodState) else Seq()) ++
+          definednessChecks ++
+          stmt ++
+          (if (e.isPure) Seq() else Seq(assumeGoodState))
         //(if (containsFunc(e)) assumeGoodState else Seq[Stmt]()) ++ stmt ++ (if (e.isPure) Seq[Stmt]() else assumeGoodState)
 
         // if we are inside package statement, then all assumptions should be replaced with conjinctions with ops.boolVar

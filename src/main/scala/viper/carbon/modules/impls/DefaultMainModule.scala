@@ -158,7 +158,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
     val reset = stateModule.resetBoogieState
 
     // note that the order here matters - onlyExhalePosts should be computed with respect to the reset state
-    val onlyExhalePosts: Seq[Stmt] = checkDefinednessOfExhaleSpecAndInhale(
+    val onlyExhalePosts: Seq[Stmt] = inhaleModule.inhaleExhaleSpecWithDefinednessCheck(
     posts, {
       errors.ContractNotWellformed(_)
     })
@@ -167,7 +167,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
     if (Expressions.contains[sil.InhaleExhaleExp](posts)) {
       // Postcondition contains InhaleExhale expression.
       // Need to check inhale and exhale parts separately.
-      val onlyInhalePosts: Seq[Stmt] = checkDefinednessOfInhaleSpecAndInhale(
+      val onlyInhalePosts: Seq[Stmt] = inhaleModule.inhaleInhaleSpecWithDefinednessCheck(
       posts, {
         errors.ContractNotWellformed(_)
       })
@@ -198,11 +198,11 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
     val res = if (Expressions.contains[sil.InhaleExhaleExp](pres)) {
       // Precondition contains InhaleExhale expression.
       // Need to check inhale and exhale parts separately.
-      val onlyExhalePres: Seq[Stmt] = checkDefinednessOfExhaleSpecAndInhale(
+      val onlyExhalePres: Seq[Stmt] = inhaleModule.inhaleExhaleSpecWithDefinednessCheck(
       pres, {
         errors.ContractNotWellformed(_)
       })
-      val onlyInhalePres: Seq[Stmt] = checkDefinednessOfInhaleSpecAndInhale(
+      val onlyInhalePres: Seq[Stmt] = inhaleModule.inhaleInhaleSpecWithDefinednessCheck(
       pres, {
         errors.ContractNotWellformed(_)
       })
@@ -214,7 +214,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
       )
     }
     else {
-      val inhalePres: Seq[Stmt] = checkDefinednessOfInhaleSpecAndInhale(
+      val inhalePres: Seq[Stmt] = inhaleModule.inhaleInhaleSpecWithDefinednessCheck(
       pres, {
         errors.ContractNotWellformed(_)
       })

@@ -495,7 +495,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   }
 
 
-  override def checkDefinednessOfSpecAndInhale(e: sil.Exp, error: PartialVerificationError, statesStack: List[Any] = null, duringPackageStmt: Boolean = false): Stmt = {
+  def checkDefinednessOfSpecAndInhale(e: sil.Exp, error: PartialVerificationError, statesStack: List[Any] = null, duringPackageStmt: Boolean = false): Stmt = {
 
     val stmt =
     {
@@ -533,7 +533,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       //      case fa@sil.Forall(vars, triggers, expr) => // NOTE: there's no need for a special case for QPs, since these are desugared, introducing conjunctions
         case _ =>
           checkDefinedness(e, error, duringPackageStmt = duringPackageStmt) ++
-            inhale(Seq((e, error)), statesStack, duringPackageStmt)
+            inhale(Seq((e, error)), false, statesStack, duringPackageStmt)
       }
     }
 
@@ -542,7 +542,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
     }else stmt
   }
 
-  override def checkDefinednessOfSpecAndExhale(e: sil.Exp, definednessError: PartialVerificationError, exhaleError: PartialVerificationError
+  def checkDefinednessOfSpecAndExhale(e: sil.Exp, definednessError: PartialVerificationError, exhaleError: PartialVerificationError
                                                , statesStack: List[Any] = null, duringPackageStmt: Boolean = false): Stmt = {
 
     val stmt =
