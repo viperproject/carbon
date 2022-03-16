@@ -39,8 +39,6 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule with Stat
 
     val stmt =
         (exps map (e => inhaleConnective(e._1.whenInhaling, e._2, addDefinednessChecks = addDefinednessChecks, statesStackForPackageStmt, insidePackageStmt = insidePackageStmt))) ++
-          MaybeCommentBlock("Free assumptions",
-            exps map (e => allFreeAssumptions(e._1))) ++
           assumeGoodState
 
     if(insidePackageStmt && !addDefinednessChecks) {
@@ -67,6 +65,8 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule with Stat
    */
   private def inhaleConnective(e: sil.Exp, error: PartialVerificationError, addDefinednessChecks: Boolean, statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt = {
     def maybeDefCheck(eDef: sil.Exp) : Stmt = { if(addDefinednessChecks) checkDefinedness(eDef, error, insidePackageStmt = insidePackageStmt) else Statements.EmptyStmt }
+    //definedness checks include free assumptions, so only add free assumption if no definedness checks were made
+    def maybeFreeAssumptions(eAssm: sil.Exp) : Stmt = { if(addDefinednessChecks) Nil else MaybeCommentBlock("Free assumptions", allFreeAssumptions(eAssm)) }
 
     val res =
       e match {
@@ -109,6 +109,7 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule with Stat
             }
           }
           val definednessChecks = maybeDefCheck(e)
+          val freeAssms = maybeFreeAssumptions(e)
           val stmt = components map (_.inhaleExp(e, error))
           if (stmt.children.isEmpty)
             sys.error(s"missing translation for inhaling of $e")
@@ -117,7 +118,8 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule with Stat
           val retStmt =
             transformStmtInsidePackage(if (containsFunc(e)) Seq(assumeGoodState) else Seq()) ++
             definednessChecks ++
-            transformStmtInsidePackage(stmt ++ (if (e.isPure) Seq() else Seq(assumeGoodState)))
+            transformStmtInsidePackage(stmt ++ (if (e.isPure) Seq() else Seq(assumeGoodState))) ++
+              freeAssms
           //(if (containsFunc(e)) assumeGoodState else Seq[Stmt]()) ++ stmt ++ (if (e.isPure) Seq[Stmt]() else assumeGoodState)
 
           // if we are inside package statement, then all assumptions should be replaced with conjinctions with ops.boolVar
