@@ -26,6 +26,7 @@ trait ExhaleModule extends Module with ExhaleComponent with ComponentRegistry[Ex
 
   /**
     * @param exp         the expression to be exhaled and the error to be raised if the exhale fails.
+    * @param addDefinednessChecks enables definedness checks iff set to true
     * @param havocHeap   A boolean used to allow or prevent havocing the heap after the exhale.
     *                    For example, the heap is not havoced after the exhale when translating a fold statement.
     * @param isAssert    A boolean that tells whether the exhale method is being called during an exhale statement or an assert statement
@@ -38,8 +39,24 @@ trait ExhaleModule extends Module with ExhaleComponent with ComponentRegistry[Ex
     * The 'statesStackForPackageStmt' and 'insidePackageStmt' are used when translating statements during packaging a wand.
     * For more details refer to the note in the wand module.
     */
-  def exhale(exp: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true, isAssert: Boolean = false
-             , statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt
+  def exhale(exp: Seq[(sil.Exp, PartialVerificationError, Option[PartialVerificationError])], havocHeap: Boolean = true,
+             isAssert: Boolean = false , statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt
+
+  def exhaleWithoutDefinedness(exp: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true,
+             isAssert: Boolean = false , statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt = {
+    exhale(exp.map(eError => (eError._1, eError._2, None)), havocHeap = havocHeap, isAssert = isAssert, statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
+  }
+
+  def exhaleSingleWithoutDefinedness(exp: sil.Exp, exhaleError: PartialVerificationError, havocHeap: Boolean = true,
+                               isAssert: Boolean = false , statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt = {
+    exhale(Seq((exp, exhaleError, None)), havocHeap = havocHeap, isAssert = isAssert, statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
+  }
+
+  def exhaleSingleWithDefinedness(exp: sil.Exp, exhaleError: PartialVerificationError, definednessError: PartialVerificationError,
+                                  havocHeap: Boolean = true, isAssert: Boolean = false, statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false) = {
+    exhale(Seq((exp, exhaleError, Some(definednessError))), havocHeap = havocHeap, isAssert = isAssert,
+      statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
+  }
 
   def currentPhaseId: Int
 }

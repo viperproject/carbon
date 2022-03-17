@@ -6,12 +6,12 @@
 
 package viper.carbon.modules.components
 
-import viper.carbon.boogie.{Statements, Stmt}
+import viper.carbon.boogie.{Exp, Statements, Stmt}
 import viper.silver.{ast => sil}
 import viper.silver.verifier.PartialVerificationError
 
 /**
- * Takes care of determining whether expressions are well-formed.
+  * Takes care of determining whether expressions are well-formed.
  */
 trait DefinednessComponent extends Component {
 
@@ -23,7 +23,8 @@ trait DefinednessComponent extends Component {
   /**
    * Proof obligations for a given expression. See below for "makeChecks" description
    */
-  def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = Statements.EmptyStmt
+  def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
+                                    definednessState: DefinednessState = DefinednessStateHelper.trivialDefinednessState): Stmt = Statements.EmptyStmt
 
   /**
    * Proof obligations for a given expression.  The first part of the result is used before
@@ -34,6 +35,16 @@ trait DefinednessComponent extends Component {
    * corresponding unfoldings to be executed), but no other checks to actually be made. Note that this method
    * must be overridden for this parameter to be used.
    */
-  def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): (() => Stmt, () => Stmt) =
-    (() => simplePartialCheckDefinedness(e, error, makeChecks), () => Statements.EmptyStmt)
+  def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
+                              definednessState: DefinednessState = DefinednessStateHelper.trivialDefinednessState): (() => Stmt, () => Stmt) =
+    (() => simplePartialCheckDefinedness(e, error, makeChecks, definednessState), () => Statements.EmptyStmt)
+
 }
+
+object DefinednessStateHelper {
+  val trivialDefinednessState : DefinednessState = {
+    DefinednessState(() => (), () => ())
+  }
+}
+
+case class DefinednessState(setDefState: () => Unit, setNormalState: () => Unit)

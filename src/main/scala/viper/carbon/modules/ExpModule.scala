@@ -9,7 +9,7 @@ package viper.carbon.modules
 import viper.silver.{ast => sil}
 import viper.silver.ast.utility.Expressions.{whenExhaling, whenInhaling}
 import viper.carbon.boogie.{Exp, LocalVar, Stmt}
-import viper.carbon.modules.components.{ComponentRegistry, DefinednessComponent}
+import viper.carbon.modules.components.{ComponentRegistry, DefinednessComponent, DefinednessState, DefinednessStateHelper}
 import viper.silver.verifier.PartialVerificationError
 
 /**
@@ -43,6 +43,7 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
       * inWand distinguish when check definedness is called during a package statement.
       */
   def checkDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean = true,
+                       definednessState: DefinednessState = DefinednessStateHelper.trivialDefinednessState,
                        insidePackageStmt: Boolean = false, ignoreIfInWand: Boolean = false): Stmt
 
   /**
@@ -78,16 +79,4 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
     })
   }
 
-  /**
-   * Check definedness of Viper assertions such as pre-/postconditions or invariants.
-   * The implementation works by exhaling 'e' and checking the necessary properties
-   * along the way.
-   *
-   * statesStackForPackageStmt stack of states used in translating statements during packaging a wand (carries currentState and LHS of wands)
-   * insidePackageStmt      Boolean that represents whether this method is being called during packaging a wand or not.
-   * The 'statesStackForPackageStmt' and 'insidePackageStmt' are used when translating statements during packaging a wand.
-   * For more details refer to the general note in 'wandModule'.
-   */
-  def checkDefinednessOfSpecAndExhale(e: sil.Exp, definednessError: PartialVerificationError, exhaleError: PartialVerificationError,
-                                      statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt
 }

@@ -129,7 +129,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
             }
             else Nil
             val postsWithErrors = posts map (p => (p, errors.PostconditionViolated(p, mWithLoopInfo)))
-            val exhalePost = MaybeCommentBlock("Exhaling postcondition", exhale(postsWithErrors))
+            val exhalePost = MaybeCommentBlock("Exhaling postcondition", exhaleWithoutDefinedness(postsWithErrors))
             val body: Stmt = translateStmt(method.bodyOrAssumeFalse)
               /* TODO: Might be worth special-casing on methods with empty bodies */
             val proc = Procedure(Identifier(name), ins, outs,

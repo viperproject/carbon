@@ -12,7 +12,7 @@ import viper.carbon.boogie._
 import viper.carbon.verifier.Verifier
 import viper.silver.verifier.{PartialVerificationError, reasons}
 import viper.carbon.boogie.Implicits._
-import viper.carbon.modules.components.DefinednessComponent
+import viper.carbon.modules.components.{DefinednessComponent, DefinednessState, DefinednessStateHelper}
 import viper.silver.ast.{LocationAccess, MagicWand, PredicateAccess, Ref}
 import viper.silver.ast.utility.Expressions
 
@@ -310,7 +310,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
     env.get(l)
   }
 
-  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
+  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, definednessState: DefinednessState = DefinednessStateHelper.trivialDefinednessState): Stmt = {
 
     val stmt: Stmt = (if (makeChecks)
       e match {
@@ -328,6 +328,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   }
 
   override def checkDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
+                                definednessState: DefinednessState = DefinednessStateHelper.trivialDefinednessState,
                                 duringPackageStmt: Boolean = false, ignoreIfInWand: Boolean = false): Stmt = {
 
     if(duringPackageStmt && ignoreIfInWand)  // ignore the check
@@ -542,7 +543,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
     }else stmt
   }
 
-  override def checkDefinednessOfSpecAndExhale(e: sil.Exp, definednessError: PartialVerificationError, exhaleError: PartialVerificationError
+  def checkDefinednessOfSpecAndExhale(e: sil.Exp, definednessError: PartialVerificationError, exhaleError: PartialVerificationError
                                                , statesStack: List[Any] = null, duringPackageStmt: Boolean = false): Stmt = {
 
     val stmt =
@@ -573,7 +574,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           }//      case fa@sil.Forall(vars, triggers, expr) => // NOTE: there's no need for a special case for QPs, since these are desugared, introducing conjunctions
       case _ =>
         checkDefinedness(e, definednessError) ++
-          exhale(Seq((e, exhaleError)))
+          exhaleSingleWithoutDefinedness(e, exhaleError)
     }
 
     if(duringPackageStmt) {

@@ -11,7 +11,7 @@ import viper.carbon.modules._
 import viper.carbon.verifier.Verifier
 import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
-import viper.carbon.modules.components.{DefinednessComponent, StmtComponent}
+import viper.carbon.modules.components.{DefinednessComponent, DefinednessState, DefinednessStateHelper, StmtComponent}
 import viper.silver.ast.utility.Expressions
 import viper.silver.ast.{MagicWand, MagicWandStructure}
 import viper.silver.verifier.{PartialVerificationError, reasons}
@@ -688,9 +688,9 @@ case class PackageSetup(hypState: StateRep, usedState: StateRep, initStmt: Stmt)
     val defineLHS = stmtModule.translateStmt(sil.Label("lhs"+lhsID, Nil)(w.pos, w.info))
     wandModule.pushToActiveWandsStack(lhsID)
 
-    val ret = CommentBlock("check if wand is held and remove an instance",exhaleModule.exhale((w, error), false, insidePackageStmt = inWand, statesStackForPackageStmt = statesStack)) ++
+    val ret = CommentBlock("check if wand is held and remove an instance",exhaleModule.exhaleWithoutDefinedness((w, error), false, insidePackageStmt = inWand, statesStackForPackageStmt = statesStack)) ++
       (if(inWand) exchangeAssumesWithBoolean(stateModule.assumeGoodState, OPS.boolVar) else stateModule.assumeGoodState) ++
-      CommentBlock("check if LHS holds and remove permissions ", exhaleModule.exhale((w.left, error), false, insidePackageStmt = inWand, statesStackForPackageStmt = statesStack)) ++
+      CommentBlock("check if LHS holds and remove permissions ", exhaleModule.exhaleWithoutDefinedness((w.left, error), false, insidePackageStmt = inWand, statesStackForPackageStmt = statesStack)) ++
       (if(inWand) exchangeAssumesWithBoolean(stateModule.assumeGoodState, OPS.boolVar) else stateModule.assumeGoodState) ++
       CommentBlock("inhale the RHS of the wand",inhaleModule.inhale(Seq((w.right, error)), statesStackForPackageStmt = statesStack, insidePackageStmt = inWand)) ++
       heapModule.beginExhale ++ heapModule.endExhale ++
@@ -730,7 +730,7 @@ case class PackageSetup(hypState: StateRep, usedState: StateRep, initStmt: Stmt)
   /**
     * Checking definedness for applying statement
     */
-  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): (() => Stmt, () => Stmt) = {
+  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, definednessState: DefinednessState = DefinednessStateHelper.trivialDefinednessState): (() => Stmt, () => Stmt) = {
     e match {
       case a@sil.Applying(wand, exp) =>
         tmpStateId += 1

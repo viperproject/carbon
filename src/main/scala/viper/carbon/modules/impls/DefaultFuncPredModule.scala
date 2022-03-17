@@ -15,7 +15,7 @@ import viper.silver.{ast => sil}
 import viper.carbon.verifier.{Environment, Verifier}
 import viper.carbon.boogie.Implicits._
 import viper.silver.ast.utility._
-import viper.carbon.modules.components.{DefinednessComponent, ExhaleComponent, InhaleComponent}
+import viper.carbon.modules.components.{DefinednessComponent, DefinednessState, DefinednessStateHelper, ExhaleComponent, InhaleComponent}
 import viper.silver.verifier.{NullPartialVerificationError, PartialVerificationError, errors}
 
 import scala.collection.mutable.ListBuffer
@@ -645,10 +645,10 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       }
       else {
         f.posts map (e => {
-          checkDefinednessOfSpecAndExhale(
+          exhaleSingleWithDefinedness(
             whenExhaling(e),
-            errors.ContractNotWellformed(e),
-            errors.PostconditionViolated(e, f))
+            errors.PostconditionViolated(e, f),
+            errors.ContractNotWellformed(e))
         })
       }
       val inhaleCheck = MaybeCommentBlock(
@@ -677,10 +677,10 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       }
       else {
         val posts: Seq[Stmt] = f.posts map (e => {
-          checkDefinednessOfSpecAndExhale(
+          exhaleSingleWithDefinedness(
             e,
-            errors.ContractNotWellformed(e),
-            errors.PostconditionViolated(e, f))
+            errors.PostconditionViolated(e, f),
+          errors.ContractNotWellformed(e))
         })
         MaybeCommentBlock("Exhaling postcondition (with checking)", posts)
       }
@@ -722,7 +722,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   override def translateResult(r: sil.Result) = translateResultDecl(r).l
 
   private var tmpStateId = -1
-  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): (() => Stmt, () => Stmt) = {
+  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, definednessState: DefinednessState = DefinednessStateHelper.trivialDefinednessState): (() => Stmt, () => Stmt) = {
     e match {
       case u@sil.Unfolding(acc@sil.PredicateAccessPredicate(loc, perm), exp) =>
         tmpStateId += 1
@@ -744,7 +744,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         //if (pres.isEmpty) noStmt // even for empty pres, the assumption made below is important
         NondetIf(
           // This is where termination checks could/should be added
-          MaybeComment("Exhale precondition of function application", exhale(pres map (e => (e, errors.PreconditionInAppFalse(fa))))) ++
+          MaybeComment("Exhale precondition of function application", exhaleWithoutDefinedness(pres map (e => (e, errors.PreconditionInAppFalse(fa))))) ++
             MaybeComment("Stop execution", Assume(FalseLit()))
           , checkingDefinednessOfFunction match {
             case Some(name) if name.equals(f) => MaybeComment("Enable postcondition for recursive call", Assume(triggerFuncApp(funct,heapModule.currentStateExps,args map translateExp)))
@@ -835,7 +835,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
                            , statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): (Stmt,Stmt) = {
     duringFold = true
     foldInfo = acc
-    val stmt = exhale(Seq((Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program, env.allDefinedNames(program)).get,acc.perm), error)), havocHeap = false,
+    val stmt = exhaleWithoutDefinedness(Seq((Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program, env.allDefinedNames(program)).get,acc.perm), error)), havocHeap = false,
       statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt) ++
       inhale(Seq((acc, error)), statesStackForPackageStmt, insidePackageStmt)
     val stmtLast =  Assume(predicateTrigger(heapModule.currentStateExps, acc.loc)) ++ {
@@ -881,7 +881,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         Assume(translateLocationAccess(location) === getPredicateFrame(predicate,translatedArgs)._1)
       } ++
       (if(exhaleUnfoldedPredicate)
-          exhale(Seq((acc, error)), havocHeap = false, statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
+          exhaleWithoutDefinedness(Seq((acc, error)), havocHeap = false, statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
       else Nil) ++ inhale(Seq((Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program, env.allDefinedNames(program)).get,acc.perm), error)), statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
     unfoldInfo = oldUnfoldInfo
     duringUnfold = oldDuringUnfold
