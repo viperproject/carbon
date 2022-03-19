@@ -58,5 +58,4 @@ trait ExhaleModule extends Module with ExhaleComponent with ComponentRegistry[Ex
       statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
   }
 
-  def currentPhaseId: Int
 }

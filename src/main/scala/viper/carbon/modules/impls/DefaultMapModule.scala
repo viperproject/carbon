@@ -83,7 +83,7 @@ class DefaultMapModule(val verifier: Verifier) extends MapModule with Definednes
     NamedType("Map", Seq(translateType(mapType.keyType), translateType(mapType.valueType)))
   }
 
-  override def simplePartialCheckDefinedness(exp: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, definednessState: DefinednessState = DefinednessStateHelper.trivialDefinednessState): Stmt = {
+  override def simplePartialCheckDefinedness(exp: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, definednessState: Option[DefinednessState]): Stmt = {
     if (makeChecks) exp match {
       case sil.MapLookup(base, key) => {
         val containsExp = translateMapExp(sil.MapContains(key, base)(exp.pos, exp.info, exp.errT))

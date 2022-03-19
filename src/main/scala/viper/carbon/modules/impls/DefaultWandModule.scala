@@ -730,7 +730,7 @@ case class PackageSetup(hypState: StateRep, usedState: StateRep, initStmt: Stmt)
   /**
     * Checking definedness for applying statement
     */
-  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, definednessState: DefinednessState = DefinednessStateHelper.trivialDefinednessState): (() => Stmt, () => Stmt) = {
+  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, definednessState: Option[DefinednessState]): (() => Stmt, () => Stmt) = {
     e match {
       case a@sil.Applying(wand, exp) =>
         tmpStateId += 1
@@ -745,7 +745,7 @@ case class PackageSetup(hypState: StateRep, usedState: StateRep, initStmt: Stmt)
           Nil
         }
         (before _, after _)
-      case _ => (() => simplePartialCheckDefinedness(e, error, makeChecks), () => Nil)
+      case _ => (() => simplePartialCheckDefinedness(e, error, makeChecks, definednessState), () => Nil)
     }
   }
 

@@ -135,8 +135,8 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
         val transformedExp = whenExhaling(e)
         if (transformedExp.isPure) {
           // if e is pure, then assert and exhale are the same
-          checkDefinedness(transformedExp, errors.AssertFailed(a), insidePackageStmt = insidePackageStmt, ignoreIfInWand = true) ++
-            exhaleWithoutDefinedness((transformedExp, errors.AssertFailed(a)), statesStackForPackageStmt = statesStack, insidePackageStmt = insidePackageStmt)
+          //checkDefinedness(transformedExp, errors.AssertFailed(a), insidePackageStmt = insidePackageStmt, ignoreIfInWand = true) ++
+            exhaleSingleWithDefinedness(transformedExp, errors.AssertFailed(a), errors.AssertFailed(a), statesStackForPackageStmt = statesStack, insidePackageStmt = insidePackageStmt)
         } else {
           // we create a temporary state to ignore the side-effects
           val (backup, snapshot) = freshTempState("Assert")
@@ -283,7 +283,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
   }
 
 
-  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, definednessState: DefinednessState = DefinednessStateHelper.trivialDefinednessState): Stmt = {
+  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, definednessState: Option[DefinednessState]): Stmt = {
     if(makeChecks) {
       e match {
         case labelOld@sil.LabelledOld(_, labelName) =>

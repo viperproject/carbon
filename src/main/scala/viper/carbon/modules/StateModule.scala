@@ -100,6 +100,11 @@ trait StateModule extends Module with ComponentRegistry[CarbonStateComponent] wi
   def initToCurrentStmt(snapshot: StateSnapshot) : Stmt
 
   /**
+    * Returns the statem
+    */
+  def initCurrentToStmt(snapshot: StateSnapshot) : Stmt
+
+  /**
    * Create a state without any information and return a snapshot of the created state.
    * if init is true then the Stmt returned will contain the initialization according to the state
    * components

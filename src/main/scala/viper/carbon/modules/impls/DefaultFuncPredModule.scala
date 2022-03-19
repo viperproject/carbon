@@ -722,37 +722,77 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   override def translateResult(r: sil.Result) = translateResultDecl(r).l
 
   private var tmpStateId = -1
-  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, definednessState: DefinednessState = DefinednessStateHelper.trivialDefinednessState): (() => Stmt, () => Stmt) = {
+  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, definednessState: Option[DefinednessState] = None): (() => Stmt, () => Stmt) = {
     e match {
       case u@sil.Unfolding(acc@sil.PredicateAccessPredicate(loc, perm), exp) =>
         tmpStateId += 1
         val tmpStateName = if (tmpStateId == 0) "Unfolding" else s"Unfolding$tmpStateId"
-        val (stmt, state) = stateModule.freshTempState(tmpStateName)
+
+        val stateCopy = stateModule.state
+
+        val (tmpState, initTmp, maybeRestoreDefState) =
+          if(definednessState.isDefined) {
+            definednessState.get.setDefState()
+            val tmpState = stateModule.freshTempStateKeepCurrent(tmpStateName)
+            val initTmpToDef = stateModule.initToCurrentStmt(tmpState)
+            val initDefToTmp = stateModule.initCurrentToStmt(tmpState)
+            stateModule.replaceState(stateCopy)
+            (tmpState, initTmpToDef, Some(initDefToTmp))
+          } else {
+            val tmpState = stateModule.freshTempStateKeepCurrent(tmpStateName)
+            val initTmpToCur = stateModule.initToCurrentStmt(tmpState)
+            (tmpState, initTmpToCur, None)
+        }
+
         def before() = {
-          stmt ++ unfoldPredicate(acc, error, true)
+          val unfoldPred =
+            if(definednessState.isDefined) {
+              //makes sure we unfold in the defState
+              val stateCopy2 = stateModule.state
+              definednessState.get.setDefState()
+              val res = initTmp ++ unfoldPredicate(acc, error, true)
+              //set back to the previous state, because evaluation should happen in the normal state
+              stateModule.replaceState(stateCopy2)
+              res
+            } else {
+              stateModule.replaceState(tmpState)
+              val stmt = initTmp ++ unfoldPredicate(acc, error, true)
+              stmt
+            }
+          unfoldPred
         }
         def after() = {
           tmpStateId -= 1
-          stateModule.replaceState(state)
-          Nil
+          stateModule.replaceState(stateCopy)
+          //now make sure def state is as it was before
+          maybeRestoreDefState.fold(Nil:Stmt)(identity)
         }
         (before _, after _)
       case fa@sil.FuncApp(f, args) => {
-        (() => Nil, if(makeChecks) () => {
-        val funct = verifier.program.findFunction(f);
-        val pres = funct.pres map (e => Expressions.instantiateVariables(e, funct.formalArgs, args, env.allDefinedNames(program)))
-        //if (pres.isEmpty) noStmt // even for empty pres, the assumption made below is important
-        NondetIf(
-          // This is where termination checks could/should be added
-          MaybeComment("Exhale precondition of function application", exhaleWithoutDefinedness(pres map (e => (e, errors.PreconditionInAppFalse(fa))))) ++
-            MaybeComment("Stop execution", Assume(FalseLit()))
-          , checkingDefinednessOfFunction match {
-            case Some(name) if name.equals(f) => MaybeComment("Enable postcondition for recursive call", Assume(triggerFuncApp(funct,heapModule.currentStateExps,args map translateExp)))
-            case _ => Nil
-          })} else () => Nil
+        (
+          () => Nil, if(makeChecks) () => {
+            val funct = verifier.program.findFunction(f);
+            val pres = funct.pres map (e => Expressions.instantiateVariables(e, funct.formalArgs, args, env.allDefinedNames(program)))
+            //if (pres.isEmpty) noStmt // even for empty pres, the assumption made below is important
+
+            // exhale precondition in definedness state
+            val curState = stateModule.state
+            definednessState.map(d => d.setDefState())
+            val res =
+              NondetIf(
+                // This is where termination checks could/should be added
+                MaybeComment("Exhale precondition of function application", exhaleWithoutDefinedness(pres map (e => (e, errors.PreconditionInAppFalse(fa))))) ++
+                  MaybeComment("Stop execution", Assume(FalseLit()))
+                , checkingDefinednessOfFunction match {
+                  case Some(name) if name.equals(f) => MaybeComment("Enable postcondition for recursive call", Assume(triggerFuncApp(funct,heapModule.currentStateExps,args map translateExp)))
+                  case _ => Nil
+                })
+            stateModule.replaceState(curState)
+            res
+          } else () => Nil
         )
       }
-      case _ => (() => simplePartialCheckDefinedness(e, error, makeChecks), () => Nil)
+      case _ => (() => simplePartialCheckDefinedness(e, error, makeChecks, definednessState), () => Nil)
     }
   }
 
@@ -917,7 +957,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
         (before _ , after _ )
       }
-      case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(args, predicateName), _) if duringUnfold && currentPhaseId == 0 =>
+      case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(args, predicateName), _) if duringUnfold =>
         val oldVersion = LocalVar(Identifier("oldVersion"), predicateVersionType)
         val newVersion = LocalVar(Identifier("newVersion"), predicateVersionType)
         val curVersion = translateExp(loc)

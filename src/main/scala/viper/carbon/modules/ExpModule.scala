@@ -43,7 +43,7 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
       * inWand distinguish when check definedness is called during a package statement.
       */
   def checkDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean = true,
-                       definednessState: DefinednessState = DefinednessStateHelper.trivialDefinednessState,
+                       definednessState: Option[DefinednessState] = None,
                        insidePackageStmt: Boolean = false, ignoreIfInWand: Boolean = false): Stmt
 
   /**

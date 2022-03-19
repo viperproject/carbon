@@ -153,6 +153,14 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     }
   }
 
+  override def initCurrentToStmt(snapshot: StateSnapshot): Stmt = {
+    val currentState = state
+    replaceState(snapshot)
+    val res = initToCurrentStmt(currentState)
+    replaceState(currentState)
+    res
+  }
+
   def freshEmptyState(name: String, init: Boolean = false): (Stmt, StateSnapshot) =
   {
     freshTempState(name, true, init)

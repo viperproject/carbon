@@ -6,7 +6,7 @@
 
 package viper.carbon.modules.components
 
-import viper.carbon.boogie.{Exp, Statements, Stmt}
+import viper.carbon.boogie.{Statements, Stmt}
 import viper.silver.{ast => sil}
 import viper.silver.verifier.PartialVerificationError
 
@@ -24,7 +24,7 @@ trait DefinednessComponent extends Component {
    * Proof obligations for a given expression. See below for "makeChecks" description
    */
   def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
-                                    definednessState: DefinednessState = DefinednessStateHelper.trivialDefinednessState): Stmt = Statements.EmptyStmt
+                                    definednessState: Option[DefinednessState]): Stmt = Statements.EmptyStmt
 
   /**
    * Proof obligations for a given expression.  The first part of the result is used before
@@ -36,15 +36,15 @@ trait DefinednessComponent extends Component {
    * must be overridden for this parameter to be used.
    */
   def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
-                              definednessState: DefinednessState = DefinednessStateHelper.trivialDefinednessState): (() => Stmt, () => Stmt) =
+                              definednessState: Option[DefinednessState]): (() => Stmt, () => Stmt) =
     (() => simplePartialCheckDefinedness(e, error, makeChecks, definednessState), () => Statements.EmptyStmt)
 
 }
 
 object DefinednessStateHelper {
   val trivialDefinednessState : DefinednessState = {
-    DefinednessState(() => (), () => ())
+    DefinednessState(() => ())
   }
 }
 
-case class DefinednessState(setDefState: () => Unit, setNormalState: () => Unit)
+case class DefinednessState(setDefState: () => Unit)
