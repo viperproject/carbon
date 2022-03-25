@@ -46,8 +46,8 @@ jobs:
           sbt-cache/.sbtboot
           sbt-cache/.boot
           sbt-cache/.ivy/cache
-        # project/target and target, are intentionally not
-        # included as several occurrences of NoSuchMethodError exceptions have been observed during CI runs. It seems
+        # project/target and target, are intentionally not included as several occurrences
+        # of NoSuchMethodError exceptions have been observed during CI runs. It seems
         # like sbt is unable to correctly compute source files that require a recompilation. Therefore, we have
         # disabled caching of compiled source files altogether
         key: ${{ runner.os }}-sbt-no-precompiled-sources-${{ hashFiles('**/build.sbt') }}
