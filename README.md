@@ -13,11 +13,13 @@ Installation Instructions:
 We recommend using carbon through the [VS Code plugin](https://marketplace.visualstudio.com/items?itemName=viper-admin.viper). Alternatively, one can compile carbon from source with the following steps:
 
 * Install Z3 and Boogie and set the environment variables `Z3_EXE` and `BOOGIE_EXE` correspondingly (see wiki above)
-* Clone this repository *recursively* by running:
+* Clone this repository *recursively* by running:  
 `git clone --recursive https://github.com/viperproject/carbon`
-  * Compile and run with:
-`sbt "run [options] <path to Viper file>"`
-  * Alternatively, for a faster startup without compilation each time, build a `.jar` file:
- `sbt assembly`
-  And then run with:
- `java -jar ./target/scala-*/carbon.jar [options] <path to Viper file>`
+
+And then  
+* Compile and run with:  
+  `sbt "run [options] <path to Viper file>"`
+* Alternatively, for a faster startup without compilation each time, build a `.jar` file:  
+  `sbt assembly`  
+  And then run with:  
+  `java -jar ./target/scala-*/carbon.jar [options] <path to Viper file>`
