@@ -744,7 +744,8 @@ class DefaultHeapModule(val verifier: Verifier)
   override def inhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
       case sil.Unfolding(sil.PredicateAccessPredicate(loc, perm), exp) =>
-        addPermissionToPMask(loc)
+        //addPermissionToPMask(loc)
+        Nil
       case _ => Nil
     }
   }
