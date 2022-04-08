@@ -65,8 +65,11 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule with Stat
    */
   private def inhaleConnective(e: sil.Exp, error: PartialVerificationError, addDefinednessChecks: Boolean, statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt = {
     def maybeDefCheck(eDef: sil.Exp) : Stmt = { if(addDefinednessChecks) checkDefinedness(eDef, error, insidePackageStmt = insidePackageStmt) else Statements.EmptyStmt }
-    //definedness checks include free assumptions, so only add free assumption if no definedness checks were made
-    def maybeFreeAssumptions(eAssm: sil.Exp) : Stmt = { if(addDefinednessChecks) Nil else MaybeCommentBlock("Free assumptions", allFreeAssumptions(eAssm)) }
+    /* definedness checks include free assumptions, so only add free assumption if no definedness checks were made
+       GP: Currently, inhale during packaging a wand still requires these additional free assumptions for examples in the test suite (wands/regression/issue029.vpr).
+           That's why there is an additional conjunct in the if condition. However, this special case during packaging a wand needs to be revisited.
+     */
+    def maybeFreeAssumptions(eAssm: sil.Exp) : Stmt = { if(addDefinednessChecks && !insidePackageStmt) Nil else MaybeCommentBlock("Free assumptions (inhale module)", allFreeAssumptions(eAssm)) }
 
     val res =
       e match {

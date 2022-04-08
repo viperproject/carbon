@@ -63,7 +63,7 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
         Comment(s"Phase $phase: ${phaseDescription(currentPhaseId)}") ++ stmts: Stmt
       }
     }
-    val assumptions = MaybeCommentBlock("Free assumptions",
+    val assumptions = MaybeCommentBlock("Free assumptions (exhale module)",
       exps map (e => allFreeAssumptions(e._1)))
 
     currentPhaseId = originalPhaseId

@@ -401,7 +401,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           }
 
           stmt ++ stmt2 ++ stmt3 ++
-            MaybeCommentBlock("Free assumptions", allFreeAssumptions(e))
+            MaybeCommentBlock("Free assumptions (exp module)", allFreeAssumptions(e))
         }
 
         if (e.isInstanceOf[sil.QuantifiedExp]) {
