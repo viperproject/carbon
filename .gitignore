@@ -6,7 +6,8 @@ target
 bin/**
 carbon_classpath.txt
 lib/
-silver
 viper_tutorial_examples
 tmp/
 .bsp/
+.bloop/
+.metals/

@@ -1402,6 +1402,8 @@ class QuantifiedPermModule(val verifier: Verifier)
         BinExp(translatePerm(a), Mul, translatePerm(b))
       case sil.PermDiv(a,b) =>
         permDiv(translatePerm(a), translateExp(b))
+      case sil.PermPermDiv(a,b) =>
+        permDiv(translatePerm(a), translatePerm(b))
       case sil.IntPermMul(a, b) =>
         val i = translateExp(a)
         val p = translatePerm(b)
@@ -1525,6 +1527,8 @@ class QuantifiedPermModule(val verifier: Verifier)
           }
         case sil.PermDiv(a, b) =>
             Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
+        case sil.PermPermDiv(a, b) =>
+          Assert(translatePerm(b) !== RealLit(0.0), error.dueTo(reasons.DivisionByZero(b)))
         case _ => Nil
       }
       ) else Nil
@@ -1593,6 +1597,9 @@ class QuantifiedPermModule(val verifier: Verifier)
           (isStrictlyPositivePerm(a) && isStrictlyPositivePerm(b)) || (isStrictlyNegativePerm(a) && isStrictlyNegativePerm(b))
         case sil.PermDiv(a, b) =>
           isStrictlyPositivePerm(a) // note: b should be ruled out from being non-positive
+        case sil.PermPermDiv(a, b) =>
+          (isStrictlyPositivePerm(a) && isStrictlyPositivePerm(b)) ||
+            (isStrictlyNegativePerm(a) && isStrictlyNegativePerm(b))
         case sil.IntPermMul(a, b) =>
           val n = translateExp(a)
           ((n > IntLit(0)) && isStrictlyPositivePerm(b)) || ((n < IntLit(0)) && isStrictlyNegativePerm(b))
@@ -1623,6 +1630,9 @@ class QuantifiedPermModule(val verifier: Verifier)
           (conservativeStaticIsStrictlyPositivePerm(a) && conservativeStaticIsStrictlyPositivePerm(b)) || (conservativeStaticIsStrictlyNegativePerm(a) && conservativeStaticIsStrictlyNegativePerm(b))
         case sil.PermDiv(a, b) =>
           conservativeStaticIsStrictlyPositivePerm(a) // note: b should be guaranteed ruled out from being non-positive
+        case sil.PermPermDiv(a, b) =>
+          (conservativeStaticIsStrictlyPositivePerm(a) && conservativeStaticIsStrictlyPositivePerm(b)) ||
+            (conservativeStaticIsStrictlyNegativePerm(a) && conservativeStaticIsStrictlyNegativePerm(b))
         case sil.IntPermMul(sil.IntLit(n), b) =>
           n > 0 && conservativeStaticIsStrictlyPositivePerm(b) || n < 0 && conservativeStaticIsStrictlyNegativePerm(b)
         case sil.IntPermMul(a, b) => false // conservative
@@ -1653,6 +1663,9 @@ class QuantifiedPermModule(val verifier: Verifier)
           (conservativeStaticIsStrictlyPositivePerm(a) && conservativeStaticIsStrictlyNegativePerm(b)) || (conservativeStaticIsStrictlyNegativePerm(a) && conservativeStaticIsStrictlyPositivePerm(b))
         case sil.PermDiv(a, b) =>
           conservativeStaticIsStrictlyNegativePerm(a) // note: b should be guaranteed ruled out from being non-positive
+        case sil.PermPermDiv(a, b) =>
+          (conservativeStaticIsStrictlyNegativePerm(a) && conservativeStaticIsStrictlyPositivePerm(b)) ||
+            (conservativeStaticIsStrictlyPositivePerm(a) && conservativeStaticIsStrictlyNegativePerm(b))
         case sil.IntPermMul(sil.IntLit(n), b) =>
           n > 0 && conservativeStaticIsStrictlyNegativePerm(b) || n < 0 && conservativeStaticIsStrictlyPositivePerm(b)
         case sil.IntPermMul(a, b) => false // conservative
@@ -1685,6 +1698,9 @@ class QuantifiedPermModule(val verifier: Verifier)
           (isStrictlyPositivePerm(a) && isStrictlyNegativePerm(b)) || (isStrictlyNegativePerm(a) && isStrictlyPositivePerm(b))
         case sil.PermDiv(a, b) =>
           isStrictlyNegativePerm(a) // note: b should be guaranteed ruled out from being non-positive
+        case sil.PermPermDiv(a, b) =>
+          (isStrictlyNegativePerm(a) && isStrictlyPositivePerm(b)) ||
+            (isStrictlyPositivePerm(a) && isStrictlyNegativePerm(b))
         case sil.IntPermMul(a, b) =>
           val n = translateExp(a)
           ((n > IntLit(0)) && isStrictlyNegativePerm(b)) || ((n < IntLit(0)) && isStrictlyPositivePerm(b))
@@ -1720,6 +1736,8 @@ class QuantifiedPermModule(val verifier: Verifier)
           isFixedPerm(left) && isFixedPerm(right)
         case sil.PermDiv(left, right) =>
           isFixedPerm(left)
+        case sil.PermPermDiv(left, right) =>
+          isFixedPerm(left) && isFixedPerm(right)
         case sil.IntPermMul(a, b) =>
           isFixedPerm(b)
         case sil.CondExp(cond, thn, els) =>
@@ -1784,8 +1802,14 @@ class QuantifiedPermModule(val verifier: Verifier)
             sil.PermAdd(sil.PermDiv(a,n)(),sil.PermDiv(b,n)())()
         }, Traverse.BottomUp)
 
+        // move permission divisions all the way to the inside
+        val e2c = e2b.transform({
+          case sil.PermPermDiv(sil.PermAdd(a, b), n) => done = false
+            sil.PermAdd(sil.PermPermDiv(a,n)(),sil.PermDiv(b,n)())()
+        }, Traverse.BottomUp)
+
         // move integer permission multiplications all the way to the inside
-        val e3 = e2b.transform({
+        val e3 = e2c.transform({
           case x@sil.IntPermMul(a, sil.PermAdd(b, c)) => done = false
             sil.PermAdd(sil.IntPermMul(a, b)(), sil.IntPermMul(a, c)())()
           case sil.IntPermMul(a, sil.PermMul(b, c)) => done = false
@@ -1824,6 +1848,8 @@ class QuantifiedPermModule(val verifier: Verifier)
             sil.CondExp(cond, sil.PermMul(thn,a)(), sil.PermMul(els,a)())()
           case sil.PermDiv(sil.CondExp(cond, thn, els),n) => done = false
             sil.CondExp(cond, sil.PermDiv(thn,n)(), sil.PermDiv(els,n)())()
+          case sil.PermPermDiv(sil.CondExp(cond, thn, els),n) => done = false
+            sil.CondExp(cond, sil.PermPermDiv(thn,n)(), sil.PermDiv(els,n)())()
         }, Traverse.BottomUp)
 
         // propagate addition into conditional expressions
