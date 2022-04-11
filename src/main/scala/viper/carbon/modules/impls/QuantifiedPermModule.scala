@@ -312,49 +312,32 @@ class QuantifiedPermModule(val verifier: Verifier)
   override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
     e match {
       case sil.AccessPredicate(loc: LocationAccess, prm) =>
+        val curPerm = currentPermission(loc)
         val p = PermissionSplitter.normalizePerm(prm)
-        val perms = PermissionSplitter.splitPerm(p) filter (x => x._1 - 1 == exhaleModule.currentPhaseId)
-        (if (exhaleModule.currentPhaseId == 0)
-          (if (!p.isInstanceOf[sil.WildcardPerm])
-            Assert(permissionPositiveInternal(translatePerm(p), Some(p), true), error.dueTo(reasons.NegativePermission(p))) else Nil: Stmt) ++ Nil // check amount is non-negative
-        else Nil) ++
-          (if (perms.size == 0) {
-            Nil
-          } else {
-            val permVar = LocalVar(Identifier("perm"), permType)
-            val curPerm = currentPermission(loc)
-            var onlyWildcard = true
-            (permVar := noPerm) ++
-              (for ((_, cond, perm) <- perms) yield {
-                val (permVal, wildcard, stmts): (Exp, Exp, Stmt) =
-                  if (perm.isInstanceOf[sil.WildcardPerm]) {
-                    val w = LocalVar(Identifier("wildcard"), Real)
-                    (w, w, LocalVarWhereDecl(w.name, w > noPerm) :: Havoc(w) :: Nil)
-                  } else {
-                    onlyWildcard = false
-                    (translatePerm(perm), null, Nil)
-                  }
-                If(cond,
-                  stmts ++
-                    (permVar := permAdd(permVar, permVal)) ++
-                    (if (perm.isInstanceOf[sil.WildcardPerm]) {
-                      (Assert(curPerm > noPerm, error.dueTo(reasons.InsufficientPermission(loc))) ++
-                        Assume(wildcard < curPerm)): Stmt
-                    } else {
-                      Nil
-                    }),
-                  Nil)
-              }).flatten ++
-              (if (onlyWildcard) Nil else if (exhaleModule.currentPhaseId + 1 == 2) {
-                If(permVar !== noPerm,
-                  (Assert(curPerm > noPerm, error.dueTo(reasons.InsufficientPermission(loc))) ++
-                    Assume(permVar < curPerm)): Stmt, Nil)
-              } else {
-                If(permVar !== noPerm,
-                  Assert(permLe(permVar, curPerm), error.dueTo(reasons.InsufficientPermission(loc))), Nil)
-              }) ++
-              (if (!usingOldState) curPerm := permSub(curPerm, permVar) else Nil)
-          })
+
+        def subtractFromMask(permToExhale: Exp) : Stmt =
+          (if (!usingOldState) curPerm := permSub(curPerm, permToExhale) else Nil)
+
+        val permVar = LocalVar(Identifier("perm"), permType)
+        if (!p.isInstanceOf[sil.WildcardPerm]) {
+          val prmTranslated = translatePerm(p)
+
+          Assert(permissionPositiveInternal(prmTranslated, Some(p), true), error.dueTo(reasons.NegativePermission(p))) ++
+            (permVar := prmTranslated) ++
+            If(permVar !== noPerm,
+              Assert(permLe(permVar, curPerm), error.dueTo(reasons.InsufficientPermission(loc))),
+              Nil) ++
+            subtractFromMask(permVar)
+        } else {
+          val curPerm = currentPermission(loc)
+          val wildcard = LocalVar(Identifier("wildcard"), Real)
+
+          Assert(curPerm > noPerm, error.dueTo(reasons.InsufficientPermission(loc))) ++
+            LocalVarWhereDecl(wildcard.name, wildcard > noPerm) ++
+            Havoc(wildcard) ++
+            Assume(wildcard < curPerm) ++
+            subtractFromMask(wildcard)
+        }
       case w@sil.MagicWand(_,_) =>
         val wandRep = wandModule.getWandRepresentation(w)
         val curPerm = currentPermission(translateNull, wandRep)
@@ -1487,8 +1470,8 @@ class QuantifiedPermModule(val verifier: Verifier)
     permLe(b, a, forField)
   }
 
-  override val numberOfPhases = 3
-  override def isInPhase(e: sil.Exp, phaseId: Int): Boolean = {
+  val numberOfPhases = 3
+  def isInPhase(e: sil.Exp, phaseId: Int): Boolean = {
     e match {
       case sil.MagicWand(_,_) => phaseId == 0   // disable the three-phase exhale for magic wands. This should come before AccessPredicate case as magic wands extend Access predicate.
       case sil.AccessPredicate(loc, perm) => true // do something in all phases
@@ -1497,7 +1480,7 @@ class QuantifiedPermModule(val verifier: Verifier)
     }
   }
 
-  override def phaseDescription(phase: Int): String = {
+  def phaseDescription(phase: Int): String = {
     phase match {
       case 0 => "pure assertions and fixed permissions"
       case 1 => "abstract read permissions (and scaled abstract read permissions)"
@@ -1916,5 +1899,36 @@ class QuantifiedPermModule(val verifier: Verifier)
           (3, TrueLit(), e)
       }
     }
+
+
+    def splitPermNew(e: sil.Exp): Seq[(Exp, sil.Exp)] ={
+      def addCond(in: Seq[(Exp, sil.Exp)], c: Exp): Seq[(Exp, sil.Exp)] = {
+        in map (x => (BinExp(c, And, x._1), x._2))
+      }
+      def divideBy(in: Seq[(Exp, sil.Exp)], c: sil.Exp): Seq[(Exp, sil.Exp)] = {
+        in map (x => (x._1, sil.PermDiv(x._2,c)()))
+      }
+
+      e match {
+        case sil.PermAdd(left, right) =>
+          val splitted = splitPermNew(left) ++ splitPermNew(right)
+          /*
+          val cond = isStrictlyPositivePerm(left) && isStrictlyPositivePerm(right)
+          addCond(splitted, cond) ++ Seq((3, UnExp(Not, cond), e))
+           */
+          splitted
+        case sil.CondExp(cond,thn,els) =>
+          val thncases = splitPermNew(thn)
+          val elscases = splitPermNew(els)
+          val transcond = translateExp(cond)
+          addCond(thncases,transcond) ++ addCond(elscases,UnExp(Not,transcond))
+        case sil.PermDiv(a,n) =>
+          val cases = splitPermNew(a)
+          divideBy(cases,n)
+        case _ =>
+          (TrueLit(), e)
+      }
+    }
+
   }
 }
