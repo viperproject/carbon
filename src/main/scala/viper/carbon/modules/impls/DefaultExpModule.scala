@@ -339,9 +339,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
     }
 
     val stmt =
-      MaybeCommentBlock(s"Check definedness of $e",
-      MaybeStmt(checkDefinednessImpl(e, error, makeChecks = makeChecks),
-        if(duringPackageStmt) wandModule.exchangeAssumesWithBoolean(stateModule.assumeGoodState, wandModule.getCurOpsBoolvar()) else stateModule.assumeGoodState))
+      MaybeCommentBlock(s"Check definedness of $e", checkDefinednessImpl(e, error, makeChecks = makeChecks))
 
     if(duringPackageStmt) {
       stateModule.replaceState(oldCurState)

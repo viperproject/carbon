@@ -536,8 +536,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
             As long as modules the state at this point refers to the original state, this is fine.
          */
           MaybeComment("Reset state", stateModule.initBoogieState) ++
-          MaybeComment("Inhale invariant", inhale(invs map (x => (x, errors.WhileFailed(x))), addDefinednessChecks = false) ++ executeUnfoldings(invs, (inv => errors.Internal(inv)))) ++
-          stateModule.assumeGoodState
+          MaybeComment("Inhale invariant", inhale(invs map (x => (x, errors.WhileFailed(x))), addDefinednessChecks = false) ++ executeUnfoldings(invs, (inv => errors.Internal(inv))))
       )
     )
   }
