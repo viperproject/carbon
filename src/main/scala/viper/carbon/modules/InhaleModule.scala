@@ -28,7 +28,7 @@ trait InhaleModule extends Module with InhaleComponent with ComponentRegistry[In
   /**
     * Inhale assertions and pure expressions with potential definedness checks made along the way.
     * Special case: If definedness checks are added and if the input Viper state has no permissions, then the resulting
-    * statements check whether the input assertions are self-framing. If the input Viper state is not empty, t
+    * statement checks whether the input assertions are self-framing.
     * @param exps
     * @param addDefinednessChecks enables definedness checks iff set to true
     * @param statesStackForPackageStmt stack of states used in translating statements during packaging a wand (carries currentState and LHS of wands)
@@ -39,7 +39,6 @@ trait InhaleModule extends Module with InhaleComponent with ComponentRegistry[In
 
   def inhaleWithDefinednessCheck(exp: sil.Exp, error: PartialVerificationError, statesStack: List[Any] = null, inWand: Boolean = false): Stmt =
     inhale(Seq((exp, error)), addDefinednessChecks = true, statesStack, inWand)
-
 
   /**
     * Convert all InhaleExhale expressions to their exhale part and inhale with definedness checks.

@@ -693,12 +693,12 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       // Need to check inhale and exhale parts separately.
       val onlyExhalePres: Seq[Stmt] = inhaleExhaleSpecWithDefinednessCheck(
         f.pres,
-        e => {
+        (e) => {
           errors.ContractNotWellformed(e)
         })
       val onlyInhalePres: Seq[Stmt] = inhaleInhaleSpecWithDefinednessCheck(
         f.pres,
-        e => {
+        (e) => {
           errors.ContractNotWellformed(e)
         })
       MaybeCommentBlock("Inhaling precondition (with checking)",
