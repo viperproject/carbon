@@ -17,6 +17,7 @@ import java.util.Date
 import viper.carbon.boogie.CommentedDecl
 import viper.carbon.boogie.Procedure
 import viper.carbon.boogie.Program
+import viper.carbon.utility.FractionsDetector
 import viper.carbon.verifier.Environment
 import viper.silver.verifier.errors
 import viper.carbon.verifier.Verifier
@@ -59,6 +60,13 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
         },
         Traverse.TopDown)
     )
+
+    if(verifier.wandType != 0) {
+      //check whether there is potential issue with predicates in wands
+      if(p.predicates.exists( pred => pred.body.fold(false)(b => FractionsDetector.potentiallyHasFractions(b)) )) {
+        verifier.wandsMayNotCombinableFractionalPredBody()
+      }
+    }
 
     val backendFuncs = new mutable.HashSet[sil.BackendFunc]()
     p.visit{

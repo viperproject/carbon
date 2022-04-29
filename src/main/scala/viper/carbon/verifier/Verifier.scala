@@ -80,4 +80,8 @@ trait Verifier {
 
   def wandType: Int
 
+  def wandsMayNotCombinableFractionalPredBody() : Unit
+
+  def wandsMayNotBeCombinableNonBinaryLHS() : Unit
+
 }

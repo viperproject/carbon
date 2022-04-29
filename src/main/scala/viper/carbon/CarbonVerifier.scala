@@ -12,9 +12,12 @@ import viper.silver.ast.Program
 import viper.silver.utility.Paths
 import viper.silver.verifier._
 import verifier.{BoogieDependency, BoogieInterface, Verifier}
+import viper.carbon.utility.WandFractionalPredicateCombinableError
+
 import java.io.{BufferedOutputStream, File, FileOutputStream, IOException}
 import viper.silver.frontend.MissingDependencyException
 import viper.silver.reporter.Reporter
+import viper.silver.verifier.reasons.InternalReason
 
 /**
  * The main class to perform verification of Viper programs.  Deals with command-line arguments, configuration
@@ -152,6 +155,9 @@ case class CarbonVerifier(override val reporter: Reporter,
     allModules map (m => m.reset())
     heapModule.enableAllocationEncoding = config == null || !config.disableAllocEncoding.isSupplied // NOTE: config == null happens on the build server / via sbt test
 
+    combinableWandsPredicatesWithFractionalBody = false
+    combinableWandsNonBinaryPredicatesLHS = false
+
     var transformNames = false
     if (config == null) Seq() else config.counterexample.toOption match {
       case Some("native") =>
@@ -207,6 +213,18 @@ case class CarbonVerifier(override val reporter: Reporter,
       }
     }
 
+    val wandFailure : Option[AbstractError] =
+      if(wandType != 0 && (combinableWandsPredicatesWithFractionalBody || combinableWandsNonBinaryPredicatesLHS)) {
+        //check whether there is potential issue with predicates in wands
+          val msg =
+            (if(combinableWandsPredicatesWithFractionalBody) { "Predicates may have fractional body." } else {""}) +
+              (if(combinableWandsNonBinaryPredicatesLHS) { "There may be fractional predicates in a packaged wand's LHS and/or proof script"} else {""})
+
+          Some(WandFractionalPredicateCombinableError(program, InternalReason(program, msg)))
+      } else {
+        None
+      }
+
     invokeBoogie(_translated, options) match {
       case (version,result) =>
         if (version!=null) { dependencies.foreach(_ match {
@@ -219,7 +237,11 @@ case class CarbonVerifier(override val reporter: Reporter,
           }
           case _ => result
         }
-        result
+        (result,wandFailure) match {
+          case (Failure(errors), Some(e)) => Failure(e +: errors)
+          case (_, None) => result
+          case (_, Some(e)) => Failure(Seq(e))
+        }
     }
   }
 
@@ -235,4 +257,15 @@ case class CarbonVerifier(override val reporter: Reporter,
   }
 
   def replaceProgram(prog : Program) = {this.program = prog}
+
+  var combinableWandsPredicatesWithFractionalBody : Boolean = false
+  var combinableWandsNonBinaryPredicatesLHS : Boolean = false
+
+  def wandsMayNotCombinableFractionalPredBody() : Unit = {
+    combinableWandsPredicatesWithFractionalBody = true
+  }
+
+  def wandsMayNotBeCombinableNonBinaryLHS() : Unit = {
+    combinableWandsNonBinaryPredicatesLHS = true
+  }
 }

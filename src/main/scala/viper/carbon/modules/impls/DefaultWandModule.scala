@@ -12,6 +12,7 @@ import viper.carbon.verifier.Verifier
 import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
 import viper.carbon.modules.components.{DefinednessComponent, StmtComponent}
+import viper.carbon.utility.FractionsDetector
 import viper.silver.ast.utility.Expressions
 import viper.silver.ast.{FullPerm, MagicWand, MagicWandStructure}
 import viper.silver.cfg.silver.CfgGenerator.EmptyStmt
@@ -841,6 +842,15 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
 
   p match {
       case pa@sil.Package(wand, proofScript: sil.Seqn) =>
+
+        if(verifier.wandType != 0) {
+          val lhsIsNotBinary = FractionsDetector.potentiallyHasFractions(wand.left) || FractionsDetector.potentiallyHasFractions(proofScript)
+          val somePredicatePerm = FractionsDetector.hasPredicatePermission(wand) || FractionsDetector.hasPredicatePermission(proofScript)
+          if(lhsIsNotBinary && somePredicatePerm) {
+            //println("WAND_MSG_2: Nonbinary LHS and predicates")
+            verifier.wandsMayNotBeCombinableNonBinaryLHS()
+          }
+        }
 
         val cannot_use_min = accessesDetGaurav(wand)
         //println("Checking wand", wand, cannot_use_min)
