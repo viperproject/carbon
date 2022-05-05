@@ -15,7 +15,7 @@ import verifier.{BoogieDependency, BoogieInterface, Verifier}
 import viper.carbon.utility.WandFractionalPredicateCombinableError
 
 import java.io.{BufferedOutputStream, File, FileOutputStream, IOException}
-import viper.silver.frontend.{MissingDependencyException, NativeModel, VariablesModel}
+import viper.silver.frontend.MissingDependencyException
 import viper.silver.reporter.Reporter
 import viper.silver.verifier.reasons.InternalReason
 
@@ -160,8 +160,8 @@ case class CarbonVerifier(override val reporter: Reporter,
 
     var transformNames = false
     if (config == null) Seq() else config.counterexample.toOption match {
-      case Some(NativeModel) =>
-      case Some(VariablesModel) => {
+      case Some("native") =>
+      case Some("variables") => {
         transformNames = true
       }
       case None =>
