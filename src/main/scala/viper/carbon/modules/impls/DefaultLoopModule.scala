@@ -446,18 +446,18 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
 
     val currentHeap = stateModule.state.asInstanceOf[(java.util.Map[CarbonStateComponent, Seq[Var]], Boolean, Boolean)]._1.get(heapModule)
     val frameInformation = MaybeComment("Assume framed information", Assume(FuncApp(heapModule.identicalOnKnownLocsName, oldHeapCopy ++ currentHeap ++ maskWithFramedPerms, Bool)))
-    val bodyStmts = MaybeComment("Inhale invariant", inhale(w.invs) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv)))) ++
+    val bodyStmts = MaybeComment("Inhale invariant", inhale(w.invs map(i => (i, errors.WhileFailed(i)))) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv)))) ++
       Comment("Check and assume guard") ++
       checkDefinedness(cond, errors.WhileFailed(w.cond)) ++
       Assume(guard) ++ stateModule.assumeGoodState ++
-      MaybeCommentBlock("Translate loop body", translateStmt(body)) ++
+      MaybeCommentBlock("Translate loop body", stmtModule.translateStmt(body)) ++
       MaybeComment("Assert invariant", executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotPreserved(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e))), false, true))
 
     val currentMask = stateModule.state.asInstanceOf[(java.util.Map[CarbonStateComponent, Seq[Var]], Boolean, Boolean)]._1.get(permModule)
     val resetMask = Assign(currentMask(0), maskWithFramedPerms(0))
     val afterLoop = MaybeCommentBlock("Inhale loop invariant after loop, and assume guard",
       resetMask ++ Assume(guard.not) ++ stateModule.assumeGoodState ++ frameInformation ++
-        inhale(w.invs) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv)))
+        inhale(w.invs map(i => (i, errors.WhileFailed(i)))) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv)))
     )
     val loop = NondetWhile(setMaskToZero ++ frameInformation ++ bodyStmts)
     initialExhaleInv ++ invDefinednessCheck ++ storePreLoopState ++ loop ++ afterLoop
