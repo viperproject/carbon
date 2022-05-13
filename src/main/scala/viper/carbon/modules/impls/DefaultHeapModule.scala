@@ -91,7 +91,7 @@ class DefaultHeapModule(val verifier: Verifier)
   private lazy val allocName = if(enableAllocationEncoding) Identifier("$allocated")(fieldNamespace) else null
   private val succHeapName = Identifier("succHeap")
   private val succHeapTransName = Identifier("succHeapTrans")
-  private val identicalOnKnownLocsName = Identifier("IdenticalOnKnownLocations")
+  val identicalOnKnownLocsName = Identifier("IdenticalOnKnownLocations")
   private val identicalOnKnownLocsLiberalName = Identifier("IdenticalOnKnownLocationsLiberal")
   private val isPredicateFieldName = Identifier("IsPredicateField")
   private var PredIdMap:Map[String, BigInt] = Map()

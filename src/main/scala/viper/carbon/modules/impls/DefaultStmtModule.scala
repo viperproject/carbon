@@ -7,7 +7,7 @@
 package viper.carbon.modules.impls
 
 import viper.carbon.modules.{StatelessComponent, StmtModule}
-import viper.carbon.modules.components.{DefinednessComponent, SimpleStmtComponent}
+import viper.carbon.modules.components.{CarbonStateComponent, DefinednessComponent, SimpleStmtComponent}
 import viper.silver.ast.utility.Expressions.{whenExhaling, whenInhaling}
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
@@ -113,11 +113,12 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
     stmt match {
       case assign@sil.LocalVarAssign(lhs, rhs) =>
         checkDefinedness(lhs, errors.AssignmentFailed(assign), insidePackageStmt = insidePackageStmt) ++
-          checkDefinedness(rhs, errors.AssignmentFailed(assign), insidePackageStmt = insidePackageStmt) ++
-        {if(insidePackageStmt)
-          Assign(translateExpInWand(lhs), translateExpInWand(rhs))
-        else
-          Assign(translateExp(lhs), translateExp(rhs))}
+          checkDefinedness(rhs, errors.AssignmentFailed(assign), insidePackageStmt = insidePackageStmt) ++ {
+          if (insidePackageStmt)
+            Assign(translateExpInWand(lhs), translateExpInWand(rhs))
+          else
+            Assign(translateExp(lhs), translateExp(rhs))
+        }
       case assign@sil.FieldAssign(lhs, rhs) =>
         checkDefinedness(lhs.rcv, errors.AssignmentFailed(assign)) ++
           checkDefinedness(rhs, errors.AssignmentFailed(assign))
@@ -128,8 +129,8 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
         checkDefinednessOfSpecAndInhale(whenInhaling(e), errors.InhaleFailed(inh), statesStack, insidePackageStmt)
       case exh@sil.Exhale(e) =>
         val transformedExp = whenExhaling(e)
-        checkDefinedness(transformedExp, errors.ExhaleFailed(exh), insidePackageStmt = insidePackageStmt, ignoreIfInWand = true)++
-        exhale((transformedExp, errors.ExhaleFailed(exh)), statesStackForPackageStmt = statesStack, insidePackageStmt = insidePackageStmt)
+        checkDefinedness(transformedExp, errors.ExhaleFailed(exh), insidePackageStmt = insidePackageStmt, ignoreIfInWand = true) ++
+          exhale((transformedExp, errors.ExhaleFailed(exh)), statesStackForPackageStmt = statesStack, insidePackageStmt = insidePackageStmt)
       case a@sil.Assert(e) =>
         val transformedExp = whenExhaling(e)
         if (transformedExp.isPure) {
@@ -139,9 +140,9 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
         } else {
           // we create a temporary state to ignore the side-effects
           val (backup, snapshot) = freshTempState("Assert")
-          val exhaleStmt = exhale((transformedExp, errors.AssertFailed(a)), isAssert =  true, statesStackForPackageStmt = statesStack, insidePackageStmt = insidePackageStmt, havocHeap = false)
+          val exhaleStmt = exhale((transformedExp, errors.AssertFailed(a)), isAssert = true, statesStackForPackageStmt = statesStack, insidePackageStmt = insidePackageStmt, havocHeap = false)
           replaceState(snapshot)
-            checkDefinedness(transformedExp, errors.AssertFailed(a), insidePackageStmt = insidePackageStmt, ignoreIfInWand = true) :: backup :: exhaleStmt :: Nil
+          checkDefinedness(transformedExp, errors.AssertFailed(a), insidePackageStmt = insidePackageStmt, ignoreIfInWand = true) :: backup :: exhaleStmt :: Nil
         }
       case mc@sil.MethodCall(methodName, args, targets) =>
         val method = verifier.program.findMethod(methodName)
@@ -172,11 +173,11 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
             (args(i), Nil: Stmt, None)
           }
         })
-        val neededRenamings : Seq[(sil.AbstractLocalVar, sil.Exp)] = actualArgs.filter((_._3.isDefined)).map(element => (element._1.asInstanceOf[sil.LocalVar],element._3.get))
+        val neededRenamings: Seq[(sil.AbstractLocalVar, sil.Exp)] = actualArgs.filter((_._3.isDefined)).map(element => (element._1.asInstanceOf[sil.LocalVar], element._3.get))
         val removingTriggers: (errors.ErrorNode => errors.ErrorNode) =
-          ((n: errors.ErrorNode) => n.transform{case q: sil.Forall => q.copy(triggers = Nil)(q.pos, q.info, q.errT)})
-        val renamingArguments : (errors.ErrorNode => errors.ErrorNode) = ((n:errors.ErrorNode) => removingTriggers(n).transform({
-          case e:sil.Exp => Expressions.instantiateVariables[sil.Exp](e,neededRenamings map (_._1), neededRenamings map (_._2))
+          ((n: errors.ErrorNode) => n.transform { case q: sil.Forall => q.copy(triggers = Nil)(q.pos, q.info, q.errT) })
+        val renamingArguments: (errors.ErrorNode => errors.ErrorNode) = ((n: errors.ErrorNode) => removingTriggers(n).transform({
+          case e: sil.Exp => Expressions.instantiateVariables[sil.Exp](e, neededRenamings map (_._1), neededRenamings map (_._2))
         }))
 
         val pres = method.pres map (e => Expressions.instantiateVariables(e, method.formalArgs ++ method.formalReturns, (actualArgs map (_._1)) ++ targets, mainModule.env.allDefinedNames(program)))

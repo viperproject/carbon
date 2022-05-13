@@ -5,7 +5,7 @@ import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.Verifier
 import Implicits._
-import viper.carbon.modules.components.StmtComponent
+import viper.carbon.modules.components.{StmtComponent, CarbonStateComponent}
 import viper.carbon.utility._
 import viper.silver.ast.utility.ViperStrategy
 import viper.silver.cfg.utility.{IdInfo, LoopDetector, LoopInfo}
@@ -422,36 +422,45 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
   }
 
   private def handleWhile(w: sil.While): Stmt = {
-        val guard = translateExp(w.cond)
-        val (invs, writtenVars) = getWhileInformation(w)
+    val cond = w.cond
+    val invs = w.invs
+    val body = w.body
+    val guard = translateExp(cond)
+    val initialExhaleInv = MaybeCommentBlock("Exhale loop invariant before loop",
+      executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotEstablished(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotEstablished(e))), false)
+    )
+    val writtenVars = w.writtenVars diff (body.transitiveScopedDecls.collect {case l: sil.LocalVarDecl => l} map (_.localVar))
+    val invDefinednessCheck = MaybeCommentBlock("Check definedness of invariant", NondetIf(
+      Havoc((writtenVars map translateExp).asInstanceOf[Seq[Var]]) ++
+        (writtenVars map (v => mainModule.allAssumptionsAboutValue(v.typ,mainModule.translateLocalVarSig(v.typ, v),false))) ++
+        (invs map (inv => checkDefinednessOfSpecAndInhale(inv, errors.ContractNotWellformed(inv)))) ++
+        Assume(FalseLit())
+    ))
+    val (storePreLoopState, prevState) = stateModule.freshTempState("preLoop")
+    val preLoopState = stateModule.state.asInstanceOf[(java.util.Map[CarbonStateComponent, Seq[Var]], Boolean, Boolean)]
+    val maskWithFramedPerms = preLoopState._1.get(permModule)
+    val oldHeapCopy = preLoopState._1.get(heapModule)
+    stateModule.replaceState(prevState)
+    val setMaskToZero = stateModule.initBoogieState
+    //val resetState = MaybeComment("Reset state", freshStateStmt ++ stateModule.initBoogieState)
 
-        beforeLoopHead(invs, w.info.getUniqueInfo[LoopInfo].map(loopInfo => loopInfo.head.get)) ++
-        MaybeCommentBlock("Havoc loop written variables (except locals)",
-          Havoc((writtenVars map translateExp).asInstanceOf[Seq[Var]]) ++
-            (writtenVars map (v => mainModule.allAssumptionsAboutValue(v.typ,mainModule.translateLocalVarSig(v.typ, v),false)))
-        ) ++
-        MaybeCommentBlock("Check definedness of invariant", NondetIf(
-          (invs map (inv => checkDefinednessOfSpecAndInhale(inv, errors.ContractNotWellformed(inv)))) ++
-            Assume(FalseLit())
-        )) ++
-        MaybeCommentBlock("Check the loop body", NondetIf({
-          val (freshStateStmt, prevState) = stateModule.freshTempState("loop")
-          val stmts = MaybeComment("Reset state", freshStateStmt ++ stateModule.initBoogieState) ++
-            MaybeComment("Inhale invariant", inhale(invs map (x => (x, errors.WhileFailed(x)))) ++ executeUnfoldings(invs, (inv => errors.Internal(inv)))) ++
-            Comment("Check and assume guard") ++
-            checkDefinedness(w.cond, errors.WhileFailed(w.cond)) ++
-            Assume(guard) ++ stateModule.assumeGoodState ++
-            MaybeCommentBlock("Translate loop body", stmtModule.translateStmt(w.body)) ++
-            MaybeComment("Exhale invariant", executeUnfoldings(invs, (inv => errors.LoopInvariantNotPreserved(inv))) ++ exhale(invs map (e => (e, errors.LoopInvariantNotPreserved(e))))) ++
-            MaybeComment("Terminate execution", Assume(FalseLit()))
-          stateModule.replaceState(prevState)
-          stmts
-        }
-        )) ++
-        MaybeCommentBlock("Inhale loop invariant after loop, and assume guard",
-          Assume(guard.not) ++ stateModule.assumeGoodState ++
-            inhale(invs map (x => (x, errors.WhileFailed(x)))) ++ executeUnfoldings(invs, (inv => errors.Internal(inv)))
-        )
+    val currentHeap = stateModule.state.asInstanceOf[(java.util.Map[CarbonStateComponent, Seq[Var]], Boolean, Boolean)]._1.get(heapModule)
+    val frameInformation = MaybeComment("Assume framed information", Assume(FuncApp(heapModule.identicalOnKnownLocsName, oldHeapCopy ++ currentHeap ++ maskWithFramedPerms, Bool)))
+    val bodyStmts = MaybeComment("Inhale invariant", inhale(w.invs) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv)))) ++
+      Comment("Check and assume guard") ++
+      checkDefinedness(cond, errors.WhileFailed(w.cond)) ++
+      Assume(guard) ++ stateModule.assumeGoodState ++
+      MaybeCommentBlock("Translate loop body", translateStmt(body)) ++
+      MaybeComment("Assert invariant", executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotPreserved(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e))), false, true))
+
+    val currentMask = stateModule.state.asInstanceOf[(java.util.Map[CarbonStateComponent, Seq[Var]], Boolean, Boolean)]._1.get(permModule)
+    val resetMask = Assign(currentMask(0), maskWithFramedPerms(0))
+    val afterLoop = MaybeCommentBlock("Inhale loop invariant after loop, and assume guard",
+      resetMask ++ Assume(guard.not) ++ stateModule.assumeGoodState ++ frameInformation ++
+        inhale(w.invs) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv)))
+    )
+    val loop = NondetWhile(setMaskToZero ++ frameInformation ++ bodyStmts)
+    initialExhaleInv ++ invDefinednessCheck ++ storePreLoopState ++ loop ++ afterLoop
   }
 
   override def handleStmt(s: sil.Stmt, statesStackOfPackageStmt: List[Any] = null, allStateAssms: Exp = TrueLit(), insidePackageStmt: Boolean = false): (Seqn => Seqn) = {

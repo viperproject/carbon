@@ -149,6 +149,9 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
         else space <> "else" <+> showBlock(els)
       }
     }
+    def showWhile(cond: Cont, bod: Stmt): Cont = {
+      text("while") <+> "(" <> cond <> ")" <+> showBlock(bod)
+    }
     s match {
       case Assume(e) =>
         text("assume") <+> show(quantifyOverFreeTypeVars(e)) <> char (';')
@@ -169,6 +172,8 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
         showIf(show(cond), thn, els)
       case NondetIf(thn, els) =>
         showIf("*", thn, els)
+      case NondetWhile(bod) =>
+        showWhile("*", bod)
       case Comment(c) =>
         text("//") <+> c
       case CommentBlock(c, stmt) =>
