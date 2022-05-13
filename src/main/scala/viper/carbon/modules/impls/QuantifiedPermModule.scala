@@ -44,6 +44,8 @@ import scala.collection.mutable.ListBuffer
 import viper.silver.ast.utility.QuantifiedPermissions.SourceQuantifiedPermissionAssertion
 import viper.silver.verifier.errors.{ContractNotWellformed, PostconditionViolated}
 
+import scala.collection.mutable
+
 /**
  * An implementation of [[viper.carbon.modules.PermModule]] supporting quantified permissions.
  */
@@ -120,6 +122,16 @@ class QuantifiedPermModule(val verifier: Verifier)
   private var inverseFuncs: ListBuffer[Func] = new ListBuffer[Func](); //list of inverse functions used for inhale/exhale qp
   private var rangeFuncs: ListBuffer[Func] = new ListBuffer[Func](); //list of inverse functions used for inhale/exhale qp
   private var triggerFuncs: ListBuffer[Func] = new ListBuffer[Func](); //list of inverse functions used for inhale/exhale qp
+
+  private var outerMaskStack: mutable.Stack[LocalVar] = new mutable.Stack[LocalVar]()
+
+  def pushOuterMask(m: LocalVar) = {
+    outerMaskStack.push(m)
+  }
+
+  def popOuterMask(): LocalVar = {
+    outerMaskStack.pop()
+  }
 
   override def preamble = {
     val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
@@ -322,10 +334,11 @@ class QuantifiedPermModule(val verifier: Verifier)
         if (!p.isInstanceOf[sil.WildcardPerm]) {
           val prmTranslated = translatePerm(p)
 
+          println("Asserting permle permvar curperm for exahle of acc pred " + e.toString())
           Assert(permissionPositiveInternal(prmTranslated, Some(p), true), error.dueTo(reasons.NegativePermission(p))) ++
             (permVar := prmTranslated) ++
             If(permVar !== noPerm,
-              Assert(permLe(permVar, curPerm), error.dueTo(reasons.InsufficientPermission(loc))),
+              assertCurrentPermGe(loc, permVar, false, error.dueTo(reasons.InsufficientPermission(loc))),
               Nil) ++
             subtractFromMask(permVar)
         } else {
@@ -1432,6 +1445,33 @@ class QuantifiedPermModule(val verifier: Verifier)
       (bvs map (v => Assume((v > noPerm) && (v < fullPerm))))
   }
 
+  private def assertCurrentPermGe(fa: sil.LocationAccess, amount: Exp, forField: Boolean, ve: VerificationError): Stmt = {
+    if (outerMaskStack.isEmpty) {
+      Assert(permGe(currentPermission(fa), amount, forField), ve)
+    }else{
+      /*
+      if not mask >= amount:
+          diff := amount - mask
+          assert outer >= diff
+          outer -= diff
+          mask += diff
+       */
+      val innerMask = mask
+      val currentPermMask = currentPermission(fa)
+      mask = outerMaskStack.head
+      val currentPermOuter = currentPermission(fa)
+      mask = innerMask
+      Assert(permGe(currentPermission(fa), amount, forField), ve)
+    }
+  }
+
+  private def assertSomePerm(fa: sil.LocationAccess, ve: VerificationError): Stmt = {
+    if (outerMaskStack.isEmpty)
+      Assert(hasDirectPerm(fa), ve)
+    else
+      assertCurrentPermGe(fa, RealLit(0.001), false, ve)
+  }
+
   override def handleStmt(s: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), insidePackageStmt: Boolean = false) : (Seqn => Seqn) = {
     stmts =>
       s match {
@@ -1440,7 +1480,8 @@ class QuantifiedPermModule(val verifier: Verifier)
             Assign(currentPermission(sil.FieldAccess(target, field)()), currentPermission(sil.FieldAccess(target, field)()) + fullPerm)
           })
         case assign@sil.FieldAssign(fa, rhs) =>
-           stmts ++ Assert(permGe(currentPermission(fa), fullPerm, true), errors.AssignmentFailed(assign).dueTo(reasons.InsufficientPermission(fa))) // add the check after the definedness checks for LHS/RHS (in heap module)
+           println("asserting full perm for assign to " + fa.toString())
+           stmts ++ assertCurrentPermGe(fa, fullPerm, true, errors.AssignmentFailed(assign).dueTo(reasons.InsufficientPermission(fa))) // add the check after the definedness checks for LHS/RHS (in heap module)
         case _ =>
           //        (Nil, Nil)
           stmts
@@ -1488,7 +1529,8 @@ class QuantifiedPermModule(val verifier: Verifier)
             allowLocationAccessWithoutPerm = false
             Nil
           } else {
-              Assert(hasDirectPerm(fa), error.dueTo(reasons.InsufficientPermission(fa)))
+              println("Asserting hasdirectperm to accessed location " + fa.toString())
+              assertSomePerm(fa, error.dueTo(reasons.InsufficientPermission(fa)))
           }
         case sil.PermDiv(a, b) =>
             Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
