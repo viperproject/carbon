@@ -55,7 +55,8 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
   private val sumHeap = LocalVar(sumHeapName, heapType)
 
   private var currentMethodIsAbstract = false;
-  private var useLoopDetector = false;
+  private var useLoopDetector = false
+  var enableKInduction = false;
 
   override def start() = {
     /* loopModule should be after all other modules, since it needs to output code that must be output before due to
@@ -422,6 +423,14 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
   }
 
   private def handleWhile(w: sil.While): Stmt = {
+    if (!enableKInduction) {
+      handleWhileNormal(w)
+    }else{
+      handleWhile1Induct(w)
+    }
+  }
+
+  private def handleWhileNormal(w: sil.While): Stmt = {
     val cond = w.cond
     val invs = w.invs
     val body = w.body
@@ -461,6 +470,131 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
     )
     val loop = NondetWhile(setMaskToZero ++ frameInformation ++ bodyStmts)
     initialExhaleInv ++ invDefinednessCheck ++ storePreLoopState ++ loop ++ afterLoop
+  }
+
+  def handleWhile1Induct(w: sil.While): Stmt = {
+    val cond = w.cond
+    val (invs, writtenVars) = getWhileInformation(w)
+    val body = w.body
+    val guard = translateExp(cond)
+
+    val (storePreLoopState, prevState) = stateModule.freshTempState("preLoop")
+
+    val preLoopState = stateModule.state.asInstanceOf[(java.util.Map[CarbonStateComponent, Seq[Var]], Boolean, Boolean)]
+    val maskWithFramedPerms = preLoopState._1.get(permModule)
+    val oldHeapCopy = preLoopState._1.get(heapModule)
+    stateModule.replaceState(prevState)
+
+    val (storePostLoopState, prvState) = stateModule.freshTempState("postLoop")
+    val postLoopMask = stateModule.state.asInstanceOf[(java.util.Map[CarbonStateComponent, Seq[Var]], Boolean, Boolean)]._1.get(permModule)
+    stateModule.replaceState(prvState)
+
+    val setMaskToZero = MaybeCommentBlock("Set mask to zero", stateModule.initBoogieState)
+
+    val exhaleInvInitial = MaybeCommentBlock("Exhale loop invariant before loop",
+      executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotEstablished(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotEstablished(e))), false)
+    )
+
+    val inhaleInvInitial = MaybeCommentBlock("Inhale loop invariant before loop",
+      inhale(w.invs map(i => (i, errors.WhileFailed(i)))) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv)))
+    )
+
+    permModule.pushOuterMask(maskWithFramedPerms(0).asInstanceOf[LocalVar])
+
+
+    val havocWritten = MaybeCommentBlock("Havoc loop written variables (except locals)",
+      Havoc((writtenVars map translateExp).asInstanceOf[Seq[Var]]) ++
+        (writtenVars map (v => mainModule.allAssumptionsAboutValue(v.typ,mainModule.translateLocalVarSig(v.typ, v),false)))
+    )
+
+    val outerIf = NondetIf(Comment("Check and assume guard") ++
+      checkDefinedness(cond, errors.WhileFailed(w.cond)) ++
+      Assume(guard)  ++ MaybeCommentBlock("Translate loop body", stmtModule.translateStmt(body)) ++
+      {
+        permModule.popOuterMask()
+        val (backup, snapshot) = stateModule.freshTempState("Assert")
+          val assertStmt = MaybeComment("Assert invariant", executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotPreserved(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e))), false, true))
+          stateModule.replaceState(snapshot)
+          backup ++ assertStmt
+      }
+      ++
+      NondetIf(
+        Assume(guard) ++
+          havocWritten ++ heapModule.resetBoogieState ++ permModule.havocMask() ++ Assume(guard) ++
+          //MaybeComment("Assume invariant", executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotPreserved(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e))), false, true)).transform{
+          //  case Assert(e, _) => Assume(e)
+          //}() ++
+          MaybeCommentBlock("Inhale loop invariant again",
+            inhale(w.invs map(i => (i, errors.WhileFailed(i)))) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv)))
+          ) ++
+          MaybeCommentBlock("Loop body, assuming all asserts", stmtModule.translateStmt(body).transform{
+            case Assert(e, _) => Assume(e)
+          }()) ++{
+          val (backup, snapshot) = stateModule.freshTempState("Assert")
+          val assumeStmt = MaybeComment("Assume invariant on heap copy", executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotPreserved(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e))), false, true)).transform{
+            case Assert(e, _) => Assume(e)
+          }()
+          stateModule.replaceState(snapshot)
+          backup ++ assumeStmt
+          }
+           ++
+          Assume(guard) ++
+          MaybeCommentBlock("Loop body, checking step", stmtModule.translateStmt(body)) ++
+          {
+            val (backup, snapshot) = stateModule.freshTempState("Assert")
+            val assertStmt = MaybeComment("Assert invariant", executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotPreserved(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e))), false, true))
+            stateModule.replaceState(snapshot)
+            backup ++ assertStmt
+          }
+          ++ Assume(UnExp(Not, guard))
+        ++ MaybeComment("Assume framed information", Assume(FuncApp(heapModule.identicalOnKnownLocsName, oldHeapCopy ++ currentHeap ++ maskWithFramedPerms, Bool)))
+        ,
+        Assume(UnExp(Not, guard))
+      ),
+      Assume(UnExp(Not, guard))
+    ) ++ storePostLoopState ++ permModule.havocMask() ++ Assume(permModule.sumMask(permModule.currentMask, postLoopMask, maskWithFramedPerms))
+
+
+
+    exhaleInvInitial ++ storePreLoopState ++ setMaskToZero ++ inhaleInvInitial ++ outerIf
+
+    /*
+    val initialExhaleInv = MaybeCommentBlock("Exhale loop invariant before loop",
+      executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotEstablished(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotEstablished(e))), false)
+    )
+    val writtenVars = w.writtenVars diff (body.transitiveScopedDecls.collect {case l: sil.LocalVarDecl => l} map (_.localVar))
+    val invDefinednessCheck = MaybeCommentBlock("Check definedness of invariant", NondetIf(
+      Havoc((writtenVars map translateExp).asInstanceOf[Seq[Var]]) ++
+        (writtenVars map (v => mainModule.allAssumptionsAboutValue(v.typ,mainModule.translateLocalVarSig(v.typ, v),false))) ++
+        (invs map (inv => checkDefinednessOfSpecAndInhale(inv, errors.ContractNotWellformed(inv)))) ++
+        Assume(FalseLit())
+    ))
+    val (storePreLoopState, prevState) = stateModule.freshTempState("preLoop")
+    val preLoopState = stateModule.state.asInstanceOf[(java.util.Map[CarbonStateComponent, Seq[Var]], Boolean, Boolean)]
+    val maskWithFramedPerms = preLoopState._1.get(permModule)
+    val oldHeapCopy = preLoopState._1.get(heapModule)
+    stateModule.replaceState(prevState)
+    val setMaskToZero = stateModule.initBoogieState
+    //val resetState = MaybeComment("Reset state", freshStateStmt ++ stateModule.initBoogieState)
+
+    val currentHeap = stateModule.state.asInstanceOf[(java.util.Map[CarbonStateComponent, Seq[Var]], Boolean, Boolean)]._1.get(heapModule)
+    val frameInformation = MaybeComment("Assume framed information", Assume(FuncApp(heapModule.identicalOnKnownLocsName, oldHeapCopy ++ currentHeap ++ maskWithFramedPerms, Bool)))
+    val bodyStmts = MaybeComment("Inhale invariant", inhale(w.invs map(i => (i, errors.WhileFailed(i)))) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv)))) ++
+      Comment("Check and assume guard") ++
+      checkDefinedness(cond, errors.WhileFailed(w.cond)) ++
+      Assume(guard) ++ stateModule.assumeGoodState ++
+      MaybeCommentBlock("Translate loop body", stmtModule.translateStmt(body)) ++
+      MaybeComment("Assert invariant", executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotPreserved(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e))), false, true))
+
+    val currentMask = stateModule.state.asInstanceOf[(java.util.Map[CarbonStateComponent, Seq[Var]], Boolean, Boolean)]._1.get(permModule)
+    val resetMask = Assign(currentMask(0), maskWithFramedPerms(0))
+    val afterLoop = MaybeCommentBlock("Inhale loop invariant after loop, and assume guard",
+      resetMask ++ Assume(guard.not) ++ stateModule.assumeGoodState ++ frameInformation ++
+        inhale(w.invs map(i => (i, errors.WhileFailed(i)))) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv)))
+    )
+    val loop = NondetWhile(setMaskToZero ++ frameInformation ++ bodyStmts)
+    initialExhaleInv ++ invDefinednessCheck ++ storePreLoopState ++ loop ++ afterLoop
+    */
   }
 
   override def handleStmt(s: sil.Stmt, statesStackOfPackageStmt: List[Any] = null, allStateAssms: Exp = TrueLit(), insidePackageStmt: Boolean = false): (Seqn => Seqn) = {

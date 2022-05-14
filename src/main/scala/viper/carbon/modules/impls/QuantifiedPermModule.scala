@@ -124,12 +124,13 @@ class QuantifiedPermModule(val verifier: Verifier)
   private var triggerFuncs: ListBuffer[Func] = new ListBuffer[Func](); //list of inverse functions used for inhale/exhale qp
 
   private var outerMaskStack: mutable.Stack[LocalVar] = new mutable.Stack[LocalVar]()
+  var enableKInduction = false;
 
-  def pushOuterMask(m: LocalVar) = {
+  override def pushOuterMask(m: LocalVar) = {
     outerMaskStack.push(m)
   }
 
-  def popOuterMask(): LocalVar = {
+  override def popOuterMask(): LocalVar = {
     outerMaskStack.pop()
   }
 
@@ -1461,12 +1462,18 @@ class QuantifiedPermModule(val verifier: Verifier)
       mask = outerMaskStack.head
       val currentPermOuter = currentPermission(fa)
       mask = innerMask
-      Assert(permGe(currentPermission(fa), amount, forField), ve)
+      val diffVar = LocalVar(Identifier("diff"), permType)
+      val diffAssign = diffVar := (amount- currentPermMask)
+      val assertEnough = Assert(permGe(currentPermOuter, diffVar), ve)
+      val deductFromOuter = currentPermOuter := currentPermOuter - diffVar
+      val addToInner = currentPermMask := currentPermMask + diffVar
+      val cond = permGt(amount, currentPermMask)
+      If(cond, diffAssign ++ assertEnough ++ deductFromOuter ++ addToInner, Nil)
     }
   }
 
   private def assertSomePerm(fa: sil.LocationAccess, ve: VerificationError): Stmt = {
-    if (outerMaskStack.isEmpty)
+    if (!enableKInduction)
       Assert(hasDirectPerm(fa), ve)
     else
       assertCurrentPermGe(fa, RealLit(0.001), false, ve)
@@ -1867,4 +1874,6 @@ class QuantifiedPermModule(val verifier: Verifier)
     }
 
   }
+
+  override def havocMask(): Stmt = Havoc(mask)
 }

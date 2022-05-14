@@ -153,6 +153,8 @@ case class CarbonVerifier(override val reporter: Reporter,
     // reset all modules
     allModules map (m => m.reset())
     heapModule.enableAllocationEncoding = config == null || !config.disableAllocEncoding.isSupplied // NOTE: config == null happens on the build server / via sbt test
+    loopModule.enableKInduction = config != null && config.enableKInduction.isSupplied
+    permModule.enableKInduction = config != null && config.enableKInduction.isSupplied
 
     var transformNames = false
     if (config == null) Seq() else config.counterexample.toOption match {

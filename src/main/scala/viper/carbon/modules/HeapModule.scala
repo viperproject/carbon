@@ -183,4 +183,5 @@ trait HeapModule extends Module with CarbonStateComponent {
   def sumHeap(resultHeap: Exp, heap1: Exp, mask1: Exp, heap2: Exp, mask2: Exp): Exp
 
   val identicalOnKnownLocsName : Identifier
+
 }

@@ -107,5 +107,11 @@ class CarbonConfig(args: Seq[String]) extends SilFrontendConfig(args, "Carbon") 
     noshort = true
   )
 
+  val enableKInduction = opt[Boolean]("enableKInduction",
+    descr = "Enable k-induction with k=1 (default: disabled)",
+    default = None,
+    noshort = true
+  )
+
   verify()
 }
