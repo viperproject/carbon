@@ -6,15 +6,15 @@
 
 package viper.carbon.modules.impls
 
-import viper.carbon.modules.{ExpModule, StatelessComponent}
-import viper.silver.{ast => sil}
-import viper.carbon.boogie._
-import viper.carbon.verifier.Verifier
-import viper.silver.verifier.{PartialVerificationError, reasons}
 import viper.carbon.boogie.Implicits._
+import viper.carbon.boogie._
 import viper.carbon.modules.components.DefinednessComponent
-import viper.silver.ast.{LocationAccess, MagicWand, PredicateAccess, Ref}
+import viper.carbon.modules.{ExpModule, StatelessComponent}
+import viper.carbon.verifier.Verifier
 import viper.silver.ast.utility.Expressions
+import viper.silver.ast.{LocationAccess, MagicWand, PredicateAccess, Ref}
+import viper.silver.verifier.{PartialVerificationError, reasons}
+import viper.silver.{ast => sil}
 
 /**
  * The default implementation of [[viper.carbon.modules.ExpModule]].
@@ -22,17 +22,17 @@ import viper.silver.ast.utility.Expressions
 class DefaultExpModule(val verifier: Verifier) extends ExpModule with DefinednessComponent with StatelessComponent {
 
   import verifier._
-  import heapModule._
   import domainModule._
-  import seqModule._
-  import setModule._
+  import exhaleModule._
+  import funcPredModule._
+  import heapModule._
+  import inhaleModule._
+  import mainModule._
   import mapModule._
   import permModule._
-  import inhaleModule._
-  import funcPredModule._
-  import exhaleModule._
+  import seqModule._
+  import setModule._
   import stateModule._
-  import mainModule._
 
   override def start(): Unit = {
     register(this)
@@ -77,6 +77,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       case sil.Unfolding(_, exp) =>
         translateExp(exp)
       case sil.Applying(_, exp) => translateExp(exp)
+      case sil.Asserting(_, exp) => translateExp(exp)
       case sil.Old(exp) =>
         val prevState = stateModule.state
         stateModule.replaceState(stateModule.oldState)
@@ -366,6 +367,14 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       case sil.Or(e1, e2) =>
         checkDefinednessImpl(e1, error, makeChecks = makeChecks) :: // short-circuiting evaluation:
           If(UnExp(Not, translateExp(e1)), checkDefinednessImpl(e2, error, makeChecks = makeChecks), Statements.EmptyStmt) ::
+          Nil
+      case sil.Asserting(assertion, e) =>
+        checkDefinedness(assertion, error, makeChecks = makeChecks) ::
+          NondetIf(
+            MaybeComment("Exhale assertion of asserting", exhale(Seq((assertion, error)))) ++
+              MaybeComment("Stop execution", Assume(FalseLit()))
+            , Nil) ::
+          checkDefinedness(e, error, makeChecks = makeChecks) ::
           Nil
       case w@sil.MagicWand(_, _) =>
         checkDefinednessWand(w, error, makeChecks = makeChecks)
