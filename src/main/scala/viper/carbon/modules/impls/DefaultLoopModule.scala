@@ -495,11 +495,14 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
       executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotEstablished(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotEstablished(e))), false)
     )
 
+    permModule.pushOuterMask(maskWithFramedPerms(0).asInstanceOf[LocalVar]) // new try
+
     val inhaleInvInitial = MaybeCommentBlock("Inhale loop invariant before loop",
-      inhale(w.invs map(i => (i, errors.WhileFailed(i)))) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv)))
+      //(inhale(w.invs map(i => (i, errors.WhileFailed(i)))) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv)))) // new try
+      (invs map (inv => checkDefinednessOfSpecAndInhale(inv, errors.ContractNotWellformed(inv))))
     )
 
-    permModule.pushOuterMask(maskWithFramedPerms(0).asInstanceOf[LocalVar])
+    //permModule.pushOuterMask(maskWithFramedPerms(0).asInstanceOf[LocalVar]) // new try
 
 
     val havocWritten = MaybeCommentBlock("Havoc loop written variables (except locals)",
@@ -525,8 +528,11 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
           //  case Assert(e, _) => Assume(e)
           //}() ++
           MaybeCommentBlock("Inhale loop invariant again",
-            inhale(w.invs map(i => (i, errors.WhileFailed(i)))) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv)))
-          ) ++
+            //inhale(w.invs map(i => (i, errors.WhileFailed(i)))) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv))) // new try
+            (invs map (inv => checkDefinednessOfSpecAndInhale(inv, errors.ContractNotWellformed(inv))))
+          ).transform{
+            case Assert(e, _) => Assume(e)
+          }() ++
           MaybeCommentBlock("Loop body, assuming all asserts", stmtModule.translateStmt(body).transform{
             case Assert(e, _) => Assume(e)
           }()) ++{
