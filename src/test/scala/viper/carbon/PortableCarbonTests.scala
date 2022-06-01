@@ -83,6 +83,8 @@ class PortableCarbonTests extends SilSuite with StatisticalTestSuite {
     require(files.length == 1, "tests should consist of exactly one file")
     val fe = new CarbonFrontend(reporter, SilentLogger().get)
     fe.init(verifier)
+    fe.setVerifier(verifier)
+    fe.prepare((this.configMap.iterator.flatMap(pair => Seq(s"--${pair._1}", s"${pair._2}")) ++ Seq(s"${files.head}")).toSeq )
     fe.reset(files.head)
     fe
   }
