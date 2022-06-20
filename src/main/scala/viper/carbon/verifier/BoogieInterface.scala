@@ -189,7 +189,11 @@ trait BoogieInterface {
     errorStreamThread.start()
     inputStreamThread.start()
 
-    proc.waitFor()
+    try {
+      proc.waitFor()
+    } finally {
+      proc.destroy()
+    }
 
     errorStreamThread.join()
     inputStreamThread.join()
