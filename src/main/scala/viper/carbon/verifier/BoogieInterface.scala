@@ -6,14 +6,14 @@
 
 package viper.carbon.verifier
 
-import java.io._
 import viper.carbon.boogie.{Assert, Program}
 import viper.silver.reporter.BackendSubProcessStages._
 import viper.silver.reporter.{BackendSubProcessReport, Reporter}
 import viper.silver.verifier.errors.Internal
 import viper.silver.verifier.reasons.InternalReason
-import viper.silver.verifier.{Failure, _}
+import viper.silver.verifier._
 
+import java.io._
 import scala.jdk.CollectionConverters._
 
 class BoogieDependency(_location: String) extends Dependency {
@@ -192,6 +192,7 @@ trait BoogieInterface {
     try {
       proc.waitFor()
     } finally {
+      proc.children().forEach(_.destroy() : Unit)
       proc.destroy()
     }
 
