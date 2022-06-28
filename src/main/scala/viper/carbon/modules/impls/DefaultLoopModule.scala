@@ -78,7 +78,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
       ))
 
     if(hasGotos) {
-      usedLoopDetectorOnce = true;
+      usedLoopDetectorOnce = true
       useLoopDetector = true
       initializeMethodWithGotos(m)
     } else {
