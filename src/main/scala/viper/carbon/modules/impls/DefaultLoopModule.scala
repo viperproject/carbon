@@ -55,6 +55,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
   private val sumHeap = LocalVar(sumHeapName, heapType)
 
   private var currentMethodIsAbstract = false;
+  private var usedLoopDetectorOnce = false;
   private var useLoopDetector = false;
 
   override def start() = {
@@ -77,6 +78,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
       ))
 
     if(hasGotos) {
+      usedLoopDetectorOnce = true;
       useLoopDetector = true
       initializeMethodWithGotos(m)
     } else {
@@ -285,7 +287,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
   override def isLoopDummyStmt(stmt: sil.Stmt): Boolean =
     stmt.info.getUniqueInfo[LoopDummyStmtInfo].nonEmpty
 
-  override def sumOfStatesAxiomRequired(): Boolean = useLoopDetector
+  override def sumOfStatesAxiomRequired(): Boolean = usedLoopDetectorOnce
 
   private def relevantForLoops(s: sil.Stmt) : Boolean = {
     s match {
