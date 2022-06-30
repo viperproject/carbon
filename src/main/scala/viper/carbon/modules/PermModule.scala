@@ -40,23 +40,7 @@ trait PermModule extends Module with CarbonStateComponent {
    */
   def permissionPositive(permission: Exp, zeroOK : Boolean = false): Exp
 
-
   def conservativeIsPositivePerm(e: sil.Exp): Boolean
-
-  /**
-   * The number of phases during exhale.
-   */
-  def numberOfPhases: Int
-
-  /**
-   * The ID of the phase that this expression should be exhaled in.
-   */
-  def isInPhase(e: sil.Exp, phaseId: Int): Boolean
-
-  /**
-   * A short description of a given phase.
-   */
-  def phaseDescription(phase: Int): String
 
   /**
    * The current mask.
