@@ -76,6 +76,6 @@ trait Verifier {
    */
   def replaceProgram(prog : sil.Program): Unit
 
-  def checkInjectivity: Boolean
+  def assumeInjectivityOnInhale: Boolean
 
 }

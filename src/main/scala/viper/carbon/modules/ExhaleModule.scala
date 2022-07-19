@@ -40,6 +40,4 @@ trait ExhaleModule extends Module with ExhaleComponent with ComponentRegistry[Ex
     */
   def exhale(exp: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true, isAssert: Boolean = false
              , statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt
-
-  def currentPhaseId: Int
 }

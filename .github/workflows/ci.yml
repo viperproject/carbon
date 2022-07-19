@@ -1,0 +1,74 @@
+name: Carbon CI
+
+on:
+  push:
+    branches: [ master, staging, trying ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    container: gobraverifier/gobra-base:v5_z3_4.8.7 # Thank you, Gobra team
+    env:
+      BOOGIE_EXE: "boogie/Boogie"
+      LINUX_BOOGIE_URL: "https://github.com/viperproject/boogie-builder/releases/download/bae82d3a7b383161/boogie-linux.zip"
+    steps:
+    - name: Checkout Carbon
+      uses: actions/checkout@v2
+      with:
+        submodules: true
+    - name: Java Version
+      run: java --version
+    - name: Z3 Version
+      run: z3 -version
+    - name: Create version file
+      run: |
+        echo "Carbon: commit $(git -C . rev-parse HEAD)" >> versions.txt
+        echo "Silver: commit $(git -C silver rev-parse HEAD)" >> versions.txt
+      # first line overwrites versions.txt in case it already exists, all other append to the file
+    - name: Upload version file
+      uses: actions/upload-artifact@v2
+      with:
+        name: versions-${{ matrix.name }}.txt
+        path: versions.txt
+
+    - name: Set sbt cache variables
+      run: echo "SBT_OPTS=-Dsbt.global.base=sbt-cache/.sbtboot -Dsbt.boot.directory=sbt-cache/.boot -Dsbt.ivy.home=sbt-cache/.ivy" >> $GITHUB_ENV
+      # note that the cache path is relative to the directory in which sbt is invoked.
+
+    - name: Cache SBT
+      uses: actions/cache@v2
+      with:
+        path: |
+          sbt-cache/.sbtboot
+          sbt-cache/.boot
+          sbt-cache/.ivy/cache
+        # project/target and target, are intentionally not included as several occurrences
+        # of NoSuchMethodError exceptions have been observed during CI runs. It seems
+        # like sbt is unable to correctly compute source files that require a recompilation. Therefore, we have
+        # disabled caching of compiled source files altogether
+        key: ${{ runner.os }}-sbt-no-precompiled-sources-${{ hashFiles('**/build.sbt') }}
+    - name: Download Boogie
+      run: |
+        curl --fail --silent --show-error -L ${{ env.LINUX_BOOGIE_URL }} --output boogie-linux.zip
+        unzip boogie-linux.zip
+        rm -rf boogie-linux.zip
+        mv binaries-linux boogie
+        pwd
+
+    - name: Test Carbon
+      run: sbt test
+
+    - name: Assemble Carbon fat JAR
+      run: sbt "set test in assembly := {}" clean assembly
+
+    - name: Upload Carbon fat JAR
+      uses: actions/upload-artifact@v2
+      with:
+        name: carbon-jar
+        path: target/scala-2.13/carbon.jar
+        retention-days: 14
+        if-no-files-found: error        
