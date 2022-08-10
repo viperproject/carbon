@@ -424,9 +424,11 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
   }
 
   private def handleWhile(w: sil.While): Stmt = {
-        val guard = translateExp(w.cond)
-        val (invs, writtenVars) = getWhileInformation(w)
+      val guard = translateExp(w.cond)
+      val (invs, writtenVars) = getWhileInformation(w)
 
+      If(
+        guard,
         beforeLoopHead(invs, w.info.getUniqueInfo[LoopInfo].map(loopInfo => loopInfo.head.get)) ++
         MaybeCommentBlock("Havoc loop written variables (except locals)",
           Havoc((writtenVars map translateExp).asInstanceOf[Seq[Var]]) ++
@@ -450,10 +452,13 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
           stmts
         }
         )) ++
-        MaybeCommentBlock("Inhale loop invariant after loop, and assume guard",
-          Assume(guard.not) ++ stateModule.assumeGoodState ++
-            inhale(invs map (x => (x, errors.WhileFailed(x)))) ++ executeUnfoldings(invs, (inv => errors.Internal(inv)))
-        )
+        MaybeCommentBlock("Unroll last loop iteration; inhale loop invariant and assume guard, execute body and lastly assume !guard",
+          stateModule.assumeGoodState ++
+            inhale(invs map (x => (x, errors.WhileFailed(x)))) ++ executeUnfoldings(invs, (inv => errors.Internal(inv))) ++
+            Assume(guard) ++ MaybeCommentBlock("Translate loop body", stmtModule.translateStmt(w.body)) ++ Assume(guard.not)
+        ),
+        Statements.EmptyStmt
+    )
   }
 
   override def handleStmt(s: sil.Stmt, statesStackOfPackageStmt: List[Any] = null, allStateAssms: Exp = TrueLit(), insidePackageStmt: Boolean = false): (Seqn => Seqn) = {
