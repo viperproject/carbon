@@ -9,6 +9,7 @@ package viper.carbon.modules
 import components.{ComponentRegistry, InhaleComponent}
 import viper.silver.{ast => sil}
 import viper.carbon.boogie.Stmt
+import viper.silver.ast.utility.Expressions.{whenExhaling, whenInhaling}
 import viper.silver.verifier.PartialVerificationError
 
 /**
@@ -23,11 +24,39 @@ import viper.silver.verifier.PartialVerificationError
 
  */
 trait InhaleModule extends Module with InhaleComponent with ComponentRegistry[InhaleComponent] {
+
   /**
-    * statesStackForPackageStmt: stack of states used in translating statements during packaging a wand (carries currentState and LHS of wands)
-    * insidePackageStmt: Boolean that represents whether this method is being called during packaging a wand or not.
-    * The 'statesStackForPackageStmt' and 'insidePackageStmt' are used when translating statements during packaging a wand.
-    * For more details refer to the general note in 'wandModule'.
+    * Inhale assertions and pure expressions with potential definedness checks made along the way.
+    * Special case: If definedness checks are added and if the input Viper state has no permissions, then the returned
+    * Boogie statement checks whether the input assertions are self-framing.
+    * @param exps
+    * @param addDefinednessChecks enables definedness checks iff set to true
+    * @param statesStackForPackageStmt stack of states used in translating statements during packaging a wand (carries currentState and LHS of wands)
+    * @param insidePackageStmt indicates whether this method is being called during a package of a wand (true) or not (false)
+    * @return
     */
-  def inhale(exp: Seq[(sil.Exp, PartialVerificationError)], statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt
+  def inhale(exps: Seq[(sil.Exp, PartialVerificationError)], addDefinednessChecks: Boolean, statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt
+
+  def inhaleWithDefinednessCheck(exp: sil.Exp, error: PartialVerificationError, statesStack: List[Any] = null, inWand: Boolean = false): Stmt =
+    inhale(Seq((exp, error)), addDefinednessChecks = true, statesStack, inWand)
+
+  /**
+    * Convert all InhaleExhale expressions to their exhale part and inhale with definedness checks.
+    */
+  def inhaleExhaleSpecWithDefinednessCheck(expressions: Seq[sil.Exp],
+                                            errorConstructor: sil.Exp => PartialVerificationError): Seq[Stmt] = {
+    expressions map (e => {
+      inhaleWithDefinednessCheck(whenExhaling(e), errorConstructor(e))
+    })
+  }
+
+  /**
+    * Convert all InhaleExhale expressions to their inhale part and inhale with definedness checks.
+    */
+  def inhaleInhaleSpecWithDefinednessCheck(expressions: Seq[sil.Exp],
+                                            errorConstructor: sil.Exp => PartialVerificationError): Seq[Stmt] = {
+    expressions map (e => {
+      inhaleWithDefinednessCheck(whenInhaling(e), errorConstructor(e))
+    })
+  }
 }

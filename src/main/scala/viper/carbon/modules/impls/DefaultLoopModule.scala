@@ -433,13 +433,13 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
             (writtenVars map (v => mainModule.allAssumptionsAboutValue(v.typ,mainModule.translateLocalVarSig(v.typ, v),false)))
         ) ++
         MaybeCommentBlock("Check definedness of invariant", NondetIf(
-          (invs map (inv => checkDefinednessOfSpecAndInhale(inv, errors.ContractNotWellformed(inv)))) ++
+          (invs map (inv => inhaleWithDefinednessCheck(inv, errors.ContractNotWellformed(inv)))) ++
             Assume(FalseLit())
         )) ++
         MaybeCommentBlock("Check the loop body", NondetIf({
           val (freshStateStmt, prevState) = stateModule.freshTempState("loop")
           val stmts = MaybeComment("Reset state", freshStateStmt ++ stateModule.initBoogieState) ++
-            MaybeComment("Inhale invariant", inhale(invs map (x => (x, errors.WhileFailed(x)))) ++ executeUnfoldings(invs, (inv => errors.Internal(inv)))) ++
+            MaybeComment("Inhale invariant", inhale(invs map (x => (x, errors.WhileFailed(x))), addDefinednessChecks = false) ++ executeUnfoldings(invs, (inv => errors.Internal(inv)))) ++
             Comment("Check and assume guard") ++
             checkDefinedness(w.cond, errors.WhileFailed(w.cond)) ++
             Assume(guard) ++ stateModule.assumeGoodState ++
@@ -452,7 +452,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
         )) ++
         MaybeCommentBlock("Inhale loop invariant after loop, and assume guard",
           Assume(guard.not) ++ stateModule.assumeGoodState ++
-            inhale(invs map (x => (x, errors.WhileFailed(x)))) ++ executeUnfoldings(invs, (inv => errors.Internal(inv)))
+            inhale(invs map (x => (x, errors.WhileFailed(x))), addDefinednessChecks = false) ++ executeUnfoldings(invs, (inv => errors.Internal(inv)))
         )
   }
 
@@ -530,7 +530,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
           (writtenVars map (v => mainModule.allAssumptionsAboutValue(v.typ, mainModule.translateLocalVarSig(v.typ, v), false)))
       ) ++
         MaybeCommentBlock("Check definedness of invariant", NondetIf(
-        (invs map (inv => checkDefinednessOfSpecAndInhale(inv, errors.ContractNotWellformed(inv)))) ++
+        (invs map (inv => inhaleWithDefinednessCheck(inv, errors.ContractNotWellformed(inv)))) ++
           Assume(FalseLit())
       )) ++
       MaybeCommentBlock("Check the loop body",
@@ -538,8 +538,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
             As long as modules the state at this point refers to the original state, this is fine.
          */
           MaybeComment("Reset state", stateModule.initBoogieState) ++
-          MaybeComment("Inhale invariant", inhale(invs map (x => (x, errors.WhileFailed(x)))) ++ executeUnfoldings(invs, (inv => errors.Internal(inv)))) ++
-          stateModule.assumeGoodState
+          MaybeComment("Inhale invariant", inhale(invs map (x => (x, errors.WhileFailed(x))), addDefinednessChecks = false) ++ executeUnfoldings(invs, (inv => errors.Internal(inv))))
       )
     )
   }
@@ -548,7 +547,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
     val invs : Seq[sil.Exp] = getLoopInvariants(loopId)
     MaybeCommentBlock("Backedge to loop " + loopId,
       MaybeCommentBlock("Check definedness of invariant", NondetIf(
-        (invs map (inv => checkDefinednessOfSpecAndInhale(inv, errors.ContractNotWellformed(inv)))) ++
+        (invs map (inv => inhaleWithDefinednessCheck(inv, errors.ContractNotWellformed(inv)))) ++
           Assume(FalseLit())
       )) ++
       MaybeComment("Exhale invariant", executeUnfoldings(invs, (inv => errors.LoopInvariantNotPreserved(inv))) ++ exhale(invs map (e => (e, errors.LoopInvariantNotPreserved(e))))) ++

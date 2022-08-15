@@ -51,7 +51,7 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
     val exhaleStmt = exps map (e => exhaleConnective(e._1.whenExhaling, e._2, havocHeap,
       statesStackForPackageStmt, insidePackageStmt, isAssert = isAssert, currentStateForPackage = tempState))
 
-    val assumptions = MaybeCommentBlock("Free assumptions",
+    val assumptions = MaybeCommentBlock("Free assumptions (exhale module)",
       exps map (e => allFreeAssumptions(e._1)))
 
     stateModule.replaceState(curState)
