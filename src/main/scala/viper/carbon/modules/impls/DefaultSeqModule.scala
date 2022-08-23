@@ -110,7 +110,7 @@ class DefaultSeqModule(val verifier: Verifier)
   }
 
 
-  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
+  override def simplePartialCheckDefinednessAfter(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
 
     if(makeChecks)
       e match {

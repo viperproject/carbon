@@ -21,9 +21,16 @@ trait DefinednessComponent extends Component {
   def freeAssumptions(e: sil.Exp): Stmt = Statements.EmptyStmt
 
   /**
-   * Proof obligations for a given expression. See below for "makeChecks" description
+   * Well-definedness check for e itself (not its subnodes) that is emitted, before the well-definedness checks
+    * of e's subnodes are emitted. For more detail on "makeChecks" see [[partialCheckDefinedness]]
    */
   def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = Statements.EmptyStmt
+
+  /**
+    * Same as [[simplePartialCheckDefinedness]], except that the this well-definedness check is emitted *after* the
+    * well-definedness checks of e's subnodes are emitted
+    */
+  def simplePartialCheckDefinednessAfter(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = Statements.EmptyStmt
 
   /**
    * Proof obligations for a given expression.  The first part of the result is used before
@@ -35,5 +42,5 @@ trait DefinednessComponent extends Component {
    * must be overridden for this parameter to be used.
    */
   def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): (() => Stmt, () => Stmt) =
-    (() => simplePartialCheckDefinedness(e, error, makeChecks), () => Statements.EmptyStmt)
+    (() => simplePartialCheckDefinedness(e, error, makeChecks), () => simplePartialCheckDefinednessAfter(e, error, makeChecks))
 }
