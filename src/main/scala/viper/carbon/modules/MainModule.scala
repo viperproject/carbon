@@ -9,6 +9,7 @@ package viper.carbon.modules
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.Environment
+import viper.silver.reporter.Reporter
 
 /**
  * A module for translating Viper programs by invoking the right modules and
@@ -20,7 +21,7 @@ trait MainModule extends Module {
    * Returns a Boogie program along with a map that maps Viper names to their respective Boogie names,
    * i.e. Viper member name -> (Viper variable name -> Boogie variable name)
    */
-  def translate(p: sil.Program): (Program, Map[String, Map[String, String]])
+  def translate(p: sil.Program, reporter: Reporter): (Program, Map[String, Map[String, String]])
 
   /**
    * Translate a local variable along with its type (into a boogie declaration).  Assumes that the variable is already

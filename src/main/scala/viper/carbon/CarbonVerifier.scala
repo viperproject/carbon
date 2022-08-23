@@ -153,7 +153,7 @@ case class CarbonVerifier(override val reporter: Reporter,
       case None =>
       case Some(v) => sys.error("Invalid option: " + v)
     }
-    val (tProg, translatedNames) = mainModule.translate(program)
+    val (tProg, translatedNames) = mainModule.translate(program, reporter)
     _translated = tProg
 
 
