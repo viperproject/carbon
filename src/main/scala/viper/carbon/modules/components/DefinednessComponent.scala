@@ -24,10 +24,10 @@ trait DefinednessComponent extends Component {
    * Well-definedness check for e itself (not its subnodes) that is emitted, before the well-definedness checks
     * of e's subnodes are emitted. For more detail on "makeChecks" see [[partialCheckDefinedness]]
    */
-  def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = Statements.EmptyStmt
+  def simplePartialCheckDefinednessBefore(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = Statements.EmptyStmt
 
   /**
-    * Same as [[simplePartialCheckDefinedness]], except that the this well-definedness check is emitted *after* the
+    * Same as [[simplePartialCheckDefinednessBefore]], except that the this well-definedness check is emitted *after* the
     * well-definedness checks of e's subnodes are emitted
     */
   def simplePartialCheckDefinednessAfter(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = Statements.EmptyStmt
@@ -37,10 +37,10 @@ trait DefinednessComponent extends Component {
    * visiting all subexpressions, then all subexpressions are checked for definedness, and finally
    * the second part of the result is used.
    *
-   * The makeChecks argument can be set to false to cause the expression to be explored (and 
+   * The makeChecks argument can be set to false to cause the expression to be explored (and
    * corresponding unfoldings to be executed), but no other checks to actually be made. Note that this method
    * must be overridden for this parameter to be used.
    */
   def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): (() => Stmt, () => Stmt) =
-    (() => simplePartialCheckDefinedness(e, error, makeChecks), () => simplePartialCheckDefinednessAfter(e, error, makeChecks))
+    (() => simplePartialCheckDefinednessBefore(e, error, makeChecks), () => simplePartialCheckDefinednessAfter(e, error, makeChecks))
 }

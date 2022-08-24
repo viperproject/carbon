@@ -745,7 +745,7 @@ case class PackageSetup(hypState: StateRep, usedState: StateRep, initStmt: Stmt)
           Nil
         }
         (before _, after _)
-      case _ => (() => simplePartialCheckDefinedness(e, error, makeChecks), () => Nil)
+      case _ => (() => simplePartialCheckDefinednessBefore(e, error, makeChecks), () => Nil)
     }
   }
 
