@@ -21,14 +21,17 @@ trait DefinednessComponent extends Component {
   def freeAssumptions(e: sil.Exp): Stmt = Statements.EmptyStmt
 
   /**
-   * Well-definedness check for e itself (not its subnodes) that is emitted, before the well-definedness checks
-    * of e's subnodes are emitted. For more detail on "makeChecks" see [[partialCheckDefinedness]]
+    * Well-definedness check for `e` itself (not its subnodes). This check is invoked *before* invoking the
+    * well-definedness checks for `e`'s subnodes. The resulting Boogie encoding is also emitted *before* the encoding for
+    * the well-definedness checks for `e`'s subnodes.
+    * If `makeChecks` is set to false, then no definedness checks should be emitted. See [[partialCheckDefinedness]]
+    * for the purpose of `makeChecks`.
    */
   def simplePartialCheckDefinednessBefore(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = Statements.EmptyStmt
 
   /**
-    * Same as [[simplePartialCheckDefinednessBefore]], except that the this well-definedness check is emitted *after* the
-    * well-definedness checks of e's subnodes are emitted
+    * Same as [[simplePartialCheckDefinednessBefore]], except that this well-definedness check is invoked and emitted
+    * *after* the well-definedness checks of `e`'s subnodes are invoked and emitted.
     */
   def simplePartialCheckDefinednessAfter(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = Statements.EmptyStmt
 
