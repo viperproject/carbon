@@ -310,7 +310,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
     env.get(l)
   }
 
-  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
+  override def simplePartialCheckDefinednessAfter(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
 
     val stmt: Stmt = (if (makeChecks)
       e match {

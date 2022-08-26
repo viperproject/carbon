@@ -752,7 +752,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           })} else () => Nil
         )
       }
-      case _ => (() => simplePartialCheckDefinedness(e, error, makeChecks), () => Nil)
+      case _ => (() => simplePartialCheckDefinednessBefore(e, error, makeChecks), () => simplePartialCheckDefinednessAfter(e, error, makeChecks))
     }
   }
 
