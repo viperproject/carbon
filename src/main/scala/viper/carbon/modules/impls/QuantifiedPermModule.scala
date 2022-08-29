@@ -340,7 +340,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         val p = PermissionHelper.normalizePerm(prm)
 
         def subtractFromMask(permToExhale: Exp) : Stmt =
-          (if (!usingOldState) curPerm := permSub(curPerm, permToExhale) else Nil)
+          (if (!usingOldState) currentMaskAssignUpdate(loc, permSub(curPerm, permToExhale)) else Nil)
 
         val permVar = LocalVar(Identifier("perm"), permType)
         if (!p.isInstanceOf[sil.WildcardPerm]) {
