@@ -18,9 +18,10 @@ import viper.carbon.boogie.CommentedDecl
 import viper.carbon.boogie.Procedure
 import viper.carbon.boogie.Program
 import viper.carbon.verifier.Environment
-import viper.silver.verifier.errors
+import viper.silver.verifier.{TypecheckerWarning, errors}
 import viper.carbon.verifier.Verifier
 import viper.silver.ast.utility.rewriter.Traverse
+import viper.silver.reporter.{Reporter, WarningsDuringTypechecking}
 
 import scala.collection.mutable
 
@@ -49,13 +50,25 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
     LocalVarDecl(name, t)
   }
 
-  override def translate(p: sil.Program): (Program, Map[String, Map[String, String]]) = {
+  override def translate(p: sil.Program, reporter: Reporter): (Program, Map[String, Map[String, String]]) = {
 
     verifier.replaceProgram(
       p.transform(
         {
-          case f: sil.Forall => f.autoTrigger
-          case e: sil.Exists => e.autoTrigger
+          case f: sil.Forall => {
+            val res = f.autoTrigger
+            if (res.triggers.isEmpty) {
+              reporter.report(WarningsDuringTypechecking(Seq(TypecheckerWarning("No triggers provided or inferred for quantifier.", res.pos))))
+            }
+            res
+          }
+          case e: sil.Exists => {
+            val res = e.autoTrigger
+            if (res.triggers.isEmpty) {
+              reporter.report(WarningsDuringTypechecking(Seq(TypecheckerWarning("No triggers provided or inferred for quantifier.", res.pos))))
+            }
+            res
+          }
         },
         Traverse.TopDown)
     )
@@ -158,7 +171,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
     val reset = stateModule.resetBoogieState
 
     // note that the order here matters - onlyExhalePosts should be computed with respect to the reset state
-    val onlyExhalePosts: Seq[Stmt] = checkDefinednessOfExhaleSpecAndInhale(
+    val onlyExhalePosts: Seq[Stmt] = inhaleModule.inhaleExhaleSpecWithDefinednessCheck(
     posts, {
       errors.ContractNotWellformed(_)
     })
@@ -167,7 +180,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
     if (Expressions.contains[sil.InhaleExhaleExp](posts)) {
       // Postcondition contains InhaleExhale expression.
       // Need to check inhale and exhale parts separately.
-      val onlyInhalePosts: Seq[Stmt] = checkDefinednessOfInhaleSpecAndInhale(
+      val onlyInhalePosts: Seq[Stmt] = inhaleModule.inhaleInhaleSpecWithDefinednessCheck(
       posts, {
         errors.ContractNotWellformed(_)
       })
@@ -198,11 +211,11 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
     val res = if (Expressions.contains[sil.InhaleExhaleExp](pres)) {
       // Precondition contains InhaleExhale expression.
       // Need to check inhale and exhale parts separately.
-      val onlyExhalePres: Seq[Stmt] = checkDefinednessOfExhaleSpecAndInhale(
+      val onlyExhalePres: Seq[Stmt] = inhaleModule.inhaleExhaleSpecWithDefinednessCheck(
       pres, {
         errors.ContractNotWellformed(_)
       })
-      val onlyInhalePres: Seq[Stmt] = checkDefinednessOfInhaleSpecAndInhale(
+      val onlyInhalePres: Seq[Stmt] = inhaleModule.inhaleInhaleSpecWithDefinednessCheck(
       pres, {
         errors.ContractNotWellformed(_)
       })
@@ -214,7 +227,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
       )
     }
     else {
-      val inhalePres: Seq[Stmt] = checkDefinednessOfInhaleSpecAndInhale(
+      val inhalePres: Seq[Stmt] = inhaleModule.inhaleInhaleSpecWithDefinednessCheck(
       pres, {
         errors.ContractNotWellformed(_)
       })

@@ -88,7 +88,7 @@ case class CarbonVerifier(override val reporter: Reporter,
     case None => z3Default
   } else z3Default
 
-  def checkInjectivity = if (config != null) config.checkInjectivity.toOption match {
+  def assumeInjectivityOnInhale = if (config != null) config.assumeInjectivityOnInhale.toOption match {
     case Some(b) => b
     case None => false
   }
@@ -154,7 +154,7 @@ case class CarbonVerifier(override val reporter: Reporter,
       case None =>
       case Some(v) => sys.error("Invalid option: " + v)
     }
-    val (tProg, translatedNames) = mainModule.translate(program)
+    val (tProg, translatedNames) = mainModule.translate(program, reporter)
     _translated = tProg
 
 

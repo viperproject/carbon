@@ -23,8 +23,7 @@ import viper.silver.verifier.PartialVerificationError
 class DefaultHeapModule(val verifier: Verifier)
     extends HeapModule
     with SimpleStmtComponent
-    with DefinednessComponent
-    with InhaleComponent {
+    with DefinednessComponent {
 
   import verifier._
   import typeModule._
@@ -43,7 +42,6 @@ class DefaultHeapModule(val verifier: Verifier)
     stateModule.register(this)
     stmtModule.register(this)
     expModule.register(this)
-    inhaleModule.register(this)
   }
 
   var enableAllocationEncoding : Boolean = true // note: this may be modified on configuration, so should only be used e.g. in method defs which will be called later (e.g. during verification)
@@ -812,14 +810,6 @@ class DefaultHeapModule(val verifier: Verifier)
     if (!usingOldState) Havoc(exhaleHeap) ++ Assume(FuncApp(identicalOnKnownLocsName, Seq(heapExp, exhaleHeap) ++ currentMask, Bool)) ++
       (heapVar := exhaleHeap)
     else Nil
-  }
-
-  override def inhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
-    e match {
-      case sil.Unfolding(sil.PredicateAccessPredicate(loc, perm), exp) =>
-        addPermissionToPMask(loc)
-      case _ => Nil
-    }
   }
 
   /**
