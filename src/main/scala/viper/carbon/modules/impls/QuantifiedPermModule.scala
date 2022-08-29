@@ -356,7 +356,7 @@ class QuantifiedPermModule(val verifier: Verifier)
           val curPerm = currentPermission(loc)
           val wildcard = LocalVar(Identifier("wildcard"), Real)
 
-              (if (!usingOldState) currentMaskAssignUpdate(loc, permSub(curPerm, permVar)) else Nil)
+          Assert(curPerm > noPerm, error.dueTo(reasons.InsufficientPermission(loc))) ++
             LocalVarWhereDecl(wildcard.name, wildcard > noPerm) ++
             Havoc(wildcard) ++
             Assume(wildcard < curPerm) ++
