@@ -94,7 +94,15 @@ case class CarbonVerifier(override val reporter: Reporter,
   }
   else false
 
-  override def usePolyMapsInEncoding = false
+  override def usePolyMapsInEncoding =
+    if (config != null) {
+      config.desugarPolymorphicMaps.toOption match {
+        case Some(b) => !b
+        case None => false
+      }
+    } else {
+      false
+    }
 
   def name: String = "carbon"
   def version: String = "1.0"

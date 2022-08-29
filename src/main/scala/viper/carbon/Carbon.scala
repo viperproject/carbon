@@ -92,5 +92,11 @@ class CarbonConfig(args: Seq[String]) extends SilFrontendConfig(args, "Carbon") 
     noshort = true
   )
 
+  val desugarPolymorphicMaps = opt[Boolean]("desugarPolymorphicMaps",
+    descr = "Do not use polymorphic maps in the Boogie encoding and instead desugar them (default: true).",
+    default = None,
+    noshort = true
+  )
+
   verify()
 }
