@@ -20,12 +20,12 @@ Z3_EXE="${Z3_EXE:-$BOOGIE_HOME/z3.exe}"
 export Z3_EXE
 export BOOGIE_EXE
 
-BASEDIR="$(realpath `dirname $0`)"
+BASEDIR="$(realpath "$(dirname "$0")")"
 
 CP_FILE="$BASEDIR/carbon_classpath.txt"
 
-if [ ! -f $CP_FILE ]; then
-    (cd $BASEDIR; sbt "export runtime:dependencyClasspath" | tail -n1 > $CP_FILE)
+if [ ! -f "$CP_FILE" ]; then
+    (cd "$BASEDIR"; sbt "export runtime:dependencyClasspath" | tail -n1 > "$CP_FILE")
 fi
 
-java -Xss30M -cp "`cat $CP_FILE`" viper.carbon.Carbon $@
+exec java -Xss30M -cp "$(cat "$CP_FILE")" viper.carbon.Carbon "$@"
