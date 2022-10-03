@@ -79,11 +79,14 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule
   private var functionFrames : FrameInfos = FrameInfos();
   private var predicateFrames: FrameInfos = FrameInfos();
 
+  private var vprFunctionNames: Set[String] = null
+
   /** function precondition guarding */
 
   override def preamble = {
-    val fp = if (verifier.program.functions.isEmpty) Nil
-    else {
+    val fp = if (verifier.program.functions.isEmpty) {
+      Nil
+    } else {
       val m = heights.values.max
       DeclComment("Function heights (higher height means its body is available earlier):") ++
         (for (i <- m to 0 by -1) yield {
@@ -170,6 +173,7 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule
 
   def reset() = {
     heights = Functions.heights(verifier.program).map{case (f, h) => f.name -> h}
+    vprFunctionNames = verifier.program.functions.map(func => func.name).toSet
     tmpStateId = -1
     duringFold = false
     foldInfo = null
@@ -221,7 +225,8 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule
     val funcApp2 = FuncApp(name2, args map (_.l), Bool)
     val triggerFapp = triggerFuncStatelessApp(f , fargs map (_.l))
     val dummyFuncApplication = dummyFuncApp(triggerFapp)
-    func ++ func2 ++
+    val preGuardFunc = Func(Identifier(f.name+preGuardPostfix), args, Bool)
+    func ++ func2 ++ preGuardFunc ++
       Axiom(Forall(args, Trigger(funcApp), funcApp === funcApp2 && dummyFuncApplication)) ++
       Axiom(Forall(args, Trigger(funcApp2), dummyFuncApplication))
   }
@@ -251,11 +256,14 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule
     val heap = heapModule.staticStateContributions(true, true)
     val args = f.formalArgs map translateLocalVarDecl
     val fapp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
+    /*
     val precondition : Exp = f.pres.map(p => translateExp(Expressions.asBooleanExp(p).whenExhaling)) match {
       case Seq() => TrueLit()
       case Seq(p) => p
       case ps => ps.tail.foldLeft(ps.head)((p,q) => BinExp(p,And,q))
     }
+    */
+    val precondition = translateFuncApp(f.name+preGuardPostfix, (heap ++ args) map (_.l), f.typ)
     val body = transformFuncAppsToLimitedForm(translateExp(f.body.get),height)
 
     // The idea here is that we can generate additional triggers for the function definition, which allow its definition to be triggered in any state in which the corresponding *predicate* has been folded or unfolded, in the following scenarios:
@@ -300,26 +308,83 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule
 
   private def preGuardAxiom(f: sil.Function): Seq[Decl] = {
     //TODO: potentially change axiom if function height is nonnegative
-
     val height = heights(f.name)
     val heap = heapModule.staticStateContributions(true, true)
     val args = f.formalArgs map translateLocalVarDecl
     val guardApp = translateFuncApp(f.name+preGuardPostfix, (heap ++ args) map (_.l), f.typ)
 
     val guardProp = guardPropagation(translateExp(f.body.get))
-    val fApp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
-    val flimitedApp = transformFuncAppsToLimitedForm(fApp)
 
+    if(guardProp.isDefined) {
+      val fApp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
+      val flimitedApp = transformFuncAppsToLimitedForm(fApp)
 
-    Axiom(Forall(
-      stateModule.staticStateContributions() ++ args,
-      Seq(Trigger(Seq(staticGoodState,flimitedApp))),
-      (staticGoodState && assumeFunctionsAbove(height)) ==> (guardApp ==> guardProp)
-    ))
+      Axiom(Forall(
+        stateModule.staticStateContributions() ++ args,
+        Seq(Trigger(Seq(staticGoodState,flimitedApp))),
+        (staticGoodState && assumeFunctionsAbove(height)) ==> (guardApp ==> guardProp.get)
+      ))
+    } else {
+      Seq()
+    }
   }
 
-  private def guardPropagation(e: Exp) : Exp = {
-    TrueLit()
+  private def combineGuardResults(e1Opt: Option[Exp], e2Opt: Option[Exp]) : Option[Exp] = {
+    (e1Opt, e2Opt) match {
+      case (Some(e1), Some(e2)) => Some(BinExp(e1, And, e2))
+      case (Some(e1), None) => Some(e1)
+      case (None, Some(e2)) => Some(e2)
+      case (None, None) => None
+    }
+  }
+
+  private def guardPropagation(e: Exp) : Option[Exp] = {
+    e match {
+      case IntLit(_) => None
+      case BoolLit(_) => None
+      case RealLit(_) => None
+      case RealConv(exp) => guardPropagation(exp)
+      case LocalVar(_, _) => None
+      case GlobalVar(_, _) => None
+      case Const(_) => None
+      case MapSelect(map, idxs) =>
+        val mapGuardOpt = guardPropagation(map)
+        val idxGuardOpt = idxs.map(guardPropagation).reduce(combineGuardResults)
+
+        combineGuardResults(mapGuardOpt, idxGuardOpt)
+      case MapUpdate(map, idxs, value) =>
+        val mapGuardOpt = guardPropagation(map)
+        val idxGuardOpt = idxs.map(guardPropagation).reduce(combineGuardResults)
+        val valGuardOpt = guardPropagation(value)
+
+        combineGuardResults(combineGuardResults(mapGuardOpt, idxGuardOpt), valGuardOpt)
+      case Old(_) => None
+      case CondExp(cond, thn, els) => {
+        val thnGuard = guardPropagation(thn).getOrElse(TrueLit())
+        val elsGuard = guardPropagation(els).getOrElse(TrueLit())
+        Some(CondExp(cond, thnGuard, elsGuard))
+      }
+      case Exists(v, triggers, body) =>
+          //TODO: might need to adjust triggers
+          //since well-definedness of recursive calls checks it for all possible v, we can turn the exists into a forall
+          guardPropagation(body).map(bodyGuard => Forall(v, triggers, bodyGuard))
+      case Forall(v, triggers, body, tv) =>
+        //TODO: might need to adjust triggers
+        guardPropagation(body).map(bodyGuard => Forall(v, triggers, bodyGuard, tv))
+      case BinExp(left, _, right) =>
+        val leftGuardOpt = guardPropagation(left)
+        val rightGuardOpt = guardPropagation(right)
+
+        combineGuardResults(leftGuardOpt, rightGuardOpt)
+      case UnExp(_, exp) => guardPropagation(exp)
+      case FuncApp(func, args, _) =>
+        if(vprFunctionNames.contains(func.name)) {
+          Some(FuncApp(Identifier(func.name+preGuardPostfix), args, Bool))
+        } else  {
+          println(func.name + "not found")
+          None
+        }
+    }
   }
 
   private def transformFuncAppsToLimitedForm(exp: Exp, heightToSkip : Int = -1): Exp =  transformFuncAppsToLimitedOrTriggerForm(exp, heightToSkip, false)
@@ -362,11 +427,14 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule
     val heap = heapModule.staticStateContributions(true, true)
     val args = f.formalArgs map translateLocalVarDecl
     val fapp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
+    /*
     val precondition : Exp = f.pres.map(p => translateExp(Expressions.asBooleanExp(p).whenExhaling)) match {
       case Seq() => TrueLit()
       case Seq(p) => p
       case ps => ps.tail.foldLeft(ps.head)((p,q) => BinExp(p,And,q))
-    }
+    }*/
+    val precondition = translateFuncApp(f.name+preGuardPostfix, (heap ++ args) map (_.l), f.typ)
+
     val limitedFapp = transformFuncAppsToLimitedForm(fapp)
     val res = translateResult(sil.Result(f.typ)())
     for (post <- f.posts) yield {
@@ -410,11 +478,7 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule
     val heap = heapModule.staticStateContributions(true, true)
     val realArgs = (f.formalArgs map translateLocalVarDecl)
     val args = heap ++ realArgs
-    val name = Identifier(f.name + framePostfix)
-    val func = Func(name, LocalVarDecl(Identifier("frame"), frameType) ++ realArgs, typ)
     val funcFrameInfo = getFunctionFrame(f, args map (_.l))
-    val funcApp = FuncApp(name, funcFrameInfo._1 ++ (realArgs map (_.l)), typ)
-    val funcApp2 = translateFuncApp(f.name, args map (_.l), f.typ)
     val outerUnfoldings : Seq[Unfolding] = Functions.recursiveCallsAndSurroundingUnfoldings(f).map((pair) => pair._2.headOption).flatten
 
     //only include predicate accesses that do not refer to bound variables
@@ -427,11 +491,32 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule
         if hasOnlyDefinedVars(predacc) => Some(predicateTrigger(heap map (_.l), predacc))
       case _ => None}.flatten
 
-    Seq(func) ++
+
+    val funcApp = translateFuncApp(f.name, args map (_.l), f.typ)
+
+    def framingAxiomAux(mainFuncApp: Exp, frameApp: Exp, extraTriggers: Seq[Trigger] = Seq()) : Seq[Axiom] = {
       Seq(Axiom(Forall(
         stateModule.staticStateContributions() ++ realArgs,
-        Seq(Trigger(Seq(staticGoodState, transformFuncAppsToLimitedForm(funcApp2)))) ++ (if (predicateTriggers.isEmpty) Seq()  else Seq(Trigger(Seq(staticGoodState, triggerFuncStatelessApp(f,realArgs map (_.l))) ++ predicateTriggers))),
-        staticGoodState ==> (transformFuncAppsToLimitedForm(funcApp2) === funcApp))) ) ++
+        Seq(Trigger(Seq(staticGoodState, transformFuncAppsToLimitedForm(funcApp)))) ++ 
+        (if (predicateTriggers.isEmpty) Seq()  else Seq(Trigger(Seq(staticGoodState, triggerFuncStatelessApp(f,realArgs map (_.l))) ++ predicateTriggers))) ++
+        extraTriggers,
+        staticGoodState ==> (mainFuncApp === frameApp))) )
+    }
+
+    val funcFrameName = Identifier(f.name + framePostfix)
+    val func = Func(funcFrameName, LocalVarDecl(Identifier("frame"), frameType) ++ realArgs, typ)
+    val funcFrameApp = FuncApp(funcFrameName, funcFrameInfo._1 ++ (realArgs map (_.l)), typ)
+
+    val guardApp = translateFuncApp(f.name + preGuardPostfix, args map (_.l), sil.Bool)
+    val guardFrameName = Identifier(f.name + preGuardPostfix + framePostfix)
+    val guardFunc = Func(guardFrameName, LocalVarDecl(Identifier("frame"), frameType) ++ realArgs, Bool)
+    val extraTrigger = Trigger(Seq(staticGoodState, guardApp))
+    val guardFrameApp = FuncApp(guardFrameName, funcFrameInfo._1 ++ (realArgs map (_.l)), typ)
+
+    Seq(func) ++
+    Seq(guardFunc) ++
+      framingAxiomAux(transformFuncAppsToLimitedForm(funcApp), funcFrameApp) ++
+      framingAxiomAux(guardApp, guardFrameApp, Seq(extraTrigger)) ++
       translateCondAxioms("function "+f.name, f.formalArgs, funcFrameInfo._2)
   }
 
@@ -781,6 +866,14 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule
         )
       }
       case _ => (() => simplePartialCheckDefinednessBefore(e, error, makeChecks), () => simplePartialCheckDefinednessAfter(e, error, makeChecks))
+    }
+  }
+
+  override def freeAssumptions(e: sil.Exp): Stmt = {
+    e match {
+      case fa@sil.FuncApp(fname, fargs) =>
+        Assume(translateFuncApp(fname+preGuardPostfix, heapModule.currentStateExps ++ (fargs map translateExp), fa.typ))
+      case _ => Nil
     }
   }
 
