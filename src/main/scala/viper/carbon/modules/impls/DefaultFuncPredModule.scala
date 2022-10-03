@@ -193,8 +193,9 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule
     val res = MaybeCommentedDecl(s"Translation of function ${f.name}",
       MaybeCommentedDecl("Uninterpreted function definitions", functionDefinitions(f), size = 1) ++
         (if (f.isAbstract) Nil else
-          MaybeCommentedDecl("Definitional axiom", definitionalAxiom(f), size = 1)) ++
-        MaybeCommentedDecl("Precondition guard axiom", preGuardAxiom(f), size = 1) ++
+          MaybeCommentedDecl("Definitional axiom", definitionalAxiom(f), size = 1) ++
+          MaybeCommentedDecl("Precondition guard axiom", preGuardAxiom(f), size = 1)
+          ) ++
         MaybeCommentedDecl("Framing axioms", framingAxiom(f), size = 1) ++
         MaybeCommentedDecl("Postcondition axioms", postconditionAxiom(f), size = 1) ++
         MaybeCommentedDecl("Trigger function (controlling recursive postconditions)", triggerFunction(f), size = 1) ++
