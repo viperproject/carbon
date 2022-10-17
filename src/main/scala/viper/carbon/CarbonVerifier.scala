@@ -8,7 +8,7 @@ package viper.carbon
 
 import boogie.{BoogieModelTransformer, Namespace}
 import modules.impls._
-import viper.silver.ast.Program
+import viper.silver.ast.{Program, Quasihavocall}
 import viper.silver.utility.Paths
 import viper.silver.verifier._
 import verifier.{BoogieDependency, BoogieInterface, Verifier}
@@ -16,6 +16,8 @@ import verifier.{BoogieDependency, BoogieInterface, Verifier}
 import java.io.{BufferedOutputStream, File, FileOutputStream, IOException}
 import viper.silver.frontend.{MissingDependencyException, NativeModel, VariablesModel}
 import viper.silver.reporter.Reporter
+import viper.silver.verifier.errors.Internal
+import viper.silver.verifier.reasons.FeatureUnsupported
 
 /**
  * The main class to perform verification of Viper programs.  Deals with command-line arguments, configuration
@@ -139,8 +141,20 @@ case class CarbonVerifier(override val reporter: Reporter,
     })
   }
 
-  def verify(program: Program) = {
+  def verify(program: Program) : VerificationResult = {
     _program = program
+
+    val unsupportedFeatures : Seq[AbstractError] =
+      program.shallowCollect(
+      n =>
+        n match {
+          case q: Quasihavocall => Internal(FeatureUnsupported(q, "Carbon does not support quasihavocall"))
+        }
+    )
+
+    if(unsupportedFeatures.nonEmpty) {
+      return Failure(unsupportedFeatures)
+    }
 
     // reset all modules
     allModules map (m => m.reset())
@@ -153,6 +167,8 @@ case class CarbonVerifier(override val reporter: Reporter,
       case None =>
       case Some(v) => sys.error("Invalid option: " + v)
     }
+
+    program.transform()
     val (tProg, translatedNames) = mainModule.translate(program, reporter)
     _translated = tProg
 

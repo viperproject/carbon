@@ -11,15 +11,16 @@ import viper.silver.ast.utility.Expressions
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
+
 import java.text.SimpleDateFormat
 import java.util.Date
-
 import viper.carbon.boogie.CommentedDecl
 import viper.carbon.boogie.Procedure
 import viper.carbon.boogie.Program
 import viper.carbon.verifier.Environment
 import viper.silver.verifier.{TypecheckerWarning, errors}
 import viper.carbon.verifier.Verifier
+import viper.silver.ast.Quasihavoc
 import viper.silver.ast.utility.rewriter.Traverse
 import viper.silver.reporter.{Reporter, WarningsDuringTypechecking}
 
@@ -69,6 +70,16 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
             }
             res
           }
+          case q@Quasihavoc(cond, res) =>
+            /* TODO */
+            res match {
+              case r : sil.FieldAccess =>
+                sil.If(cond.get,
+                  sil.Seqn(
+                    Seq(sil.Exhale(sil.FieldAccessPredicate(r, sil.CurrentPerm(r)())())()),
+                    Seq())(),
+                  sil.Seqn(Seq(), Seq())())()
+            }
         },
         Traverse.TopDown)
     )
