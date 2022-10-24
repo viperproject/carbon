@@ -71,28 +71,38 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
             res
           }
           case Quasihavoc(condOpt, res) =>
+            val curPermVarDecl = sil.LocalVarDecl("ph_temp_123_", sil.Perm)()
+            val curPermVar = curPermVarDecl.localVar
             val inhaleExhalePermission =
               res match {
                 case r : sil.FieldAccess =>
-                      Seq(
-                        sil.Exhale(sil.FieldAccessPredicate(r, sil.CurrentPerm(r)())())(),
-                        sil.Inhale(sil.FieldAccessPredicate(r, sil.CurrentPerm(r)())())()
-                      )
+                  Seq(
+                    sil.Exhale(sil.FieldAccessPredicate(r, curPermVar)())(),
+                    sil.Inhale(sil.FieldAccessPredicate(r, curPermVar)())()
+                  )
                 case r: sil.PredicateAccess =>
-                      Seq(
-                        sil.Exhale(sil.PredicateAccessPredicate(r, sil.CurrentPerm(r)())())(),
-                        sil.Inhale(sil.PredicateAccessPredicate(r, sil.CurrentPerm(r)())())()
-                      )
+                  Seq(
+                    sil.Exhale(sil.PredicateAccessPredicate(r, curPermVar)())(),
+                    sil.Inhale(sil.PredicateAccessPredicate(r, curPermVar)())()
+                  )
               }
+
+            val curPermInhExPermission =
+              sil.Seqn(
+                  sil.LocalVarAssign(curPermVar, sil.CurrentPerm(res)())() +:
+                    inhaleExhalePermission
+                ,
+                Seq(curPermVarDecl)
+              )()
 
             condOpt match {
               case Some(cond) =>
                 sil.If(cond,
-                  sil.Seqn(inhaleExhalePermission, Seq())(),
+                  curPermInhExPermission,
                   sil.Seqn(Seq(), Seq())()
                 )()
               case None =>
-                sil.Seqn(inhaleExhalePermission, Seq())()
+                sil.Seqn(curPermInhExPermission, Seq())()
             }
         },
         Traverse.TopDown)
