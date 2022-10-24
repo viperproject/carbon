@@ -70,15 +70,29 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
             }
             res
           }
-          case q@Quasihavoc(cond, res) =>
-            /* TODO */
-            res match {
-              case r : sil.FieldAccess =>
-                sil.If(cond.get,
-                  sil.Seqn(
-                    Seq(sil.Exhale(sil.FieldAccessPredicate(r, sil.CurrentPerm(r)())())()),
-                    Seq())(),
-                  sil.Seqn(Seq(), Seq())())()
+          case Quasihavoc(condOpt, res) =>
+            val inhaleExhalePermission =
+              res match {
+                case r : sil.FieldAccess =>
+                      Seq(
+                        sil.Exhale(sil.FieldAccessPredicate(r, sil.CurrentPerm(r)())())(),
+                        sil.Inhale(sil.FieldAccessPredicate(r, sil.CurrentPerm(r)())())()
+                      )
+                case r: sil.PredicateAccess =>
+                      Seq(
+                        sil.Exhale(sil.PredicateAccessPredicate(r, sil.CurrentPerm(r)())())(),
+                        sil.Inhale(sil.PredicateAccessPredicate(r, sil.CurrentPerm(r)())())()
+                      )
+              }
+
+            condOpt match {
+              case Some(cond) =>
+                sil.If(cond,
+                  sil.Seqn(inhaleExhalePermission, Seq())(),
+                  sil.Seqn(Seq(), Seq())()
+                )()
+              case None =>
+                sil.Seqn(inhaleExhalePermission, Seq())()
             }
         },
         Traverse.TopDown)

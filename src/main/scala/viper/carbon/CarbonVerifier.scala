@@ -8,7 +8,7 @@ package viper.carbon
 
 import boogie.{BoogieModelTransformer, Namespace}
 import modules.impls._
-import viper.silver.ast.{Program, Quasihavocall}
+import viper.silver.ast.{MagicWand, Program, Quasihavoc, Quasihavocall}
 import viper.silver.utility.Paths
 import viper.silver.verifier._
 import verifier.{BoogieDependency, BoogieInterface, Verifier}
@@ -146,11 +146,16 @@ case class CarbonVerifier(override val reporter: Reporter,
 
     val unsupportedFeatures : Seq[AbstractError] =
       program.shallowCollect(
-      n =>
-        n match {
-          case q: Quasihavocall => Internal(FeatureUnsupported(q, "Carbon does not support quasihavocall"))
-        }
-    )
+        n =>
+          n match {
+            case q: Quasihavocall =>
+               ConsistencyError("Carbon does not support quasihavocall", q.pos)
+              //Internal(FeatureUnsupported(q, "Carbon does not support quasihavocall"))
+            case q@Quasihavoc(_, MagicWand(_, _)) =>
+              ConsistencyError("Carbon does not support quasihavoc of magic wands", q.pos)
+              //Internal(FeatureUnsupported(q, "Carbon does not support quasihavoc of magic wands"))
+          }
+      )
 
     if(unsupportedFeatures.nonEmpty) {
       return Failure(unsupportedFeatures)
