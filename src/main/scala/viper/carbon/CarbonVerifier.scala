@@ -149,11 +149,9 @@ case class CarbonVerifier(override val reporter: Reporter,
         n =>
           n match {
             case q: Quasihavocall =>
-               ConsistencyError("Carbon does not support quasihavocall", q.pos)
-              //Internal(FeatureUnsupported(q, "Carbon does not support quasihavocall"))
+              ConsistencyError("Carbon does not support quasihavocall", q.pos)
             case q@Quasihavoc(_, MagicWand(_, _)) =>
               ConsistencyError("Carbon does not support quasihavoc of magic wands", q.pos)
-              //Internal(FeatureUnsupported(q, "Carbon does not support quasihavoc of magic wands"))
           }
       )
 

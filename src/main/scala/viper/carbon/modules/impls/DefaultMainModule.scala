@@ -73,24 +73,21 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
           case Quasihavoc(condOpt, res) =>
             val curPermVarDecl = sil.LocalVarDecl("ph_temp_123_", sil.Perm)()
             val curPermVar = curPermVarDecl.localVar
-            val inhaleExhalePermission =
+            val resourceCurPerm =
               res match {
                 case r : sil.FieldAccess =>
-                  Seq(
-                    sil.Exhale(sil.FieldAccessPredicate(r, curPermVar)())(),
-                    sil.Inhale(sil.FieldAccessPredicate(r, curPermVar)())()
-                  )
+                  sil.FieldAccessPredicate(r, curPermVar)()
                 case r: sil.PredicateAccess =>
-                  Seq(
-                    sil.Exhale(sil.PredicateAccessPredicate(r, curPermVar)())(),
-                    sil.Inhale(sil.PredicateAccessPredicate(r, curPermVar)())()
-                  )
+                  sil.PredicateAccessPredicate(r, curPermVar)()
               }
 
             val curPermInhExPermission =
               sil.Seqn(
                   sil.LocalVarAssign(curPermVar, sil.CurrentPerm(res)())() +:
-                    inhaleExhalePermission
+                    Seq(
+                      sil.Exhale(resourceCurPerm)(),
+                      sil.Inhale(resourceCurPerm)()
+                    )
                 ,
                 Seq(curPermVarDecl)
               )()
