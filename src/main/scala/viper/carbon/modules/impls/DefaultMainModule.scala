@@ -70,37 +70,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
             }
             res
           }
-          case Quasihavoc(condOpt, res) =>
-            val curPermVarDecl = sil.LocalVarDecl("ph_temp_123_", sil.Perm)()
-            val curPermVar = curPermVarDecl.localVar
-            val resourceCurPerm =
-              res match {
-                case r : sil.FieldAccess =>
-                  sil.FieldAccessPredicate(r, curPermVar)()
-                case r: sil.PredicateAccess =>
-                  sil.PredicateAccessPredicate(r, curPermVar)()
-              }
-
-            val curPermInhExPermission =
-              sil.Seqn(
-                  sil.LocalVarAssign(curPermVar, sil.CurrentPerm(res)())() +:
-                    Seq(
-                      sil.Exhale(resourceCurPerm)(),
-                      sil.Inhale(resourceCurPerm)()
-                    )
-                ,
-                Seq(curPermVarDecl)
-              )()
-
-            condOpt match {
-              case Some(cond) =>
-                sil.If(cond,
-                  curPermInhExPermission,
-                  sil.Seqn(Seq(), Seq())()
-                )()
-              case None =>
-                sil.Seqn(curPermInhExPermission, Seq())()
-            }
+          case q: Quasihavoc => desugarQuasihavoc(q)
         },
         Traverse.TopDown)
     )
@@ -283,5 +253,44 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
     val res = translateDomain(d)
     env = null
     res
+  }
+
+  /***
+    * Desugar a quasihavoc into an exhale followed by an inhale statement
+    * @param q should be a field or pedicate quasihavoc
+    * @return
+    */
+  private def desugarQuasihavoc(q: sil.Quasihavoc) = {
+    val curPermVarDecl = sil.LocalVarDecl("perm_temp_quasihavoc_", sil.Perm)()
+    val curPermVar = curPermVarDecl.localVar
+    val resourceCurPerm =
+      q.exp match {
+        case r : sil.FieldAccess =>
+          sil.FieldAccessPredicate(r, curPermVar)()
+        case r: sil.PredicateAccess =>
+          sil.PredicateAccessPredicate(r, curPermVar)()
+        case _ => sys.error("Not supported resource in quasihavoc")
+      }
+
+    val curPermInhExPermission =
+      sil.Seqn(
+        sil.LocalVarAssign(curPermVar, sil.CurrentPerm(q.exp)())() +:
+          Seq(
+            sil.Exhale(resourceCurPerm)(),
+            sil.Inhale(resourceCurPerm)()
+          )
+        ,
+        Seq(curPermVarDecl)
+      )()
+
+    q.lhs match {
+      case Some(cond) =>
+        sil.If(cond,
+          curPermInhExPermission,
+          sil.Seqn(Seq(), Seq())()
+        )()
+      case None =>
+        sil.Seqn(curPermInhExPermission, Seq())()
+    }
   }
 }
