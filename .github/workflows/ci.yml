@@ -10,7 +10,7 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     container: gobraverifier/gobra-base:v5_z3_4.8.7 # Thank you, Gobra team
     env:
       BOOGIE_EXE: "boogie/Boogie"
