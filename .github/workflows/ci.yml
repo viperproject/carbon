@@ -57,6 +57,7 @@ jobs:
         unzip boogie-linux.zip
         rm -rf boogie-linux.zip
         mv binaries-linux boogie
+        boogie/Boogie /version
         pwd
 
     - name: Test Carbon
