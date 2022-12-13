@@ -76,9 +76,9 @@ object Optimizer {
       case CondExp(condition, ifTrue, TrueLit()) =>
         BinExp(UnExp(Not, condition), Or, ifTrue)
 
-      case Forall(_, _, BoolLit(literal), _) =>
+      case Forall(_, _, BoolLit(literal), _, _) =>
         BoolLit(literal)
-      case Exists(_, _, BoolLit(literal)) =>
+      case Exists(_, _, BoolLit(literal), _) =>
         BoolLit(literal)
 
       case UnExp(Minus, IntLit(literal)) => IntLit(-literal)
