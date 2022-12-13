@@ -106,7 +106,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         substitutedBody
       case sil.CondExp(cond, thn, els) =>
         CondExp(translateExp(cond), translateExp(thn), translateExp(els))
-      case sil.Exists(vars, triggers, exp) => {
+      case q@sil.Exists(vars, triggers, exp) => {
         // alpha renaming, to avoid clashes in context
         val renamedVars: Seq[sil.LocalVarDecl] = vars map (v => {
           val v1 = env.makeUniquelyNamed(v); env.define(v1.localVar); v1
@@ -116,11 +116,15 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           (t => (funcPredModule.toExpressionsUsedInTriggers(t.exps map (e => translateExp(renaming(e)))))
             map (Trigger(_)) // build a trigger for each sequence element returned (in general, one original trigger can yield multiple alternative new triggers)
             )).flatten
-        val res = Exists(renamedVars map translateLocalVarDecl, ts, translateExp(renaming(exp)))
+        val weight = q.info match {
+          case sil.WeightedQuantifier(value) => Some(value)
+          case _ => None
+        }
+        val res = Exists(renamedVars map translateLocalVarDecl, ts, translateExp(renaming(exp)), weight)
         renamedVars map (v => env.undefine(v.localVar))
         res
       }
-      case sil.Forall(vars, triggers, exp) => {
+      case q@sil.Forall(vars, triggers, exp) => {
         // alpha renaming, to avoid clashes in context
         val renamedVars: Seq[sil.LocalVarDecl] = vars map (v => {
           val v1 = env.makeUniquelyNamed(v); env.define(v1.localVar); v1
@@ -130,7 +134,11 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           (t => (funcPredModule.toExpressionsUsedInTriggers(t.exps map (e => translateExp(renaming(e)))))
             map (Trigger(_)) // build a trigger for each sequence element returned (in general, one original trigger can yield multiple alternative new triggers)
             )).flatten
-        val res = Forall(renamedVars map translateLocalVarDecl, ts, translateExp(renaming(exp)))
+        val weight = q.info match {
+          case sil.WeightedQuantifier(value) => Some(value)
+          case _ => None
+        }
+        val res = Forall(renamedVars map translateLocalVarDecl, ts, translateExp(renaming(exp)), Nil, weight)
         renamedVars map (v => env.undefine(v.localVar))
         res
       }
