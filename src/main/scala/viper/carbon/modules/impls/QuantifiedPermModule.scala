@@ -171,7 +171,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         (staticGoodMask ==> ( perm >= noPerm &&
           // permissions for fields which aren't predicates are smaller than 1
           // permissions for fields which aren't predicates or wands are smaller than 1
-          ((staticGoodMask && heapModule.isPredicateField(field.l).not && heapModule.isWandField(field.l).not) ==> perm <= fullPerm )))
+          ((staticGoodMask && /* heapModule.isPredicateField(field.l).not && */ heapModule.isWandField(field.l).not) ==> perm <= fullPerm )))
       ))    } ++ {
       val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
       val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
@@ -316,7 +316,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         val p = PermissionHelper.normalizePerm(prm)
 
         def subtractFromMask(permToExhale: Exp) : Stmt = {
-          if (p == sil.FullPerm()) {
+          if (p == sil.FullPerm()()) {
             (if (!usingOldState) curPerm := noPerm else Nil)
           } else {
             (if (!usingOldState) curPerm := permSub(curPerm, permToExhale) else Nil)
@@ -832,7 +832,7 @@ class QuantifiedPermModule(val verifier: Verifier)
             Assert(permissionPositiveInternal(permVar, Some(perm), true), error.dueTo(reasons.NegativePermission(perm))) ++
             assmsToStmt(permissionPositiveInternal(permVar, Some(perm), false) ==> checkNonNullReceiver(loc))
           ) ++
-          (if (!usingOldState) curPerm := (if (perm == sil.FullPerm()) fullPerm else permAdd(curPerm, permVar)) else Nil)
+          (if (!usingOldState) curPerm := (if (perm == sil.FullPerm()()) fullPerm else permAdd(curPerm, permVar)) else Nil)
       case w@sil.MagicWand(left,right) =>
         val wandRep = wandModule.getWandRepresentation(w)
         val curPerm = currentPermission(translateNull, wandRep)
