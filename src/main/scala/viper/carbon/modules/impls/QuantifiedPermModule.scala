@@ -315,8 +315,13 @@ class QuantifiedPermModule(val verifier: Verifier)
         val curPerm = currentPermission(loc)
         val p = PermissionHelper.normalizePerm(prm)
 
-        def subtractFromMask(permToExhale: Exp) : Stmt =
-          (if (!usingOldState) curPerm := permSub(curPerm, permToExhale) else Nil)
+        def subtractFromMask(permToExhale: Exp) : Stmt = {
+          if (p == sil.FullPerm()) {
+            (if (!usingOldState) curPerm := noPerm else Nil)
+          } else {
+            (if (!usingOldState) curPerm := permSub(curPerm, permToExhale) else Nil)
+          }
+        }
 
         val permVar = LocalVar(Identifier("perm"), permType)
         if (!p.isInstanceOf[sil.WildcardPerm]) {
@@ -827,7 +832,7 @@ class QuantifiedPermModule(val verifier: Verifier)
             Assert(permissionPositiveInternal(permVar, Some(perm), true), error.dueTo(reasons.NegativePermission(perm))) ++
             assmsToStmt(permissionPositiveInternal(permVar, Some(perm), false) ==> checkNonNullReceiver(loc))
           ) ++
-          (if (!usingOldState) curPerm := permAdd(curPerm, permVar) else Nil)
+          (if (!usingOldState) curPerm := (if (perm == sil.FullPerm()) fullPerm else permAdd(curPerm, permVar)) else Nil)
       case w@sil.MagicWand(left,right) =>
         val wandRep = wandModule.getWandRepresentation(w)
         val curPerm = currentPermission(translateNull, wandRep)
