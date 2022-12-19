@@ -16,8 +16,6 @@ import verifier.{BoogieDependency, BoogieInterface, Verifier}
 import java.io.{BufferedOutputStream, File, FileOutputStream, IOException}
 import viper.silver.frontend.{MissingDependencyException, NativeModel, VariablesModel}
 import viper.silver.reporter.Reporter
-import viper.silver.verifier.errors.Internal
-import viper.silver.verifier.reasons.FeatureUnsupported
 
 /**
  * The main class to perform verification of Viper programs.  Deals with command-line arguments, configuration
@@ -171,7 +169,6 @@ case class CarbonVerifier(override val reporter: Reporter,
       case Some(v) => sys.error("Invalid option: " + v)
     }
 
-    program.transform()
     val (tProg, translatedNames) = mainModule.translate(program, reporter)
     _translated = tProg
 
