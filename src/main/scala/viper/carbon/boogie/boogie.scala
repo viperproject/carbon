@@ -312,7 +312,9 @@ case class AssertImpl(exp: Exp, error: VerificationError) extends Stmt {
   var id = AssertIds.next // Used for mapping errors in the output back to VerificationErrors
 }
 object ErrorMemberMapping {
-  val mapping = mutable.HashMap[VerificationError, Member]()
+  // The "weak" hash map is necessary to avoid leaking memory.
+  // See issue https://github.com/viperproject/carbon/issues/444
+  val mapping = mutable.WeakHashMap[VerificationError, Member]()
   var currentMember : Member = null
 }
 object Assert {
