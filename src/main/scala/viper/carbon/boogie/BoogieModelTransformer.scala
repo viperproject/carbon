@@ -44,9 +44,9 @@ object BoogieModelTransformer {
         originalName = originalName.substring(0, originalName.indexOf("@"))
       }
       if (PrettyPrinter.backMap.contains(originalName)){
-        originalName = PrettyPrinter.backMap.get(originalName).get
-        if (namesInMember.contains(originalName)){
-          val viperName = namesInMember.get(originalName).get
+        val originalViperName = PrettyPrinter.backMap.get(originalName).get
+        if (namesInMember.contains(originalViperName)){
+          val viperName = namesInMember.get(originalViperName).get
           if (!currentEntryForName.contains(viperName) ||
             isLaterVersion(vname, originalName, currentEntryForName.get(viperName).get)){
             newEntries.update(viperName, e)
