@@ -25,34 +25,6 @@ class QuantifierWeightTests extends AnyFunSuite with BeforeAndAfterAll {
     carbon.stop()
   }
 
-  test("The weight is part of the translation of a Forall") {
-    val axiom = AnonymousDomainAxiom(Forall(
-      Seq(LocalVarDecl("x", Int)()),
-      Seq(),
-      EqCmp(LocalVar("x", Int)(), LocalVar("x", Int)())()
-    )(
-      info = WeightedQuantifier(12)
-    ))(domainName = "MyDomain")
-    carbon.mainModule.env = Environment(carbon, axiom)
-    val expr = carbon.expModule.translateExp(axiom.exp)
-    val rendered = PrettyPrinter.pretty(expr)
-    assert(rendered.contains(":weight 12"))
-  }
-
-  test("The weight is part of the translation of an Exists") {
-    val axiom = AnonymousDomainAxiom(Exists(
-      Seq(LocalVarDecl("x", Int)()),
-      Seq(),
-      EqCmp(LocalVar("x", Int)(), LocalVar("x", Int)())()
-    )(
-      info = WeightedQuantifier(12)
-    ))(domainName = "MyDomain")
-    carbon.mainModule.env = Environment(carbon, axiom)
-    val expr = carbon.expModule.translateExp(axiom.exp)
-    val rendered = PrettyPrinter.pretty(expr)
-    assert(rendered.contains(":weight 12"))
-  }
-
   test("The quantifier weight inhibits instantiations") {
     def verifyUsingWeight(weight: Int) = {
       val domainName = "MyDomain"
