@@ -6,11 +6,12 @@
 
 package viper.carbon
 
+import org.scalatest.{Args, Status}
 import viper.silver.testing.SilSuite
 import viper.silver.verifier.Verifier
 import viper.silver.frontend.Frontend
-import java.nio.file.Path
 
+import java.nio.file.Path
 import viper.silver.logger.SilentLogger
 import viper.silver.reporter.{NoopReporter, StdIOReporter}
 
@@ -32,7 +33,7 @@ class AllTests extends SilSuite {
     // "all/issues/silicon",
     "all/issues/silver",
     // "all/macros",
-    "wands",
+    "wands/examples",
     // "quantifiedpermissions", "quantifiedpredicates",
     // "quantifiedcombinations", "examples", "termination", "refute"
   )
@@ -46,4 +47,9 @@ class AllTests extends SilSuite {
   }
 
   lazy val verifiers = List(CarbonVerifier(StdIOReporter()))
+
+  protected override def runTest(testName: String, args: Args): Status = {
+    val modArgs = args.copy(configMap = args.configMap.updated("includeFiles", "(list_insert_tmp|00|01).*\\.vpr"))
+    super.runTest(testName, modArgs)
+  }
 }
