@@ -17,7 +17,7 @@ class QuantifierWeightTests extends AnyFunSuite with BeforeAndAfterAll {
   val carbon: CarbonVerifier = CarbonVerifier(NoopReporter)
 
   override def beforeAll() {
-    carbon.parseCommandLine(Seq("dummy.vpr", "--proverLog", "/tmp/out.log"))
+    carbon.parseCommandLine(Seq("dummy.vpr"))
     carbon.start()
   }
 
