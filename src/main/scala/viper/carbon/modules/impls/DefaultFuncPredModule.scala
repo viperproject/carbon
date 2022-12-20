@@ -7,6 +7,7 @@
 package viper.carbon.modules.impls
 
 import viper.carbon.boogie.{Bool, CondExp, Exp, FalseLit, Forall, If, Int, IntLit, LocalVar, LocalVarDecl, MaybeCommentBlock, Stmt, Trigger, TypeVar, _}
+import viper.carbon.boogie.Statements
 import viper.carbon.modules._
 import viper.silver.ast.{FuncApp => silverFuncApp}
 import viper.silver.ast.utility.Expressions.{contains, whenExhaling, whenInhaling}
@@ -19,7 +20,7 @@ import viper.carbon.modules.components.{DefinednessComponent, ExhaleComponent, I
 import viper.silver.verifier.{NullPartialVerificationError, PartialVerificationError, errors}
 
 import scala.collection.mutable.ListBuffer
-import viper.silver.ast.utility.QuantifiedPermissions.QuantifiedPermissionAssertion
+import viper.silver.ast.utility.QuantifiedPermissions.{QuantifiedPermissionAssertion, SourceQuantifiedPermissionAssertion}
 
 import scala.collection.mutable
 
@@ -314,7 +315,7 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule
     val args = f.formalArgs map translateLocalVarDecl
     val guardApp = translateFuncApp(f.name+preGuardPostfix, (heap ++ args) map (_.l), f.typ)
 
-    val guardProp = guardPropagation(translateExp(f.body.get))
+    val guardProp = freeFunctionAssumptionsPure(translateExp(f.body.get))
 
     if(guardProp.isDefined) {
       val fApp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
@@ -330,60 +331,164 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule
     }
   }
 
-  private def combineGuardResults(e1Opt: Option[Exp], e2Opt: Option[Exp]) : Option[Exp] = {
-    (e1Opt, e2Opt) match {
-      case (Some(e1), Some(e2)) => Some(BinExp(e1, And, e2))
-      case (Some(e1), None) => Some(e1)
-      case (None, Some(e2)) => Some(e2)
+
+  private def combineGuardResultsStrict(e1GuardOpt: Option[Exp], e2GuardOpt: Option[Exp]) : Option[Exp] = {
+    (e1GuardOpt, e2GuardOpt) match {
+      case (Some(e1Guard), None) => Some(e1Guard)
+      case (_, Some(e2Guard)) =>
+        e1GuardOpt match {
+          case Some(e1Guard) => Some(BinExp(e1Guard, And, e2Guard))
+          case None => Some(e2Guard)
+        }
       case (None, None) => None
     }
   }
 
-  private def guardPropagation(e: Exp) : Option[Exp] = {
+  private def combineGuardResults(op: BinOp, e1: Exp, e1GuardOpt: Option[Exp], e2:Exp, e2GuardOpt: Option[Exp]) : Option[Exp] = {
+    (e1GuardOpt, e2GuardOpt) match {
+      case (Some(e1Guard), None) => Some(e1Guard)
+      case (_, Some(e2Guard)) =>
+          val e2GuardActual =
+            op match {
+              case And | Implies => BinExp(e1, Implies, e2Guard)
+              case Or => BinExp(UnExp(Not, e1), Implies, e2Guard)
+              case _ => e2Guard
+            }
+
+          e1GuardOpt match {
+            case Some(e1Guard) => Some(BinExp(e1Guard, And, e2GuardActual))
+            case None => Some(e2GuardActual)
+          }
+      case (None, None) => None
+    }
+  }
+
+  private def freeFunctionAssumptionsPure(e: Exp) : Option[Exp] = {
     e match {
       case IntLit(_) => None
       case BoolLit(_) => None
       case RealLit(_) => None
-      case RealConv(exp) => guardPropagation(exp)
+      case RealConv(exp) => freeFunctionAssumptionsPure(exp)
       case LocalVar(_, _) => None
       case GlobalVar(_, _) => None
       case Const(_) => None
       case MapSelect(map, idxs) =>
-        val mapGuardOpt = guardPropagation(map)
-        val idxGuardOpt = idxs.map(guardPropagation).reduce(combineGuardResults)
+        val mapGuardOpt = freeFunctionAssumptionsPure(map)
+        val idxGuardOpt = idxs.map(freeFunctionAssumptionsPure).reduce(combineGuardResultsStrict)
 
-        combineGuardResults(mapGuardOpt, idxGuardOpt)
+        combineGuardResultsStrict(mapGuardOpt, idxGuardOpt)
       case MapUpdate(map, idxs, value) =>
-        val mapGuardOpt = guardPropagation(map)
-        val idxGuardOpt = idxs.map(guardPropagation).reduce(combineGuardResults)
-        val valGuardOpt = guardPropagation(value)
+        val mapGuardOpt = freeFunctionAssumptionsPure(map)
+        val idxGuardOpt = idxs.map(freeFunctionAssumptionsPure).reduce(combineGuardResultsStrict)
+        val valGuardOpt = freeFunctionAssumptionsPure(value)
 
-        combineGuardResults(combineGuardResults(mapGuardOpt, idxGuardOpt), valGuardOpt)
+        combineGuardResultsStrict(combineGuardResultsStrict(mapGuardOpt, idxGuardOpt), valGuardOpt)
       case Old(_) => None
-      case CondExp(cond, thn, els) => {
-        val thnGuard = guardPropagation(thn).getOrElse(TrueLit())
-        val elsGuard = guardPropagation(els).getOrElse(TrueLit())
+      case CondExp(cond, thn, els) =>
+        val thnGuard = freeFunctionAssumptionsPure(thn).getOrElse(TrueLit())
+        val elsGuard = freeFunctionAssumptionsPure(els).getOrElse(TrueLit())
         Some(CondExp(cond, thnGuard, elsGuard))
-      }
       case Exists(v, triggers, body) =>
           //TODO: might need to adjust triggers
           //since well-definedness of recursive calls checks it for all possible v, we can turn the exists into a forall
-          guardPropagation(body).map(bodyGuard => Forall(v, triggers, bodyGuard))
+          freeFunctionAssumptionsPure(body).map(bodyGuard => Forall(v, triggers, bodyGuard))
       case Forall(v, triggers, body, tv) =>
         //TODO: might need to adjust triggers
-        guardPropagation(body).map(bodyGuard => Forall(v, triggers, bodyGuard, tv))
-      case BinExp(left, _, right) =>
-        val leftGuardOpt = guardPropagation(left)
-        val rightGuardOpt = guardPropagation(right)
+        freeFunctionAssumptionsPure(body).map(bodyGuard => Forall(v, triggers, bodyGuard, tv))
+      case BinExp(left, op, right) =>
+        val leftGuardOpt = freeFunctionAssumptionsPure(left)
+        val rightGuardOpt = freeFunctionAssumptionsPure(right)
 
-        combineGuardResults(leftGuardOpt, rightGuardOpt)
-      case UnExp(_, exp) => guardPropagation(exp)
+        combineGuardResults(op, left, leftGuardOpt, right, rightGuardOpt)
+      case UnExp(_, exp) => freeFunctionAssumptionsPure(exp)
       case FuncApp(func, args, _) =>
         if(vprFunctionNames.contains(func.name)) {
           Some(FuncApp(Identifier(func.name+preGuardPostfix), args, Bool))
         } else  {
           println(func.name + "not found")
           None
+        }
+    }
+  }
+
+  //e must be pure
+  private def freeFunctionAssumptionsPure(e: sil.Exp) : Stmt = {
+    freeFunctionAssumptionsPure(translateExp(e)).fold[Stmt](Statements.EmptyStmt)(assm => Assume(assm))
+  }
+
+  private def freeFunctionAssumptionsPureOpt(e: sil.Exp) : Option[Exp] = {
+    freeFunctionAssumptionsPure(translateExp(e))
+  }
+
+  override def allFreeFunctionAssumptions(e: Exp) : Stmt = {
+    freeFunctionAssumptionsPure(e).fold[Stmt](Statements.EmptyStmt)(assm => Assume(assm))
+  }
+
+  override def allFreeFunctionAssumptions(e: sil.Exp) : Stmt = {
+    def conjoin(e1Opt: Option[Exp], e2Opt: Option[Exp]): Option[Exp] = {
+      (e1Opt, e2Opt) match {
+        case (Some(e1), Some(e2)) => Some(BinExp(e1, And, e2))
+        case (Some(e1), None) => Some(e1)
+        case (None, Some(e2)) => Some(e2)
+        case (None, None) => None
+      }
+    }
+
+    e match {
+      case sil.FieldAccessPredicate(loc, perm) =>
+        freeFunctionAssumptionsPure(loc.rcv) ++
+          freeFunctionAssumptionsPure(perm)
+      case sil.PredicateAccessPredicate(sil.PredicateAccess(args, _), perm) =>
+        for (arg <- args) yield {
+          freeFunctionAssumptionsPure(arg)
+        }
+      case sil.MagicWand(_, _) => Statements.EmptyStmt
+      case SourceQuantifiedPermissionAssertion(forall, sil.Implies(cond, resource)) =>
+        val vars = forall.variables
+
+        // alpha renaming, to avoid clashes in context
+        val renamedVars: Seq[sil.LocalVarDecl] = vars map (v => {
+          val v1 = env.makeUniquelyNamed(v);
+          env.define(v1.localVar);
+          v1
+        });
+        val renaming = (e: sil.Exp) => Expressions.instantiateVariables(e, (vars map (_.localVar)), renamedVars map (_.localVar))
+
+        val ts: Seq[Trigger] = (forall.triggers map
+          (t => (funcPredModule.toExpressionsUsedInTriggers(t.exps map (e => translateExp(renaming(e)))))
+            map (Trigger(_)) // build a trigger for each sequence element returned (in general, one original trigger can yield multiple alternative new triggers)
+            )).flatten
+
+        val condAssms: Option[Exp] = freeFunctionAssumptionsPureOpt(renaming(cond))
+
+        val resAssms =
+          resource match {
+            case sil.FieldAccessPredicate(fieldAccess, perm) =>
+              val rcvAssms = freeFunctionAssumptionsPureOpt(fieldAccess.rcv)
+              val permAssms = freeFunctionAssumptionsPureOpt(perm)
+              conjoin(rcvAssms, permAssms)
+            case sil.PredicateAccessPredicate(sil.PredicateAccess(args, _), perm) =>
+              args.foldLeft[Option[Exp]](None)((res, arg) => {
+                val argAssm = freeFunctionAssumptionsPureOpt(arg)
+                conjoin(res, argAssm)
+              }
+              )
+          }
+
+        val bodyAssmsOpt: Option[Exp] =
+          conjoin(condAssms, resAssms.fold[Option[Exp]](None)(assm => Some(BinExp(translateExp(renaming(cond)), Implies, assm))))
+
+
+        val res = bodyAssmsOpt.fold[Stmt](Statements.EmptyStmt)(assm => Assume(Forall(renamedVars map translateLocalVarDecl, ts, assm)))
+
+        renamedVars map (v => env.undefine(v.localVar))
+
+        res
+      case _ =>
+        if (e.isPure) {
+          freeFunctionAssumptionsPure(e)
+        } else {
+          sys.error("allFunctionAssumptions invoked with unexpected arguments")
         }
     }
   }
@@ -958,7 +1063,7 @@ class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule
     duringFold = true
     foldInfo = acc
     val stmt = exhale(Seq((Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program, env.allDefinedNames(program)).get,acc.perm), error)), havocHeap = false,
-      statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt) ++
+      addFreeAssumptionBefore = true, statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt) ++
       inhale(Seq((acc, error)), addDefinednessChecks = false, statesStackForPackageStmt, insidePackageStmt)
     val stmtLast =  Assume(predicateTrigger(heapModule.currentStateExps, acc.loc)) ++ {
       val location = acc.loc

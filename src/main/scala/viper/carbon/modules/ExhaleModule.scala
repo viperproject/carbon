@@ -38,6 +38,6 @@ trait ExhaleModule extends Module with ExhaleComponent with ComponentRegistry[Ex
     * The 'statesStackForPackageStmt' and 'insidePackageStmt' are used when translating statements during packaging a wand.
     * For more details refer to the note in the wand module.
     */
-  def exhale(exp: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true, isAssert: Boolean = false
-             , statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt
+  def exhale(exp: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true, isAssert: Boolean = false,
+             addFreeAssumptionBefore: Boolean = false, statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt
 }
