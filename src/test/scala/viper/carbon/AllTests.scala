@@ -28,7 +28,7 @@ class AllTests extends SilSuite {
     "all/impure_assume",
     "all/inhale_exhale",
     "all/invariants",
-    "all/issues",
+    //"all/issues",
     "all/macros",
     "wands",
     // "quantifiedpermissions", "quantifiedpredicates",
