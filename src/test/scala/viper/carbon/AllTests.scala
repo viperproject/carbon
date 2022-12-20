@@ -49,7 +49,7 @@ class AllTests extends SilSuite {
   lazy val verifiers = List(CarbonVerifier(StdIOReporter()))
 
   protected override def runTest(testName: String, args: Args): Status = {
-    val modArgs = args.copy(configMap = args.configMap.updated("includeFiles", "(list_insert_tmp|00).*\\.vpr"))
+    val modArgs = args.copy(configMap = args.configMap.updated("includeFiles", "(list_insert_tmp|02|04|05|79).*\\.vpr"))
     super.runTest(testName, modArgs)
   }
 }
