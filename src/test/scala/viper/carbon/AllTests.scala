@@ -19,8 +19,8 @@ import viper.silver.reporter.{NoopReporter, StdIOReporter}
   */
 class AllTests extends SilSuite {
   override def testDirectories: Seq[String] = Vector(
-    "wands", "local", "all", "quantifiedpermissions", "quantifiedpredicates",
-    "quantifiedcombinations", "examples", "termination", "refute"
+    "local", "wands", // "all", "quantifiedpermissions", "quantifiedpredicates",
+                      // "quantifiedcombinations", "examples", "termination", "refute"
   )
 
   override def frontend(verifier: Verifier, files: Seq[Path]): Frontend = {
