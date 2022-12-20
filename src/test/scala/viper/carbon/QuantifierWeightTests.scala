@@ -4,6 +4,7 @@
 //
 // Copyright (c) 2011-2022 ETH Zurich.
 
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import viper.carbon.boogie.PrettyPrinter
 import viper.carbon.verifier.Environment
@@ -12,10 +13,17 @@ import viper.silver.ast.{Add, AnonymousDomainAxiom, Domain, DomainFunc, DomainFu
 import viper.silver.reporter.NoopReporter
 import viper.silver.verifier.{Failure, Success}
 
-class QuantifierWeightTests extends AnyFunSuite {
+class QuantifierWeightTests extends AnyFunSuite with BeforeAndAfterAll {
   val carbon: CarbonVerifier = CarbonVerifier(NoopReporter)
-  carbon.parseCommandLine(Seq("dummy.vpr", "--proverLog", "/tmp/out.log"))
-  carbon.start()
+
+  override def beforeAll() {
+    carbon.parseCommandLine(Seq("dummy.vpr", "--proverLog", "/tmp/out.log"))
+    carbon.start()
+  }
+
+  override def afterAll() {
+    carbon.stop()
+  }
 
   test("The weight is part of the translation of a Forall") {
     val axiom = AnonymousDomainAxiom(Forall(
