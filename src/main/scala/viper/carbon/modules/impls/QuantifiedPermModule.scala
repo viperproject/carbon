@@ -477,9 +477,8 @@ class QuantifiedPermModule(val verifier: Verifier)
               validateTriggers(translatedLocals,Seq(Trigger(Seq(translateLocationAccess(translatedRecv, translatedLocation))),Trigger(Seq(currentPermission(qpMask,translatedRecv , translatedLocation))))) else Seq(recvTrigger)
 
             val providedTriggers : Seq[Trigger] = validateTriggers(translatedLocals, translatedTriggers)
-            // add default trigger if triggers were generated automatically
-            val tr1: Seq[Trigger] = /*if (e.info.getUniqueInfo[sil.AutoTriggered.type].isDefined)*/ candidateTriggers ++ providedTriggers /*else providedTriggers*/
 
+            val tr1: Seq[Trigger] = funcPredModule.rewriteTriggersToExpressionsUsedInTriggers(candidateTriggers ++ providedTriggers)
 
 
             //inverse assumptions
@@ -637,8 +636,8 @@ class QuantifiedPermModule(val verifier: Verifier)
             lazy val candidateTriggers : Seq[Trigger] = validateTriggers(translatedLocals, Seq(Trigger(translateLocationAccess(predAccPred.loc)),Trigger(currentPermission(translateNull, translatedLocation))))
 
             val providedTriggers : Seq[Trigger] = validateTriggers(translatedLocals, translatedTriggers)
-            // add default trigger if triggers were generated automatically
-            val tr1: Seq[Trigger] = /*if (e.info.getUniqueInfo[sil.AutoTriggered.type].isDefined)*/ candidateTriggers ++ providedTriggers /*else providedTriggers*/
+
+            val tr1: Seq[Trigger] = funcPredModule.rewriteTriggersToExpressionsUsedInTriggers(candidateTriggers ++ providedTriggers)
 
             var equalities : Exp =  TrueLit()
             for (i <- 0 until funApps.length) {
@@ -998,9 +997,8 @@ class QuantifiedPermModule(val verifier: Verifier)
              validateTriggers(translatedLocals, Seq(Trigger(Seq(translateLocationAccess(translatedRecv, translatedLocation))), Trigger(Seq(currentPermission(qpMask, translatedRecv, translatedLocation))))) else Seq(recvTrigger)
 
            val providedTriggers: Seq[Trigger] = validateTriggers(translatedLocals, translatedTriggers)
-           // add default trigger if triggers were generated automatically
-           val tr1: Seq[Trigger] = /*if (e.info.getUniqueInfo[sil.AutoTriggered.type].isDefined)*/ candidateTriggers ++ providedTriggers /*else providedTriggers*/
 
+           val tr1: Seq[Trigger] = funcPredModule.rewriteTriggersToExpressionsUsedInTriggers(candidateTriggers ++ providedTriggers)
 
            val assm1Rhs = (0 until invFuns.length).foldLeft(rangeFunRecvApp: Exp)((soFar, i) => BinExp(soFar, And, FuncApp(invFuns(i).name, Seq(translatedRecv), invFuns(i).typ) === translatedLocals(i).l))
 
@@ -1161,8 +1159,8 @@ class QuantifiedPermModule(val verifier: Verifier)
            lazy val candidateTriggers : Seq[Trigger] = validateTriggers(translatedLocals, Seq(Trigger(translateLocationAccess(predAccPred.loc)),Trigger(currentPermission(translateNull, translatedLocation))))
 
            val providedTriggers : Seq[Trigger] = validateTriggers(translatedLocals, translatedTriggers)
-           // add default trigger if triggers were generated automatically
-           val tr1: Seq[Trigger] = /*if (e.info.getUniqueInfo[sil.AutoTriggered.type].isDefined)*/ candidateTriggers ++ providedTriggers /*else providedTriggers*/
+
+           val tr1: Seq[Trigger] = funcPredModule.rewriteTriggersToExpressionsUsedInTriggers(candidateTriggers ++ providedTriggers)
 
            val equalities = (0 until funApps.length).foldLeft(TrueLit(): Exp)((soFar, i) => BinExp(soFar, And, funApps(i) === translatedLocals(i).l))
 
