@@ -64,4 +64,18 @@ trait FuncPredModule extends Module {
 
   def translateBackendFuncApp(fa: sil.BackendFuncApp): Exp
   def translateBackendFunc(f: sil.BackendFunc): Seq[Decl]
+
+  /***
+    * Returns a Boolean Boogie expression that expresses the conditions one gets for free for function calls in e, if
+    * e is well-defined. If result is None, then there are no such free conditions.
+    * @param e must be a pure expression
+    * @return
+    */
+  def allFreeFunctionAssumptions(e: sil.Exp) : Stmt
+
+  /***
+    * Same as freeFunctionAssumptions(e: sil.Exp) except that the input expects a Boogie translation of a pure Viper expression
+    */
+  def allFreeFunctionAssumptions(e: Exp) : Stmt
+
 }
