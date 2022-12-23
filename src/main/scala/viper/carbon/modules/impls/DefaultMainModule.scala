@@ -75,9 +75,9 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
         Traverse.TopDown)
     )
 
-    val backendFuncs = new mutable.HashSet[sil.BackendFunc]()
-    p.visit{
-      case sf: sil.BackendFuncApp => backendFuncs.add(sf.backendFunc)
+    val backendFuncs = new mutable.HashSet[sil.DomainFunc]()
+    for (d <- p.domains) {
+      backendFuncs.addAll(d.functions.filter(f => f.interpretation.isDefined))
     }
 
     // We record the Boogie names of all Viper variables in this map.
