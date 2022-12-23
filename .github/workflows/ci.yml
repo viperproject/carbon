@@ -14,7 +14,7 @@ jobs:
     container: gobraverifier/gobra-base:v5_z3_4.8.7 # Thank you, Gobra team
     env:
       BOOGIE_EXE: "boogie/Boogie"
-      LINUX_BOOGIE_URL: "https://github.com/viperproject/boogie-builder/releases/download/bae82d3a7b383161/boogie-linux.zip"
+      LINUX_BOOGIE_URL: "https://github.com/viperproject/boogie-builder/releases/download/7449a7a899c02c95/boogie-linux.zip"
     steps:
     - name: Checkout Carbon
       uses: actions/checkout@v2
@@ -57,6 +57,7 @@ jobs:
         unzip boogie-linux.zip
         rm -rf boogie-linux.zip
         mv binaries-linux boogie
+        boogie/Boogie /version
         pwd
 
     - name: Test Carbon

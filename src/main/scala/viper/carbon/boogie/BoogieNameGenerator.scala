@@ -19,7 +19,7 @@ class BoogieNameGenerator extends DefaultNameGenerator {
     "invariant", "goto", "break", "return", "call", "forall", "assert", "havoc", "assume", "returns", "var", "implementation",
     "axiom", "exists", "old", "false", "real", "int", "true", "bool", "finite", "ensures", "requires", "modifies", "where", "par", "lambda",
     "uses", "RTP", "RTZ", "yield", "async", "roundNearestTiesToAway", "roundNearestTiesToEven", "extends", "roundTowardPositive",
-    "roundTowardZero", "RNA", "RTN", "roundTowardNegative", "RNE") ++
+    "roundTowardZero", "RNA", "RTN", "roundTowardNegative", "RNE", "is") ++
     Set("Set", "MultiSet", "Seq")
   val SMTreservedNames: Set[String] = Set(
     // Basic symbols:
