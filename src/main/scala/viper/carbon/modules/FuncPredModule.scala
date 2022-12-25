@@ -63,5 +63,5 @@ trait FuncPredModule extends Module {
 
 
   def translateBackendFuncApp(fa: sil.BackendFuncApp): Exp
-  def translateBackendFunc(f: sil.BackendFunc): Seq[Decl]
+  def translateBackendFunc(f: sil.DomainFunc): Seq[Decl]
 }

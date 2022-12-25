@@ -49,7 +49,7 @@ class DefaultTypeModule(val verifier: Verifier) extends TypeModule with Stateles
         TypeVar(name)
       case t@sil.DomainType(_, _) =>
         translateDomainTyp(t)
-      case sil.BackendType(boogieName, _) if boogieName != null => NamedType(boogieName)
+      case sil.BackendType(_, interpretations) if interpretations.contains("Boogie") => NamedType(interpretations("Boogie"))
       case sil.BackendType(_, _) => sys.error("Found non-Boogie-compatible backend type.")
       case _ => sys.error("Viper type didn't match any existing case.")
     }
