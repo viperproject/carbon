@@ -27,7 +27,7 @@ case class LoopDummyStmtInfo() extends sil.Info {
   override def isCached: Boolean = false
 }
 
-class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComponent {
+class DefaultLoopModule(val verifier: Verifier)(implicit val mapping: ErrorMemberMapping) extends LoopModule with StmtComponent {
 
   import verifier._
   import inhaleModule._

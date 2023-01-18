@@ -17,7 +17,7 @@ import viper.silver.verifier.PartialVerificationError
  * The default implementation of a [[viper.carbon.modules.InhaleModule]].
 
  */
-class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule with StatelessComponent {
+class DefaultInhaleModule(val verifier: Verifier)(implicit val mapping: ErrorMemberMapping) extends InhaleModule with StatelessComponent {
 
   import verifier._
   import expModule._

@@ -6,7 +6,7 @@
 
 package viper.carbon
 
-import boogie.{BoogieModelTransformer, Namespace}
+import boogie.{BoogieModelTransformer, ErrorMemberMapping, Namespace, PrettyPrinter}
 import modules.impls._
 import viper.silver.ast.{MagicWand, Program, Quasihavoc, Quasihavocall}
 import viper.silver.utility.Paths
@@ -46,6 +46,8 @@ case class CarbonVerifier(override val reporter: Reporter,
     namespaceId += 1
     Namespace(name, namespaceId)
   }
+
+  implicit val mapping = new ErrorMemberMapping()
 
   val stmtModule = new DefaultStmtModule(this)
   val expModule = new DefaultExpModule(this)
@@ -172,6 +174,8 @@ case class CarbonVerifier(override val reporter: Reporter,
     val (tProg, translatedNames) = mainModule.translate(program, reporter)
     _translated = tProg
 
+    val prettyPrinter = new PrettyPrinter(tProg)
+
 
     val options = {
       if (config == null) {
@@ -209,13 +213,13 @@ case class CarbonVerifier(override val reporter: Reporter,
           // write Boogie program to the specified file
           val f = new File(filename)
           val stream = new BufferedOutputStream(new FileOutputStream(f))
-          stream.write(_translated.toString.getBytes)
+          stream.write(prettyPrinter.pretty(_translated).getBytes)
           stream.close()
         case None =>
       }
     }
 
-    invokeBoogie(_translated, options) match {
+    invokeBoogie(_translated, options, prettyPrinter) match {
       case (version,result) =>
         if (version!=null) { dependencies.foreach(_ match {
           case b:BoogieDependency => b.version = version
@@ -223,7 +227,7 @@ case class CarbonVerifier(override val reporter: Reporter,
 
         result match {
           case Failure(errors) if transformNames => {
-            errors.foreach(e =>  BoogieModelTransformer.transformCounterexample(e, translatedNames))
+            errors.foreach(e =>  BoogieModelTransformer.transformCounterexample(e, translatedNames, prettyPrinter, mapping))
           }
           case _ => result
         }

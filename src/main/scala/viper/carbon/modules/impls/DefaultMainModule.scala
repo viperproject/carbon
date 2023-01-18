@@ -29,7 +29,7 @@ import scala.collection.mutable
 /**
  * The default implementation of a [[viper.carbon.modules.MainModule]].
  */
-class DefaultMainModule(val verifier: Verifier) extends MainModule with StatelessComponent {
+class DefaultMainModule(val verifier: Verifier)(implicit mapping: ErrorMemberMapping) extends MainModule with StatelessComponent {
 
   import verifier._
   import typeModule._
@@ -129,7 +129,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
     val mWithLoopInfo = loopModule.initializeMethod(m)
 
     env = Environment(verifier, mWithLoopInfo)
-    ErrorMemberMapping.currentMember = mWithLoopInfo
+    mapping.currentMember = mWithLoopInfo
         val res = mWithLoopInfo match {
           case method @ sil.Method(name, formalArgs, formalReturns, pres, posts, _) =>
             val initOldStateComment = "Initializing of old state"
@@ -163,7 +163,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
     }
 
     env = null
-    ErrorMemberMapping.currentMember = null
+    mapping.currentMember = null
     res
   }
 

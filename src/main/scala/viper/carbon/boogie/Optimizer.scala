@@ -20,7 +20,7 @@ object Optimizer {
    *
    * Constant folding partly taken from  Transformer.simplify from SIL, but added more optimizations.
    */
-  def optimize(n: Node): Node = {
+  def optimize(n: Node)(implicit mapping: ErrorMemberMapping): Node = {
     /* Always optimize children first, then treat parent. */
     Transformer.transform(n)(_ => true, {
       case UnExp(Not, BoolLit(literal)) =>

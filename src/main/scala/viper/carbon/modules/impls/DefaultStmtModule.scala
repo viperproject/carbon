@@ -19,7 +19,7 @@ import viper.silver.ast.utility.Expressions
 /**
  * The default implementation of a [[viper.carbon.modules.StmtModule]].
  */
-class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleStmtComponent with StatelessComponent with DefinednessComponent {
+class DefaultStmtModule(val verifier: Verifier)(implicit mapping: ErrorMemberMapping) extends StmtModule with SimpleStmtComponent with StatelessComponent with DefinednessComponent {
 
   import verifier._
   import expModule._

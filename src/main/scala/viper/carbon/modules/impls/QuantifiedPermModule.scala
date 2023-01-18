@@ -47,7 +47,7 @@ import viper.silver.verifier.errors.{ContractNotWellformed, PostconditionViolate
 /**
  * An implementation of [[viper.carbon.modules.PermModule]] supporting quantified permissions.
  */
-class QuantifiedPermModule(val verifier: Verifier)
+class QuantifiedPermModule(val verifier: Verifier)(implicit val mapping: ErrorMemberMapping)
   extends PermModule
   with CarbonStateComponent
   with InhaleComponent

@@ -14,7 +14,7 @@ import viper.carbon.verifier.Verifier
 import viper.silver.verifier.{PartialVerificationError, reasons}
 import viper.silver.{ast => sil}
 
-class DefaultMapModule(val verifier: Verifier) extends MapModule with DefinednessComponent {
+class DefaultMapModule(val verifier: Verifier)(implicit mapping: ErrorMemberMapping) extends MapModule with DefinednessComponent {
   import verifier._
   import typeModule._
   import expModule._

@@ -18,7 +18,7 @@ import viper.silver.verifier.reasons._
 /**
  * The default implementation of a [[viper.carbon.modules.ExhaleModule]].
  */
-class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
+class DefaultExhaleModule(val verifier: Verifier)(implicit mapping: ErrorMemberMapping) extends ExhaleModule {
 
   import verifier._
   import expModule._

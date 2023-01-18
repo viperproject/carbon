@@ -13,14 +13,14 @@ object BoogieModelTransformer {
   /**
     * Adds a counterexample to the given error if one is available.
     */
-  def transformCounterexample(e: AbstractError, names: Map[String, Map[String, String]]) : Unit = {
-    if (e.isInstanceOf[VerificationError] && ErrorMemberMapping.mapping.contains(e.asInstanceOf[VerificationError])){
+  def transformCounterexample(e: AbstractError, names: Map[String, Map[String, String]], pp: PrettyPrinter, mapping: ErrorMemberMapping) : Unit = {
+    if (e.isInstanceOf[VerificationError] && mapping.mapping.contains(e.asInstanceOf[VerificationError])){
       val ve = e.asInstanceOf[VerificationError]
-      val methodName = ErrorMemberMapping.mapping.get(ve).get.name
+      val methodName = mapping.mapping.get(ve).get.name
       val namesInMember = names.get(methodName).get.map(e => e._2 -> e._1)
       val originalEntries = ve.failureContexts(0).counterExample.get.model.entries
 
-      val model = transformModelEntries(originalEntries, namesInMember)
+      val model = transformModelEntries(originalEntries, namesInMember, pp)
       ve.failureContexts = Seq(FailureContextImpl(Some(SimpleCounterexample(model))))
     }
   }
@@ -31,7 +31,7 @@ object BoogieModelTransformer {
     * @param namesInMember Mapping from Boogie names to Viper names for the Viper member belonging to this error.
     * @return
     */
-  def transformModelEntries(originalEntries: Map[String, ModelEntry], namesInMember: Map[String, String]) : Model = {
+  def transformModelEntries(originalEntries: Map[String, ModelEntry], namesInMember: Map[String, String], pp: PrettyPrinter) : Model = {
     val newEntries = mutable.HashMap[String, ModelEntry]()
     val currentEntryForName = mutable.HashMap[String, String]()
     for ((vname, e) <- originalEntries) {
@@ -43,8 +43,8 @@ object BoogieModelTransformer {
       } else if (originalName.indexOf("@") != -1){
         originalName = originalName.substring(0, originalName.indexOf("@"))
       }
-      if (PrettyPrinter.backMap.contains(originalName)){
-        val originalViperName = PrettyPrinter.backMap.get(originalName).get
+      if (pp.backMap.contains(originalName)){
+        val originalViperName = pp.backMap.get(originalName).get
         if (namesInMember.contains(originalViperName)){
           val viperName = namesInMember.get(originalViperName).get
           if (!currentEntryForName.contains(viperName) ||

@@ -19,7 +19,7 @@ import viper.silver.verifier.PartialVerificationError
 /**
  * The default implementation of a [[viper.carbon.modules.HeapModule]].
  */
-class DefaultHeapModule(val verifier: Verifier)
+class DefaultHeapModule(val verifier: Verifier)(implicit val mapping: ErrorMemberMapping)
     extends HeapModule
     with SimpleStmtComponent
     with DefinednessComponent {

@@ -19,7 +19,7 @@ import viper.silver.verifier.{PartialVerificationError, reasons}
 /**
  * The default implementation of [[viper.carbon.modules.SeqModule]].
  */
-class DefaultSeqModule(val verifier: Verifier)
+class DefaultSeqModule(val verifier: Verifier)(implicit mapping: ErrorMemberMapping)
     extends SeqModule
     with DefinednessComponent {
 

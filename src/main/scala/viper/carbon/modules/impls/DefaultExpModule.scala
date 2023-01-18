@@ -19,7 +19,7 @@ import viper.silver.ast.utility.Expressions
 /**
  * The default implementation of [[viper.carbon.modules.ExpModule]].
  */
-class DefaultExpModule(val verifier: Verifier) extends ExpModule with DefinednessComponent with StatelessComponent {
+class DefaultExpModule(val verifier: Verifier)(implicit mapping: ErrorMemberMapping) extends ExpModule with DefinednessComponent with StatelessComponent {
 
   import verifier._
   import heapModule._

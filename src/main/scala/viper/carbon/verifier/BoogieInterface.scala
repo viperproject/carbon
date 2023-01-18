@@ -7,7 +7,7 @@
 package viper.carbon.verifier
 
 import java.io._
-import viper.carbon.boogie.{Assert, Program}
+import viper.carbon.boogie.{Assert, PrettyPrinter, Program}
 import viper.silver.reporter.BackendSubProcessStages._
 import viper.silver.reporter.{BackendSubProcessReport, Reporter}
 import viper.silver.verifier.errors.Internal
@@ -79,7 +79,7 @@ trait BoogieInterface {
 
   var errormap: Map[Int, VerificationError] = Map()
   var models : collection.mutable.ListBuffer[String] = new collection.mutable.ListBuffer[String]
-  def invokeBoogie(program: Program, options: Seq[String]): (String,VerificationResult) = {
+  def invokeBoogie(program: Program, options: Seq[String], prettyPrinter: PrettyPrinter): (String,VerificationResult) = {
     // find all errors and assign everyone a unique id
     errormap = Map()
     program.visit {
@@ -88,7 +88,7 @@ trait BoogieInterface {
     }
 
     // invoke Boogie
-    val output = run(program.toString, defaultOptions ++ options)
+    val output = run(prettyPrinter.pretty(program), defaultOptions ++ options)
 
     // parse the output
     parse(output) match {

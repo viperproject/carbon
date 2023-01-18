@@ -15,24 +15,6 @@ import viper.silver.verifier.VerificationError
  */
 object PrettyPrinter {
 
-  /**
-    * The current mapping from identifier to names.
-    */
-  private val idnMap = collection.mutable.HashMap[Identifier, String]()
-
-  /** BoogieNameGenerator instance. */
-  private val names = new BoogieNameGenerator()
-
-  /**
-    * The current mapping from unique Boogie names to the original identifiers (inverse mapping of idnMap,
-    * where the names of the identifiers are used directly).
-    */
-  val backMap = collection.mutable.HashMap[String, String]()
-
-  def pretty(n: Node): String = {
-    new PrettyPrinter(n).pretty
-  }
-
   def quantifyOverFreeTypeVars(exp: Exp): Exp = {
     val t = collectFreeTypeVars(exp)
     val body = t match {
@@ -69,6 +51,20 @@ object PrettyPrinter {
  */
 class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
 
+  /**
+    * The current mapping from identifier to names.
+    */
+  private val idnMap = collection.mutable.HashMap[Identifier, String]()
+
+  /** BoogieNameGenerator instance. */
+  private val names = new BoogieNameGenerator()
+
+  /**
+    * The current mapping from unique Boogie names to the original identifiers (inverse mapping of idnMap,
+    * where the names of the identifiers are used directly).
+    */
+  val backMap = collection.mutable.HashMap[String, String]()
+
   lazy val pretty: String = {
     pretty(n)
   }
@@ -95,12 +91,12 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
    * Map an identifier to a string, making it unique first if necessary.
    */
   implicit def ident2doc(i: Identifier): Cont = {
-    PrettyPrinter.idnMap.get(i) match {
+    idnMap.get(i) match {
       case Some(s) => s
       case None =>
-        val s = PrettyPrinter.names.createUniqueIdentifier(i.preferredName)
-        PrettyPrinter.idnMap.put(i, s)
-        PrettyPrinter.backMap.update(s, i.name)
+        val s = names.createUniqueIdentifier(i.preferredName)
+        idnMap.put(i, s)
+        backMap.update(s, i.name)
         s
     }
   }

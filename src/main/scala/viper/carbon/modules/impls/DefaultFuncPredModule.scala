@@ -26,7 +26,7 @@ import scala.collection.mutable
 /**
  * The default implementation of a [[viper.carbon.modules.FuncPredModule]].
  */
-class DefaultFuncPredModule(val verifier: Verifier) extends FuncPredModule
+class DefaultFuncPredModule(val verifier: Verifier)(implicit mapping: ErrorMemberMapping) extends FuncPredModule
 with DefinednessComponent with ExhaleComponent with InhaleComponent {
   def name = "Function and predicate module"
 
@@ -182,7 +182,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
     override def translateFunction(f: sil.Function, names: Option[mutable.Map[String, String]]): Seq[Decl] = {
     env = Environment(verifier, f)
-    ErrorMemberMapping.currentMember = f
+    mapping.currentMember = f
     val res = MaybeCommentedDecl(s"Translation of function ${f.name}",
       MaybeCommentedDecl("Uninterpreted function definitions", functionDefinitions(f), size = 1) ++
         (if (f.isAbstract) Nil else
@@ -201,7 +201,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     }
 
     env = null
-    ErrorMemberMapping.currentMember = null
+    mapping.currentMember = null
     res
   }
 
@@ -787,7 +787,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   override def translatePredicate(p: sil.Predicate, names: Option[mutable.Map[String, String]]): Seq[Decl] = {
 
     env = Environment(verifier, p)
-    ErrorMemberMapping.currentMember = p
+    mapping.currentMember = p
     val args = p.formalArgs
     val translatedArgs = p.formalArgs map translateLocalVarDecl
     val predAcc = sil.PredicateAccess(args map (_.localVar),p)(p.pos,p.info,p.errT)
@@ -809,7 +809,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     }
 
     env = null
-    ErrorMemberMapping.currentMember = null
+    mapping.currentMember = null
     res
   }
 

@@ -18,7 +18,7 @@ import viper.silver.verifier.{PartialVerificationError, reasons}
 import viper.silver.{ast => sil}
 
 class
-DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent with DefinednessComponent{
+DefaultWandModule(val verifier: Verifier)(implicit val mapping: ErrorMemberMapping) extends WandModule with StmtComponent with DefinednessComponent{
   import verifier._
   import stateModule._
   import permModule._

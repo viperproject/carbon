@@ -16,7 +16,7 @@ object Transformer {
   def transform[A <: Node](node: A,
                            pre: PartialFunction[Node, Node] = PartialFunction.empty)(
                             recursive: Node => Boolean = !pre.isDefinedAt(_),
-                            post: PartialFunction[Node, Node] = PartialFunction.empty): A = {
+                            post: PartialFunction[Node, Node] = PartialFunction.empty)(implicit mapping: ErrorMemberMapping): A = {
     def go[B <: Node](root: B): B = {
       transform(root, pre)(recursive, post)
     }
@@ -104,7 +104,7 @@ object DuplicatingTransformer {
   def transform[A <: Node](node: A,
                            pre: PartialFunction[Node, Node] = PartialFunction.empty)(
                             recursive: Node => Boolean = !pre.isDefinedAt(_),
-                            post: (Node => Seq[Node]) = (n => Seq(n))): Seq[A] = {
+                            post: (Node => Seq[Node]) = (n => Seq(n)))(implicit mapping: ErrorMemberMapping): Seq[A] = {
     def go[B <: Node](root: B): Seq[B] = {
       transform(root, pre)(recursive, post)
     }

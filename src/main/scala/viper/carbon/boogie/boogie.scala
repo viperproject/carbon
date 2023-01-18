@@ -23,7 +23,7 @@ sealed trait Node {
   /**
    * Optimize a program or expression
    */
-  lazy val optimize: Node = Optimizer.optimize(this)
+  def optimize(implicit mapping: ErrorMemberMapping): Node = Optimizer.optimize(this)
 
   /**
    * Applies the function `f` to the node and the results of the subnodes.
@@ -75,7 +75,7 @@ sealed trait Node {
    * @param replacement The node to replace all occurrences with
    * @return The result of the substitution
    */
-  def replace(original: Node, replacement: Node): this.type =
+  def replace(original: Node, replacement: Node)(implicit mapping: ErrorMemberMapping): this.type =
     this.transform({case `original` => replacement})()
 
   /**
@@ -87,10 +87,10 @@ sealed trait Node {
   def transform(pre: PartialFunction[Node, Node] = PartialFunction.empty)
                (recursive: Node => Boolean = !pre.isDefinedAt(_),
                 post: PartialFunction[Node, Node] = PartialFunction.empty)
+               (implicit mapping: ErrorMemberMapping)
   : this.type =
     Transformer.transform[this.type](this, pre)(recursive, post)
 
-  override def toString = PrettyPrinter.pretty(this)
 }
 
 /**
@@ -311,16 +311,16 @@ case class Assume(exp: Exp) extends Stmt
 case class AssertImpl(exp: Exp, error: VerificationError) extends Stmt {
   var id = AssertIds.next // Used for mapping errors in the output back to VerificationErrors
 }
-object ErrorMemberMapping {
+class ErrorMemberMapping {
   val mapping = mutable.HashMap[VerificationError, Member]()
   var currentMember : Member = null
 }
 object Assert {
-  def apply(exp: Exp, error: VerificationError) = {
+  def apply(exp: Exp, error: VerificationError)(implicit mapping: ErrorMemberMapping) = {
     if (error == null) Statements.EmptyStmt
     else {
-      if (ErrorMemberMapping.currentMember != null) {
-        ErrorMemberMapping.mapping.update(error, ErrorMemberMapping.currentMember)
+      if (mapping.currentMember != null) {
+        mapping.mapping.update(error, mapping.currentMember)
       }
       AssertImpl(exp, error)
     }
@@ -355,7 +355,7 @@ case class LocalVarWhereDecl(name: Identifier, where: Exp) extends Stmt
 /** A single-line comment (s should not contain new-lines) */
 case class Comment(s: String) extends Stmt
 object MaybeComment {
-  def apply(s: String, stmt: Stmt) = {
+  def apply(s: String, stmt: Stmt)(implicit mapping: ErrorMemberMapping) = {
     if (stmt.optimize.asInstanceOf[Stmt].children.isEmpty) Statements.EmptyStmt
     else Seqn(Comment(s) :: stmt.optimize.asInstanceOf[Stmt] :: Nil)
   }
@@ -366,7 +366,7 @@ object MaybeComment {
  */
 case class CommentBlock(s: String, stmt: Stmt) extends Stmt
 object MaybeCommentBlock {
-  def apply(s: String, stmt: Stmt) = {
+  def apply(s: String, stmt: Stmt)(implicit mapping: ErrorMemberMapping) = {
     if (stmt.optimize.asInstanceOf[Stmt].children.isEmpty) Statements.EmptyStmt
     else CommentBlock(s, stmt.optimize.asInstanceOf[Stmt])
   }
@@ -376,7 +376,7 @@ object MaybeCommentBlock {
  * Only add a statement if something else is non-empty.
  */
 object MaybeStmt {
-  def apply(isEmpty: Stmt, maybe: Stmt): Stmt = {
+  def apply(isEmpty: Stmt, maybe: Stmt)(implicit mapping: ErrorMemberMapping): Stmt = {
     if (isEmpty.optimize.asInstanceOf[Stmt].children.isEmpty) Statements.EmptyStmt
     else Seqn(Seq(isEmpty, maybe))
   }
