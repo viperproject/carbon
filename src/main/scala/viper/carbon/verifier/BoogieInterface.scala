@@ -169,7 +169,6 @@ trait BoogieInterface {
     reporter report BackendSubProcessReport("carbon", boogiePath, BeforeInputSent, _boogieProcessPid)
 
     val cmd: Seq[String] = (Seq(boogiePath) ++ options ++ Seq(tmp.getAbsolutePath))
-
     val pb: ProcessBuilder = new ProcessBuilder(cmd.asJava)
     val proc: Process = pb.start()
     _boogieProcess = Some(proc)
