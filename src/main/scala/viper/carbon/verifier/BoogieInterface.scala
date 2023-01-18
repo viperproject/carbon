@@ -205,12 +205,10 @@ trait BoogieInterface {
       destroyProcessAndItsChildren(proc, boogiePath)
     }
 
-    if (proverShutdownHook != null) {
-      // Deregister the shutdown hook, otherwise the prover process that has been stopped cannot be garbage collected.
-      // Explanation: https://blog.creekorful.org/2020/03/classloader-and-memory-leaks/
-      // Bug report: https://github.com/viperproject/silicon/issues/579
-      Runtime.getRuntime.removeShutdownHook(proverShutdownHook)
-    }
+    // Deregister the shutdown hook, otherwise the prover process that has been stopped cannot be garbage collected.
+    // Explanation: https://blog.creekorful.org/2020/03/classloader-and-memory-leaks/
+    // Bug report: https://github.com/viperproject/silicon/issues/579
+    Runtime.getRuntime.removeShutdownHook(proverShutdownHook)
 
     errorStreamThread.join()
     inputStreamThread.join()
