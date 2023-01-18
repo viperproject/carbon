@@ -177,7 +177,7 @@ trait BoogieInterface {
 
 
     //proverShutDownHook approach taken from Silicon's codebase
-    var proverShutdownHook = new Thread {
+    val proverShutdownHook = new Thread {
       override def run(): Unit = {
         destroyProcessAndItsChildren(proc, boogiePath)
       }
@@ -210,7 +210,6 @@ trait BoogieInterface {
       // Explanation: https://blog.creekorful.org/2020/03/classloader-and-memory-leaks/
       // Bug report: https://github.com/viperproject/silicon/issues/579
       Runtime.getRuntime.removeShutdownHook(proverShutdownHook)
-      proverShutdownHook = null
     }
 
     errorStreamThread.join()
