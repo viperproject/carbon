@@ -322,8 +322,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
           } else Some(FuncApp(Identifier(recf.name + limitedPostfix), recargs map (_.transform(transformer)), t))
 
-      case Forall(vs,ts,e,tvs) => Some(Forall(vs,ts,e.transform(transformer),tvs)) // avoid recursing into the triggers of nested foralls (which will typically get translated via another call to this anyway)
-      case Exists(vs,ts,e) => Some(Exists(vs,ts,e.transform(transformer))) // avoid recursing into the triggers of nested exists (which will typically get translated via another call to this anyway)
+      case Forall(vs,ts,e,tvs,w) => Some(Forall(vs,ts,e.transform(transformer),tvs,w)) // avoid recursing into the triggers of nested foralls (which will typically get translated via another call to this anyway)
+      case Exists(vs,ts,e,w) => Some(Exists(vs,ts,e.transform(transformer),w)) // avoid recursing into the triggers of nested exists (which will typically get translated via another call to this anyway)
     }
   val res = exp transform transformer
     res
@@ -348,9 +348,9 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       }
       def resultToFapp : PartialFunction[Exp,Option[Exp]] = {
         case e: LocalVar if e == res => Some(fapp)
-        case Forall(vs,ts,e,tvs) =>
+        case Forall(vs,ts,e,tvs,w) =>
           Some(Forall(vs,ts map (_ match {case Trigger(trig) => Trigger(trig map (_ transform resultToPrimedFapp)) } ),
-            (e transform resultToFapp),tvs))
+            (e transform resultToFapp),tvs,w))
       }
       val bPost = translatedPost transform resultToFapp
       Axiom(Forall(
