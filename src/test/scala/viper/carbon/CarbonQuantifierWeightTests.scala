@@ -13,7 +13,7 @@ import viper.silver.ast.{Add, AnonymousDomainAxiom, Domain, DomainFunc, DomainFu
 import viper.silver.reporter.NoopReporter
 import viper.silver.verifier.{Failure, Success}
 
-class QuantifierWeightTests extends AnyFunSuite with BeforeAndAfterAll {
+class CarbonQuantifierWeightTests extends AnyFunSuite with BeforeAndAfterAll {
   val carbon: CarbonVerifier = CarbonVerifier(NoopReporter)
 
   override def beforeAll() {
