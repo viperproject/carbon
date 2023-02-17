@@ -28,6 +28,8 @@ class CarbonFrontend(override val reporter: Reporter,
 
   private var carbonInstance: CarbonVerifier = _
 
+  override def backendTypeFormat: Option[String] = Some("Boogie")
+
   def createVerifier(fullCmd: String) = {
     carbonInstance = CarbonVerifier(reporter, Seq("Arguments: " -> fullCmd))
 

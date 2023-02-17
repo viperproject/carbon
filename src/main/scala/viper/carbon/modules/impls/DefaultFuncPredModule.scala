@@ -322,8 +322,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
           } else Some(FuncApp(Identifier(recf.name + limitedPostfix), recargs map (_.transform(transformer)), t))
 
-      case Forall(vs,ts,e,tvs) => Some(Forall(vs,ts,e.transform(transformer),tvs)) // avoid recursing into the triggers of nested foralls (which will typically get translated via another call to this anyway)
-      case Exists(vs,ts,e) => Some(Exists(vs,ts,e.transform(transformer))) // avoid recursing into the triggers of nested exists (which will typically get translated via another call to this anyway)
+      case Forall(vs,ts,e,tvs,w) => Some(Forall(vs,ts,e.transform(transformer),tvs,w)) // avoid recursing into the triggers of nested foralls (which will typically get translated via another call to this anyway)
+      case Exists(vs,ts,e,w) => Some(Exists(vs,ts,e.transform(transformer),w)) // avoid recursing into the triggers of nested exists (which will typically get translated via another call to this anyway)
     }
   val res = exp transform transformer
     res
@@ -348,9 +348,9 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       }
       def resultToFapp : PartialFunction[Exp,Option[Exp]] = {
         case e: LocalVar if e == res => Some(fapp)
-        case Forall(vs,ts,e,tvs) =>
+        case Forall(vs,ts,e,tvs,w) =>
           Some(Forall(vs,ts map (_ match {case Trigger(trig) => Trigger(trig map (_ transform resultToPrimedFapp)) } ),
-            (e transform resultToFapp),tvs))
+            (e transform resultToFapp),tvs,w))
       }
       val bPost = translatedPost transform resultToFapp
       Axiom(Forall(
@@ -982,24 +982,23 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   }
 
   def translateBackendFuncApp(fa: sil.BackendFuncApp): Exp = {
-    val funct = fa.backendFunc
     // Do not use funcpred namespace, see translateSMTFunc.
-    val funcIdent = Identifier(funct.name)(silVarNamespace)
+    val funcIdent = Identifier(fa.backendFuncName)(silVarNamespace)
     val res = FuncApp(funcIdent, fa.args map translateExp, translateType(fa.typ))
     res.showReturnType = true
     res
   }
 
-  def translateBackendFunc(f: sil.BackendFunc): Seq[Decl] = {
+  def translateBackendFunc(f: sil.DomainFunc): Seq[Decl] = {
     // We do not use the funcpred namespace because based on the namespace, the funcpred module
     // decides whether to stuff meant only for heap-dependent functions (like heights computation
     // and limited functions).
     val funcIdent=Identifier(f.name)(silVarNamespace)
     env = Environment(verifier, f)
     val t = translateType(f.typ)
-    val args = f.formalArgs map (x => LocalVarDecl(Identifier(x.name), translateType(x.typ)))
+    val args = f.formalArgs map (x => LocalVarDecl(Identifier(if (x.isInstanceOf[sil.LocalVarDecl]) x.asInstanceOf[sil.LocalVarDecl].name else env.uniqueName(f.name + "_param")), translateType(x.typ)))
     var attributes: Map[String, String] = Map()
-    attributes += "builtin" -> f.smtName
+    attributes += "builtin" -> f.interpretation.get
     val func = Func(funcIdent, args, t, attributes)
     val res = MaybeCommentedDecl(s"Translation of SMT function ${f.name}", func, size = 1)
     env = null

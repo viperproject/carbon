@@ -6,14 +6,14 @@
 
 package viper.carbon.verifier
 
-import java.io._
 import viper.carbon.boogie.{Assert, Program}
 import viper.silver.reporter.BackendSubProcessStages._
 import viper.silver.reporter.{BackendSubProcessReport, Reporter}
 import viper.silver.verifier.errors.Internal
 import viper.silver.verifier.reasons.InternalReason
-import viper.silver.verifier.{Failure, _}
+import viper.silver.verifier._
 
+import java.io._
 import scala.jdk.CollectionConverters._
 
 class BoogieDependency(_location: String) extends Dependency {
@@ -174,6 +174,15 @@ trait BoogieInterface {
     _boogieProcess = Some(proc)
     _boogieProcessPid = Some(proc.pid)
 
+
+    //proverShutDownHook approach taken from Silicon's codebase
+    val proverShutdownHook = new Thread {
+      override def run(): Unit = {
+        destroyProcessAndItsChildren(proc, boogiePath)
+      }
+    }
+    Runtime.getRuntime.addShutdownHook(proverShutdownHook)
+
     proc.getOutputStream.close()
 
     // _z3ProcessStream = Some(proc.descendants().toScala(LazyList))
@@ -189,7 +198,16 @@ trait BoogieInterface {
     errorStreamThread.start()
     inputStreamThread.start()
 
-    proc.waitFor()
+    try {
+      proc.waitFor()
+    } finally {
+      destroyProcessAndItsChildren(proc, boogiePath)
+    }
+
+    // Deregister the shutdown hook, otherwise the prover process that has been stopped cannot be garbage collected.
+    // Explanation: https://blog.creekorful.org/2020/03/classloader-and-memory-leaks/
+    // Bug report: https://github.com/viperproject/silicon/issues/579
+    Runtime.getRuntime.removeShutdownHook(proverShutdownHook)
 
     errorStreamThread.join()
     inputStreamThread.join()
@@ -205,19 +223,19 @@ trait BoogieInterface {
     }
   }
 
+  private def destroyProcessAndItsChildren(proc: Process, processPath: String) : Unit = {
+    if(proc.isAlive) {
+      reporter report BackendSubProcessReport("carbon", processPath, BeforeTermination, _boogieProcessPid)
+      proc.children().forEach(_.destroy() : Unit)
+      proc.destroy()
+      reporter report BackendSubProcessReport("carbon", processPath, AfterTermination, _boogieProcessPid)
+    }
+  }
+
   def stopBoogie(): Unit = {
     _boogieProcess match {
       case Some(proc) =>
-        reporter report BackendSubProcessReport("carbon", boogiePath, BeforeTermination, _boogieProcessPid)
-        proc.destroy()
-        /*_z3ProcessStream match {
-          case Some(stream) =>
-            stream.foreach((ph: ProcessHandle) => {
-              ph.destroy()
-            })
-          case None =>
-        }*/
-        reporter report BackendSubProcessReport("carbon", boogiePath, AfterTermination, _boogieProcessPid)
+        destroyProcessAndItsChildren(proc, boogiePath)
       case None =>
     }
   }

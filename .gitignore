@@ -11,3 +11,8 @@ tmp/
 .bsp/
 .bloop/
 .metals/
+*.smt2
+*.smt2.*
+results.txt
+*.bpl
+*.bpl.*

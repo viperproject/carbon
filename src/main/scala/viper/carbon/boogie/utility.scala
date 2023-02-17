@@ -58,8 +58,8 @@ object Statements {
       (s1 ++ s2).distinct
     }
     def addDecls(n: Node, decls: Seq[LocalVarDecl]) = n match {
-      case Exists(v, _, _) => decls ++ v
-      case Forall(v, _, _, _) => decls ++ v
+      case Exists(v, _, _, _) => decls ++ v
+      case Forall(v, _, _, _, _) => decls ++ v
       case _ => decls
     }
     def combineResults(n: Node, decls: Seq[LocalVarDecl], localss: Seq[Seq[LocalVar]]) = {
@@ -132,8 +132,8 @@ object Nodes {
           case MapUpdate(map, idxs, value) => Seq(map) ++ idxs ++ Seq(value)
           case Old(exp) => Seq(exp)
           case CondExp(cond, thn, els) => Seq(cond, thn, els)
-          case Exists(v, triggers, exp) => v ++ triggers ++ Seq(exp)
-          case Forall(v, triggers, exp, _) => v ++ triggers ++ Seq(exp)
+          case Exists(v, triggers, exp, _) => v ++ triggers ++ Seq(exp)
+          case Forall(v, triggers, exp, _, _) => v ++ triggers ++ Seq(exp)
           case BinExp(left, _, right) => Seq(left, right)
           case UnExp(_, exp) => Seq(exp)
           case FuncApp(_, args, _) => args
@@ -165,8 +165,8 @@ object Nodes {
           case MapUpdate(map, idxs, value) => MapUpdate(func(map), idxs map func, func(value))
           case Old(e) => Old(func(e))
           case CondExp(cond, thn, els) => CondExp(func(cond), func(thn), func(els))
-          case Exists(v, triggers, e) => Exists(v, (triggers map (_ match {case Trigger(es) => Trigger(es map func)})), func(e))
-          case Forall(v, triggers, e, tv) => Forall(v, (triggers map (_ match {case Trigger(es) => Trigger(es map func)})), func(e), tv)
+          case Exists(v, triggers, e, w) => Exists(v, (triggers map (_ match {case Trigger(es) => Trigger(es map func)})), func(e), w)
+          case Forall(v, triggers, e, tv, w) => Forall(v, (triggers map (_ match {case Trigger(es) => Trigger(es map func)})), func(e), tv, w)
           case BinExp(left, binop, right) => BinExp(func(left), binop, func(right))
           case UnExp(unop, e) => UnExp(unop, func(e))
           case f@FuncApp(ff, args, typ) => {

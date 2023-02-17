@@ -8,7 +8,7 @@ package viper.carbon
 
 import boogie.{BoogieModelTransformer, Namespace}
 import modules.impls._
-import viper.silver.ast.Program
+import viper.silver.ast.{MagicWand, Program, Quasihavoc, Quasihavocall}
 import viper.silver.utility.Paths
 import viper.silver.verifier._
 import verifier.{BoogieDependency, BoogieInterface, Verifier}
@@ -148,8 +148,23 @@ case class CarbonVerifier(override val reporter: Reporter,
     })
   }
 
-  def verify(program: Program) = {
+  def verify(program: Program) : VerificationResult = {
     _program = program
+
+    val unsupportedFeatures : Seq[AbstractError] =
+      program.shallowCollect(
+        n =>
+          n match {
+            case q: Quasihavocall =>
+              ConsistencyError("Carbon does not support quasihavocall", q.pos)
+            case q@Quasihavoc(_, MagicWand(_, _)) =>
+              ConsistencyError("Carbon does not support quasihavoc of magic wands", q.pos)
+          }
+      )
+
+    if(unsupportedFeatures.nonEmpty) {
+      return Failure(unsupportedFeatures)
+    }
 
     // reset all modules
     allModules map (m => m.reset())
@@ -162,6 +177,7 @@ case class CarbonVerifier(override val reporter: Reporter,
       case None =>
       case Some(v) => sys.error("Invalid option: " + v)
     }
+
     val (tProg, translatedNames) = mainModule.translate(program, reporter)
     _translated = tProg
 

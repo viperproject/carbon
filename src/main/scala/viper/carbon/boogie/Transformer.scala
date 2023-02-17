@@ -74,8 +74,8 @@ object Transformer {
             case MapUpdate(map, idxs, value) => MapUpdate(go(map), idxs map go, go(value))
             case Old(exp) => Old(go(exp))
             case CondExp(cond, thn, els) => CondExp(go(cond), go(thn), go(els))
-            case Exists(v, triggers, exp) => Exists(v map go, triggers map go, go(exp))
-            case Forall(v, triggers, exp, tv) => Forall(v map go, triggers map go, go(exp), tv)
+            case Exists(v, triggers, exp, w) => Exists(v map go, triggers map go, go(exp), w)
+            case Forall(v, triggers, exp, tv, w) => Forall(v map go, triggers map go, go(exp), tv, w)
             case BinExp(left, binop, right) => BinExp(go(left), binop, go(right))
             case UnExp(unop, exp) => UnExp(unop, go(exp))
             case f@FuncApp(func, args, typ) => {
@@ -183,13 +183,13 @@ object DuplicatingTransformer {
             case CondExp(cond, thn, els) =>
               for {condResult <- go(cond); thnResult <- go(thn); elsResult <- go(els)} yield
                 (CondExp(condResult, thnResult, elsResult))
-            case Exists(v, triggers, exp) =>
+            case Exists(v, triggers, exp, w) =>
               for {vResult <- goSeq(v); triggersResult <- goSeq(triggers); expResult <- go(exp)} yield
-                Exists(vResult, triggersResult, expResult)
+                Exists(vResult, triggersResult, expResult, w)
 
-            case Forall(v, triggers, exp, tv) =>
+            case Forall(v, triggers, exp, tv, w) =>
               for {vResult <- goSeq(v); triggersResult <- goSeq(triggers); expResult <- go(exp)} yield
-              Forall(vResult, triggersResult, expResult, tv)
+              Forall(vResult, triggersResult, expResult, tv, w)
             case BinExp(left, binop, right) =>
               for {leftResult <- go(left); rightResult <- go(right)} yield BinExp(leftResult, binop, rightResult)
             case UnExp(unop, exp) => go(exp) map (UnExp(unop, _))
