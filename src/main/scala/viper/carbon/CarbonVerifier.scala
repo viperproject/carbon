@@ -98,10 +98,10 @@ case class CarbonVerifier(override val reporter: Reporter,
     if (config != null) {
       config.desugarPolymorphicMaps.toOption match {
         case Some(b) => !b
-        case None => false
+        case None => true
       }
     } else {
-      false
+      true
     }
 
   def name: String = "carbon"
