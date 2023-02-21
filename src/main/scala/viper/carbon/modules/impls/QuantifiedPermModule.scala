@@ -136,10 +136,6 @@ class QuantifiedPermModule(val verifier: Verifier)
     val permInZeroMask = currentPermission(zeroMask, obj.l, field.l)
     val permInZeroPMask = currentPermission(zeroPMask, obj.l, field.l, true)
 
-    val maskPolyMapDesugarHelper = PolyMapDesugarHelper(refType, fieldTypeConstructor, namespace)
-    val maskRep = maskPolyMapDesugarHelper.desugarPolyMap(maskType, (readMaskName, updateMaskName), _ => permType)
-    val pmaskRep = maskPolyMapDesugarHelper.desugarPolyMap(pmaskType, (readPMaskName, updatePMaskName), _ => Bool)
-
     // permission type
     TypeAlias(permType, Real) ::
       // mask and mask type
@@ -179,6 +175,10 @@ class QuantifiedPermModule(val verifier: Verifier)
       Func(permConstructName, Seq(LocalVarDecl(Identifier("a"), Real), LocalVarDecl(Identifier("b"), Real)), permType) :: Nil ++
       //read and update mask/pmask
       (if(!verifier.usePolyMapsInEncoding) {
+        val maskPolyMapDesugarHelper = PolyMapDesugarHelper(refType, fieldTypeConstructor, namespace)
+        val maskRep = maskPolyMapDesugarHelper.desugarPolyMap(maskType, (readMaskName, updateMaskName), _ => permType)
+        val pmaskRep = maskPolyMapDesugarHelper.desugarPolyMap(pmaskType, (readPMaskName, updatePMaskName), _ => Bool)
+
         MaybeCommentedDecl("read and update permission mask",
           maskRep.select ++ maskRep.store ++ maskRep.axioms) ++
         MaybeCommentedDecl("read and update known-folded mask",

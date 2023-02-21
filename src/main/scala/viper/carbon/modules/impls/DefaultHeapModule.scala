@@ -116,9 +116,6 @@ class DefaultHeapModule(val verifier: Verifier)
       predicateVersionFieldType("C"))
     val useSumOfStatesAxioms = loopModule.sumOfStatesAxiomRequired
 
-    val heapMapDesugarHelper = PolyMapDesugarHelper(refType, fieldTypeConstructor, heapNamespace)
-    val heapDesugaringRep : PolyMapRep = heapMapDesugarHelper.desugarPolyMap(heapTyp, (readHeapName, updateHeapName), t1 => t1.freeTypeVars(1))
-
     TypeDecl(refType) ++
       GlobalVarDecl(heapName, heapTyp) ++
       ConstDecl(nullName, refType) ++
@@ -152,7 +149,11 @@ class DefaultHeapModule(val verifier: Verifier)
       } ++
       {
         if(!verifier.usePolyMapsInEncoding) {
-          heapDesugaringRep.select ++ heapDesugaringRep.store
+          val heapMapDesugarHelper = PolyMapDesugarHelper(refType, fieldTypeConstructor, heapNamespace)
+          val heapDesugaringRep : PolyMapRep = heapMapDesugarHelper.desugarPolyMap(heapTyp, (readHeapName, updateHeapName), t1 => t1.freeTypeVars(1))
+          heapDesugaringRep.select ++
+          heapDesugaringRep.store ++
+          MaybeCommentedDecl("Read and update axioms for the heap", heapDesugaringRep.axioms)
         } else {
           Nil
         }
@@ -183,14 +184,6 @@ class DefaultHeapModule(val verifier: Verifier)
       val identicalFuncApp = FuncApp(identicalOnKnownLocsName, vars map (_.l), Bool)
       val identicalLiberalFuncApp = FuncApp(identicalOnKnownLocsLiberalName, vars map (_.l), Bool)
 
-      val readAndUpdateHeapAxioms =
-        if(!verifier.usePolyMapsInEncoding) {
-          MaybeCommentedDecl("Read and update axioms for the heap", heapDesugaringRep.axioms)
-        } else {
-          Nil
-        }
-
-      readAndUpdateHeapAxioms ++
       identicalOnKnownLocsAxioms(false) ++
         MaybeCommentedDecl("Updated Heaps are Successor Heaps", {
           val value = LocalVarDecl(Identifier("v"), TypeVar("B"));
