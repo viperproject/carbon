@@ -504,7 +504,7 @@ class DefaultHeapModule(val verifier: Verifier)
 
   /**
     * @param maskField the field with which the predicate mask is accessed in the heap
-    * @param mask the predicate mask itself (for example Heap[null, [[maskField]]])
+    * @param mask the predicate mask itself (for example, Heap[null, [[maskField]]])
     */
   case class PredicateMask(maskField: Exp, mask: Exp)
 
@@ -557,9 +557,9 @@ class DefaultHeapModule(val verifier: Verifier)
     if(verifier.usePolyMapsInEncoding) {
       MapSelect(h, Seq(o, f))
     } else {
-      /*  Bool is not the correct type. To obtain the correct type one would have to infer the type of f. Since
+      /**  Bool is not the correct type. To obtain the correct type one would have to infer the type of f. Since
           Boogie type checks the generated Boogie program, there is no issue (moreover, primitive return types in
-          @{code FuncApp} are ignored in the default case; the return type is not required for Boogie's type checker in
+          {@code FuncApp} are ignored in the default case; the return type is not required for Boogie's type checker in
           general).
        */
       FuncApp( if(isPMask) { permModule.pmaskTypeDesugared.selectId } else { readHeapName }, Seq(h,o,f), Bool)

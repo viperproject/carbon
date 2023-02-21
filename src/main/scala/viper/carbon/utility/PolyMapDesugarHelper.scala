@@ -12,8 +12,8 @@ case class PolyMapRep(select: Func, store: Func, axioms: Seq[Axiom])
 
 /***
   *  Class that can desugar a specific category of polymorphic Boogie maps, namely Boogie maps of the form
-  *  \code{<...>[ref, Field ...]RangeType} where \code{ref} is type representing references (no type arguments),
-  *  \code{Field} is a type constructor representing fields.
+  *  {@code <...>[ref, Field ...]RangeType} where \code{ref} is type representing references (no type arguments),
+  *  {@code Field} is a type constructor representing fields.
   * @param refType type representing references
   * @param fieldTypeConstructor [[fieldTypeConstructor._2]] constructs a field type given [[fieldTypeConstructor._1]] type arguments
   * @param namespace
@@ -23,7 +23,7 @@ case class PolyMapDesugarHelper(refType: Type, fieldTypeConstructor: (Int, Seq[T
 
   /**
     * Creates store and select functions with corresponding axioms to desugar a Boogie map of the form
-    * \code{<...>[ref, Field ... ...]RangeType} .
+    * {@code <...>[ref, Field ... ...]RangeType} .
     * @param mapRepType               the type that should be used to represent the map type
     * @param selectAndStoreId         the identifiers for selection and store functions
     * @param mapRangeTypeFromField    the range type of the map as a function of the field type

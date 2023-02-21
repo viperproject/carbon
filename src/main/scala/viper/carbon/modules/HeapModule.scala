@@ -165,7 +165,9 @@ trait HeapModule extends Module with CarbonStateComponent {
 
   def currentHeap:Seq[Exp]
 
-  // store @{code newVal} at @{code loc} in the current heap
+  /**
+    * store {@code newVal} at {@code loc} in the current heap
+    */
   def currentHeapAssignUpdate(loc: sil.LocationAccess, newVal: Exp): Stmt
 
   def identicalOnKnownLocations(heap:Seq[Exp],mask:Seq[Exp]):Exp
