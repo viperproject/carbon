@@ -9,7 +9,7 @@ package viper.carbon.modules
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.modules.components.CarbonStateComponent
-import viper.carbon.utility.MapDesugarHelper
+import viper.carbon.utility.PolyMapDesugarHelper
 import viper.silver.ast.{LocationAccess, MagicWand}
 
 /**
@@ -37,6 +37,14 @@ trait HeapModule extends Module with CarbonStateComponent {
    * The type used for fields of type t.
    */
   def fieldTypeOf(t: Type): Type
+
+
+  /**
+    * Represents the Boogie type constructor for fields.
+    * The first element specifies how many type arguments (n_ty_args) the field type constructor takes and
+    * the second element provides a function to construct a field type given n_ty_args many type arguments
+    */
+  def fieldTypeConstructor : (Int, Seq[Type] => Type)
 
   /**
    * The type used for predicates.
@@ -186,9 +194,4 @@ trait HeapModule extends Module with CarbonStateComponent {
   // and heap2, where mask2 is defined.
   def sumHeap(resultHeap: Exp, heap1: Exp, mask1: Exp, heap2: Exp, mask2: Exp): Exp
 
-  /**
-    * helps with desugaring maps where the key consists of a reference (first element) and a
-    * field (second element). The range type of the map can be chosen.
-    */
-  def heapMapDesugarHelper : MapDesugarHelper
 }

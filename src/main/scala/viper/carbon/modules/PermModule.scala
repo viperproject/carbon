@@ -7,10 +7,11 @@
 package viper.carbon.modules
 
 import viper.carbon.boogie._
-import viper.carbon.modules.components.{CarbonStateComponent}
+import viper.carbon.modules.components.CarbonStateComponent
+import viper.carbon.utility.PolyMapRep
 import viper.silver.{ast => sil}
 
-case class KnownFoldedMaskRep(typeRep: Type, selectId: Identifier, storeId: Identifier)
+case class PMaskDesugaredRep(selectId: Identifier, storeId: Identifier)
 
 /**
  * The permission module determines the encoding of permissions and allows to add or remove
@@ -79,8 +80,12 @@ trait PermModule extends Module with CarbonStateComponent {
    */
   def pmaskType: Type
 
-  //TODO: merge with pmaskType
-  def knownFoldedMaskRep: KnownFoldedMaskRep
+  /**
+    * The desugared poly map version of [[pmaskType]].
+    * TODO: It may make sense to move the representation of predicate masks to another module. Right now the representation
+    *       seems to be shared among multiple modules.
+    */
+  def pmaskTypeDesugared: PMaskDesugaredRep
 
   def zeroPMask: Exp
 
