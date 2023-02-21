@@ -78,4 +78,6 @@ trait Verifier {
 
   def assumeInjectivityOnInhale: Boolean
 
+  def usePolyMapsInEncoding: Boolean
+
 }

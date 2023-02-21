@@ -920,11 +920,10 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(args, predicateName), _) if duringUnfold =>
         val oldVersion = LocalVar(Identifier("oldVersion"), predicateVersionType)
         val newVersion = LocalVar(Identifier("newVersion"), predicateVersionType)
-        val curVersion = translateExp(loc)
         val stmt: Stmt = if (exhaleTmpStateId >= 0 || duringUnfolding) Nil else //(oldVersion := curVersion) ++
            Havoc(Seq(newVersion)) ++
               //          Assume(oldVersion < newVersion) ++ // this only made sense with integer versions. In the new model, we even want to allow the possibility of the new version being equal to the old
-              (curVersion := newVersion)
+              currentHeapAssignUpdate(loc, newVersion)
         ( () => MaybeCommentBlock("Update version of predicate",
           If(UnExp(Not,hasDirectPerm(loc)), stmt, Nil)), () => Nil)
       case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(_, _), _) if duringFold =>
