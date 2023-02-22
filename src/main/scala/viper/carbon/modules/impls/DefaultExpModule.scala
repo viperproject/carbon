@@ -463,7 +463,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
     */
   private def expSubnodesForDefinedness(e: sil.Exp) : Seq[sil.Node] = {
     e match {
-      case sil.AccessPredicate(loc, perm) if loc.isInstanceOf[sil.LocationAccess] => loc.subnodes ++ Seq(perm)
+      case sil.AccessPredicate(res, perm) if res.isInstanceOf[sil.LocationAccess] => res.subnodes ++ Seq(perm)
+      case sil.CurrentPerm(res) if res.isInstanceOf[sil.LocationAccess] => res.subnodes
       case _ => e.subnodes
     }
   }
