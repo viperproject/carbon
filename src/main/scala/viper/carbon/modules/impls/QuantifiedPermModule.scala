@@ -259,7 +259,6 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   override def reset = {
     mask = originalMask
-    allowLocationAccessWithoutPerm = false
     qpId = 0
     inverseFuncs = new ListBuffer[Func]();
     rangeFuncs = new ListBuffer[Func]();
@@ -1527,28 +1526,14 @@ class QuantifiedPermModule(val verifier: Verifier)
     permLe(b, a, forField)
   }
 
-  // AS: this is a trick to avoid well-definedness checks for the outermost heap dereference in an AccessPredicate node (since it describes the location to which permission is provided).
-  // The trick is somewhat fragile, in that it relies on the ordering of the calls to this method (but generally works out because of the recursive traversal of the assertion).
-  private var allowLocationAccessWithoutPerm = false
-  override def simplePartialCheckDefinednessBefore(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
+  override def simplePartialCheckDefinednessAfter(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
 
     val stmt: Stmt = if(makeChecks) (
       e match {
-        case sil.CurrentPerm(loc) =>
-          allowLocationAccessWithoutPerm = true
-          Nil
-        case sil.AccessPredicate(loc, perm) =>
-          allowLocationAccessWithoutPerm = true
-          Nil
         case fa@sil.LocationAccess(_) =>
-          if (allowLocationAccessWithoutPerm) {
-            allowLocationAccessWithoutPerm = false
-            Nil
-          } else {
-              Assert(hasDirectPerm(fa), error.dueTo(reasons.InsufficientPermission(fa)))
-          }
+          Assert(hasDirectPerm(fa), error.dueTo(reasons.InsufficientPermission(fa)))
         case sil.PermDiv(a, b) =>
-            Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
+          Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
         case sil.PermPermDiv(a, b) =>
           Assert(translatePerm(b) !== RealLit(0.0), error.dueTo(reasons.DivisionByZero(b)))
         case _ => Nil

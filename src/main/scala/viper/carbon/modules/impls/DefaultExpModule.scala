@@ -391,8 +391,9 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         def translate(e: sil.Exp): Seqn = {
           val checks = components map (_.partialCheckDefinedness(e, error, makeChecks = makeChecks))
           val stmt = checks map (_._1())
+
           // AS: note that some implementations of the definedness checks rely on the order of these calls (i.e. parent nodes are checked before children, and children *are* always checked after parents.
-          val stmt2 = for (sub <- e.subnodes if sub.isInstanceOf[sil.Exp]) yield {
+          val stmt2 = for (sub <- expSubnodesForDefinedness(e) if sub.isInstanceOf[sil.Exp]) yield {
             checkDefinednessImpl(sub.asInstanceOf[sil.Exp], error, makeChecks = makeChecks)
           }
           val stmt3 = checks map (_._2())
@@ -454,6 +455,16 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           case _ =>
             translate(e)
         }
+    }
+  }
+
+  /***
+    * Returns subnodes that are relevant for definedness checks
+    */
+  private def expSubnodesForDefinedness(e: sil.Exp) : Seq[sil.Node] = {
+    e match {
+      case sil.AccessPredicate(loc, perm) if loc.isInstanceOf[sil.LocationAccess] => loc.subnodes ++ Seq(perm)
+      case _ => e.subnodes
     }
   }
 
