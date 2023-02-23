@@ -393,8 +393,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           val stmt = checks map (_._1())
 
           // AS: note that some implementations of the definedness checks rely on the order of these calls (i.e. parent nodes are checked before children, and children *are* always checked after parents.
-          val stmt2 = for (sub <- expSubnodesForDefinedness(e) if sub.isInstanceOf[sil.Exp]) yield {
-            checkDefinednessImpl(sub.asInstanceOf[sil.Exp], error, makeChecks = makeChecks)
+          val stmt2 = for (sub <- subexpressionsForDefinedness(e)) yield {
+            checkDefinednessImpl(sub, error, makeChecks = makeChecks)
           }
           val stmt3 = checks map (_._2())
 
@@ -459,13 +459,13 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   }
 
   /***
-    * Returns subnodes that are relevant for definedness checks
+    * Returns subexpressions that are relevant for definedness checks
     */
-  private def expSubnodesForDefinedness(e: sil.Exp) : Seq[sil.Node] = {
+  private def subexpressionsForDefinedness(e: sil.Exp) : Seq[sil.Exp] = {
     e match {
-      case sil.AccessPredicate(res, perm) if res.isInstanceOf[sil.LocationAccess] => res.subnodes ++ Seq(perm)
-      case sil.CurrentPerm(res) if res.isInstanceOf[sil.LocationAccess] => res.subnodes
-      case _ => e.subnodes
+      case sil.AccessPredicate(res : sil.LocationAccess, perm) => res.subExps ++ Seq(perm)
+      case sil.CurrentPerm(res: sil.LocationAccess) => res.subExps
+      case _ => e.subExps
     }
   }
 
