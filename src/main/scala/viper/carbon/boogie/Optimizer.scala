@@ -76,9 +76,9 @@ object Optimizer {
       case CondExp(condition, ifTrue, TrueLit()) =>
         BinExp(UnExp(Not, condition), Or, ifTrue)
 
-      case Forall(_, _, BoolLit(literal), _) =>
+      case Forall(_, _, BoolLit(literal), _, _) =>
         BoolLit(literal)
-      case Exists(_, _, BoolLit(literal)) =>
+      case Exists(_, _, BoolLit(literal), _) =>
         BoolLit(literal)
 
       case UnExp(Minus, IntLit(literal)) => IntLit(-literal)
@@ -103,9 +103,15 @@ object Optimizer {
      // This case was removed - the evaluation as doubles and translation of RealLit can introduce rounding/precision errors
      /* case BinExp(IntLit(left), Div, IntLit(right)) if right != 0 =>
         RealLit(left.toDouble / right.toDouble)*/
-      case BinExp(IntLit(left), IntDiv, IntLit(right)) if right != 0 =>
+
+      /* In the general case, Carbon uses the SMT division and modulo. Scala's division is not in-sync with SMT division.
+         For nonnegative dividends and divisors, all used division and modulo definitions coincide. So, in order to not
+         not make any assumptions on the SMT division, division and modulo are simplified only if the dividend and divisor
+         are nonnegative.
+       */
+      case BinExp(IntLit(left), IntDiv, IntLit(right)) if left >= 0 && right > 0 =>
         IntLit(left / right)
-      case BinExp(IntLit(left), Mod, IntLit(right)) if right != 0 =>
+      case BinExp(IntLit(left), Mod, IntLit(right)) if left >= 0 && right > 0 =>
         IntLit(left % right)
 
       case BinExp(RealLit(left), GeCmp, RealLit(right)) =>

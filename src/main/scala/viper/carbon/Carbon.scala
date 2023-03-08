@@ -9,7 +9,6 @@ package viper.carbon
 import ch.qos.logback.classic.Logger
 import viper.silver.frontend.{SilFrontend, SilFrontendConfig}
 import viper.silver.logger.ViperStdOutLogger
-import viper.silver.plugin.PluginAwareReporter
 import viper.silver.reporter.{Reporter, StdIOReporter}
 import viper.silver.verifier.{Verifier => SilVerifier}
 
@@ -24,15 +23,15 @@ object Carbon extends CarbonFrontend(StdIOReporter("carbon_reporter"), ViperStdO
   }
 }
 
-class CarbonFrontend(override val reporter: PluginAwareReporter,
+class CarbonFrontend(override val reporter: Reporter,
                      override val logger: Logger) extends SilFrontend {
-
-  def this(reporter: Reporter, logger: Logger) = this(PluginAwareReporter(reporter), logger)
 
   private var carbonInstance: CarbonVerifier = _
 
+  override def backendTypeFormat: Option[String] = Some("Boogie")
+
   def createVerifier(fullCmd: String) = {
-    carbonInstance = CarbonVerifier(reporter.reporter, Seq("Arguments: " -> fullCmd))
+    carbonInstance = CarbonVerifier(reporter, Seq("Arguments: " -> fullCmd))
 
     carbonInstance
   }
@@ -92,6 +91,12 @@ class CarbonConfig(args: Seq[String]) extends SilFrontendConfig(args, "Carbon") 
   val disableAllocEncoding = opt[Boolean]("disableAllocEncoding",
     descr = "Disable Allocation-related assumptions (default: enabled)",
     default = None,
+    noshort = true
+  )
+
+  val desugarPolymorphicMaps = opt[Boolean]("desugarPolymorphicMaps",
+    descr = "Do not use polymorphic maps in the Boogie encoding and instead desugar them (default: false).",
+    default = Some(false),
     noshort = true
   )
 

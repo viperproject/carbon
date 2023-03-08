@@ -7,8 +7,11 @@
 package viper.carbon.modules
 
 import viper.carbon.boogie._
-import viper.carbon.modules.components.{CarbonStateComponent}
+import viper.carbon.modules.components.CarbonStateComponent
+import viper.carbon.utility.PolyMapRep
 import viper.silver.{ast => sil}
+
+case class PMaskDesugaredRep(selectId: Identifier, storeId: Identifier)
 
 /**
  * The permission module determines the encoding of permissions and allows to add or remove
@@ -40,23 +43,7 @@ trait PermModule extends Module with CarbonStateComponent {
    */
   def permissionPositive(permission: Exp, zeroOK : Boolean = false): Exp
 
-
   def conservativeIsPositivePerm(e: sil.Exp): Boolean
-
-  /**
-   * The number of phases during exhale.
-   */
-  def numberOfPhases: Int
-
-  /**
-   * The ID of the phase that this expression should be exhaled in.
-   */
-  def isInPhase(e: sil.Exp, phaseId: Int): Boolean
-
-  /**
-   * A short description of a given phase.
-   */
-  def phaseDescription(phase: Int): String
 
   /**
    * The current mask.
@@ -92,6 +79,13 @@ trait PermModule extends Module with CarbonStateComponent {
    * The type used to for predicate masks.
    */
   def pmaskType: Type
+
+  /**
+    * The desugared poly map version of [[pmaskType]].
+    * TODO: It may make sense to move the representation of predicate masks to another module. Right now the representation
+    *       seems to be shared among multiple modules.
+    */
+  def pmaskTypeDesugared: PMaskDesugaredRep
 
   def zeroPMask: Exp
 

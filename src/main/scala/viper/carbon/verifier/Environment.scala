@@ -27,19 +27,19 @@ case class Environment(verifier: Verifier, member: sil.Node) {
 
   // register types from member
   member match {
-    case sil.Method(name, args, returns, pres, posts, body) =>
+    case sil.Method(_, args, returns, _, _, _) =>
       for (v <- args ++ returns) {
         define(v.localVar)
       } 
-    case f@sil.Function(name, args, typ, pres, posts, exp) =>
+    case f@sil.Function(_, args, _, _, _, _) =>
       for (v <- args) {
         define(v.localVar)
       }
-    case sil.Predicate(name, args, body) =>
+    case sil.Predicate(_, args, _) =>
       for (v <- args) {
         define(v.localVar)
       }
-    case f@sil.DomainFunc(name, args, typ, unique) =>
+    case f@sil.DomainFunc(_, args, _, _, _) =>
       for (v <- args) {
         v match {
           case n: sil.LocalVarDecl => define(n.localVar)

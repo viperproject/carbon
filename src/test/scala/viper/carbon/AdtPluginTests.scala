@@ -6,21 +6,17 @@
 
 package viper.carbon
 
-import viper.silver.testing.SilSuite
-import viper.silver.verifier.Verifier
 import viper.silver.frontend.Frontend
-import java.nio.file.Path
-
 import viper.silver.logger.SilentLogger
 import viper.silver.reporter.{NoopReporter, StdIOReporter}
+import viper.silver.testing.SilSuite
+import viper.silver.verifier.Verifier
 
-/** All tests for carbon.
+import java.nio.file.Path
 
-  */
-class AllTests extends SilSuite {
-  override def testDirectories: Seq[String] = Vector(
-    "predinline"
-  )
+/** All tests for the Adt Plugin. */
+class AdtPluginTests extends SilSuite {
+   override def testDirectories: Seq[String] = Vector("adt")
 
   override def frontend(verifier: Verifier, files: Seq[Path]): Frontend = {
     require(files.length == 1, "tests should consist of exactly one file")
@@ -30,5 +26,13 @@ class AllTests extends SilSuite {
     fe
   }
 
-  lazy val verifiers = List(CarbonVerifier(StdIOReporter()))
+  val carbon: CarbonVerifier = CarbonVerifier(StdIOReporter())
+
+  lazy val verifiers = List(carbon)
+
+  override def configureVerifiersFromConfigMap(configMap: Map[String, Any]): Unit = {
+    carbon.parseCommandLine(Seq("--plugin", "viper.silver.plugin.standard.adt.AdtPlugin") :+ "dummy-file-to-prevent-cli-parser-from-complaining-about-missing-file-name.silver.vpr")
+  }
+
+
 }
