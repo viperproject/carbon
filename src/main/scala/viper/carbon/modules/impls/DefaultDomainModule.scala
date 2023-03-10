@@ -68,11 +68,7 @@ class DefaultDomainModule(val verifier: Verifier) extends DomainModule with Stat
   }
 
   override def translateDomainFuncApp(fa: sil.DomainFuncApp): Exp = {
-    val domain = verifier.program.findDomain(fa.domainName)
-    val funct = domain.functions.find(_.name == fa.funcname) match {
-      case Some(f) => f
-      case None => sys.error("Domain function " + fa.funcname + " not found in domain " + domain.name)
-    }
+    val funct = verifier.program.findDomainFunction(fa.funcname)
     if (funct.unique) {
       Const(Identifier(funct.name))
     } else {
