@@ -159,21 +159,14 @@ trait BoogieInterface {
     * Invoke Boogie.
     */
   private def run(input: String, options: Seq[String]) = {
-    // write program to a temporary file
-    val tmp = File.createTempFile("carbon", ".bpl")
-    tmp.deleteOnExit()
-    val stream = new BufferedOutputStream(new FileOutputStream(tmp))
-    stream.write(input.getBytes)
-    stream.close()
-
     reporter report BackendSubProcessReport("carbon", boogiePath, BeforeInputSent, _boogieProcessPid)
 
-    val cmd: Seq[String] = (Seq(boogiePath) ++ options ++ Seq(tmp.getAbsolutePath))
+    // When the filename is "stdin.bpl" Boogie reads the program from standard input.
+    val cmd: Seq[String] = Seq(boogiePath) ++ options ++ Seq("stdin.bpl")
     val pb: ProcessBuilder = new ProcessBuilder(cmd.asJava)
     val proc: Process = pb.start()
     _boogieProcess = Some(proc)
     _boogieProcessPid = Some(proc.pid)
-
 
     //proverShutDownHook approach taken from Silicon's codebase
     val proverShutdownHook = new Thread {
@@ -182,8 +175,6 @@ trait BoogieInterface {
       }
     }
     Runtime.getRuntime.addShutdownHook(proverShutdownHook)
-
-    proc.getOutputStream.close()
 
     // _z3ProcessStream = Some(proc.descendants().toScala(LazyList))
     reporter report BackendSubProcessReport("carbon", boogiePath, AfterInputSent, _boogieProcessPid)
@@ -197,6 +188,10 @@ trait BoogieInterface {
 
     errorStreamThread.start()
     inputStreamThread.start()
+
+    // Send the program to Boogie
+    proc.getOutputStream.write(input.getBytes);
+    proc.getOutputStream.close()
 
     try {
       proc.waitFor()
@@ -239,30 +234,4 @@ trait BoogieInterface {
       case None =>
     }
   }
-
-  /*  // TODO: investigate why passing the program directly does not work
-    private def runX(input: String, options: Seq[String]): String = {
-      def convertStreamToString(is: java.io.InputStream) = {
-        val s = new java.util.Scanner(is).useDelimiter("\\A")
-        if (s.hasNext) s.next() else ""
-      }
-      var res: String = ""
-      var reserr: String = ""
-      def out(input: java.io.InputStream) {
-        res += convertStreamToString(input)
-        input.close()
-      }
-      def err(in: java.io.InputStream) {
-        reserr += convertStreamToString(in)
-        in.close()
-      }
-      def in(output: java.io.OutputStream) {
-        output.write(input.getBytes)
-        output.close()
-      }
-      // Note: call exitValue to block until Boogie has finished
-      // Note: we call boogie with an empty input "file" on stdin and parse the output
-      (Seq(boogiePath) ++ options ++ Seq("stdin.bpl")).run(new ProcessIO(in, out, err)).exitValue()
-      reserr + res
-    }*/
 }
