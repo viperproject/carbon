@@ -15,7 +15,7 @@ import viper.silver.{ast => sil}
 import viper.carbon.verifier.{Environment, Verifier}
 import viper.carbon.boogie.Implicits._
 import viper.silver.ast.utility._
-import viper.carbon.modules.components.{DefinednessComponent, ExhaleComponent, InhaleComponent}
+import viper.carbon.modules.components.{DefinednessComponent, DefinednessState, ExhaleComponent, InhaleComponent}
 import viper.silver.verifier.{NullPartialVerificationError, PartialVerificationError, errors}
 
 import scala.collection.mutable.ListBuffer
@@ -722,7 +722,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   override def translateResult(r: sil.Result) = translateResultDecl(r).l
 
   private var tmpStateId = -1
-  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): (() => Stmt, () => Stmt) = {
+  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, definednessState: Option[DefinednessState]): (() => Stmt, () => Stmt) = {
     e match {
       case u@sil.Unfolding(acc@sil.PredicateAccessPredicate(loc, perm), exp) =>
         tmpStateId += 1
@@ -752,7 +752,11 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           })} else () => Nil
         )
       }
-      case _ => (() => simplePartialCheckDefinednessBefore(e, error, makeChecks), () => simplePartialCheckDefinednessAfter(e, error, makeChecks))
+      case _ =>
+        (
+          () => simplePartialCheckDefinednessBefore(e, error, makeChecks, definednessState),
+          () => simplePartialCheckDefinednessAfter(e, error, makeChecks, definednessState)
+        )
     }
   }
 

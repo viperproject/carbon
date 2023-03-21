@@ -27,13 +27,15 @@ trait DefinednessComponent extends Component {
     * If `makeChecks` is set to false, then no definedness checks should be emitted. See [[partialCheckDefinedness]]
     * for the purpose of `makeChecks`.
    */
-  def simplePartialCheckDefinednessBefore(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = Statements.EmptyStmt
+  def simplePartialCheckDefinednessBefore(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
+                                          definednessState: Option[DefinednessState]): Stmt = Statements.EmptyStmt
 
   /**
     * Same as [[simplePartialCheckDefinednessBefore]], except that this well-definedness check is invoked and emitted
     * *after* the well-definedness checks of `e`'s subnodes are invoked and emitted.
     */
-  def simplePartialCheckDefinednessAfter(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = Statements.EmptyStmt
+  def simplePartialCheckDefinednessAfter(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
+                                        definednessState: Option[DefinednessState]): Stmt = Statements.EmptyStmt
 
   /**
    * Proof obligations for a given expression.  The first part of the result is used before
@@ -44,6 +46,12 @@ trait DefinednessComponent extends Component {
    * corresponding unfoldings to be executed), but no other checks to actually be made. Note that this method
    * must be overridden for this parameter to be used.
    */
-  def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): (() => Stmt, () => Stmt) =
-    (() => simplePartialCheckDefinednessBefore(e, error, makeChecks), () => simplePartialCheckDefinednessAfter(e, error, makeChecks))
+  def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
+                             definednessState: Option[DefinednessState]): (() => Stmt, () => Stmt) =
+    (
+      () => simplePartialCheckDefinednessBefore(e, error, makeChecks, definednessState),
+      () => simplePartialCheckDefinednessAfter(e, error, makeChecks, definednessState)
+    )
 }
+
+case class DefinednessState(setDefState: () => Unit)

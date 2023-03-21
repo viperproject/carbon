@@ -8,7 +8,7 @@ package viper.carbon.modules
 
 import viper.silver.{ast => sil}
 import viper.carbon.boogie.{Exp, LocalVar, Stmt}
-import viper.carbon.modules.components.{ComponentRegistry, DefinednessComponent}
+import viper.carbon.modules.components.{ComponentRegistry, DefinednessComponent, DefinednessState}
 import viper.silver.verifier.PartialVerificationError
 
 /**
@@ -42,6 +42,7 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
       * inWand distinguish when check definedness is called during a package statement.
       */
   def checkDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean = true,
+                       definednessState: Option[DefinednessState] = None,
                        insidePackageStmt: Boolean = false, ignoreIfInWand: Boolean = false): Stmt
 
   /**

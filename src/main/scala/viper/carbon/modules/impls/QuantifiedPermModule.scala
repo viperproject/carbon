@@ -1526,7 +1526,7 @@ class QuantifiedPermModule(val verifier: Verifier)
     permLe(b, a, forField)
   }
 
-  override def simplePartialCheckDefinednessAfter(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
+  override def simplePartialCheckDefinednessAfter(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, definednessState: Option[DefinednessState]): Stmt = {
 
     val stmt: Stmt = if(makeChecks) (
       e match {

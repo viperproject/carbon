@@ -11,7 +11,7 @@ import viper.carbon.modules._
 import viper.carbon.verifier.Verifier
 import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
-import viper.carbon.modules.components.{DefinednessComponent, StmtComponent}
+import viper.carbon.modules.components.{DefinednessComponent, DefinednessState, StmtComponent}
 import viper.silver.ast.utility.Expressions
 import viper.silver.ast.{MagicWand, MagicWandStructure}
 import viper.silver.verifier.{PartialVerificationError, reasons}
@@ -730,7 +730,7 @@ case class PackageSetup(hypState: StateRep, usedState: StateRep, initStmt: Stmt)
   /**
     * Checking definedness for applying statement
     */
-  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): (() => Stmt, () => Stmt) = {
+  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, definednessState: Option[DefinednessState]): (() => Stmt, () => Stmt) = {
     e match {
       case a@sil.Applying(wand, exp) =>
         tmpStateId += 1
@@ -745,7 +745,11 @@ case class PackageSetup(hypState: StateRep, usedState: StateRep, initStmt: Stmt)
           Nil
         }
         (before _, after _)
-      case _ => (() => simplePartialCheckDefinednessBefore(e, error, makeChecks), () => simplePartialCheckDefinednessAfter(e, error, makeChecks))
+      case _ =>
+        (
+          () => simplePartialCheckDefinednessBefore(e, error, makeChecks, definednessState),
+          () => simplePartialCheckDefinednessAfter(e, error, makeChecks, definednessState)
+        )
     }
   }
 

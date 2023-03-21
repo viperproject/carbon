@@ -7,7 +7,7 @@
 package viper.carbon.modules.impls
 
 import viper.carbon.modules.{StatelessComponent, StmtModule}
-import viper.carbon.modules.components.{DefinednessComponent, SimpleStmtComponent}
+import viper.carbon.modules.components.{DefinednessComponent, DefinednessState, SimpleStmtComponent}
 import viper.silver.ast.utility.Expressions.{whenExhaling, whenInhaling}
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
@@ -282,7 +282,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
   }
 
 
-  override def simplePartialCheckDefinednessBefore(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
+  override def simplePartialCheckDefinednessBefore(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, definednessState: Option[DefinednessState]): Stmt = {
     if(makeChecks) {
       e match {
         case labelOld@sil.LabelledOld(_, labelName) =>
