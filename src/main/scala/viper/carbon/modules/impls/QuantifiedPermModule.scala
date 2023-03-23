@@ -294,15 +294,33 @@ class QuantifiedPermModule(val verifier: Verifier)
    */
   private def hasDirectPerm(mask: Exp, obj: Exp, loc: Exp): Exp =
     FuncApp(hasDirectPermName, Seq(maskExp, obj, loc), Bool)
+
   private def hasDirectPerm(obj: Exp, loc: Exp): Exp = hasDirectPerm(maskExp, obj, loc)
+
   override def hasDirectPerm(la: sil.LocationAccess): Exp = {
+    hasDirectPerm(la, translateLocation(la))
+  }
+
+  private def hasDirectPerm(la: sil.LocationAccess, setToPermState: () => Unit): Exp = {
+    val translatedLoc = translateLocation(la)
+
+    val state = stateModule.state
+    setToPermState()
+    val res = hasDirectPerm(la, translatedLoc)
+    stateModule.replaceState(state)
+
+    res
+  }
+
+  private def hasDirectPerm(la: sil.LocationAccess, translatedLocation: Exp): Exp = {
     la match {
-      case sil.FieldAccess(rcv, field) =>
-        hasDirectPerm(translateExp(rcv), translateLocation(la))
+      case sil.FieldAccess(rcv, _) =>
+        hasDirectPerm(translateExp(rcv), translatedLocation)
       case sil.PredicateAccess(_, _) =>
-        hasDirectPerm(translateNull, translateLocation(la))
+        hasDirectPerm(translateNull, translatedLocation)
     }
   }
+
 
   /**
    * Expression that expresses that 'permission' is positive. 'silPerm' is used to
@@ -1531,7 +1549,8 @@ class QuantifiedPermModule(val verifier: Verifier)
     val stmt: Stmt = if(makeChecks) (
       e match {
         case fa@sil.LocationAccess(_) =>
-          Assert(hasDirectPerm(fa), error.dueTo(reasons.InsufficientPermission(fa)))
+          val hasDirectPermExp = definednessState.fold(hasDirectPerm(fa))(defState => hasDirectPerm(fa, defState.setDefState))
+          Assert(hasDirectPermExp, error.dueTo(reasons.InsufficientPermission(fa)))
         case sil.PermDiv(a, b) =>
           Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
         case sil.PermPermDiv(a, b) =>

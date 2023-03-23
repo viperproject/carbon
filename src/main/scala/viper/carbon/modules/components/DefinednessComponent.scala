@@ -54,4 +54,4 @@ trait DefinednessComponent extends Component {
     )
 }
 
-case class DefinednessState(setDefState: () => Unit)
+case class DefinednessState(var setDefState: () => Unit)

@@ -727,13 +727,28 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       case u@sil.Unfolding(acc@sil.PredicateAccessPredicate(loc, perm), exp) =>
         tmpStateId += 1
         val tmpStateName = if (tmpStateId == 0) "Unfolding" else s"Unfolding$tmpStateId"
-        val (stmt, state) = stateModule.freshTempState(tmpStateName)
+
+        /** If there is a definedness state, then we just unfold into that state and leave the current state untouched.
+          * Otherwise, we unfold into the current state. */
+        val (initStmt, restoreState) =
+          definednessState match {
+            case Some(defState) =>
+              val tmpState = stateModule.freshTempStateKeepCurrent(tmpStateName)
+              val prevSetDefState = defState.setDefState
+              defState.setDefState = () => stateModule.replaceState(tmpState)
+              val initStmt = stateModule.initToCurrentStmt(tmpState)
+              (initStmt, () => defState.setDefState = prevSetDefState)
+            case None =>
+              val (initStmt, prevState) = stateModule.freshTempState(tmpStateName)
+              (initStmt, () => stateModule.replaceState(prevState))
+          }
+
         def before() = {
-          stmt ++ unfoldPredicate(acc, error, true)
+          initStmt ++ unfoldPredicate(acc, error, true)
         }
         def after() = {
           tmpStateId -= 1
-          stateModule.replaceState(state)
+          restoreState()
           Nil
         }
         (before _, after _)
