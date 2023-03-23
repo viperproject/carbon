@@ -6,7 +6,7 @@
 
 package viper.carbon.modules
 
-import components.{ComponentRegistry, ExhaleComponent}
+import components.{ComponentRegistry, DefinednessState, ExhaleComponent}
 import viper.silver.{ast => sil}
 import viper.carbon.boogie.Stmt
 import viper.silver.verifier.PartialVerificationError
@@ -38,6 +38,31 @@ trait ExhaleModule extends Module with ExhaleComponent with ComponentRegistry[Ex
     * The 'statesStackForPackageStmt' and 'insidePackageStmt' are used when translating statements during packaging a wand.
     * For more details refer to the note in the wand module.
     */
-  def exhale(exp: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true, isAssert: Boolean = false
-             , statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt
+  def exhale(exp: Seq[(sil.Exp, PartialVerificationError, Option[PartialVerificationError])], havocHeap: Boolean = true,
+             isAssert: Boolean = false, statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt
+
+  /** convenience methods */
+  def exhaleWithoutDefinedness(exp: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true,
+                               isAssert: Boolean = false, statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt = {
+    exhale(exp.map(eError => (eError._1, eError._2, None)), havocHeap = havocHeap, isAssert = isAssert, statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
+  }
+
+  def exhaleSingleWithoutDefinedness(exp: sil.Exp, exhaleError: PartialVerificationError, havocHeap: Boolean = true,
+                                     isAssert: Boolean = false, statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt = {
+    exhale(Seq((exp, exhaleError, None)), havocHeap = havocHeap, isAssert = isAssert, statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
+  }
+
+  def exhaleSingleWithDefinedness(exp: sil.Exp, exhaleError: PartialVerificationError, definednessError: PartialVerificationError,
+                                  havocHeap: Boolean = true, isAssert: Boolean = false, statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false) = {
+    exhale(Seq((exp, exhaleError, Some(definednessError))), havocHeap = havocHeap, isAssert = isAssert,
+      statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
+  }
+
+}
+
+case class DefinednessCheckData(definednessError: PartialVerificationError, definednessState: Option[DefinednessState])
+
+object DefinednessCheckData {
+  def createWithoutState(definednessError: PartialVerificationError) = DefinednessCheckData(definednessError, None)
+
 }

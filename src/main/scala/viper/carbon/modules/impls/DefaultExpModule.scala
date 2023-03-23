@@ -547,7 +547,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           }//      case fa@sil.Forall(vars, triggers, expr) => // NOTE: there's no need for a special case for QPs, since these are desugared, introducing conjunctions
       case _ =>
         checkDefinedness(e, definednessError) ++
-          exhale(Seq((e, exhaleError)))
+          exhale(Seq((e, exhaleError, None)))
     }
 
     if(duringPackageStmt) {

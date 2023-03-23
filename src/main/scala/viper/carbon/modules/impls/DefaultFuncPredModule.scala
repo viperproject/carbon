@@ -728,23 +728,43 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         tmpStateId += 1
         val tmpStateName = if (tmpStateId == 0) "Unfolding" else s"Unfolding$tmpStateId"
 
-        /** If there is a definedness state, then we just unfold into that state and leave the current state untouched.
-          * Otherwise, we unfold into the current state. */
-        val (initStmt, restoreState) =
+        /** If there is a definedness state d, then we create a new definedness state during the unfolding operation,
+          * which is the result of applying the unfold operation in d. The current state is not changed in this case.
+          *
+          * If there is no definedness state, then we create a new state n that is the result of applying the unfold
+          * operation in the current state. The current state is then switched to n during the unfolding. */
+
+        val (setupStateInsideUnfoldingStmt, restoreState) =
           definednessState match {
             case Some(defState) =>
-              val tmpState = stateModule.freshTempStateKeepCurrent(tmpStateName)
-              val prevSetDefState = defState.setDefState
-              defState.setDefState = () => stateModule.replaceState(tmpState)
-              val initStmt = stateModule.initToCurrentStmt(tmpState)
-              (initStmt, () => defState.setDefState = prevSetDefState)
+              val prevState = stateModule.state
+              val setDefStateBeforeUnfolding = defState.setDefState
+
+              //set the def state before the unfolding
+              setDefStateBeforeUnfolding()
+
+              //create state after unfolding
+              val (initStmt, _) = stateModule.freshTempState(tmpStateName)
+              val defStateAfterUnfolding = stateModule.state
+
+              //unfold into this new state
+              val unfoldStmt = unfoldPredicate(acc, error, true)
+
+              //set new definedness state
+              defState.setDefState = () => stateModule.replaceState(defStateAfterUnfolding)
+
+              //go back to main state before unfolding
+              stateModule.replaceState(prevState)
+
+              (initStmt ++ unfoldStmt, () => defState.setDefState = setDefStateBeforeUnfolding)
             case None =>
               val (initStmt, prevState) = stateModule.freshTempState(tmpStateName)
-              (initStmt, () => stateModule.replaceState(prevState))
+              val unfoldStmt = unfoldPredicate(acc, error, true)
+              (initStmt ++ unfoldStmt, () => stateModule.replaceState(prevState))
           }
 
         def before() = {
-          initStmt ++ unfoldPredicate(acc, error, true)
+          setupStateInsideUnfoldingStmt
         }
         def after() = {
           tmpStateId -= 1
@@ -759,7 +779,22 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         //if (pres.isEmpty) noStmt // even for empty pres, the assumption made below is important
         NondetIf(
           // This is where termination checks could/should be added
-          MaybeComment("Exhale precondition of function application", exhale(pres map (e => (e, errors.PreconditionInAppFalse(fa))))) ++
+          MaybeComment("Exhale precondition of function application", {
+              val executeExhale = () => exhaleWithoutDefinedness(pres map (e => (e, errors.PreconditionInAppFalse(fa))))
+
+              definednessState match {
+                case Some(defState) =>
+                  //need to exhale in the definedness state
+                  val curState = stateModule.state
+                  defState.setDefState()
+                  val res = executeExhale()
+                  stateModule.replaceState(curState)
+                  res
+                case None =>
+                  executeExhale()
+              }
+            }
+          ) ++
             MaybeComment("Stop execution", Assume(FalseLit()))
           , checkingDefinednessOfFunction match {
             case Some(name) if name.equals(f) => MaybeComment("Enable postcondition for recursive call", Assume(triggerFuncApp(funct,heapModule.currentStateExps,args map translateExp)))
@@ -854,7 +889,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
                            , statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): (Stmt,Stmt) = {
     duringFold = true
     foldInfo = acc
-    val stmt = exhale(Seq((Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program, env.allDefinedNames(program)).get,acc.perm), error)), havocHeap = false,
+    val stmt = exhaleSingleWithoutDefinedness(Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program, env.allDefinedNames(program)).get,acc.perm), error, havocHeap = false,
       statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt) ++
       inhale(Seq((acc, error)), addDefinednessChecks = false, statesStackForPackageStmt, insidePackageStmt)
     val stmtLast =  Assume(predicateTrigger(heapModule.currentStateExps, acc.loc)) ++ {
@@ -900,7 +935,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         Assume(translateLocationAccess(location) === getPredicateFrame(predicate,translatedArgs)._1)
       } ++
       (if(exhaleUnfoldedPredicate)
-          exhale(Seq((acc, error)), havocHeap = false, statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
+          exhaleSingleWithoutDefinedness(acc, error, havocHeap = false, statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
       else Nil) ++ inhale(Seq((Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program, env.allDefinedNames(program)).get,acc.perm), error)), addDefinednessChecks = false, statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
     unfoldInfo = oldUnfoldInfo
     duringUnfold = oldDuringUnfold
@@ -911,6 +946,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   override def exhaleExpBeforeAfter(e: sil.Exp, error: PartialVerificationError): (() => Stmt, () => Stmt) = {
     e match {
+
       case sil.Unfolding(acc, _) => if (duringUnfoldingExtraUnfold) (() => Nil, () => Nil) else // execute the unfolding, since this may gain information
       {
         duringUnfoldingExtraUnfold = true
