@@ -110,6 +110,11 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
       return Nil
     }
 
+    //In certain cases, definedness checks should not be included inside a package statement
+    def maybeDefError(error: PartialVerificationError) : Option[PartialVerificationError] = {
+      if(insidePackageStmt) { None } else { Some(error) }
+    }
+
     stmt match {
       case assign@sil.LocalVarAssign(lhs, rhs) =>
         checkDefinedness(lhs, errors.AssignmentFailed(assign), insidePackageStmt = insidePackageStmt) ++
@@ -128,18 +133,21 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
         inhaleWithDefinednessCheck(whenInhaling(e), errors.InhaleFailed(inh), statesStack, insidePackageStmt)
       case exh@sil.Exhale(e) =>
         val transformedExp = whenExhaling(e)
+        val defErrorOpt = maybeDefError(errors.ExhaleFailed(exh))
         //checkDefinedness(transformedExp, errors.ExhaleFailed(exh), insidePackageStmt = insidePackageStmt, ignoreIfInWand = true)++
-        exhaleSingleWithDefinedness(transformedExp, errors.ExhaleFailed(exh), errors.ExhaleFailed(exh), statesStackForPackageStmt = statesStack, insidePackageStmt = insidePackageStmt)
+        exhale(Seq((transformedExp, errors.ExhaleFailed(exh), defErrorOpt)), statesStackForPackageStmt = statesStack, insidePackageStmt = insidePackageStmt)
       case a@sil.Assert(e) =>
         val transformedExp = whenExhaling(e)
+        val defErrorOpt = maybeDefError(errors.AssertFailed(a))
+
         if (transformedExp.isPure) {
           // if e is pure, then assert and exhale are the same
           //checkDefinedness(transformedExp, errors.AssertFailed(a), insidePackageStmt = insidePackageStmt, ignoreIfInWand = true) ++
-            exhaleSingleWithDefinedness(transformedExp, errors.AssertFailed(a), errors.AssertFailed(a), statesStackForPackageStmt = statesStack, insidePackageStmt = insidePackageStmt)
+          exhale(Seq((transformedExp, errors.AssertFailed(a), defErrorOpt)), statesStackForPackageStmt = statesStack, insidePackageStmt = insidePackageStmt)
         } else {
           // we create a temporary state to ignore the side-effects
           val (backup, snapshot) = freshTempState("Assert")
-          val exhaleStmt = exhaleSingleWithDefinedness(transformedExp, errors.AssertFailed(a), errors.AssertFailed(a), isAssert =  true, statesStackForPackageStmt = statesStack, insidePackageStmt = insidePackageStmt, havocHeap = false)
+          val exhaleStmt = exhale(Seq((transformedExp, errors.AssertFailed(a), defErrorOpt)), isAssert =  true, statesStackForPackageStmt = statesStack, insidePackageStmt = insidePackageStmt, havocHeap = false)
           replaceState(snapshot)
           backup :: exhaleStmt :: Nil
         }
