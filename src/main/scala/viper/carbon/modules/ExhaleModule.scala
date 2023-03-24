@@ -59,10 +59,3 @@ trait ExhaleModule extends Module with ExhaleComponent with ComponentRegistry[Ex
   }
 
 }
-
-case class DefinednessCheckData(definednessError: PartialVerificationError, definednessState: Option[DefinednessState])
-
-object DefinednessCheckData {
-  def createWithoutState(definednessError: PartialVerificationError) = DefinednessCheckData(definednessError, None)
-
-}

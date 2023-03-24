@@ -244,3 +244,5 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
     }
   }
 }
+
+case class DefinednessCheckData(definednessError: PartialVerificationError, definednessState: Option[DefinednessState])
