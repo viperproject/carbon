@@ -38,14 +38,14 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
 
   var nestedExhaleId = 0
 
-  override def exhale(exps: Seq[(sil.Exp, PartialVerificationError, Option[PartialVerificationError])], havocHeap: Boolean = true, isAssert: Boolean = false
-                      , statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt = {
+  override def exhale(exps: Seq[(sil.Exp, PartialVerificationError, Option[PartialVerificationError])], havocHeap: Boolean = true,
+                      isAssert: Boolean = false , statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt = {
 
     nestedExhaleId += 1
 
     // If there definedness check is required, we need to create a definedness state matching the state before the exhale
     val (wellDefStateInitStmt : Stmt, wellDefStateOpt) =
-      if(exps.exists(e => true)) {
+      if(exps.exists(e => e._3.isDefined)) {
         val wellDefState = stateModule.freshTempStateKeepCurrent(s"ExhaleWellDef${nestedExhaleId-1}")
         val wellDefStateInitStmt = stateModule.initToCurrentStmt(wellDefState)
         (wellDefStateInitStmt : Stmt, Some(wellDefState))
@@ -184,19 +184,6 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
           }
         ))
       }
-      /*
-      case sil.Unfolding(_, body) if !insidePackageStmt => {
-        val checks = components map (_.exhaleExpBeforeAfter(e, error))
-        val stmtBefore = (checks map (_._1())).toList
-
-        val stmtBody =
-            exhaleConnective(body, error, definednessCheckDataOpt, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert,
-              currentStateForPackage = currentStateForPackage)
-
-        val stmtAfter = (checks map (_._2())).toList
-
-        (stmtBefore ++ stmtBody ++ stmtAfter)
-      }*/
       case _ => {
 
         val defCheck = maybeDefCheck(e, definednessCheckDataOpt)
@@ -251,10 +238,7 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
   override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt =
   {
     if (e.isPure) {
-      e match {
-        case sil.Unfolding(_, _) => Nil //taken care of by exhaleConnective
-        case _ => Assert(translateExp(e), error.dueTo(AssertionFalse(e)))
-      }
+      Assert(translateExp(e), error.dueTo(AssertionFalse(e)))
     } else {
       Nil
     }

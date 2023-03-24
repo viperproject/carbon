@@ -949,11 +949,11 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
       case sil.Unfolding(acc, _) => if (duringUnfoldingExtraUnfold) (() => Nil, () => Nil) else // execute the unfolding, since this may gain information
       {
-        duringUnfoldingExtraUnfold = true
-        tmpStateId += 1
-        val tmpStateName = if (tmpStateId == 0) "Unfolding" else s"Unfolding$tmpStateId"
-        val (stmt, state) = stateModule.freshTempState(tmpStateName)
         def before() : Stmt = {
+          duringUnfoldingExtraUnfold = true
+          tmpStateId += 1
+          val tmpStateName = if (tmpStateId == 0) "Unfolding" else s"Unfolding$tmpStateId"
+          val (stmt, state) = stateModule.freshTempState(tmpStateName)
           val result = CommentBlock("Execute unfolding (for extra information)",
             // skip removing the predicate instance, since this will have happened earlier in the assertion being exhaled
             // TODO: note that this means that perm expressions for predicates might not behave as expected, this should be investigated
@@ -961,16 +961,12 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
             stmt ++ unfoldPredicate(acc, NullPartialVerificationError, isUnfolding = true, exhaleUnfoldedPredicate = false)
           )
           duringUnfoldingExtraUnfold = false
+          tmpStateId -= 1
+          stateModule.replaceState(state)
           result
         }
 
-        def after():Stmt = {
-          tmpStateId -= 1
-          stateModule.replaceState(state)
-          Nil
-        }
-
-        (before _ , after _ )
+        (before , () => Nil)
       }
       case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(args, predicateName), _) if duringUnfold =>
         val oldVersion = LocalVar(Identifier("oldVersion"), predicateVersionType)
