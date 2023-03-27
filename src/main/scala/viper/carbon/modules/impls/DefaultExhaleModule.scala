@@ -292,6 +292,7 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
   */
 case class DefinednessCheckData(performDefinednessChecks: Option[PartialVerificationError], definednessStateOpt: Option[DefinednessState])
 {
+
   def copyWhereNoChecksPerformed : DefinednessCheckData  = this.copy(performDefinednessChecks = None)
 
 }

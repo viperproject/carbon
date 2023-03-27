@@ -319,7 +319,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   }
 
   override def simplePartialCheckDefinednessAfter(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
-                                                  definednessState: Option[DefinednessState]): Stmt = {
+                                                  definednessStateOpt: Option[DefinednessState]): Stmt = {
 
     val stmt: Stmt = (if (makeChecks)
       e match {
@@ -348,7 +348,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       stateModule.replaceState(wandModule.UNIONState.asInstanceOf[StateRep].state)
     }
 
-    val definednessDesription =
+    val definednessDescription =
       if(makeChecks) {
         s"Check definedness of $e"
       } else {
@@ -365,48 +365,48 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   }
 
   private def checkDefinednessImpl(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
-                                   definednessState: Option[DefinednessState]): Stmt = {
+                                   definednessStateOpt: Option[DefinednessState]): Stmt = {
     e match {
       case sil.And(e1, e2) =>
-        checkDefinednessImpl(e1, error, makeChecks = makeChecks, definednessState) ::
-          If(translateExp(Expressions.asBooleanExp(e1)), checkDefinednessImpl(e2, error, makeChecks = makeChecks, definednessState), Statements.EmptyStmt) ::
+        checkDefinednessImpl(e1, error, makeChecks = makeChecks, definednessStateOpt) ::
+          If(translateExp(Expressions.asBooleanExp(e1)), checkDefinednessImpl(e2, error, makeChecks = makeChecks, definednessStateOpt), Statements.EmptyStmt) ::
           Nil
       case sil.Implies(e1, e2) =>
-        checkDefinednessImpl(e1, error, makeChecks = makeChecks, definednessState) ::
-          If(translateExp(e1), checkDefinednessImpl(e2, error, makeChecks = makeChecks, definednessState), Statements.EmptyStmt) ::
+        checkDefinednessImpl(e1, error, makeChecks = makeChecks, definednessStateOpt) ::
+          If(translateExp(e1), checkDefinednessImpl(e2, error, makeChecks = makeChecks, definednessStateOpt), Statements.EmptyStmt) ::
           Nil
       case sil.CondExp(c, e1, e2) =>
-        checkDefinednessImpl(c, error, makeChecks = makeChecks, definednessState) ::
+        checkDefinednessImpl(c, error, makeChecks = makeChecks, definednessStateOpt) ::
           If(translateExp(c),
-            checkDefinednessImpl(e1, error, makeChecks = makeChecks, definednessState),
-            checkDefinednessImpl(e2, error, makeChecks = makeChecks, definednessState)
+            checkDefinednessImpl(e1, error, makeChecks = makeChecks, definednessStateOpt),
+            checkDefinednessImpl(e2, error, makeChecks = makeChecks, definednessStateOpt)
           ) :: Nil
       case sil.Or(e1, e2) =>
-        checkDefinednessImpl(e1, error, makeChecks = makeChecks, definednessState) :: // short-circuiting evaluation:
-          If(UnExp(Not, translateExp(e1)), checkDefinednessImpl(e2, error, makeChecks = makeChecks, definednessState), Statements.EmptyStmt) ::
+        checkDefinednessImpl(e1, error, makeChecks = makeChecks, definednessStateOpt) :: // short-circuiting evaluation:
+          If(UnExp(Not, translateExp(e1)), checkDefinednessImpl(e2, error, makeChecks = makeChecks, definednessStateOpt), Statements.EmptyStmt) ::
           Nil
       case w@sil.MagicWand(_, _) =>
         checkDefinednessWand(w, error, makeChecks = makeChecks)
       case sil.Let(v, e, body) =>
-        checkDefinednessImpl(e, error, makeChecks = makeChecks, definednessState) ::
+        checkDefinednessImpl(e, error, makeChecks = makeChecks, definednessStateOpt) ::
         {
           val u = env.makeUniquelyNamed(v) // choose a fresh "v" binder
           env.define(u.localVar)
           Assign(translateLocalVar(u.localVar),translateExp(e)) ::
-          checkDefinednessImpl(body.replace(v.localVar, u.localVar), error, makeChecks = makeChecks, definednessState) ::
+          checkDefinednessImpl(body.replace(v.localVar, u.localVar), error, makeChecks = makeChecks, definednessStateOpt) ::
             {
               env.undefine(u.localVar)
               Nil
             }
         }
       case _ =>
-        def translate(e: sil.Exp, definednessStateInTranslate: Option[DefinednessState]): Seqn = {
-          val checks = components map (_.partialCheckDefinedness(e, error, makeChecks = makeChecks, definednessStateInTranslate))
+        def translate(e: sil.Exp, definednessStateOptInTranslate: Option[DefinednessState]): Seqn = {
+          val checks = components map (_.partialCheckDefinedness(e, error, makeChecks = makeChecks, definednessStateOptInTranslate))
           val stmt = checks map (_._1())
 
           // AS: note that some implementations of the definedness checks rely on the order of these calls (i.e. parent nodes are checked before children, and children *are* always checked after parents.
           val stmt2 = for (sub <- subexpressionsForDefinedness(e)) yield {
-            checkDefinednessImpl(sub, error, makeChecks = makeChecks, definednessStateInTranslate)
+            checkDefinednessImpl(sub, error, makeChecks = makeChecks, definednessStateOptInTranslate)
           }
           val stmt3 = checks map (_._2())
 
@@ -440,9 +440,9 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
 
             val filter: Exp = hasDirectPerm(eAsForallRef.resource.asInstanceOf[LocationAccess])
 
-            handleQuantifiedLocals(bound_vars, If(filter, translate(eAsForallRef, definednessState), Nil))
+            handleQuantifiedLocals(bound_vars, If(filter, translate(eAsForallRef, definednessStateOpt), Nil))
           } else {
-            handleQuantifiedLocals(bound_vars, translate(Expressions.renameVariables(e, orig_vars.map(_.localVar), bound_vars.map(_.localVar)), definednessState))
+            handleQuantifiedLocals(bound_vars, translate(Expressions.renameVariables(e, orig_vars.map(_.localVar), bound_vars.map(_.localVar)), definednessStateOpt))
           }
           bound_vars map (v => env.undefine(v.localVar))
           res
@@ -467,7 +467,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             stateModule.replaceState(prevState)
             res
           case _ =>
-            translate(e, definednessState)
+            translate(e, definednessStateOpt)
         }
     }
   }

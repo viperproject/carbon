@@ -25,14 +25,15 @@ trait ExhaleComponent extends Component {
     */
 
   /***
+    * Method that allows components to contribute to exhaling an expression.
     * The first part of the result is used before exhaling the expression, and finally after exhaling the expression
     * the second part of the result is used.
-    * @param e
+    * @param e expression to be exhaled.
     * @param error exhale error
     * @param definednessStateOpt
-    *  If defined, then this expresses the current definedness state. If defined and if the implementing component is
-    *  responsible for the top-level operator in @{code e}, then the component must ensure that that definedness state is
-    *  updated (and restored) correctly.
+    *  If defined, then this expresses the current state in which definedness checks are performed ("definedness state").
+    *  If defined and if the implementing component is responsible for the top-level operator in @{code e}, then the
+    *  component must ensure that that the definedness state is updated (and restored) correctly.
     * @return
     */
   def exhaleExpBeforeAfter(e: sil.Exp, error: PartialVerificationError, definednessStateOpt: Option[DefinednessState]): (() => Stmt, () => Stmt) =

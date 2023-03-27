@@ -26,16 +26,20 @@ trait DefinednessComponent extends Component {
     * the well-definedness checks for `e`'s subnodes.
     * If `makeChecks` is set to false, then no definedness checks should be emitted. See [[partialCheckDefinedness]]
     * for the purpose of `makeChecks`.
+    * The currently active state represents the state in which expressions should be evaluated.
+    * If `definednessStateOpt` is defined, then it represents the state in which definedness checks
+    * should be made (i.e., where permissions should be checked) and otherwise the definedness state is given by the
+    * currently active state.
    */
   def simplePartialCheckDefinednessBefore(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
-                                          definednessState: Option[DefinednessState]): Stmt = Statements.EmptyStmt
+                                          definednessStateOpt: Option[DefinednessState]): Stmt = Statements.EmptyStmt
 
   /**
     * Same as [[simplePartialCheckDefinednessBefore]], except that this well-definedness check is invoked and emitted
     * *after* the well-definedness checks of `e`'s subnodes are invoked and emitted.
     */
   def simplePartialCheckDefinednessAfter(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
-                                        definednessState: Option[DefinednessState]): Stmt = Statements.EmptyStmt
+                                         definednessStateOpt: Option[DefinednessState]): Stmt = Statements.EmptyStmt
 
   /**
    * Proof obligations for a given expression.  The first part of the result is used before
@@ -47,11 +51,16 @@ trait DefinednessComponent extends Component {
    * must be overridden for this parameter to be used.
    */
   def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
-                             definednessState: Option[DefinednessState]): (() => Stmt, () => Stmt) =
+                              definednessStateOpt: Option[DefinednessState]): (() => Stmt, () => Stmt) =
     (
-      () => simplePartialCheckDefinednessBefore(e, error, makeChecks, definednessState),
-      () => simplePartialCheckDefinednessAfter(e, error, makeChecks, definednessState)
+      () => simplePartialCheckDefinednessBefore(e, error, makeChecks, definednessStateOpt),
+      () => simplePartialCheckDefinednessAfter(e, error, makeChecks, definednessStateOpt)
     )
+
 }
 
+/**
+  * Wrapper for representing the definedness state.
+  * @param setDefState Running this should set the currently active state to the definedness state.
+  */
 case class DefinednessState(var setDefState: () => Unit)

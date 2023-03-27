@@ -25,7 +25,10 @@ import viper.silver.verifier.PartialVerificationError
 trait ExhaleModule extends Module with ExhaleComponent with ComponentRegistry[ExhaleComponent] {
 
   /**
-    * @param exp         the expression to be exhaled and the error to be raised if the exhale fails.
+    * @param exp         A sequence of triples where the conjunction of the corresponding expressions (projection on the
+    *                    the first element) is to be exhaled. The triple includes the error to be raised if the exhale fails and
+    *                    the error to be raised if a well-definedness check fails during the exhale (if the latter is set
+    *                    to [[None]], then no well-definedness checks are performed).
     * @param havocHeap   A boolean used to allow or prevent havocing the heap after the exhale.
     *                    For example, the heap is not havoced after the exhale when translating a fold statement.
     * @param isAssert    A boolean that tells whether the exhale method is being called during an exhale statement or an assert statement
@@ -42,6 +45,7 @@ trait ExhaleModule extends Module with ExhaleComponent with ComponentRegistry[Ex
              isAssert: Boolean = false, statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt
 
   /** convenience methods */
+
   def exhaleWithoutDefinedness(exp: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true,
                                isAssert: Boolean = false, statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt = {
     exhale(exp.map(eError => (eError._1, eError._2, None)), havocHeap = havocHeap, isAssert = isAssert, statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)

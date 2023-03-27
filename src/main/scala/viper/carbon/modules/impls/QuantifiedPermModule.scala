@@ -1544,12 +1544,12 @@ class QuantifiedPermModule(val verifier: Verifier)
     permLe(b, a, forField)
   }
 
-  override def simplePartialCheckDefinednessAfter(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, definednessState: Option[DefinednessState]): Stmt = {
+  override def simplePartialCheckDefinednessAfter(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, definednessStateOpt: Option[DefinednessState]): Stmt = {
 
     val stmt: Stmt = if(makeChecks) (
       e match {
         case fa@sil.LocationAccess(_) =>
-          val hasDirectPermExp = definednessState.fold(hasDirectPerm(fa))(defState => hasDirectPerm(fa, defState.setDefState))
+          val hasDirectPermExp = definednessStateOpt.fold(hasDirectPerm(fa))(defState => hasDirectPerm(fa, defState.setDefState))
           Assert(hasDirectPermExp, error.dueTo(reasons.InsufficientPermission(fa)))
         case sil.PermDiv(a, b) =>
           Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
