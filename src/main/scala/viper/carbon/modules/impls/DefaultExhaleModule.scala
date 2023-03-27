@@ -189,7 +189,7 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
           }
         ))
       }
-      case sil.Unfolding(_, body) =>
+      case sil.Unfolding(_, body) if !insidePackageStmt =>
         val defCheck = maybeDefCheck(e, definednessCheckData)
 
         val checks = components map (_.exhaleExpBeforeAfter(e, error, definednessCheckData.definednessCheckIncluded))
