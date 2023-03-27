@@ -19,13 +19,23 @@ trait ExhaleComponent extends Component {
   /**
    * Exhale a single expression.
    */
-  def exhaleExp(e: sil.Exp, error: PartialVerificationError, definednessCheckIncluded: (Boolean, DefinednessState)): Stmt = Statements.EmptyStmt
+  def exhaleExp(e: sil.Exp, error: PartialVerificationError, definednessStateOpt: Option[DefinednessState]): Stmt = Statements.EmptyStmt
 
   /**
+    */
+
+  /***
     * The first part of the result is used before exhaling the expression, and finally after exhaling the expression
     * the second part of the result is used.
+    * @param e
+    * @param error exhale error
+    * @param definednessStateOpt
+    *  If defined, then this expresses the current definedness state. If defined and if the implementing component is
+    *  responsible for the top-level operator in @{code e}, then the component must ensure that that definedness state is
+    *  updated (and restored) correctly.
+    * @return
     */
-  def exhaleExpBeforeAfter(e: sil.Exp, error: PartialVerificationError, definednessCheckIncluded: (Boolean, DefinednessState)): (() => Stmt, () => Stmt) =
-    (() => exhaleExp(e, error, definednessCheckIncluded), () => Statements.EmptyStmt)
+  def exhaleExpBeforeAfter(e: sil.Exp, error: PartialVerificationError, definednessStateOpt: Option[DefinednessState]): (() => Stmt, () => Stmt) =
+    (() => exhaleExp(e, error, definednessStateOpt), () => Statements.EmptyStmt)
 
 }

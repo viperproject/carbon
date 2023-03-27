@@ -960,18 +960,20 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     stmt
   }
 
-  override def exhaleExpBeforeAfter(e: sil.Exp, error: PartialVerificationError, definednessCheckIncluded: (Boolean, DefinednessState)): (() => Stmt, () => Stmt) = {
+  override def exhaleExpBeforeAfter(e: sil.Exp, error: PartialVerificationError, definednessStateOpt: Option[DefinednessState]): (() => Stmt, () => Stmt) = {
     e match {
 
       case sil.Unfolding(acc, _) =>
-        if (definednessCheckIncluded._1 || duringUnfoldingExtraUnfold) {
-          /* If a definedness check is already included in this context, then unfoldings will be executed by the definedness check.
-             In that case, we need not execute the unfolding again here to gain more information.
-             If we are already performing an unfolding to gain more information, then we choose not go gain more information.
+        if (definednessStateOpt.isEmpty || duringUnfoldingExtraUnfold) {
+          /* If we do not have a definedness state, then we do not perform an unfolding operation to gain more information,
+             because the unfolding operation can only be safely performed in the definedness state.
+             Also, if we are already performing an unfolding operation to gain more information, then we choose not go gain more information.
            */
           (() => Nil, () => Nil)
         } else {
-          // execute the unfolding, since this may gain information
+          /* execute the unfolding, since we need to update the definedness state (as specified by the interface) and
+           * since this may gain information
+           */
 
           /** We execute the unfolding in the definedness state. One reason for this is that we know the unfolding succeeds
             * in the definedness state if the exhale is well-defined. In the current evaluation state, the to-be-unfolded predicate
@@ -986,7 +988,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           tmpStateId += 1
           val tmpStateName = if (tmpStateId == 0) "Unfolding" else s"Unfolding$tmpStateId"
           //Note: the following statement has a side-effect on the definedness state, which is then reverted via @{code restoreState}
-          val (unfoldStmt : Stmt, restoreState) = unfoldingIntoDefinednessState(acc, NullPartialVerificationError, definednessCheckIncluded._2, tmpStateName)
+          val (unfoldStmt : Stmt, restoreState) = unfoldingIntoDefinednessState(acc, NullPartialVerificationError, definednessStateOpt.get, tmpStateName)
           duringUnfoldingExtraUnfold = false
 
           def before() : Stmt = {
