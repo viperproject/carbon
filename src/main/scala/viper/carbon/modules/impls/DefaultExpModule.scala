@@ -348,8 +348,15 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       stateModule.replaceState(wandModule.UNIONState.asInstanceOf[StateRep].state)
     }
 
+    val definednessDesription =
+      if(makeChecks) {
+        s"Check definedness of $e"
+      } else {
+        s"Execute definedness check of $e without enforcing the checks (e.g., to gain more information)"
+      }
+
     val stmt =
-      MaybeCommentBlock(s"Check definedness of $e", checkDefinednessImpl(e, error, makeChecks = makeChecks, definednessState))
+      MaybeCommentBlock(definednessDesription, checkDefinednessImpl(e, error, makeChecks = makeChecks, definednessState))
 
     if(duringPackageStmt) {
       stateModule.replaceState(oldCurState)
@@ -434,7 +441,9 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             val filter: Exp = hasDirectPerm(eAsForallRef.resource.asInstanceOf[LocationAccess])
 
             handleQuantifiedLocals(bound_vars, If(filter, translate(eAsForallRef, definednessState), Nil))
-          } else handleQuantifiedLocals(bound_vars, translate(Expressions.renameVariables(e, orig_vars.map(_.localVar), bound_vars.map(_.localVar)), definednessState))
+          } else {
+            handleQuantifiedLocals(bound_vars, translate(Expressions.renameVariables(e, orig_vars.map(_.localVar), bound_vars.map(_.localVar)), definednessState))
+          }
           bound_vars map (v => env.undefine(v.localVar))
           res
         } else e match {

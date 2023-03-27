@@ -19,13 +19,13 @@ trait ExhaleComponent extends Component {
   /**
    * Exhale a single expression.
    */
-  def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = Statements.EmptyStmt
+  def exhaleExp(e: sil.Exp, error: PartialVerificationError, definednessCheckIncluded: (Boolean, DefinednessState)): Stmt = Statements.EmptyStmt
 
   /**
     * The first part of the result is used before exhaling the expression, and finally after exhaling the expression
     * the second part of the result is used.
     */
-  def exhaleExpBeforeAfter(e: sil.Exp, error: PartialVerificationError): (() => Stmt, () => Stmt) =
-    (() => exhaleExp(e, error), () => Statements.EmptyStmt)
+  def exhaleExpBeforeAfter(e: sil.Exp, error: PartialVerificationError, definednessCheckIncluded: (Boolean, DefinednessState)): (() => Stmt, () => Stmt) =
+    (() => exhaleExp(e, error, definednessCheckIncluded), () => Statements.EmptyStmt)
 
 }

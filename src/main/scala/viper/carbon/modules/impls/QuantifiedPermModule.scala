@@ -353,7 +353,7 @@ class QuantifiedPermModule(val verifier: Verifier)
     }
   }
 
-  override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
+  override def exhaleExp(e: sil.Exp, error: PartialVerificationError, definednessCheckIncluded: (Boolean, DefinednessState)): Stmt = {
     e match {
       case sil.AccessPredicate(loc: LocationAccess, prm) =>
         val curPerm = currentPermission(loc)
