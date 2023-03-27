@@ -772,6 +772,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         val (unfoldStmt : Stmt, restoreState) =
           definednessStateOpt match {
             case Some(defState) =>
+              //Note: the following statement has a side-effect on the definedness state, which is then reverted via @{code restoreState}
               unfoldingIntoDefinednessState(acc, error, defState, tmpStateName)
             case None =>
               val (initStmt, prevState) = stateModule.freshTempState(tmpStateName)
