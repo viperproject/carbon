@@ -6,7 +6,7 @@
 
 package viper.carbon.modules.impls
 
-import viper.carbon.modules.{DefinednessCheckData, StatelessComponent, StmtModule}
+import viper.carbon.modules.{StatelessComponent, StmtModule}
 import viper.carbon.modules.components.{DefinednessComponent, DefinednessState, SimpleStmtComponent}
 import viper.silver.ast.utility.Expressions.{whenExhaling, whenInhaling}
 import viper.silver.{ast => sil}
