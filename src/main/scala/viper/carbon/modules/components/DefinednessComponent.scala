@@ -26,10 +26,9 @@ trait DefinednessComponent extends Component {
     * the well-definedness checks for `e`'s subnodes.
     * If `makeChecks` is set to false, then no definedness checks should be emitted. See [[partialCheckDefinedness]]
     * for the purpose of `makeChecks`.
-    * The currently active state represents the state in which expressions should be evaluated.
-    * If `definednessStateOpt` is defined, then it represents the state in which definedness checks
-    * should be made (i.e., where permissions should be checked) and otherwise the definedness state is given by the
-    * currently active state.
+    * If `definednessStateOpt` is defined, then it represents the state in which permission checks that are part of the
+    * definedness check should be made, otherwise these checks should be done in the currently active state.
+    * Expressions should be evaluated in the currently active state.
    */
   def simplePartialCheckDefinednessBefore(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
                                           definednessStateOpt: Option[DefinednessState]): Stmt = Statements.EmptyStmt
@@ -49,6 +48,9 @@ trait DefinednessComponent extends Component {
    * The makeChecks argument can be set to false to cause the expression to be explored (and
    * corresponding unfoldings to be executed), but no other checks to actually be made. Note that this method
    * must be overridden for this parameter to be used.
+   * If `definednessStateOpt` is defined, then it represents the state in which permission checks that are part of the
+   * definedness check should be made, otherwise these checks should be done in the currently active state.
+   * Expressions should be evaluated in the currently active state.
    */
   def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
                               definednessStateOpt: Option[DefinednessState]): (() => Stmt, () => Stmt) =

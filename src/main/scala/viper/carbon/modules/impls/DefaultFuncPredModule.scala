@@ -747,6 +747,13 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     //unfold into this new state
     val unfoldStmt = unfoldPredicate(predAcc, error, true)
 
+    /** FIXME:
+      * Here we are doing the entire predicate unfolding in the definedness state. That means also all expressions that
+      * are part of the unfolding (e.g., predicate arguments) are evaluated in the definedness state instead of the
+      * evaluation state (i.e., the currently active state before the call). This can lead to discrepancies if the expressions
+      * contain permission introspection.
+      */
+
     //set new definedness state
     defState.setDefState = () => stateModule.replaceState(defStateAfterUnfolding)
 

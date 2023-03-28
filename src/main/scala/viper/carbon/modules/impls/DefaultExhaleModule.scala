@@ -59,13 +59,13 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
 
     val exhaleStmt = exps map (e =>
         {
-          val defStateData =
+          val defCheckData =
                 DefinednessCheckData(
                   e._3,
                   Some(DefinednessState(() => stateModule.replaceState(wellDefState)))
                 )
 
-          exhaleConnective(e._1.whenExhaling, e._2, defStateData, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert = isAssert, currentStateForPackage = tempState)
+          exhaleConnective(e._1.whenExhaling, e._2, defCheckData, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert = isAssert, currentStateForPackage = tempState)
         }
       )
 
@@ -92,6 +92,10 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
 
   }
 
+  /**
+    * Emits a definedness check for the input expression if `defCheckData` demands a check and otherwise returns the
+    * empty statement
+    */
   private def maybeDefCheck(e: sil.Exp, defCheckData: DefinednessCheckData): Stmt = {
     defCheckData.performDefinednessChecks.fold(Statements.EmptyStmt: Stmt)(definednessError => checkDefinedness(e, definednessError, makeChecks = true, Some(defCheckData.definednessStateOpt.get)))
   }
@@ -119,13 +123,18 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
         val defCheck = maybeDefCheck(e1, definednessCheckData)
         val exhaleTranslation : Stmt =
           if (insidePackageStmt) {
-            val res = If(wandModule.getCurOpsBoolvar() ==> translateExpInWand(e1), exhaleConnective(e2, error, definednessCheckData, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage), Statements.EmptyStmt)
+            val res =
+              If(wandModule.getCurOpsBoolvar() ==> translateExpInWand(e1),
+                exhaleConnective(e2, error, definednessCheckData, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage),
+                Statements.EmptyStmt
+              )
             val unionStmt = wandModule.updateUnion()
             res ++ unionStmt
           } else {
             If(translateExpInWand(e1),
               exhaleConnective(e2, error, definednessCheckData, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage),
-              Statements.EmptyStmt)
+              Statements.EmptyStmt
+            )
           }
         defCheck ++ exhaleTranslation
       case sil.CondExp(c, e1, e2) =>
@@ -190,6 +199,9 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
         ))
       }
       case sil.Unfolding(_, body) if !insidePackageStmt =>
+        /** We handle unfolding separately here so that exhale components have the option to gain more information by
+          * executing the unfolding (and potentially other unfoldings inside the unfolding body) */
+
         val defCheck = maybeDefCheck(e, definednessCheckData)
 
         val definednessCheckDataRec =
@@ -282,7 +294,7 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
 
 
 /**
-  * Class to specify definedness information during exhale
+  * Class to specify definedness check information during exhale
   *
   * @param performDefinednessChecks empty if no definedness check must be performed, else contains the corresponding definedness error
   * @param definednessStateOpt Contains the state in which definedness checks should be performed. Must be non-empty if definedness checks
