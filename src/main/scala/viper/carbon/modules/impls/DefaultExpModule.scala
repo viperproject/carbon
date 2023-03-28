@@ -525,45 +525,6 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
     })(),Assume(FalseLit()))))
   }
 
-  def checkDefinednessOfSpecAndExhale(e: sil.Exp, definednessError: PartialVerificationError, exhaleError: PartialVerificationError
-                                               , statesStack: List[Any] = null, duringPackageStmt: Boolean = false): Stmt = {
-
-    val stmt =
-      e match {
-      case sil.And(e1, e2) =>
-        checkDefinednessOfSpecAndExhale(e1, definednessError, exhaleError, statesStack, duringPackageStmt) ::
-          checkDefinednessOfSpecAndExhale(e2, definednessError, exhaleError, statesStack, duringPackageStmt) ::
-          Nil
-      case sil.Implies(e1, e2) =>
-        checkDefinedness(e1, definednessError) ++
-          If(translateExp(e1), checkDefinednessOfSpecAndExhale(e2, definednessError, exhaleError, statesStack, duringPackageStmt), Statements.EmptyStmt)
-      case sil.CondExp(c, e1, e2) =>
-        checkDefinedness(c, definednessError) ++
-          If(translateExp(c),
-            checkDefinednessOfSpecAndExhale(e1, definednessError, exhaleError, statesStack, duringPackageStmt),
-            checkDefinednessOfSpecAndExhale(e2, definednessError, exhaleError, statesStack, duringPackageStmt))
-      case sil.Let(v, exp, body) =>
-        checkDefinedness(exp, definednessError, true, None) ::
-          {
-            val u = env.makeUniquelyNamed(v) // choose a fresh "v" binder
-            env.define(u.localVar)
-            Assign(translateLocalVar(u.localVar),translateExp(exp)) ::
-              checkDefinednessOfSpecAndExhale(body.replace(v.localVar, u.localVar), definednessError, exhaleError) ::
-              {
-                env.undefine(u.localVar)
-                Nil
-              }
-          }//      case fa@sil.Forall(vars, triggers, expr) => // NOTE: there's no need for a special case for QPs, since these are desugared, introducing conjunctions
-      case _ =>
-        checkDefinedness(e, definednessError) ++
-          exhale(Seq((e, exhaleError, None)))
-    }
-
-    if(duringPackageStmt) {
-      If(wandModule.getCurOpsBoolvar(), stmt, Statements.EmptyStmt)
-    }else stmt
-  }
-
   override def allFreeAssumptions(e: sil.Exp): Stmt = {
     def translate: Seqn = {
       val stmt = components map (_.freeAssumptions(e))

@@ -645,7 +645,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       }
       else {
         f.posts map (e => {
-          checkDefinednessOfSpecAndExhale(
+          exhaleSingleWithDefinedness(
             whenExhaling(e),
             errors.ContractNotWellformed(e),
             errors.PostconditionViolated(e, f))
@@ -677,7 +677,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       }
       else {
         val posts: Seq[Stmt] = f.posts map (e => {
-          checkDefinednessOfSpecAndExhale(
+          exhaleSingleWithDefinedness(
             e,
             errors.ContractNotWellformed(e),
             errors.PostconditionViolated(e, f))
