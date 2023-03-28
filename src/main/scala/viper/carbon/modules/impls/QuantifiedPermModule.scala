@@ -301,6 +301,13 @@ class QuantifiedPermModule(val verifier: Verifier)
     hasDirectPerm(la, translateLocation(la))
   }
 
+
+  /**
+    * Returns Boolean expression checking whether there is nonzero to the input location in the provided permission state
+    * @param la
+    * @param setToPermState permission state
+    * @return
+    */
   private def hasDirectPerm(la: sil.LocationAccess, setToPermState: () => Unit): Exp = {
     val translatedLoc = translateLocation(la)
 

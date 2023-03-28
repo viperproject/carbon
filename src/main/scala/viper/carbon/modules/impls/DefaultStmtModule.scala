@@ -134,7 +134,6 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
       case exh@sil.Exhale(e) =>
         val transformedExp = whenExhaling(e)
         val defErrorOpt = maybeDefError(errors.ExhaleFailed(exh))
-        //checkDefinedness(transformedExp, errors.ExhaleFailed(exh), insidePackageStmt = insidePackageStmt, ignoreIfInWand = true)++
         exhale(Seq((transformedExp, errors.ExhaleFailed(exh), defErrorOpt)), statesStackForPackageStmt = statesStack, insidePackageStmt = insidePackageStmt)
       case a@sil.Assert(e) =>
         val transformedExp = whenExhaling(e)
@@ -142,7 +141,6 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
 
         if (transformedExp.isPure) {
           // if e is pure, then assert and exhale are the same
-          //checkDefinedness(transformedExp, errors.AssertFailed(a), insidePackageStmt = insidePackageStmt, ignoreIfInWand = true) ++
           exhale(Seq((transformedExp, errors.AssertFailed(a), defErrorOpt)), statesStackForPackageStmt = statesStack, insidePackageStmt = insidePackageStmt)
         } else {
           // we create a temporary state to ignore the side-effects

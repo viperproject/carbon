@@ -734,13 +734,13 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     */
   private def unfoldingIntoDefinednessState(predAcc: sil.PredicateAccessPredicate, error: PartialVerificationError,
                                             defState: DefinednessState, tmpUnfoldStateName: String): (Stmt, () => Unit) = {
-    val prevState = stateModule.state
+    val prevMainState = stateModule.state
     val setDefStateBeforeUnfolding = defState.setDefState
 
-    //set the def state before the unfolding
+    //set the def state before the unfolding operation
     setDefStateBeforeUnfolding()
 
-    //create state after unfolding
+    //create def state after the unfolding operation and set current state to this state
     val (initStmt, _) = stateModule.freshTempState(tmpUnfoldStateName)
     val defStateAfterUnfolding = stateModule.state
 
@@ -748,9 +748,9 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val unfoldStmt = unfoldPredicate(predAcc, error, true)
 
     /** FIXME:
-      * Here we are doing the entire predicate unfolding in the definedness state. That means also all expressions that
+      * Here we are doing the entire predicate unfolding in the definedness state. This means that expressions that
       * are part of the unfolding (e.g., predicate arguments) are evaluated in the definedness state instead of the
-      * evaluation state (i.e., the currently active state before the call). This can lead to discrepancies if the expressions
+      * evaluation state (i.e., the main state before the call). This can lead to discrepancies if the expressions
       * contain permission introspection.
       */
 
@@ -758,7 +758,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     defState.setDefState = () => stateModule.replaceState(defStateAfterUnfolding)
 
     //go back to main state before unfolding
-    stateModule.replaceState(prevState)
+    stateModule.replaceState(prevMainState)
 
     (initStmt ++ unfoldStmt, () => defState.setDefState = setDefStateBeforeUnfolding)
   }
@@ -808,7 +808,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
               definednessStateOpt match {
                 case Some(defState) =>
-                  //need to exhale in the definedness state
+                  //need to exhale precondition in the definedness state
                   val curState = stateModule.state
                   defState.setDefState()
                   val res = executeExhale()
@@ -979,18 +979,16 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
            */
           (() => Nil, () => Nil)
         } else {
-          /* execute the unfolding, since we need to update the definedness state (as specified by the interface) and
-           * since this may gain information
-           */
-
-          /** We execute the unfolding in the definedness state. One reason for this is that we know the unfolding succeeds
-            * in the definedness state if the exhale is well-defined. In the current evaluation state, the to-be-unfolded predicate
-            * may (or may not) have already been exhaled so it is not clear whether we need to remove permission to the
-            * predicate or not when executing the unfolding expression.
-            * In a previous version, the predicate was never removed during the unfolding operation here, but this
-            * then led to cases where one assumed "state(heap,mask)" in cases where the mask had too much permission
-            * due to an unfolded predicate not being removed (this may not be an issue, but arguing why it is not an issue
-            * is much more subtle than the new approach). */
+          /* Execute the unfolding, since we need to update the definedness state (as specified by the interface) and
+           * since this may gain information.
+           *
+           * Note that executing the unfolding in current evaluation state instead is not safe in general:
+           * In the current evaluation state, the to-be-unfolded predicate may (or may not) have already been exhaled so
+           * it is not clear how to execute the unfolding. In a previous version, the unfolding operation was executed
+           * in the current evaluation state by inhaling permission to the predicate's body without removing any permission
+           * to the predicate itself. This led to cases where one assumed "state(heap,mask)" in cases where the mask had
+           * too much permission due to an unfolded predicate not being removed (this may not be an issue, but arguing
+           * why it is not an issue is much more subtle than the current approach). */
 
           duringUnfoldingExtraUnfold = true
           tmpStateId += 1
@@ -1001,9 +999,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
           def before() : Stmt = {
             val result = CommentBlock("Execute unfolding (for extra information)",
-              // TODO: update the text below
-              // TODO: note that this means that perm expressions for predicates might not behave as expected, this should be investigated
-              // see Carbon issue #348
+              /* TODO: Permission introspection is not affected by unfolding operations here. It has not been decided
+                       how to treat permission introspection within unfolding operations (see Silver issue #...).  */
               unfoldStmt
             )
             stateModule.replaceState(state)
