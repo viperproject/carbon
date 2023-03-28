@@ -32,7 +32,7 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
 
   /***
     * Check well-definedness of Viper expressions. This method should only be invoked on pure Viper expressions or
-    * impure *atomic* Viper assertions (i.e., accessibility predicates, quantified permissions, magic wands).
+    * impure *atomic* Viper assertions (e.g., accessibility predicates, quantified permissions).
     * For other kinds of impure assertions such as separating conjunctions where one conjunct is impure, well-definedness
     * is always tied to an inhale or exhale (or assert) operation. In those cases, the corresponding inhale and exhale
     * methods should be invoked (the methods should permit switching on well-definedness checks).

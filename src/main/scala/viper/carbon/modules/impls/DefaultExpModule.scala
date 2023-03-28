@@ -337,7 +337,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   }
 
   override def checkDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
-                                definednessState: Option[DefinednessState] = None,
+                                definednessStateOpt: Option[DefinednessState] = None,
                                 duringPackageStmt: Boolean = false, ignoreIfInWand: Boolean = false): Stmt = {
 
     if(duringPackageStmt && ignoreIfInWand)  // ignore the check
@@ -356,7 +356,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       }
 
     val stmt =
-      MaybeCommentBlock(definednessDescription, checkDefinednessImpl(e, error, makeChecks = makeChecks, definednessState))
+      MaybeCommentBlock(definednessDescription, checkDefinednessImpl(e, error, makeChecks = makeChecks, definednessStateOpt))
 
     if(duringPackageStmt) {
       stateModule.replaceState(oldCurState)
