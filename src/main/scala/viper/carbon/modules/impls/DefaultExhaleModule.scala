@@ -111,9 +111,6 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
                                havocHeap: Boolean = true, statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false,
                                isAssert: Boolean, currentStateForPackage: StateRep): Stmt = {
 
-    // creating union of current state and ops state to be used in translating exps
-    val currentState = stateModule.state
-
     e match {
       case sil.And(e1, e2) =>
         exhaleConnective(e1, error, definednessCheckData, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage) ::
@@ -257,10 +254,16 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
           else
             defCheck ++ exhaleExtStmt ++ addAssumptions ++ assertTransfer
         } else {
-          defCheck ++
           /* We propagate the definedness state to the components only if no definedness check was performed to avoid
             exhale components doing the same work as the definedness components do */
-            invokeExhaleOnComponents(e, error, definednessCheckData.performDefinednessChecks.fold(None : Option[DefinednessState])(_ => definednessCheckData.definednessStateOpt))
+          val definednessCheckDataRec =
+            if(definednessCheckData.performDefinednessChecks.isDefined) {
+              definednessCheckData.definednessStateOpt
+            } else {
+              None
+            }
+
+          defCheck ++ invokeExhaleOnComponents(e, error, definednessCheckDataRec)
         }
       }
     }
