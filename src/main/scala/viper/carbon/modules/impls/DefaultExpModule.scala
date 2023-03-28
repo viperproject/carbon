@@ -356,7 +356,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       }
 
     val stmt =
-      MaybeCommentBlock(definednessDesription, checkDefinednessImpl(e, error, makeChecks = makeChecks, definednessState))
+      MaybeCommentBlock(definednessDescription, checkDefinednessImpl(e, error, makeChecks = makeChecks, definednessState))
 
     if(duringPackageStmt) {
       stateModule.replaceState(oldCurState)
