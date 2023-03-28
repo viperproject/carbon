@@ -258,9 +258,9 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
             exhale components doing the same work as the definedness components do */
           val definednessCheckDataRec =
             if(definednessCheckData.performDefinednessChecks.isDefined) {
-              definednessCheckData.definednessStateOpt
-            } else {
               None
+            } else {
+              definednessCheckData.definednessStateOpt
             }
 
           defCheck ++ invokeExhaleOnComponents(e, error, definednessCheckDataRec)
