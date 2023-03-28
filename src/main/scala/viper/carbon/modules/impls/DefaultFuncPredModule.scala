@@ -647,8 +647,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         f.posts map (e => {
           exhaleSingleWithDefinedness(
             whenExhaling(e),
-            errors.ContractNotWellformed(e),
-            errors.PostconditionViolated(e, f))
+            errors.PostconditionViolated(e, f),
+            errors.ContractNotWellformed(e))
         })
       }
       val inhaleCheck = MaybeCommentBlock(
@@ -679,8 +679,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         val posts: Seq[Stmt] = f.posts map (e => {
           exhaleSingleWithDefinedness(
             e,
-            errors.ContractNotWellformed(e),
-            errors.PostconditionViolated(e, f))
+            errors.PostconditionViolated(e, f),
+            errors.ContractNotWellformed(e))
         })
         MaybeCommentBlock("Exhaling postcondition (with checking)", posts)
       }
