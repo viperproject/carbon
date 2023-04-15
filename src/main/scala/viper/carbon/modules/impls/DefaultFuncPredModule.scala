@@ -989,7 +989,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           /* Execute the unfolding, since we need to update the definedness state (as specified by the interface) and
            * since this may gain information.
            *
-           * Note that executing the unfolding in current evaluation state instead is not safe in general:
+           * Note that executing the unfolding in the current evaluation state (instead of in the definedness state)
+           * instead is not safe in general:
            * In the current evaluation state, the to-be-unfolded predicate may (or may not) have already been exhaled so
            * it is not clear how to execute the unfolding. In a previous version, the unfolding operation was executed
            * in the current evaluation state by inhaling permission to the predicate's body without removing any permission
@@ -1000,8 +1001,13 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           duringUnfoldingExtraUnfold = true
           tmpStateId += 1
           val tmpStateName = if (tmpStateId == 0) "Unfolding" else s"Unfolding$tmpStateId"
-          //Note: the following statement has a side-effect on the definedness state, which is then reverted via @{code restoreState}
-          val (unfoldStmt : Stmt, restoreState) = unfoldingIntoDefinednessState(acc, NullPartialVerificationError, definednessStateOpt.get, tmpStateName)
+          /** Note: the following statement has a side-effect on the definedness state, which is then reverted via @{code restoreState}
+            * Also note that there should always be sufficient permission to the unfolded predicate because there must have been
+            * a definedness check that asserts it before (in the same state).
+            * Nevertheless, we do the check again here to make sure there is no mismatch with the definedness check
+            * (to omit the check, we could pass in a [[NullPartialVerificationError]]).
+            */
+          val (unfoldStmt : Stmt, restoreState) = unfoldingIntoDefinednessState(acc, error, definednessStateOpt.get, tmpStateName)
           duringUnfoldingExtraUnfold = false
 
           def before() : Stmt = {
