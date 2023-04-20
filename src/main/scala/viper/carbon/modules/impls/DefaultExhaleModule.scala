@@ -76,13 +76,16 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
 
     nestedExhaleId -= 1
 
+    //only emit initialization of the well-definedness state if the exhale is non-empty
+    val wellDefStateInitStmtOpt : Stmt = if(exhaleStmt.flatten.isEmpty) { Nil } else { wellDefStateInitStmt }
+
     if ((exps map (_._1.isPure) forall identity) || !havocHeap || isAssert) {
       // if all expressions are pure, then there is no need for heap copies
       // if this is a translation of an Assert statement, there is also no need for heap copies
-      wellDefStateInitStmt ++ initStmtWand ++ exhaleStmt ++ assumptions
+      wellDefStateInitStmtOpt ++ initStmtWand ++ exhaleStmt ++ assumptions
     } else {
       beginExhale ++
-      wellDefStateInitStmt ++
+      wellDefStateInitStmtOpt ++
       initStmtWand ++
         exhaleStmt ++
         assumptions ++
