@@ -298,36 +298,34 @@ class QuantifiedPermModule(val verifier: Verifier)
   private def hasDirectPerm(obj: Exp, loc: Exp): Exp = hasDirectPerm(maskExp, obj, loc)
 
   override def hasDirectPerm(la: sil.LocationAccess): Exp = {
-    hasDirectPerm(la, translateLocation(la))
+    hasDirectPerm(translateReceiver(la), translateLocation(la))
   }
 
-
   /**
-    * Returns Boolean expression checking whether there is nonzero to the input location in the provided permission state
-    * @param la
-    * @param setToPermState permission state
+    * Returns Boolean expression checking whether there is nonzero permission to the input location in the provided permission state.
+    * The input location itself is translated in the original state (not in the provided permission state)
+    * @param la input location
+    * @param setToPermState permission state in which the permission is checked
     * @return
     */
   private def hasDirectPerm(la: sil.LocationAccess, setToPermState: () => Unit): Exp = {
+    val translatedRcv = translateReceiver(la)
     val translatedLoc = translateLocation(la)
 
     val state = stateModule.state
     setToPermState()
-    val res = hasDirectPerm(la, translatedLoc)
+    val res = hasDirectPerm(translatedRcv, translatedLoc)
     stateModule.replaceState(state)
 
     res
   }
 
-  private def hasDirectPerm(la: sil.LocationAccess, translatedLocation: Exp): Exp = {
+  private def translateReceiver(la: sil.LocationAccess) : Exp  = {
     la match {
-      case sil.FieldAccess(rcv, _) =>
-        hasDirectPerm(translateExp(rcv), translatedLocation)
-      case sil.PredicateAccess(_, _) =>
-        hasDirectPerm(translateNull, translatedLocation)
+      case sil.FieldAccess(rcv, _) => translateExp(rcv)
+      case sil.PredicateAccess(_, _) => translateNull
     }
   }
-
 
   /**
    * Expression that expresses that 'permission' is positive. 'silPerm' is used to
