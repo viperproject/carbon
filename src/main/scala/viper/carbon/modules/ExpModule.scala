@@ -35,7 +35,7 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
     * impure *atomic* Viper assertions (e.g., accessibility predicates, quantified permissions).
     * For other kinds of impure assertions such as separating conjunctions where one conjunct is impure, well-definedness
     * is always tied to an inhale or exhale (or assert) operation. In those cases, the corresponding inhale and exhale
-    * methods should be invoked (the methods should permit switching on well-definedness checks).
+    * methods should be invoked, which permit switching on well-definedness checks.
     *
     * @param e
     * @param error

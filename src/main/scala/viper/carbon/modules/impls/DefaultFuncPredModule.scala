@@ -730,14 +730,15 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   /***
     * Emits the statement for unfolding into the previous definedness state and adjusts the definedness state.
-    * This is achieved by creating a new definedness state that is initalized to the previous definedness state.
+    * This is achieved by creating a new definedness state that is initialized to the previous definedness state.
     * As a result, there is a side-effect to @{code defState}. The method returns a function to revert the side-effect.
     * @param predAcc
     * @param error
     * @param defState definedness state --> method has a side-effect on this
     * @param tmpUnfoldStateName name of new definedness state
-    * @return first element is the statement for the unfolding and the second element is a function to revert the side-effect on
-    *         @{code defState}
+    * @return a tuple with two values, where:
+    *         element 1: the statement for the unfolding operation
+    *         element 2: a function to revert the side-effect on @{code defState}
     */
   private def unfoldingIntoDefinednessState(predAcc: sil.PredicateAccessPredicate, error: PartialVerificationError,
                                             defState: DefinednessState, tmpUnfoldStateName: String): (Stmt, () => Unit) = {
@@ -757,7 +758,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     /** FIXME:
       * Here we are doing the entire predicate unfolding in the definedness state. This means that expressions that
       * are part of the unfolding (e.g., predicate arguments) are evaluated in the definedness state instead of the
-      * evaluation state (i.e., the main state before the call). This can lead to discrepancies if the expressions
+      * evaluation state (i.e., the main state before the unfolding). This can lead to discrepancies if the expressions
       * contain permission introspection.
       */
 
@@ -773,7 +774,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private var tmpStateId = -1
   override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, definednessStateOpt: Option[DefinednessState]): (() => Stmt, () => Stmt) = {
     e match {
-      case u@sil.Unfolding(acc@sil.PredicateAccessPredicate(loc, perm), exp) =>
+      case sil.Unfolding(acc@sil.PredicateAccessPredicate(_, _), _) =>
         tmpStateId += 1
         val tmpStateName = if (tmpStateId == 0) "Unfolding" else s"Unfolding$tmpStateId"
 
@@ -816,6 +817,12 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
               definednessStateOpt match {
                 case Some(defState) =>
                   //need to exhale precondition in the definedness state
+                  /** FIXME:
+                    * Here we are doing the entire precondition exhale in the definedness state. This means that expressions that
+                    * are part of the function call (e.g., function arguments) are evaluated in the definedness state instead of the
+                    * evaluation state (i.e., the main state before the function call). This can lead to discrepancies if the expressions
+                    * contain permission introspection.
+                    */
                   val curState = stateModule.state
                   defState.setDefState()
                   val res = executeExhale()
@@ -1013,7 +1020,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           def before() : Stmt = {
             val result = CommentBlock("Execute unfolding (for extra information)",
               /* TODO: Permission introspection is not affected by unfolding operations here. It has not been decided
-                       how to treat permission introspection within unfolding operations (see Silver issue #...).  */
+                       how to treat permission introspection within unfolding operations (see Silver issue #682).  */
               unfoldStmt
             )
             stateModule.replaceState(state)

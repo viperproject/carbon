@@ -202,6 +202,7 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
         /** We handle unfolding separately here so that exhale components have the option to gain more information by
           * executing the unfolding (and potentially other unfoldings inside the unfolding body) */
 
+        // We do the definedness check separately.
         val defCheck = maybeDefCheck(e, definednessCheckData)
 
         val definednessCheckDataRec =
