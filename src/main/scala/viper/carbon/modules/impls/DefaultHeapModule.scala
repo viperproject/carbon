@@ -586,6 +586,17 @@ class DefaultHeapModule(val verifier: Verifier)
       FuncApp(if(isPMask) { permModule.pmaskTypeDesugared.storeId } else { updateHeapName }, Seq(heap, rcv, field, newVal), Bool)
   }
 
+  override def translateHavoc(lhs: Seq[sil.Lhs]): Stmt = {
+    val vars = lhs.zipWithIndex.map {
+      case (lhs: sil.FieldAccess, idx) => LocalVar(Identifier(s"freshObj$idx"), translateType(lhs.typ))
+      case (lhs: sil.LocalVar, _) => verifier.expModule.translateExp(lhs).asInstanceOf[Var]
+    }
+    val assigns = lhs.zip(vars).collect {
+      case (lhs: sil.FieldAccess, v) => currentHeapAssignUpdate(lhs, v)
+    }
+    Havoc(vars) ++ assigns
+  }
+
   override def translateLocationAccess(f: sil.LocationAccess): Exp = {
     translateLocationAccess(f, heapExp)
   }
@@ -634,13 +645,20 @@ class DefaultHeapModule(val verifier: Verifier)
 
               If(UnExp(Not,hasDirectPerm(loc)), resetPredicateInfo, Nil) ++
                 addPermissionToPMask(loc) ++ stateModule.assumeGoodState}  )
-          case sil.FieldAssign(lhs, rhs) =>
+          case sil.Assign(lhs: sil.FieldAccess, rhs) =>
             if(usingOldState) sys.error("heap module: field is assigned while using old state")
-            stmt ++ (currentHeapAssignUpdate(lhs, translateExp(rhs))) // after all checks
+            stmt ++ (assign(lhs, translateExp(rhs))) // after all checks
           case _ => simpleHandleStmt(s) ++ stmt
         }
       )
 
+  }
+
+  def assign(lhs: sil.Lhs, rhs: Exp): Stmt = {
+    lhs match {
+      case lhs: sil.FieldAccess => currentHeapAssignUpdate(lhs, rhs)
+      case lhs: sil.LocalVar => translateExp(lhs) := rhs
+    }
   }
 
   override def simpleHandleStmt(stmt: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), insidePackageStmt: Boolean = false): Stmt = {
@@ -655,7 +673,7 @@ class DefaultHeapModule(val verifier: Verifier)
           // in the encoding to get this fact (e.g. below for method targets, and also
           // for loops (see the StateModule implementation)
           Assume(if(enableAllocationEncoding) (freshObjectVar !== nullLit) && alloc(freshObjectVar).not else (freshObjectVar !== nullLit)) ::
-          (if(enableAllocationEncoding) allocUpdateRef(freshObjectVar) :: (translateExp(target) := freshObjectVar) :: Nil else (translateExp(target) := freshObjectVar) :: Nil)
+          (if(enableAllocationEncoding) allocUpdateRef(freshObjectVar) :: (assign(target, freshObjectVar)) :: Nil else (assign(target, freshObjectVar)) :: Nil)
       case _ => Statements.EmptyStmt
     }
   }

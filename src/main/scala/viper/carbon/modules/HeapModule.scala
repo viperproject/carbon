@@ -91,6 +91,8 @@ trait HeapModule extends Module with CarbonStateComponent {
    */
   def predicateGhostFieldDecl(f: sil.Predicate): Seq[Decl]
 
+  def translateHavoc(lhs: Seq[sil.Lhs]): Stmt
+
   /**
    * Translation of a resource access (field read/write, predicate or wand instance)
    */

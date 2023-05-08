@@ -116,14 +116,14 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
     }
 
     stmt match {
-      case assign@sil.LocalVarAssign(lhs, rhs) =>
+      case assign@sil.Assign(lhs: sil.LocalVar, rhs) =>
         checkDefinedness(lhs, errors.AssignmentFailed(assign), insidePackageStmt = insidePackageStmt) ++
           checkDefinedness(rhs, errors.AssignmentFailed(assign), insidePackageStmt = insidePackageStmt) ++
         {if(insidePackageStmt)
           Assign(translateExpInWand(lhs), translateExpInWand(rhs))
         else
           Assign(translateExp(lhs), translateExp(rhs))}
-      case assign@sil.FieldAssign(lhs, rhs) =>
+      case assign@sil.Assign(lhs: sil.FieldAccess, rhs) =>
         checkDefinedness(lhs.rcv, errors.AssignmentFailed(assign)) ++
           checkDefinedness(rhs, errors.AssignmentFailed(assign))
       case fold@sil.Fold(e) => sys.error("Internal error: translation of fold statement cannot be handled by simpleHandleStmt code; found:" + fold.toString())
@@ -191,7 +191,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           (targets map (e => checkDefinedness(e, errors.CallFailed(mc), insidePackageStmt = insidePackageStmt))) ++
           (args map (e => checkDefinedness(e, errors.CallFailed(mc), insidePackageStmt = insidePackageStmt))) ++
           (actualArgs map (_._2)) ++
-          Havoc((targets map translateExp).asInstanceOf[Seq[Var]]) ++
+          heapModule.translateHavoc(targets) ++
           MaybeCommentBlock("Exhaling precondition", executeUnfoldings(pres, (pre => errors.PreconditionInCallFalse(mc).withReasonNodeTransformed(renamingArguments))) ++
             exhaleWithoutDefinedness(pres map (e => (e, errors.PreconditionInCallFalse(mc).withReasonNodeTransformed(renamingArguments))), statesStackForPackageStmt = statesStack, insidePackageStmt = insidePackageStmt)) ++ {
           stateModule.replaceOldState(preCallState)

@@ -274,7 +274,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
 
     val curPermInhExPermission =
       sil.Seqn(
-        sil.LocalVarAssign(curPermVar, sil.CurrentPerm(q.exp)())() +:
+        sil.Assign(curPermVar, sil.CurrentPerm(q.exp)())() +:
           Seq(
             sil.Exhale(resourceCurPerm)(),
             sil.Inhale(resourceCurPerm)()
