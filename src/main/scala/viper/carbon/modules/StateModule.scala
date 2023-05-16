@@ -119,6 +119,12 @@ trait StateModule extends Module with ComponentRegistry[CarbonStateComponent] wi
    */
   def oldState: StateSnapshot
 
+
+  /**
+    * Get a pure state without a heap.
+    */
+  def pureState: StateSnapshot
+
   /**
    * Replace the old state with a given snapshot.
    */
@@ -143,6 +149,11 @@ trait StateModule extends Module with ComponentRegistry[CarbonStateComponent] wi
    * Are we currently using an 'old' state? Implies that we should wrap relevant state components in "Old"
    */
   def stateModuleIsUsingOldState: Boolean
+
+  /**
+    * Are we currently using a pure state with no heap?
+    */
+  def stateModuleIsUsingPureState: Boolean
 
   /**
    * * Store a StateSnapshot in a retrievable map, with the given name as key
