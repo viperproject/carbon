@@ -187,7 +187,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       MaybeCommentedDecl("Uninterpreted function definitions", functionDefinitions(f), size = 1) ++
         (if (f.isAbstract) Nil else
         MaybeCommentedDecl("Definitional axiom", definitionalAxiom(f), size = 1)) ++
-        MaybeCommentedDecl("Framing axioms", framingAxiom(f), size = 1) ++
+        (if (f.pres.forall(_.isPure)) Nil else MaybeCommentedDecl("Framing axioms", framingAxiom(f), size = 1)) ++
         MaybeCommentedDecl("Postcondition axioms", postconditionAxiom(f), size = 1) ++
         MaybeCommentedDecl("Trigger function (controlling recursive postconditions)", triggerFunction(f), size = 1) ++
         MaybeCommentedDecl("State-independent trigger function", triggerFunctionStateless(f), size = 1) ++
@@ -205,10 +205,11 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     res
   }
 
-  private def functionDefinitions(f: sil.Function): Seq[Decl] = {
+  private def functionDefinitions(f: sil.Function) = {
     val typ = translateType(f.typ)
     val fargs = (f.formalArgs map translateLocalVarDecl)
-    val args = heapModule.staticStateContributions(true, true) ++ fargs
+    val heapArgs = if (f.pres.forall(_.isPure)) Seq() else heapModule.staticStateContributions(true, true)
+    val args = heapArgs ++ fargs
     val name = Identifier(f.name)
     val func = Func(name, args, typ)
     val name2 = Identifier(f.name + limitedPostfix)
@@ -217,15 +218,17 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val funcApp2 = FuncApp(name2, args map (_.l), Bool)
     val triggerFapp = triggerFuncStatelessApp(f , fargs map (_.l))
     val dummyFuncApplication = dummyFuncApp(triggerFapp)
-    func ++ func2 ++
-      Axiom(Forall(args, Trigger(funcApp), funcApp === funcApp2 && dummyFuncApplication)) ++
-      Axiom(Forall(args, Trigger(funcApp2), dummyFuncApplication))
+    val funcDef = if (args.isEmpty) funcApp === funcApp2 && dummyFuncApplication else Forall(args, Trigger(funcApp), funcApp === funcApp2 && dummyFuncApplication)
+    val func2Def = if (args.isEmpty) dummyFuncApplication else Forall(args, Trigger(funcApp2), dummyFuncApplication)
+    func ++ func2 ++ Axiom(funcDef) ++ Axiom(func2Def)
   }
 
   override def dummyFuncApp(e: Exp): Exp = FuncApp(dummyTriggerName, Seq(e), Bool)
 
   override def translateFuncApp(fa: sil.FuncApp) = {
-    translateFuncApp(fa.funcname, heapModule.currentStateExps ++ (fa.args map translateExp), fa.typ)
+    val func = fa.func(program)
+    val heapExps = if (func.pres.forall(_.isPure)) Seq() else heapModule.currentStateExps
+    translateFuncApp(fa.funcname, heapExps ++ (fa.args map translateExp), fa.typ)
   }
   def translateFuncApp(fname : String, args: Seq[Exp], typ: sil.Type) = {
     FuncApp(Identifier(fname), args, translateType(typ))
@@ -244,9 +247,10 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   private def definitionalAxiom(f: sil.Function): Seq[Decl] = {
     val height = heights(f.name)
-    val heap = heapModule.staticStateContributions(true, true)
+    val heap = if (f.pres.forall(_.isPure)) Nil else heapModule.staticStateContributions(true, true)
     val args = f.formalArgs map translateLocalVarDecl
     val fapp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
+    val stateTriggerPart = if (f.pres.forall(_.isPure)) Nil else Seq(staticGoodState)
     val precondition : Exp = f.pres.map(p => translateExp(Expressions.asBooleanExp(p).whenExhaling)) match {
       case Seq() => TrueLit()
       case Seq(p) => p
@@ -284,14 +288,20 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           if hasOnlyDefinedVars(predacc) => Some(predicateTrigger(heap map (_.l), predacc))
         case _ => None}.flatten
     }
+    val goodStateExp = if (f.pres.forall(_.isPure)) TrueLit() else staticGoodState
 
-
-    Axiom(Forall(
-      stateModule.staticStateContributions() ++ args,
-      Seq(Trigger(Seq(staticGoodState,fapp))) ++ (if (predicateTriggers.isEmpty) Seq()  else Seq(Trigger(Seq(staticGoodState, triggerFuncStatelessApp(f,args map (_.l))) ++ predicateTriggers))),
-      (staticGoodState && assumeFunctionsAbove(height)) ==>
-        (precondition ==> (fapp === body))
-    ))
+    val stateArgs = if (f.pres.forall(_.isPure)) Nil else stateModule.staticStateContributions()
+    val axiomBody = (goodStateExp && assumeFunctionsAbove(height)) ==>
+      (precondition ==> (fapp === body))
+    val allArgs = stateArgs ++ args
+    if (allArgs.isEmpty)
+      Axiom(axiomBody)
+    else
+      Axiom(Forall(
+        allArgs,
+        Seq(Trigger(stateTriggerPart ++ Seq(fapp))) ++ (if (predicateTriggers.isEmpty) Seq()  else Seq(Trigger(stateTriggerPart ++ Seq(triggerFuncStatelessApp(f,args map (_.l))) ++ predicateTriggers))),
+        axiomBody
+      ))
   }
 
   private def transformFuncAppsToLimitedForm(exp: Exp, heightToSkip : Int = -1): Exp =  transformFuncAppsToLimitedOrTriggerForm(exp, heightToSkip, false)
@@ -302,9 +312,10 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private def transformFuncAppsToLimitedOrTriggerForm(exp: Exp, heightToSkip : Int = -1, triggerForm: Boolean = false): Exp = {
     def transformer: PartialFunction[Exp, Option[Exp]] = {
       case FuncApp(recf, recargs, t) if recf.namespace == fpNamespace && (heightToSkip == -1 || heights(recf.name) <= heightToSkip) =>
+        val func = verifier.program.findFunction(recf.name)
         // change all function applications to use the limited form, and still go through all arguments
-        if (triggerForm)
-          {val func = verifier.program.findFunction(recf.name)
+        if (triggerForm && !func.pres.forall(_.isPure))
+          {
             // This was an attempt to make triggering functions heap-independent.
             // But the problem is that, for soundness such a function cannot be equated with/substituted for
             // the original function application, and if nested inside further structure in a trigger, the
@@ -331,7 +342,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   private def postconditionAxiom(f: sil.Function): Seq[Decl] = {
     val height = heights(f.name)
-    val heap = heapModule.staticStateContributions(true, true)
+    val heap = if (f.pres.forall(_.isPure)) Nil else heapModule.staticStateContributions(true, true)
     val args = f.formalArgs map translateLocalVarDecl
     val fapp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
     val precondition : Exp = f.pres.map(p => translateExp(Expressions.asBooleanExp(p).whenExhaling)) match {
@@ -361,11 +372,16 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   }
 
   private def triggerFunction(f: sil.Function): Seq[Decl] = {
-    Func(Identifier(f.name + triggerFuncPostfix), LocalVarDecl(Identifier("frame"), frameType) ++ (f.formalArgs map translateLocalVarDecl), Bool)
+    val heapArgs = if (f.pres.forall(_.isPure)) Nil else Seq(LocalVarDecl(Identifier("frame"), frameType))
+    Func(Identifier(f.name + triggerFuncPostfix), heapArgs ++ (f.formalArgs map translateLocalVarDecl), Bool)
   }
 
   private def triggerFuncApp(func: sil.Function, heapArgs: Seq[Exp], normalArgs:Seq[Exp]): Exp = {
-    FuncApp(Identifier(func.name + triggerFuncPostfix), getFunctionFrame(func, heapArgs ++ normalArgs)._1 ++ normalArgs, Bool) // no need to declare auxiliary definitions; taken care of in framingAxiom below
+    val frameArgs = if (func.pres.forall(_.isPure))
+      Seq()
+    else
+      Seq(getFunctionFrame(func, heapArgs ++ normalArgs)._1)
+    FuncApp(Identifier(func.name + triggerFuncPostfix), frameArgs ++ normalArgs, Bool) // no need to declare auxiliary definitions; taken care of in framingAxiom below
   }
 
   private def triggerFunctionStateless(f: sil.Function): Seq[Decl] = {
