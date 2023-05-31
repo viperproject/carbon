@@ -22,7 +22,7 @@ import viper.silver.verifier.{TypecheckerWarning, errors}
 import viper.carbon.verifier.Verifier
 import viper.silver.ast.Quasihavoc
 import viper.silver.ast.utility.rewriter.Traverse
-import viper.silver.reporter.{Reporter, WarningsDuringTypechecking}
+import viper.silver.reporter.{Reporter, WarningsDuringTypechecking, QuantifierChosenTriggersMessage}
 
 import scala.collection.mutable
 
@@ -61,6 +61,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
             if (res.triggers.isEmpty) {
               reporter.report(WarningsDuringTypechecking(Seq(TypecheckerWarning("No triggers provided or inferred for quantifier.", res.pos))))
             }
+            reporter report QuantifierChosenTriggersMessage(res, res.triggers, f.triggers)
             res
           }
           case e: sil.Exists => {
@@ -68,6 +69,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
             if (res.triggers.isEmpty) {
               reporter.report(WarningsDuringTypechecking(Seq(TypecheckerWarning("No triggers provided or inferred for quantifier.", res.pos))))
             }
+            reporter report QuantifierChosenTriggersMessage(res, res.triggers, e.triggers)
             res
           }
           case q: Quasihavoc => desugarQuasihavoc(q)
