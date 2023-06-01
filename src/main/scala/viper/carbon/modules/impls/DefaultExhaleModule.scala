@@ -11,6 +11,7 @@ import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.verifier.Verifier
 import Implicits._
+import viper.carbon.modules.components.DefinednessState
 import viper.silver.ast.utility.Expressions
 import viper.silver.verifier.PartialVerificationError
 import viper.silver.verifier.reasons._
@@ -35,8 +36,16 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
     register(this)
   }
 
-  override def exhale(exps: Seq[(sil.Exp, PartialVerificationError)], havocHeap: Boolean = true, isAssert: Boolean = false
-                      , statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt = {
+  var nestedExhaleId = 0
+
+  override def exhale(exps: Seq[(sil.Exp, PartialVerificationError, Option[PartialVerificationError])], havocHeap: Boolean = true,
+                      isAssert: Boolean = false , statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt = {
+
+    nestedExhaleId += 1
+
+    // create a definedness state that matches the state before the exhale
+    val wellDefState = stateModule.freshTempStateKeepCurrent(s"ExhaleWellDef${nestedExhaleId - 1}")
+    val wellDefStateInitStmt = stateModule.initToCurrentStmt(wellDefState)
 
     // creating a new temp state if we are inside a package statement
     val curState = stateModule.state
@@ -48,27 +57,52 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
     }
     val tempState: StateRep = wandModule.tempCurState.asInstanceOf[StateRep]
 
-    val exhaleStmt = exps map (e => exhaleConnective(e._1.whenExhaling, e._2, havocHeap,
-      statesStackForPackageStmt, insidePackageStmt, isAssert = isAssert, currentStateForPackage = tempState))
+    val exhaleStmt = exps map (e =>
+        {
+          val defCheckData =
+                DefinednessCheckData(
+                  e._3,
+                  Some(DefinednessState(() => stateModule.replaceState(wellDefState)))
+                )
+
+          exhaleConnective(e._1.whenExhaling, e._2, defCheckData, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert = isAssert, currentStateForPackage = tempState)
+        }
+      )
 
     val assumptions = MaybeCommentBlock("Free assumptions (exhale module)",
       exps map (e => allFreeAssumptions(e._1)))
 
     stateModule.replaceState(curState)
 
+    nestedExhaleId -= 1
+
+    //only emit initialization of the well-definedness state if the exhale is non-empty
+    val wellDefStateInitStmtOpt : Stmt = if(exhaleStmt.flatten.isEmpty) { Nil } else { wellDefStateInitStmt }
+
     if ((exps map (_._1.isPure) forall identity) || !havocHeap || isAssert) {
       // if all expressions are pure, then there is no need for heap copies
       // if this is a translation of an Assert statement, there is also no need for heap copies
-      initStmtWand ++ exhaleStmt ++ assumptions
+      wellDefStateInitStmtOpt ++ initStmtWand ++ exhaleStmt ++ assumptions
     } else {
       beginExhale ++
+      wellDefStateInitStmtOpt ++
       initStmtWand ++
         exhaleStmt ++
         assumptions ++
         Comment("Finish exhale") ++
         endExhale
     }
+
   }
+
+  /**
+    * Emits a definedness check for the input expression if `defCheckData` demands a check and otherwise returns the
+    * empty statement
+    */
+  private def maybeDefCheck(e: sil.Exp, defCheckData: DefinednessCheckData): Stmt = {
+    defCheckData.performDefinednessChecks.fold(Statements.EmptyStmt: Stmt)(definednessError => checkDefinedness(e, definednessError, makeChecks = true, Some(defCheckData.definednessStateOpt.get)))
+  }
+
 
   /**
    * Exhales Viper expression connectives (such as logical and/implication) and forwards the
@@ -76,64 +110,87 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
     * @param currentStateForPackage The temporary state connected to current statement being evaluated inside package statement
     *                  Access to the current state is needed during translation of an exhale during packaging a wand
    */
-  private def exhaleConnective(e: sil.Exp, error: PartialVerificationError, havocHeap: Boolean = true,
-                               statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false,
-                               isAssert: Boolean , currentStateForPackage: StateRep): Stmt = {
-
-    // creating union of current state and ops state to be used in translating exps
-    val currentState = stateModule.state
+  private def exhaleConnective(e: sil.Exp, error: PartialVerificationError, definednessCheckData: DefinednessCheckData,
+                               havocHeap: Boolean = true, statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false,
+                               isAssert: Boolean, currentStateForPackage: StateRep): Stmt = {
 
     e match {
       case sil.And(e1, e2) =>
-        exhaleConnective(e1, error, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage) ::
-          exhaleConnective(e2, error, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage) ::
+        exhaleConnective(e1, error, definednessCheckData, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage) ::
+          exhaleConnective(e2, error, definednessCheckData, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage) ::
           Nil
       case sil.Implies(e1, e2) =>
-        if(insidePackageStmt){
-          val res = If(wandModule.getCurOpsBoolvar() ==> translateExpInWand(e1), exhaleConnective(e2, error, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage), Statements.EmptyStmt)
-          val unionStmt = wandModule.updateUnion()
-          res ++ unionStmt
-        }
-        else
-          If(translateExpInWand(e1), exhaleConnective(e2, error, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage), Statements.EmptyStmt)
+        val defCheck = maybeDefCheck(e1, definednessCheckData)
+        val exhaleTranslation : Stmt =
+          if (insidePackageStmt) {
+            val res =
+              If(wandModule.getCurOpsBoolvar() ==> translateExpInWand(e1),
+                exhaleConnective(e2, error, definednessCheckData, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage),
+                Statements.EmptyStmt
+              )
+            val unionStmt = wandModule.updateUnion()
+            res ++ unionStmt
+          } else {
+            If(translateExpInWand(e1),
+              exhaleConnective(e2, error, definednessCheckData, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage),
+              Statements.EmptyStmt
+            )
+          }
+        defCheck ++ exhaleTranslation
       case sil.CondExp(c, e1, e2) =>
-        if(insidePackageStmt)
-          If(wandModule.getCurOpsBoolvar(),
-            If(translateExpInWand(c), exhaleConnective(e1, error, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage),
-              exhaleConnective(e2, error, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage)),
-            Statements.EmptyStmt) ++
-            // The union state should be updated because the union state calculated inside exhaleExt (let's call it state U') is inside the then part of if(c){}
-            // and outside the if condition c is not satisfied we still evaluate expressions and check definedness in U' without knowing any assumption about it
-          wandModule.updateUnion()
-        else
-          If(translateExpInWand(c), exhaleConnective(e1, error, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage),
-            exhaleConnective(e2, error, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage))
+        val defCheck = maybeDefCheck(c, definednessCheckData)
+        val exhaleTranslation : Stmt =
+          if(insidePackageStmt) {
+            If(wandModule.getCurOpsBoolvar(),
+              If(translateExpInWand(c), exhaleConnective(e1, error, definednessCheckData, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage),
+                exhaleConnective(e2, error, definednessCheckData, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage)),
+              Statements.EmptyStmt) ++
+              // The union state should be updated because the union state calculated inside exhaleExt (let's call it state U') is inside the then part of if(c){}
+              // and outside the if condition c is not satisfied we still evaluate expressions and check definedness in U' without knowing any assumption about it
+            wandModule.updateUnion()
+          } else {
+            If(translateExpInWand(c), exhaleConnective(e1, error, definednessCheckData, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage),
+              exhaleConnective(e2, error, definednessCheckData, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage))
+          }
+        defCheck ++ exhaleTranslation
       case sil.Let(declared,boundTo,body) if !body.isPure =>
       {
+        val defCheck = maybeDefCheck(boundTo, definednessCheckData)
         val u = env.makeUniquelyNamed(declared) // choose a fresh binder
         env.define(u.localVar)
+        defCheck ::
         Assign(translateLocalVar(u.localVar),translateExpInWand(boundTo)) ::
-          exhaleConnective(body.replace(declared.localVar, u.localVar),error, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage) ::
+          exhaleConnective(body.replace(declared.localVar, u.localVar), error, definednessCheckData, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage) ::
           {
             env.undefine(u.localVar)
             Nil
           }
       }
       case fa@sil.Forall(vars, _, body) if fa.isPure =>
-        //GP: the definedness check for foralls is in another branch, hence we must take unfoldings of e
-        // into account here (otherwise they would be ignored)
+        /* We use a special case for pure quantifiers, because the standard approach of just asserting the pure quantifier
+           cannot use the information gained from unfoldings inside the quantifier body (which may be required to
+           prove the quantifier). Instead, we invoke exhaleConnective on the quantifier body, which gives exhale components the
+           option to gain more information from unfoldings, which can then be used when asserting parts of the quantifier body.
+         */
       {
+        //We do the definedness check separately
+        val defCheck = maybeDefCheck(fa, definednessCheckData)
+
         val varsFresh = vars.map(v => env.makeUniquelyNamed(v))
         varsFresh.foreach(vFresh => env.define(vFresh.localVar))
 
         val renamedBody = Expressions.instantiateVariables(body, vars.map(_.localVar), varsFresh.map(_.localVar))
 
-        val exhaleStmt : Stmt = exhaleConnective(renamedBody, error, havocHeap, statesStackForPackageStmt,
+        /* We switch off the definedness checks here, because we do it separately. It may be correct, to not do the
+           definedness check separately and instead keep the definedness checks switched on.
+         */
+        val exhaleStmt : Stmt = exhaleConnective(renamedBody, error, definednessCheckData.copyWhereNoChecksPerformed, havocHeap, statesStackForPackageStmt,
           insidePackageStmt, isAssert, currentStateForPackage = currentStateForPackage)
 
+        defCheck ++
         Seqn(Seq (
           NondetIf(Seqn(Seq(exhaleStmt, Assume(FalseLit())))),
-          //GP: in the non-deterministic branch we checked the assertion, hence we assume the assertion in the main branch
+          //in the non-deterministic branch we checked the assertion, hence we assume the assertion in the main branch
           Assume(translateExp(e)),
           {
             varsFresh.foreach(vFresh => env.undefine(vFresh.localVar))
@@ -141,20 +198,39 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
           }
         ))
       }
-      case sil.Unfolding(_, body) if !insidePackageStmt => {
-        val checks = components map (_.exhaleExpBeforeAfter(e, error))
-        val stmtBefore = (checks map (_._1())).toList
+      case sil.Unfolding(_, body) if !insidePackageStmt =>
+        /** We handle unfolding separately here so that exhale components have the option to gain more information by
+          * executing the unfolding (and potentially other unfoldings inside the unfolding body) */
 
-        val stmtBody =
-            exhaleConnective(body, error, havocHeap, statesStackForPackageStmt, insidePackageStmt, isAssert,
-              currentStateForPackage = currentStateForPackage)
+        // We do the definedness check separately.
+        val defCheck = maybeDefCheck(e, definednessCheckData)
 
-        val stmtAfter = (checks map (_._2())).toList
+        val definednessCheckDataRec =
+          if(definednessCheckData.performDefinednessChecks.isDefined) {
+            /**
+              * We switch off the definedness checks here, because we do them separately in this case.
+              * Moreover, we remove the information on the definedness state to avoid exhale components doing the same work
+              * that the definedness components do. This can lead to incompletenesses in cases where the information
+              * gained by the definedness components is not available in the exhale context (should not happen frequently in practice).
+              */
+            DefinednessCheckData(None, None)
+          } else {
+            definednessCheckData
+          }
 
-        (stmtBefore ++ stmtBody ++ stmtAfter)
-      }
+        val checks = components map (_.exhaleExpBeforeAfter(e, error, definednessCheckDataRec.definednessStateOpt))
+        val stmtBefore = checks map (_._1())
+
+        val exhaleBody = exhaleConnective(body, error, definednessCheckDataRec, havocHeap,
+          statesStackForPackageStmt, insidePackageStmt, isAssert, currentStateForPackage)
+
+        val stmtAfter = checks map (_._2())
+
+        defCheck ++ stmtBefore ++ exhaleBody ++ stmtAfter
       case _ => {
-        if(insidePackageStmt){  // handling exhales during packaging a wand
+        val defCheck = maybeDefCheck(e, definednessCheckData)
+
+        if(insidePackageStmt) {  // handling exhales during packaging a wand
           // currently having wild cards and 'constraining' expressions are not supported during packaging a wand.
           if(!permModule.getCurrentAbstractReads().isEmpty) {
             sys.error("Abstract reads cannot be used during packaging a wand.")  // AG: To be changed to unsupportedFeatureException
@@ -178,18 +254,27 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
             else
               Nil
           if (!havocHeap)
-            exhaleExtStmt ++ addAssumptions ++ equateHps ++ assertTransfer
+            defCheck ++ exhaleExtStmt ++ addAssumptions ++ equateHps ++ assertTransfer
           else
-            exhaleExtStmt ++ addAssumptions ++ assertTransfer
+            defCheck ++ exhaleExtStmt ++ addAssumptions ++ assertTransfer
         } else {
-          invokeExhaleOnComponents(e, error)
+          /* We propagate the definedness state to the components only if no definedness check was performed to avoid
+            exhale components doing the same work as the definedness components do */
+          val definednessCheckDataRec =
+            if(definednessCheckData.performDefinednessChecks.isDefined) {
+              None
+            } else {
+              definednessCheckData.definednessStateOpt
+            }
+
+          defCheck ++ invokeExhaleOnComponents(e, error, definednessCheckDataRec)
         }
       }
     }
   }
 
-  private def invokeExhaleOnComponents(e: sil.Exp, error: PartialVerificationError) : Stmt = {
-    val checks = components map (_.exhaleExpBeforeAfter(e, error))
+  private def invokeExhaleOnComponents(e: sil.Exp, error: PartialVerificationError, definednessCheckOpt: Option[DefinednessState]) : Stmt = {
+    val checks = components map (_.exhaleExpBeforeAfter(e, error, definednessCheckOpt))
     val stmtBefore = checks map (_._1())
     // some implementations may rely on the order of these calls
 
@@ -201,15 +286,32 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
   /**
    * Handles only pure expressions - others will be dealt with by other modules
    */
-  override def exhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt =
+  override def exhaleExp(e: sil.Exp, error: PartialVerificationError, definednessCheckIncluded: Option[DefinednessState]): Stmt =
   {
     if (e.isPure) {
       e match {
-        case sil.Unfolding(_, _) => Nil //taken care of by exhaleConnective
+        case _ : sil.Unfolding => Nil //handled by exhaleConnective
         case _ => Assert(translateExp(e), error.dueTo(AssertionFalse(e)))
       }
     } else {
       Nil
     }
   }
+}
+
+
+/**
+  * Class to specify definedness check information during exhale
+  *
+  * @param performDefinednessChecks empty if no definedness check must be performed, else contains the corresponding definedness error
+  * @param definednessStateOpt Contains the state in which definedness checks should be performed. Must be non-empty if definedness checks
+  *                         must be performed. If definedness checks should not be performed, then the definedness state can be used to
+  *                         gain additional information. In the latter case, this field may be empty when, for example, the definedness state
+  *                         is not tracked.
+  */
+case class DefinednessCheckData(performDefinednessChecks: Option[PartialVerificationError], definednessStateOpt: Option[DefinednessState])
+{
+
+  def copyWhereNoChecksPerformed : DefinednessCheckData  = this.copy(performDefinednessChecks = None)
+
 }

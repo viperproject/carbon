@@ -8,7 +8,7 @@ package viper.carbon.modules.impls
 
 import viper.carbon.boogie._
 import viper.carbon.modules.MapModule
-import viper.carbon.modules.components.DefinednessComponent
+import viper.carbon.modules.components.{DefinednessComponent, DefinednessState}
 import viper.carbon.modules.impls.map_axioms.MapAxiomatization
 import viper.carbon.verifier.Verifier
 import viper.silver.verifier.{PartialVerificationError, reasons}
@@ -83,7 +83,7 @@ class DefaultMapModule(val verifier: Verifier) extends MapModule with Definednes
     NamedType("Map", Seq(translateType(mapType.keyType), translateType(mapType.valueType)))
   }
 
-  override def simplePartialCheckDefinednessAfter(exp: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
+  override def simplePartialCheckDefinednessAfter(exp: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, definednessStateOpt: Option[DefinednessState]): Stmt = {
     if (makeChecks) exp match {
       case sil.MapLookup(base, key) => {
         val containsExp = translateMapExp(sil.MapContains(key, base)(exp.pos, exp.info, exp.errT))
