@@ -11,7 +11,7 @@ import viper.carbon.modules._
 import viper.carbon.verifier.Verifier
 import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
-import viper.carbon.modules.components.{DefinednessComponent, StmtComponent}
+import viper.carbon.modules.components.{DefinednessComponent, DefinednessState, StmtComponent}
 import viper.silver.ast.utility.Expressions
 import viper.silver.ast.{MagicWand, MagicWandStructure}
 import viper.silver.verifier.{PartialVerificationError, reasons}
@@ -193,7 +193,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
     UNIONState = OPS
     nestingDepth += 1
     val inhaleLeft = MaybeComment("Inhaling left hand side of current wand into hypothetical state",
-      exchangeAssumesWithBoolean(expModule.checkDefinednessOfSpecAndInhale(wand.left, mainError, hypState::Nil, true), hypState.boolVar))
+      exchangeAssumesWithBoolean(inhaleModule.inhaleWithDefinednessCheck(wand.left, mainError, hypState::Nil, true), hypState.boolVar))
 
     val defineLhsState = stmtModule.translateStmt(sil.Label("lhs"+lhsID, Nil)(wand.pos, wand.info), hypState::Nil, hypState.boolVar, true)
     activeWandsStack = activeWandsStack:+lhsID
@@ -216,7 +216,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
             val oldOps = OPS
 
             currentWand = w
-            val addWand = inhaleModule.inhale(Seq((w, error)), statesStack, inWand)
+            val addWand = inhaleModule.inhale(Seq((w, error)), addDefinednessChecks = false, statesStack, inWand)
 
             val currentState = stateModule.state
 
@@ -688,11 +688,11 @@ case class PackageSetup(hypState: StateRep, usedState: StateRep, initStmt: Stmt)
     val defineLHS = stmtModule.translateStmt(sil.Label("lhs"+lhsID, Nil)(w.pos, w.info))
     wandModule.pushToActiveWandsStack(lhsID)
 
-    val ret = CommentBlock("check if wand is held and remove an instance",exhaleModule.exhale((w, error), false, insidePackageStmt = inWand, statesStackForPackageStmt = statesStack)) ++
+    val ret = CommentBlock("check if wand is held and remove an instance",exhaleModule.exhaleSingleWithoutDefinedness(w, error, false, insidePackageStmt = inWand, statesStackForPackageStmt = statesStack)) ++
       (if(inWand) exchangeAssumesWithBoolean(stateModule.assumeGoodState, OPS.boolVar) else stateModule.assumeGoodState) ++
-      CommentBlock("check if LHS holds and remove permissions ", exhaleModule.exhale((w.left, error), false, insidePackageStmt = inWand, statesStackForPackageStmt = statesStack)) ++
+      CommentBlock("check if LHS holds and remove permissions ", exhaleModule.exhaleSingleWithoutDefinedness(w.left, error, false, insidePackageStmt = inWand, statesStackForPackageStmt = statesStack)) ++
       (if(inWand) exchangeAssumesWithBoolean(stateModule.assumeGoodState, OPS.boolVar) else stateModule.assumeGoodState) ++
-      CommentBlock("inhale the RHS of the wand",inhaleModule.inhale(Seq((w.right, error)), statesStackForPackageStmt = statesStack, insidePackageStmt = inWand)) ++
+      CommentBlock("inhale the RHS of the wand",inhaleModule.inhale(Seq((w.right, error)), addDefinednessChecks = false, statesStackForPackageStmt = statesStack, insidePackageStmt = inWand)) ++
       heapModule.beginExhale ++ heapModule.endExhale ++
       (if(inWand) exchangeAssumesWithBoolean(stateModule.assumeGoodState, OPS.boolVar) else stateModule.assumeGoodState)
     //GP: using beginExhale, endExhale works now, but isn't intuitive, maybe should duplicate code to avoid this breaking
@@ -730,7 +730,7 @@ case class PackageSetup(hypState: StateRep, usedState: StateRep, initStmt: Stmt)
   /**
     * Checking definedness for applying statement
     */
-  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): (() => Stmt, () => Stmt) = {
+  override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, definednessStateOpt: Option[DefinednessState]): (() => Stmt, () => Stmt) = {
     e match {
       case a@sil.Applying(wand, exp) =>
         tmpStateId += 1
@@ -745,7 +745,11 @@ case class PackageSetup(hypState: StateRep, usedState: StateRep, initStmt: Stmt)
           Nil
         }
         (before _, after _)
-      case _ => (() => simplePartialCheckDefinedness(e, error, makeChecks), () => Nil)
+      case _ =>
+        (
+          () => simplePartialCheckDefinednessBefore(e, error, makeChecks, definednessStateOpt),
+          () => simplePartialCheckDefinednessAfter(e, error, makeChecks, definednessStateOpt)
+        )
     }
   }
 

@@ -6,14 +6,14 @@
 
 package viper.carbon.verifier
 
-import java.io._
 import viper.carbon.boogie.{Assert, Program}
 import viper.silver.reporter.BackendSubProcessStages._
 import viper.silver.reporter.{BackendSubProcessReport, Reporter}
 import viper.silver.verifier.errors.Internal
 import viper.silver.verifier.reasons.InternalReason
-import viper.silver.verifier.{Failure, _}
+import viper.silver.verifier._
 
+import java.io._
 import scala.jdk.CollectionConverters._
 
 class BoogieDependency(_location: String) extends Dependency {
@@ -159,22 +159,22 @@ trait BoogieInterface {
     * Invoke Boogie.
     */
   private def run(input: String, options: Seq[String]) = {
-    // write program to a temporary file
-    val tmp = File.createTempFile("carbon", ".bpl")
-    tmp.deleteOnExit()
-    val stream = new BufferedOutputStream(new FileOutputStream(tmp))
-    stream.write(input.getBytes)
-    stream.close()
-
     reporter report BackendSubProcessReport("carbon", boogiePath, BeforeInputSent, _boogieProcessPid)
 
-    val cmd: Seq[String] = (Seq(boogiePath) ++ options ++ Seq(tmp.getAbsolutePath))
+    // When the filename is "stdin.bpl" Boogie reads the program from standard input.
+    val cmd: Seq[String] = Seq(boogiePath) ++ options ++ Seq("stdin.bpl")
     val pb: ProcessBuilder = new ProcessBuilder(cmd.asJava)
     val proc: Process = pb.start()
     _boogieProcess = Some(proc)
     _boogieProcessPid = Some(proc.pid)
 
-    proc.getOutputStream.close()
+    //proverShutDownHook approach taken from Silicon's codebase
+    val proverShutdownHook = new Thread {
+      override def run(): Unit = {
+        destroyProcessAndItsChildren(proc, boogiePath)
+      }
+    }
+    Runtime.getRuntime.addShutdownHook(proverShutdownHook)
 
     // _z3ProcessStream = Some(proc.descendants().toScala(LazyList))
     reporter report BackendSubProcessReport("carbon", boogiePath, AfterInputSent, _boogieProcessPid)
@@ -189,7 +189,20 @@ trait BoogieInterface {
     errorStreamThread.start()
     inputStreamThread.start()
 
-    proc.waitFor()
+    // Send the program to Boogie
+    proc.getOutputStream.write(input.getBytes);
+    proc.getOutputStream.close()
+
+    try {
+      proc.waitFor()
+    } finally {
+      destroyProcessAndItsChildren(proc, boogiePath)
+    }
+
+    // Deregister the shutdown hook, otherwise the prover process that has been stopped cannot be garbage collected.
+    // Explanation: https://blog.creekorful.org/2020/03/classloader-and-memory-leaks/
+    // Bug report: https://github.com/viperproject/silicon/issues/579
+    Runtime.getRuntime.removeShutdownHook(proverShutdownHook)
 
     errorStreamThread.join()
     inputStreamThread.join()
@@ -205,46 +218,20 @@ trait BoogieInterface {
     }
   }
 
-  def stopBoogie(): Unit = {
-    _boogieProcess match {
-      case Some(proc) =>
-        reporter report BackendSubProcessReport("carbon", boogiePath, BeforeTermination, _boogieProcessPid)
-        proc.destroy()
-        /*_z3ProcessStream match {
-          case Some(stream) =>
-            stream.foreach((ph: ProcessHandle) => {
-              ph.destroy()
-            })
-          case None =>
-        }*/
-        reporter report BackendSubProcessReport("carbon", boogiePath, AfterTermination, _boogieProcessPid)
-      case None =>
+  private def destroyProcessAndItsChildren(proc: Process, processPath: String) : Unit = {
+    if(proc.isAlive) {
+      reporter report BackendSubProcessReport("carbon", processPath, BeforeTermination, _boogieProcessPid)
+      proc.children().forEach(_.destroy() : Unit)
+      proc.destroy()
+      reporter report BackendSubProcessReport("carbon", processPath, AfterTermination, _boogieProcessPid)
     }
   }
 
-  /*  // TODO: investigate why passing the program directly does not work
-    private def runX(input: String, options: Seq[String]): String = {
-      def convertStreamToString(is: java.io.InputStream) = {
-        val s = new java.util.Scanner(is).useDelimiter("\\A")
-        if (s.hasNext) s.next() else ""
-      }
-      var res: String = ""
-      var reserr: String = ""
-      def out(input: java.io.InputStream) {
-        res += convertStreamToString(input)
-        input.close()
-      }
-      def err(in: java.io.InputStream) {
-        reserr += convertStreamToString(in)
-        in.close()
-      }
-      def in(output: java.io.OutputStream) {
-        output.write(input.getBytes)
-        output.close()
-      }
-      // Note: call exitValue to block until Boogie has finished
-      // Note: we call boogie with an empty input "file" on stdin and parse the output
-      (Seq(boogiePath) ++ options ++ Seq("stdin.bpl")).run(new ProcessIO(in, out, err)).exitValue()
-      reserr + res
-    }*/
+  def stopBoogie(): Unit = {
+    _boogieProcess match {
+      case Some(proc) =>
+        destroyProcessAndItsChildren(proc, boogiePath)
+      case None =>
+    }
+  }
 }

@@ -256,14 +256,14 @@ sealed trait QuantifiedExp extends Exp {
   def vars: Seq[LocalVarDecl]
   def exp: Exp
 }
-case class Forall(vars: Seq[LocalVarDecl], triggers: Seq[Trigger], exp: Exp, typeVars: Seq[TypeVar] = Nil) extends QuantifiedExp
+case class Forall(vars: Seq[LocalVarDecl], triggers: Seq[Trigger], exp: Exp, typeVars: Seq[TypeVar] = Nil, weight: Option[Int] = None) extends QuantifiedExp
 object MaybeForall {
   def apply(vars: Seq[LocalVarDecl], triggers: Seq[Trigger], exp: Exp) = {
     if (vars.isEmpty) exp
     else Forall(vars, triggers, exp)
   }
 }
-case class Exists(vars: Seq[LocalVarDecl], triggers: Seq[Trigger], exp: Exp) extends QuantifiedExp
+case class Exists(vars: Seq[LocalVarDecl], triggers: Seq[Trigger], exp: Exp, weight: Option[Int] = None) extends QuantifiedExp
 case class Trigger(exps: Seq[Exp]) extends Node
 
 case class CondExp(cond: Exp, thn: Exp, els: Exp) extends Exp
@@ -312,7 +312,9 @@ case class AssertImpl(exp: Exp, error: VerificationError) extends Stmt {
   var id = AssertIds.next // Used for mapping errors in the output back to VerificationErrors
 }
 object ErrorMemberMapping {
-  val mapping = mutable.HashMap[VerificationError, Member]()
+  // The "weak" hash map is necessary to avoid leaking memory.
+  // See issue https://github.com/viperproject/carbon/issues/444
+  val mapping = mutable.WeakHashMap[VerificationError, Member]()
   var currentMember : Member = null
 }
 object Assert {

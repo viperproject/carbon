@@ -39,8 +39,8 @@ object PrettyPrinter {
       case Nil => exp
       case _ =>
         exp match {
-          case Forall(vars, triggers, _body, tv) =>
-            Forall(vars, triggers, _body, tv++t)
+          case Forall(vars, triggers, _body, tv, w) =>
+            Forall(vars, triggers, _body, tv++t, w)
           case _ =>
             Forall(Seq(), Nil, exp, t) // FIXME: no triggers selected! This should be changed, but requires trigger generation code on the level of the Boogie AST.
         }
@@ -56,7 +56,7 @@ object PrettyPrinter {
         res ++= t.freeTypeVars
       case FuncApp(_, _, t) =>
         res ++= t.freeTypeVars
-      case Forall(_, _, _, tv) =>
+      case Forall(_, _, _, tv, _) =>
         not ++= tv
     }
     (res.toSet -- not.toSet).toSeq
@@ -235,7 +235,7 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
         res ++= t.freeTypeVars
       case FuncApp(_, _, t) =>
         res ++= t.freeTypeVars
-      case Forall(_, _, _, tv) =>
+      case Forall(_, _, _, tv, _) =>
         not ++= tv
     }
     (res.toSet -- not.toSet).toSeq
@@ -331,8 +331,8 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
       case Nil => exp
       case _ =>
         exp match {
-          case Forall(vars, triggers, _body, tv) =>
-            Forall(vars, triggers, _body, tv++t)
+          case Forall(vars, triggers, _body, tv, w) =>
+            Forall(vars, triggers, _body, tv++t, w)
           case _ =>
             Forall(Seq(), Nil, exp, t) // FIXME: no triggers selected! This should be changed, but requires trigger generation code on the level of the Boogie AST.
         }
@@ -356,6 +356,13 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
     text("{") <+> commasep(t.exps) <+> "}"
   }
 
+  def showWeight(weight: Option[Int]) = {
+    weight match {
+      case Some(weightValue) => text("{") <+> ":weight" <+> weightValue.toString <+> "}" <> line
+      case None => nil
+    }
+  }
+
   override def toParenDoc(e: PrettyExpression): Cont = {
     e match {
       case IntLit(i) => value(i)
@@ -369,17 +376,18 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
       case RealConv(exp) => text("real") <> parens(show(exp))
 //      case Forall(vars, triggers, exp, tv) if triggers.length > 1 => // expands foralls into conjunctions of foralls with single triggers each
 //        show(triggers.tail.foldLeft[Exp](Forall(vars, Seq(triggers.head), exp, tv))((soFar,nextTrig) => BinExp(soFar,And,Forall(vars, Seq(nextTrig), exp, tv))))
-      case Forall(vars, triggers, exp, Nil) =>
+      case Forall(vars, triggers, exp, Nil, weight) =>
         parens(text("forall") <+>
           commasep(vars) <+>
           //("•" or "::") <+>
           "::" <>
           nest(defaultIndent,
             line <>
+              showWeight(weight) <>
               ssep((triggers map show).to(collection.immutable.Seq), space) <> line <>
               show(exp)
           ) <> line)
-      case Forall(vars, triggers, exp, tv) =>
+      case Forall(vars, triggers, exp, tv, weight) =>
         parens(text("forall") <+>
           "<" <> ssep((tv map show).to(collection.immutable.Seq), char (',') <> space) <> ">" <+>
           commasep(vars) <+>
@@ -387,16 +395,18 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
           "::" <>
           nest(defaultIndent,
             line <>
+              showWeight(weight) <>
               ssep((triggers map show).to(collection.immutable.Seq), space) <> line <>
               show(exp)
           ) <> line)
-      case Exists(vars, triggers, exp) =>
+      case Exists(vars, triggers, exp, weight) =>
         parens(text("exists") <+>
           commasep(vars) <+>
           //("•" or "::") <+>
           "::" <>
           nest(defaultIndent,
             line <>
+              showWeight(weight) <>
               ssep((triggers map show).to(collection.immutable.Seq), space) <> line <>
               show(exp)
           ) <> line)

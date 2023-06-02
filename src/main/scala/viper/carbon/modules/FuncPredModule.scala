@@ -56,7 +56,12 @@ trait FuncPredModule extends Module {
 
   def toExpressionsUsedInTriggers(e: Exp): Seq[Exp]
   def toExpressionsUsedInTriggers(e: Seq[Exp]): Seq[Seq[Exp]]
+  def rewriteTriggersToExpressionsUsedInTriggers(e: Seq[Trigger]) : Seq[Trigger] =
+    e flatMap (t => (toExpressionsUsedInTriggers(t.exps))
+      map (Trigger(_)) // build a trigger for each sequence element returned (in general, one original trigger can yield multiple alternative new triggers)
+      )
+
 
   def translateBackendFuncApp(fa: sil.BackendFuncApp): Exp
-  def translateBackendFunc(f: sil.BackendFunc): Seq[Decl]
+  def translateBackendFunc(f: sil.DomainFunc): Seq[Decl]
 }

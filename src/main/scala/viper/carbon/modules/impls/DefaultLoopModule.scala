@@ -55,8 +55,10 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
   private val sumHeap = LocalVar(sumHeapName, heapType)
 
   private var currentMethodIsAbstract = false;
+  private var usedLoopDetectorOnce = false;
   private var useLoopDetector = false
   var enableKInduction = false;
+
 
   override def start() = {
     /* loopModule should be after all other modules, since it needs to output code that must be output before due to
@@ -78,6 +80,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
       ))
 
     if(hasGotos) {
+      usedLoopDetectorOnce = true
       useLoopDetector = true
       initializeMethodWithGotos(m)
     } else {
@@ -286,7 +289,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
   override def isLoopDummyStmt(stmt: sil.Stmt): Boolean =
     stmt.info.getUniqueInfo[LoopDummyStmtInfo].nonEmpty
 
-  override def sumOfStatesAxiomRequired(): Boolean = useLoopDetector
+  override def sumOfStatesAxiomRequired(): Boolean = usedLoopDetectorOnce
 
   private def relevantForLoops(s: sil.Stmt) : Boolean = {
     s match {
@@ -432,17 +435,20 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
 
   private def handleWhileNormal(w: sil.While): Stmt = {
     val cond = w.cond
-    val invs = w.invs
+    //val invs = w.invs
     val body = w.body
     val guard = translateExp(cond)
-    val initialExhaleInv = MaybeCommentBlock("Exhale loop invariant before loop",
-      executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotEstablished(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotEstablished(e))), false)
-    )
-    val writtenVars = w.writtenVars diff (body.transitiveScopedDecls.collect {case l: sil.LocalVarDecl => l} map (_.localVar))
+
+    val (invs, writtenVars) = getWhileInformation(w)
+
+
+
+    val initialExhaleInv = beforeLoopHead(invs, w.info.getUniqueInfo[LoopInfo].map(loopInfo => loopInfo.head.get))
+    //val writtenVars = w.writtenVars diff (body.transitiveScopedDecls.collect {case l: sil.LocalVarDecl => l} map (_.localVar))
     val invDefinednessCheck = MaybeCommentBlock("Check definedness of invariant", NondetIf(
       Havoc((writtenVars map translateExp).asInstanceOf[Seq[Var]]) ++
         (writtenVars map (v => mainModule.allAssumptionsAboutValue(v.typ,mainModule.translateLocalVarSig(v.typ, v),false))) ++
-        (invs map (inv => checkDefinednessOfSpecAndInhale(inv, errors.ContractNotWellformed(inv)))) ++
+        (invs map (inv => inhale(Seq((inv, errors.ContractNotWellformed(inv))), true))) ++
         Assume(FalseLit())
     ))
     val (storePreLoopState, prevState) = stateModule.freshTempState("preLoop")
@@ -455,21 +461,22 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
 
     val currentHeap = stateModule.state.asInstanceOf[(java.util.Map[CarbonStateComponent, Seq[Var]], Boolean, Boolean)]._1.get(heapModule)
     val frameInformation = MaybeComment("Assume framed information", Assume(FuncApp(heapModule.identicalOnKnownLocsName, oldHeapCopy ++ currentHeap ++ maskWithFramedPerms, Bool)))
-    val bodyStmts = MaybeComment("Inhale invariant", inhale(w.invs map(i => (i, errors.WhileFailed(i)))) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv)))) ++
+    val bodyStmts = MaybeComment("Inhale invariant", inhale(w.invs map(i => (i, errors.WhileFailed(i))), false) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv)))) ++
       Comment("Check and assume guard") ++
       checkDefinedness(cond, errors.WhileFailed(w.cond)) ++
       Assume(guard) ++ stateModule.assumeGoodState ++
       MaybeCommentBlock("Translate loop body", stmtModule.translateStmt(body)) ++
-      MaybeComment("Assert invariant", executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotPreserved(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e))), false, true))
+      MaybeComment("Assert invariant", executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotPreserved(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e), None)), false, true))
 
     val currentMask = stateModule.state.asInstanceOf[(java.util.Map[CarbonStateComponent, Seq[Var]], Boolean, Boolean)]._1.get(permModule)
     val resetMask = Assign(currentMask(0), maskWithFramedPerms(0))
     val afterLoop = MaybeCommentBlock("Inhale loop invariant after loop, and assume guard",
       resetMask ++ Assume(guard.not) ++ stateModule.assumeGoodState ++ frameInformation ++
-        inhale(w.invs map(i => (i, errors.WhileFailed(i)))) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv)))
+        inhale(w.invs map(i => (i, errors.WhileFailed(i))), false) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv)))
     )
     val loop = NondetWhile(setMaskToZero ++ frameInformation ++ bodyStmts)
     initialExhaleInv ++ invDefinednessCheck ++ storePreLoopState ++ loop ++ afterLoop
+
   }
 
   def handleWhile1Induct(w: sil.While): Stmt = {
@@ -477,6 +484,17 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
     val (invs, writtenVars) = getWhileInformation(w)
     val body = w.body
     val guard = translateExp(cond)
+
+    /*
+    w.info.getUniqueInfo[LoopInfo].map(loopInfo => loopInfo.head.get).fold(Nil:Stmt)(loopId => {
+      val (frameMask, frameHeap) = getFrame(loopId)
+      MaybeCommentBlock("Store frame in mask associated with loop",
+        Seq(Assign(frameMask.l, currentMask(0)),
+            Assign(frameHeap.l, currentHeap(0))
+        )
+      )
+    } )
+     */
 
     val (storePreLoopState, prevState) = stateModule.freshTempState("preLoop")
 
@@ -492,18 +510,22 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
     val setMaskToZero = MaybeCommentBlock("Set mask to zero", stateModule.initBoogieState)
 
     val exhaleInvInitial = MaybeCommentBlock("Exhale loop invariant before loop",
-      executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotEstablished(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotEstablished(e))), false)
-    )
+      executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotEstablished(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotEstablished(e), None)), false)
+    ) ++
+      w.info.getUniqueInfo[LoopInfo].map(loopInfo => loopInfo.head.get).fold(Nil: Stmt)(loopId => {
+        val (frameMask, frameHeap) = getFrame(loopId)
+        MaybeCommentBlock("Store frame in mask associated with loop",
+          Seq(Assign(frameMask.l, currentMask(0)),
+            Assign(frameHeap.l, currentHeap(0))
+          )
+        )
+      })
 
-    permModule.pushOuterMask(maskWithFramedPerms(0).asInstanceOf[LocalVar]) // new try
+    permModule.pushOuterMask(maskWithFramedPerms(0).asInstanceOf[LocalVar])
 
     val inhaleInvInitial = MaybeCommentBlock("Inhale loop invariant before loop",
-      //(inhale(w.invs map(i => (i, errors.WhileFailed(i)))) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv)))) // new try
-      (invs map (inv => checkDefinednessOfSpecAndInhale(inv, errors.ContractNotWellformed(inv))))
+      (invs map (inv => inhale(Seq((inv, errors.ContractNotWellformed(inv))), true)))
     )
-
-    //permModule.pushOuterMask(maskWithFramedPerms(0).asInstanceOf[LocalVar]) // new try
-
 
     val havocWritten = MaybeCommentBlock("Havoc loop written variables (except locals)",
       Havoc((writtenVars map translateExp).asInstanceOf[Seq[Var]]) ++
@@ -513,23 +535,31 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
     val outerIf = NondetIf(Comment("Check and assume guard") ++
       checkDefinedness(cond, errors.WhileFailed(w.cond)) ++
       Assume(guard)  ++ MaybeCommentBlock("Translate loop body", stmtModule.translateStmt(body)) ++
+      w.info.getUniqueInfo[LoopInfo].map(loopInfo => loopInfo.head.get).fold(Nil: Stmt)(loopId => {
+        val (frameMask, frameHeap) = getFrame(loopId)
+        MaybeCommentBlock("Store frame in mask associated with loop",
+          Seq(Assign(frameMask.l, currentMask(0)),
+            Assign(frameHeap.l, currentHeap(0))
+          )
+        )
+      }) ++
       {
         permModule.popOuterMask()
         val (backup, snapshot) = stateModule.freshTempState("Assert")
-          val assertStmt = MaybeComment("Assert invariant", executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotPreserved(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e))), false, true))
+          val assertStmt = MaybeComment("Assert invariant", executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotPreserved(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e), None)), false, true))
           stateModule.replaceState(snapshot)
           backup ++ assertStmt
       }
       ++
       NondetIf(
         Assume(guard) ++
-          havocWritten ++ heapModule.resetBoogieState ++ permModule.havocMask() ++ Assume(guard) ++
+          havocWritten ++ heapModule.resetBoogieState ++ permModule.havocMask() ++ stateModule.assumeGoodState ++ Assume(guard) ++
           //MaybeComment("Assume invariant", executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotPreserved(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e))), false, true)).transform{
           //  case Assert(e, _) => Assume(e)
           //}() ++
           MaybeCommentBlock("Inhale loop invariant again",
             //inhale(w.invs map(i => (i, errors.WhileFailed(i)))) ++ executeUnfoldings(w.invs, (inv => errors.Internal(inv))) // new try
-            (invs map (inv => checkDefinednessOfSpecAndInhale(inv, errors.ContractNotWellformed(inv))))
+            (invs map (inv => inhale(Seq((inv, errors.ContractNotWellformed(inv))), true)))
           ).transform{
             case Assert(e, _) => Assume(e)
           }() ++
@@ -537,7 +567,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
             case Assert(e, _) => Assume(e)
           }()) ++{
           val (backup, snapshot) = stateModule.freshTempState("Assert")
-          val assumeStmt = MaybeComment("Assume invariant on heap copy", executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotPreserved(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e))), false, true)).transform{
+          val assumeStmt = MaybeComment("Assume invariant on heap copy", executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotPreserved(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e), None)), false, true)).transform{
             case Assert(e, _) => Assume(e)
           }()
           stateModule.replaceState(snapshot)
@@ -548,7 +578,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
           MaybeCommentBlock("Loop body, checking step", stmtModule.translateStmt(body)) ++
           {
             val (backup, snapshot) = stateModule.freshTempState("Assert")
-            val assertStmt = MaybeComment("Assert invariant", executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotPreserved(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e))), false, true))
+            val assertStmt = MaybeComment("Assert invariant", executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotPreserved(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e), None)), false, true))
             stateModule.replaceState(snapshot)
             backup ++ assertStmt
           }
@@ -677,7 +707,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
           (writtenVars map (v => mainModule.allAssumptionsAboutValue(v.typ, mainModule.translateLocalVarSig(v.typ, v), false)))
       ) ++
         MaybeCommentBlock("Check definedness of invariant", NondetIf(
-        (invs map (inv => checkDefinednessOfSpecAndInhale(inv, errors.ContractNotWellformed(inv)))) ++
+        (invs map (inv => inhaleWithDefinednessCheck(inv, errors.ContractNotWellformed(inv)))) ++
           Assume(FalseLit())
       )) ++
       MaybeCommentBlock("Check the loop body",
@@ -685,8 +715,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
             As long as modules the state at this point refers to the original state, this is fine.
          */
           MaybeComment("Reset state", stateModule.initBoogieState) ++
-          MaybeComment("Inhale invariant", inhale(invs map (x => (x, errors.WhileFailed(x)))) ++ executeUnfoldings(invs, (inv => errors.Internal(inv)))) ++
-          stateModule.assumeGoodState
+          MaybeComment("Inhale invariant", inhale(invs map (x => (x, errors.WhileFailed(x))), addDefinednessChecks = false) ++ executeUnfoldings(invs, (inv => errors.Internal(inv))))
       )
     )
   }
@@ -695,10 +724,10 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
     val invs : Seq[sil.Exp] = getLoopInvariants(loopId)
     MaybeCommentBlock("Backedge to loop " + loopId,
       MaybeCommentBlock("Check definedness of invariant", NondetIf(
-        (invs map (inv => checkDefinednessOfSpecAndInhale(inv, errors.ContractNotWellformed(inv)))) ++
+        (invs map (inv => inhaleWithDefinednessCheck(inv, errors.ContractNotWellformed(inv)))) ++
           Assume(FalseLit())
       )) ++
-      MaybeComment("Exhale invariant", executeUnfoldings(invs, (inv => errors.LoopInvariantNotPreserved(inv))) ++ exhale(invs map (e => (e, errors.LoopInvariantNotPreserved(e))))) ++
+      MaybeComment("Exhale invariant", executeUnfoldings(invs, (inv => errors.LoopInvariantNotPreserved(inv))) ++ exhaleWithoutDefinedness(invs map (e => (e, errors.LoopInvariantNotPreserved(e))))) ++
         MaybeComment("Terminate execution", Assume(FalseLit()))
     )
   }
@@ -706,7 +735,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
   private def beforeLoopHead(invs: Seq[sil.Exp], loopIdOpt: Option[Int]): Stmt = {
     MaybeCommentBlock("Before loop head" + loopIdOpt.fold("")(i => Integer.toString(i)),
       MaybeCommentBlock("Exhale loop invariant before loop",
-        executeUnfoldings(invs, (inv => errors.LoopInvariantNotEstablished(inv))) ++ exhale(invs map (e => (e, errors.LoopInvariantNotEstablished(e))))
+        executeUnfoldings(invs, (inv => errors.LoopInvariantNotEstablished(inv))) ++ exhaleWithoutDefinedness(invs map (e => (e, errors.LoopInvariantNotEstablished(e))))
       ) ++
         loopIdOpt.fold(Nil:Stmt)(loopId => {
           val (frameMask, frameHeap) = getFrame(loopId)

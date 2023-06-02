@@ -12,7 +12,7 @@ import viper.carbon.boogie._
 import viper.carbon.verifier.Verifier
 import viper.silver.verifier.{PartialVerificationError, reasons}
 import viper.carbon.boogie.Implicits._
-import viper.carbon.modules.components.DefinednessComponent
+import viper.carbon.modules.components.{DefinednessComponent, DefinednessState}
 import viper.silver.ast.{LocationAccess, MagicWand, PredicateAccess, Ref}
 import viper.silver.ast.utility.Expressions
 
@@ -106,7 +106,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         substitutedBody
       case sil.CondExp(cond, thn, els) =>
         CondExp(translateExp(cond), translateExp(thn), translateExp(els))
-      case sil.Exists(vars, triggers, exp) => {
+      case q@sil.Exists(vars, triggers, exp) => {
         // alpha renaming, to avoid clashes in context
         val renamedVars: Seq[sil.LocalVarDecl] = vars map (v => {
           val v1 = env.makeUniquelyNamed(v); env.define(v1.localVar); v1
@@ -116,11 +116,15 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           (t => (funcPredModule.toExpressionsUsedInTriggers(t.exps map (e => translateExp(renaming(e)))))
             map (Trigger(_)) // build a trigger for each sequence element returned (in general, one original trigger can yield multiple alternative new triggers)
             )).flatten
-        val res = Exists(renamedVars map translateLocalVarDecl, ts, translateExp(renaming(exp)))
+        val weight = q.info match {
+          case sil.WeightedQuantifier(value) => Some(value)
+          case _ => None
+        }
+        val res = Exists(renamedVars map translateLocalVarDecl, ts, translateExp(renaming(exp)), weight)
         renamedVars map (v => env.undefine(v.localVar))
         res
       }
-      case sil.Forall(vars, triggers, exp) => {
+      case q@sil.Forall(vars, triggers, exp) => {
         // alpha renaming, to avoid clashes in context
         val renamedVars: Seq[sil.LocalVarDecl] = vars map (v => {
           val v1 = env.makeUniquelyNamed(v); env.define(v1.localVar); v1
@@ -130,7 +134,11 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           (t => (funcPredModule.toExpressionsUsedInTriggers(t.exps map (e => translateExp(renaming(e)))))
             map (Trigger(_)) // build a trigger for each sequence element returned (in general, one original trigger can yield multiple alternative new triggers)
             )).flatten
-        val res = Forall(renamedVars map translateLocalVarDecl, ts, translateExp(renaming(exp)))
+        val weight = q.info match {
+          case sil.WeightedQuantifier(value) => Some(value)
+          case _ => None
+        }
+        val res = Forall(renamedVars map translateLocalVarDecl, ts, translateExp(renaming(exp)), Nil, weight)
         renamedVars map (v => env.undefine(v.localVar))
         res
       }
@@ -310,7 +318,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
     env.get(l)
   }
 
-  override def simplePartialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
+  override def simplePartialCheckDefinednessAfter(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
+                                                  definednessStateOpt: Option[DefinednessState]): Stmt = {
 
     val stmt: Stmt = (if (makeChecks)
       e match {
@@ -328,6 +337,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
   }
 
   override def checkDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
+                                definednessStateOpt: Option[DefinednessState] = None,
                                 duringPackageStmt: Boolean = false, ignoreIfInWand: Boolean = false): Stmt = {
 
     if(duringPackageStmt && ignoreIfInWand)  // ignore the check
@@ -338,10 +348,15 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       stateModule.replaceState(wandModule.UNIONState.asInstanceOf[StateRep].state)
     }
 
+    val definednessDescription =
+      if(makeChecks) {
+        s"Check definedness of $e"
+      } else {
+        s"Execute definedness check of $e without enforcing the checks (e.g., to gain more information)"
+      }
+
     val stmt =
-      MaybeCommentBlock(s"Check definedness of $e",
-      MaybeStmt(checkDefinednessImpl(e, error, makeChecks = makeChecks),
-        if(duringPackageStmt) wandModule.exchangeAssumesWithBoolean(stateModule.assumeGoodState, wandModule.getCurOpsBoolvar()) else stateModule.assumeGoodState))
+      MaybeCommentBlock(definednessDescription, checkDefinednessImpl(e, error, makeChecks = makeChecks, definednessStateOpt))
 
     if(duringPackageStmt) {
       stateModule.replaceState(oldCurState)
@@ -349,45 +364,49 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
     }else stmt
   }
 
-  private def checkDefinednessImpl(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
+  private def checkDefinednessImpl(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
+                                   definednessStateOpt: Option[DefinednessState]): Stmt = {
     e match {
       case sil.And(e1, e2) =>
-        checkDefinednessImpl(e1, error, makeChecks = makeChecks) ::
-          If(translateExp(Expressions.asBooleanExp(e1)), checkDefinednessImpl(e2, error, makeChecks = makeChecks), Statements.EmptyStmt) ::
+        checkDefinednessImpl(e1, error, makeChecks = makeChecks, definednessStateOpt) ::
+          If(translateExp(Expressions.asBooleanExp(e1)), checkDefinednessImpl(e2, error, makeChecks = makeChecks, definednessStateOpt), Statements.EmptyStmt) ::
           Nil
       case sil.Implies(e1, e2) =>
-        checkDefinednessImpl(e1, error, makeChecks = makeChecks) ::
-          If(translateExp(e1), checkDefinednessImpl(e2, error, makeChecks = makeChecks), Statements.EmptyStmt) ::
+        checkDefinednessImpl(e1, error, makeChecks = makeChecks, definednessStateOpt) ::
+          If(translateExp(e1), checkDefinednessImpl(e2, error, makeChecks = makeChecks, definednessStateOpt), Statements.EmptyStmt) ::
           Nil
       case sil.CondExp(c, e1, e2) =>
-        checkDefinednessImpl(c, error, makeChecks = makeChecks) ::
-          If(translateExp(c), checkDefinednessImpl(e1, error, makeChecks = makeChecks), checkDefinednessImpl(e2, error, makeChecks = makeChecks)) ::
-          Nil
+        checkDefinednessImpl(c, error, makeChecks = makeChecks, definednessStateOpt) ::
+          If(translateExp(c),
+            checkDefinednessImpl(e1, error, makeChecks = makeChecks, definednessStateOpt),
+            checkDefinednessImpl(e2, error, makeChecks = makeChecks, definednessStateOpt)
+          ) :: Nil
       case sil.Or(e1, e2) =>
-        checkDefinednessImpl(e1, error, makeChecks = makeChecks) :: // short-circuiting evaluation:
-          If(UnExp(Not, translateExp(e1)), checkDefinednessImpl(e2, error, makeChecks = makeChecks), Statements.EmptyStmt) ::
+        checkDefinednessImpl(e1, error, makeChecks = makeChecks, definednessStateOpt) :: // short-circuiting evaluation:
+          If(UnExp(Not, translateExp(e1)), checkDefinednessImpl(e2, error, makeChecks = makeChecks, definednessStateOpt), Statements.EmptyStmt) ::
           Nil
       case w@sil.MagicWand(_, _) =>
         checkDefinednessWand(w, error, makeChecks = makeChecks)
       case sil.Let(v, e, body) =>
-        checkDefinednessImpl(e, error, makeChecks = makeChecks) ::
+        checkDefinednessImpl(e, error, makeChecks = makeChecks, definednessStateOpt) ::
         {
           val u = env.makeUniquelyNamed(v) // choose a fresh "v" binder
           env.define(u.localVar)
           Assign(translateLocalVar(u.localVar),translateExp(e)) ::
-          checkDefinednessImpl(body.replace(v.localVar, u.localVar), error, makeChecks = makeChecks) ::
+          checkDefinednessImpl(body.replace(v.localVar, u.localVar), error, makeChecks = makeChecks, definednessStateOpt) ::
             {
               env.undefine(u.localVar)
               Nil
             }
         }
       case _ =>
-        def translate(e: sil.Exp): Seqn = {
-          val checks = components map (_.partialCheckDefinedness(e, error, makeChecks = makeChecks))
+        def translate(e: sil.Exp, definednessStateOptInTranslate: Option[DefinednessState]): Seqn = {
+          val checks = components map (_.partialCheckDefinedness(e, error, makeChecks = makeChecks, definednessStateOptInTranslate))
           val stmt = checks map (_._1())
+
           // AS: note that some implementations of the definedness checks rely on the order of these calls (i.e. parent nodes are checked before children, and children *are* always checked after parents.
-          val stmt2 = for (sub <- e.subnodes if sub.isInstanceOf[sil.Exp]) yield {
-            checkDefinednessImpl(sub.asInstanceOf[sil.Exp], error, makeChecks = makeChecks)
+          val stmt2 = for (sub <- subexpressionsForDefinedness(e)) yield {
+            checkDefinednessImpl(sub, error, makeChecks = makeChecks, definednessStateOptInTranslate)
           }
           val stmt3 = checks map (_._2())
 
@@ -401,7 +420,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           }
 
           stmt ++ stmt2 ++ stmt3 ++
-            MaybeCommentBlock("Free assumptions", allFreeAssumptions(e))
+            MaybeCommentBlock("Free assumptions (exp module)", allFreeAssumptions(e))
         }
 
         if (e.isInstanceOf[sil.QuantifiedExp]) {
@@ -421,15 +440,17 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
 
             val filter: Exp = hasDirectPerm(eAsForallRef.resource.asInstanceOf[LocationAccess])
 
-            handleQuantifiedLocals(bound_vars, If(filter, translate(eAsForallRef), Nil))
-          } else handleQuantifiedLocals(bound_vars, translate(Expressions.renameVariables(e, orig_vars.map(_.localVar), bound_vars.map(_.localVar))))
+            handleQuantifiedLocals(bound_vars, If(filter, translate(eAsForallRef, definednessStateOpt), Nil))
+          } else {
+            handleQuantifiedLocals(bound_vars, translate(Expressions.renameVariables(e, orig_vars.map(_.localVar), bound_vars.map(_.localVar)), definednessStateOpt))
+          }
           bound_vars map (v => env.undefine(v.localVar))
           res
         } else e match {
           case sil.Old(_) =>
             val prevState = stateModule.state
             stateModule.replaceState(stateModule.oldState)
-            val res = translate(e)
+            val res = translate(e, None) //definedness state is the old state (i.e., same as currently set state)
             stateModule.replaceState(prevState)
             res
           case sil.LabelledOld(_, oldLabel) =>
@@ -442,12 +463,23 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
               stateModule.freshTempStateKeepCurrent,
               stateModule.stateRepositoryGet, stateModule.stateRepositoryPut)
             stateModule.replaceState(labelState)
-            val res = translate(e)
+            val res = translate(e, None) //definedness state is the labelled old state (i.e., same as currently set state)
             stateModule.replaceState(prevState)
             res
           case _ =>
-            translate(e)
+            translate(e, definednessStateOpt)
         }
+    }
+  }
+
+  /***
+    * Returns subexpressions that are relevant for definedness checks
+    */
+  private def subexpressionsForDefinedness(e: sil.Exp) : Seq[sil.Exp] = {
+    e match {
+      case sil.AccessPredicate(res : sil.LocationAccess, perm) => res.subExps ++ Seq(perm)
+      case sil.CurrentPerm(res: sil.LocationAccess) => res.subExps
+      case _ => e.subExps
     }
   }
 
@@ -462,17 +494,16 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
     val defStateRHS = stateModule.state
 
     stateModule.replaceState(defStateLHS)
-    val lhs = initStmtLHS ++ checkDefinednessOfSpecAndInhale(e.left, error)
+    val lhs = initStmtLHS ++ inhaleWithDefinednessCheck(e.left, error)
     val lhsID = wandModule.getNewLhsID() // identifier for the lhs of the wand to be referred to later when 'old(lhs)' is used
     val defineLHS = stmtModule.translateStmt(sil.Label("lhs"+lhsID, Nil)(e.pos, e.info))
     wandModule.pushToActiveWandsStack(lhsID)
     stateModule.replaceState(defStateRHS)
-    val rhs = initStmtRHS ++ checkDefinednessOfSpecAndInhale(e.right, error)
+    val rhs = initStmtRHS ++ inhaleWithDefinednessCheck(e.right, error)
     wandModule.popFromActiveWandsStack()
     stateModule.replaceState(curState)
     NondetIf(lhs ++ defineLHS ++ rhs ++ Assume(FalseLit()))
   }
-
 
   def handleQuantifiedLocals(vars: Seq[sil.LocalVarDecl], res: Stmt): Stmt = {
     // introduce local variables for the variables in quantifications. we do this by first check
@@ -492,93 +523,6 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             LocalVar(xb, x.typ)
         }
     })(),Assume(FalseLit()))))
-  }
-
-
-  override def checkDefinednessOfSpecAndInhale(e: sil.Exp, error: PartialVerificationError, statesStack: List[Any] = null, duringPackageStmt: Boolean = false): Stmt = {
-
-    val stmt =
-    {
-      e match {
-        case sil.And(e1, e2) =>
-          checkDefinednessOfSpecAndInhale(e1, error, statesStack, duringPackageStmt) ::
-            checkDefinednessOfSpecAndInhale(e2, error, statesStack, duringPackageStmt) ::
-            Nil
-        case sil.Implies(e1, e2) =>
-          checkDefinedness(e1, error, duringPackageStmt = duringPackageStmt) ++ {
-            if (duringPackageStmt)
-              If(wandModule.getCurOpsBoolvar() ==> translateExpInWand(e1), checkDefinednessOfSpecAndInhale(e2, error, statesStack, duringPackageStmt), Statements.EmptyStmt)
-            else
-              If(translateExp(e1), checkDefinednessOfSpecAndInhale(e2, error, statesStack, duringPackageStmt), Statements.EmptyStmt)
-          }
-        case sil.CondExp(c, e1, e2) =>
-          checkDefinedness(c, error, duringPackageStmt = duringPackageStmt) ++ {
-            if (duringPackageStmt)
-              If(wandModule.getCurOpsBoolvar() ==> translateExpInWand(c), checkDefinednessOfSpecAndInhale(e1, error, statesStack, duringPackageStmt), checkDefinednessOfSpecAndInhale(e2, error, statesStack, duringPackageStmt))
-            else
-              If(translateExp(c), checkDefinednessOfSpecAndInhale(e1, error, statesStack, duringPackageStmt), checkDefinednessOfSpecAndInhale(e2, error, statesStack, duringPackageStmt))
-          }
-      case sil.Let(v, exp, body) =>
-        checkDefinedness(exp, error, true) ::
-          {
-            val u = env.makeUniquelyNamed(v) // choose a fresh "v" binder
-            env.define(u.localVar)
-            Assign(translateLocalVar(u.localVar),translateExp(exp)) ::
-              checkDefinednessOfSpecAndInhale(body.replace(v.localVar, u.localVar), error) ::
-              {
-                env.undefine(u.localVar)
-                Nil
-              }
-          }
-      //      case fa@sil.Forall(vars, triggers, expr) => // NOTE: there's no need for a special case for QPs, since these are desugared, introducing conjunctions
-        case _ =>
-          checkDefinedness(e, error, duringPackageStmt = duringPackageStmt) ++
-            inhale(Seq((e, error)), statesStack, duringPackageStmt)
-      }
-    }
-
-    if(duringPackageStmt) {
-      If(wandModule.getCurOpsBoolvar(), stmt, Statements.EmptyStmt)
-    }else stmt
-  }
-
-  override def checkDefinednessOfSpecAndExhale(e: sil.Exp, definednessError: PartialVerificationError, exhaleError: PartialVerificationError
-                                               , statesStack: List[Any] = null, duringPackageStmt: Boolean = false): Stmt = {
-
-    val stmt =
-      e match {
-      case sil.And(e1, e2) =>
-        checkDefinednessOfSpecAndExhale(e1, definednessError, exhaleError, statesStack, duringPackageStmt) ::
-          checkDefinednessOfSpecAndExhale(e2, definednessError, exhaleError, statesStack, duringPackageStmt) ::
-          Nil
-      case sil.Implies(e1, e2) =>
-        checkDefinedness(e1, definednessError) ++
-          If(translateExp(e1), checkDefinednessOfSpecAndExhale(e2, definednessError, exhaleError, statesStack, duringPackageStmt), Statements.EmptyStmt)
-      case sil.CondExp(c, e1, e2) =>
-        checkDefinedness(c, definednessError) ++
-          If(translateExp(c),
-            checkDefinednessOfSpecAndExhale(e1, definednessError, exhaleError, statesStack, duringPackageStmt),
-            checkDefinednessOfSpecAndExhale(e2, definednessError, exhaleError, statesStack, duringPackageStmt))
-      case sil.Let(v, exp, body) =>
-        checkDefinedness(exp, definednessError, true) ::
-          {
-            val u = env.makeUniquelyNamed(v) // choose a fresh "v" binder
-            env.define(u.localVar)
-            Assign(translateLocalVar(u.localVar),translateExp(exp)) ::
-              checkDefinednessOfSpecAndExhale(body.replace(v.localVar, u.localVar), definednessError, exhaleError) ::
-              {
-                env.undefine(u.localVar)
-                Nil
-              }
-          }//      case fa@sil.Forall(vars, triggers, expr) => // NOTE: there's no need for a special case for QPs, since these are desugared, introducing conjunctions
-      case _ =>
-        checkDefinedness(e, definednessError) ++
-          exhale(Seq((e, exhaleError)))
-    }
-
-    if(duringPackageStmt) {
-      If(wandModule.getCurOpsBoolvar(), stmt, Statements.EmptyStmt)
-    }else stmt
   }
 
   override def allFreeAssumptions(e: sil.Exp): Stmt = {
