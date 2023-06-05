@@ -218,7 +218,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           stateModule.stateRepositoryGet, stateModule.stateRepositoryPut)
         //first label, then init statement: otherwise gotos to this label will skip the initialization
         Label(Lbl(Identifier(name)(lblNamespace))) ++
-          stateModule.initToCurrentStmt(labelState) ++
+          stateModule.assumeIsCurrentStmt(labelState) ++
           labelBooleanGuards.get(name).fold[Stmt](Nil)(labelGuardDecl => Seq(labelGuardDecl.l := TrueLit()))  //label is defined
       }
       case sil.Goto(_) =>
