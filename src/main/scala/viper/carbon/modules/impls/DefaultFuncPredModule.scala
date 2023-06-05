@@ -809,35 +809,39 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         val funct = verifier.program.findFunction(f);
         val pres = funct.pres map (e => Expressions.instantiateVariables(e, funct.formalArgs, args, env.allDefinedNames(program)))
         //if (pres.isEmpty) noStmt // even for empty pres, the assumption made below is important
-        NondetIf(
-          // This is where termination checks could/should be added
-          MaybeComment("Exhale precondition of function application", {
-              val executeExhale = () => exhaleWithoutDefinedness(pres map (e => (e, errors.PreconditionInAppFalse(fa))))
+        val preExhale = MaybeComment("Exhale precondition of function application", {
+          val executeExhale = () => exhaleWithoutDefinedness(pres map (e => (e, errors.PreconditionInAppFalse(fa))))
 
-              definednessStateOpt match {
-                case Some(defState) =>
-                  //need to exhale precondition in the definedness state
-                  /** FIXME:
-                    * Here we are doing the entire precondition exhale in the definedness state. This means that expressions that
-                    * are part of the function call (e.g., function arguments) are evaluated in the definedness state instead of the
-                    * evaluation state (i.e., the main state before the function call). This can lead to discrepancies if the expressions
-                    * contain permission introspection.
-                    */
-                  val curState = stateModule.state
-                  defState.setDefState()
-                  val res = executeExhale()
-                  stateModule.replaceState(curState)
-                  res
-                case None =>
-                  executeExhale()
-              }
-            }
-          ) ++
-            MaybeComment("Stop execution", Assume(FalseLit()))
-          , checkingDefinednessOfFunction match {
-            case Some(name) if name.equals(f) => MaybeComment("Enable postcondition for recursive call", Assume(triggerFuncApp(funct,heapModule.currentStateExps,args map translateExp)))
+          definednessStateOpt match {
+            case Some(defState) =>
+              //need to exhale precondition in the definedness state
+              /** FIXME:
+                * Here we are doing the entire precondition exhale in the definedness state. This means that expressions that
+                * are part of the function call (e.g., function arguments) are evaluated in the definedness state instead of the
+                * evaluation state (i.e., the main state before the function call). This can lead to discrepancies if the expressions
+                * contain permission introspection.
+                */
+              val curState = stateModule.state
+              defState.setDefState()
+              val (initStmt, _) = stateModule.freshTempState("funcPreState")
+              val res = executeExhale()
+              stateModule.replaceState(curState)
+              initStmt ++ res
+            case None =>
+              val (initStmt, prevState) = stateModule.freshTempState("funcPreState")
+              val ee = executeExhale()
+              stateModule.replaceState(prevState)
+              initStmt ++ ee
+          }
+        }
+        )
+
+          val afterCheck: Stmt = checkingDefinednessOfFunction match {
+            case Some(name) if name.equals(f) => MaybeComment("Enable postcondition for recursive call", Assume(triggerFuncApp(funct, heapModule.currentStateExps, args map translateExp)))
             case _ => Nil
-          })} else () => Nil
+          }
+          preExhale ++ afterCheck
+        } else () => Nil
         )
       }
       case _ =>
