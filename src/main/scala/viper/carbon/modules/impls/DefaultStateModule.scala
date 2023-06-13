@@ -36,10 +36,14 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     {
       val prevState = stateModule.state
       stateModule.replaceState(stateModule.pureState)
+      // TODO: It would be great if we could use StateModule.currentStateContributionValues, but that will not
+      // give us the pure state (see comment there). Once that is fixed, this should be changed accordingly.
       val stateExps = components flatMap (_.currentStateExps)
       val res = FuncApp(Identifier(isGoodState), stateExps, Bool)
       stateModule.replaceState(prevState)
-      // state(dummyHeap, emptyMask)
+      // This axiom corresponds to the Boogie expression "state(dummyHeap, emptyMask)",
+      // which is necessary since function definitional axioms trigger on "state(heap, mask), f(heap, args)",
+      // so without this assumption, function calls with dummyHeap and emptyMask won't trigger the definition.
       Axiom(res)
     }
   }

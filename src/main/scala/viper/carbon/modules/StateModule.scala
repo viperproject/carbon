@@ -59,13 +59,18 @@ trait StateModule extends Module with ComponentRegistry[CarbonStateComponent] wi
    * same even if the state is changed.
    */
   def staticStateContributions(withHeap : Boolean = true, withPermissions : Boolean = true): Seq[LocalVarDecl]
+
   /**
    * The current values for all registered components' state contributions.  The number of elements
    * in the list and the types must correspond to the ones given in `stateContributions`.
     *
     * Compared to the currentStateContributions [ALEX: maybe to be deprecated], these expressions may include e.g. old(..) around a heap variable.
    */
-  def currentStateContributionValues: Seq[Exp] = stateContributionValues(state)
+  def currentStateContributionValues: Seq[Exp] = {
+    // TODO: This implementation does not return the values of the old or pure state if we're currently using one of those;
+    // instead it only wraps expressions into old(..) if we're using the old state.
+    stateContributionValues(state)
+  }
 
   def stateContributionValues(snap : StateSnapshot): Seq[Exp]
 
