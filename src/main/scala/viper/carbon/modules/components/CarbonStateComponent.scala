@@ -70,4 +70,9 @@ trait CarbonStateComponent extends Component {
    * Note in particular that variable passed in via "replaceState" above will typically need wrapping in old(.) if this is set to true
    */
   def usingOldState: Boolean
+
+  /**
+    * Are we currently using a pure state without a heap (i.e., translating a domain)?
+    */
+  def usingPureState: Boolean
 }
