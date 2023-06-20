@@ -168,7 +168,8 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
   }
 
   private def translateMethodDeclCheckPosts(posts: Seq[sil.Exp]): Stmt = {
-    val (freshStateStmt, state) = stateModule.freshTempState("Post", discardCurrent = true, initialise = true)
+    val (freshStateStmtAux, state) = stateModule.freshTempState("Post", discardCurrent = true, initialise = true)
+    val freshStateStmt = freshStateStmtAux ++ stateModule.assumeGoodState
 
     // note that the order here matters - onlyExhalePosts should be computed with respect to the reset state
     val onlyExhalePosts: Seq[Stmt] = inhaleModule.inhaleExhaleSpecWithDefinednessCheck(
