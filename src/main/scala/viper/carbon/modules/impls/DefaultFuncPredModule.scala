@@ -58,12 +58,13 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private val triggerFuncPostfix = "#trigger"
   private val triggerFuncNoHeapPostfix = "#triggerStateless"
   private val framePostfix = "#frame"
-  private val frameTypeName = "FrameType"
+  private val frameTypeName = "$Snap"
   private val frameType = NamedType(frameTypeName)
   private val emptyFrameName = Identifier("EmptyFrame")
   private val emptyFrame = Const(emptyFrameName)
   private val combineFramesName = Identifier("CombineFrames")
   private val frameFragmentName = Identifier("FrameFragment")
+  private val unFrameFragmentName = Identifier("UnFrameFragment")
   private val condFrameName = Identifier("ConditionalFrame")
   private val dummyTriggerName = Identifier("dummyFunction")
   private val resultName = Identifier("Result")
@@ -77,6 +78,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   private var functionFrames : FrameInfos = FrameInfos();
   private var predicateFrames: FrameInfos = FrameInfos();
+
+  override def snapType(): Type = frameType
 
   override def preamble = {
     val fp = if (verifier.program.functions.isEmpty) Nil
@@ -94,6 +97,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         TypeDecl(frameType) ++
           ConstDecl(emptyFrameName, frameType) ++
           Func(frameFragmentName, Seq(LocalVarDecl(Identifier("t"), TypeVar("T"))), frameType) ++
+          Func(unFrameFragmentName, Seq(LocalVarDecl(Identifier("t"), frameType)), TypeVar("T")) ++
           Func(condFrameName, Seq(LocalVarDecl(Identifier("p"), permType), LocalVarDecl(Identifier("f"), frameType)), frameType) ++
           Func(dummyTriggerName, Seq(LocalVarDecl(Identifier("t"), TypeVar("T"))), Bool) ++
           Func(combineFramesName,

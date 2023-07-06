@@ -130,6 +130,8 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   override val pmaskTypeDesugared = PMaskDesugaredRep(readPMaskName, updatePMaskName)
 
+  def maskTypeForKey(t: Type) = MapType(Seq(t), permType, t.freeTypeVars)
+
   override def preamble = {
     val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
     val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)

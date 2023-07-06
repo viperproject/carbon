@@ -23,6 +23,8 @@ trait FuncPredModule extends Module {
 
   def translateFuncApp(fa: sil.FuncApp): Exp
 
+  def snapType(): Type
+
   // wrap an expression in a dummy function with "true" value (sometimes useful for triggering)
   def dummyFuncApp(e: Exp): Exp
 

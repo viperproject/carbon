@@ -75,6 +75,8 @@ trait PermModule extends Module with CarbonStateComponent {
     */
   def maskType: Type
 
+  def maskTypeForKey(keyType: Type): Type
+
   /**
    * The type used to for predicate masks.
    */
