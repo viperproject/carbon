@@ -101,7 +101,7 @@ trait PermModule extends Module with CarbonStateComponent {
    */
   def currentPermission(loc: sil.LocationAccess): Exp
 
-  def currentPermission(rcv:Exp, loc:Exp):Exp
+  def currentPermission(rcv:Exp, loc:sil.Resource):Exp
 
   /**these methods are for experimental purposes, not yet finalized **/
   /*def beginSumMask : Stmt

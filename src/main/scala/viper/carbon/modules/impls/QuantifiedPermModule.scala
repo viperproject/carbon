@@ -130,6 +130,32 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   override val pmaskTypeDesugared = PMaskDesugaredRep(readPMaskName, updatePMaskName)
 
+  def cmpResources: Seq[sil.Resource] = verifier.program.fields ++ verifier.program.predicates ++ verifier.program.magicWandStructures
+
+  var resources: Seq[sil.Resource] = _
+
+  def getHeapType(r: sil.Resource): Type = r match {
+    case f: sil.Field => MapType(Seq(refType), translateType(f.typ), Seq())
+    case _: sil.Predicate => MapType(Seq(funcPredModule.snapType()), funcPredModule.snapType(), Seq())
+    case _: sil.MagicWand => MapType(Seq(funcPredModule.snapType()), funcPredModule.snapType(), Seq())
+  }
+
+  def cmpHeapTypes = resources.map(r => r -> getHeapType(r)).toMap
+
+  var heapTypes: Map[sil.Resource, Type] = _
+
+  def getResourceName(r: sil.Resource) = r match {
+    case f: sil.Field => f.name
+    case p: sil.Predicate => p.name
+    case w: sil.MagicWand => verifier.program.magicWandStructures.indexOf(w.structure(verifier.program))
+  }
+
+  def cmpHeapMap: Map[sil.Resource, Var] = resources.map(r => r -> GlobalVar(Identifier(s"Heap_${getResourceName(r)}"), heapTypes(r))).toMap
+
+  var heapMap: Map[sil.Resource, Var] = _
+
+
+
   def maskTypeForKey(t: Type) = MapType(Seq(t), permType, t.freeTypeVars)
 
   override def preamble = {
@@ -1020,7 +1046,7 @@ class QuantifiedPermModule(val verifier: Verifier)
              }
            }
            val translatedTriggers = renamedTriggers.map(t => Trigger(t.exps.map(x => translateExp(x))))
-           val translatedLocation = translateLocation(Expressions.instantiateVariables(fieldAccess, vs.map(v => v.localVar), vsFresh.map(vFresh => vFresh.localVar)))
+           //val translatedLocation = translateLocation(Expressions.instantiateVariables(fieldAccess, vs.map(v => v.localVar), vsFresh.map(vFresh => vFresh.localVar)))
 
            //define inverse function and inverse terms
            val obj = LocalVarDecl(Identifier("o"), refType)
@@ -1393,10 +1419,10 @@ class QuantifiedPermModule(val verifier: Verifier)
     }
   }
 
-  def currentPermission(rcv: Exp, location: Exp): Exp = {
+  def currentPermission(rcv: Exp, location: sil.Resource): Exp = {
     currentPermission(maskExp, rcv, location)
   }
-  def currentPermission(mask: Exp, rcv: Exp, location: Exp, isPMask: Boolean = false): Exp = {
+  def currentPermission(mask: Exp, rcv: Exp, location: sil.Resource): Exp = {
     if(verifier.usePolyMapsInEncoding) {
       MapSelect(mask, Seq(rcv, location))
     } else {

@@ -90,11 +90,10 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
 
         // important to convert Seq to List to force the methods to be translated, otherwise it's possible that
         // evaluation happens lazily, which can lead to incorrect behaviour (evaluation order is important here)
-        val translateFields =
-          MaybeCommentedDecl("Translation of all fields", (fields flatMap translateField).toList)
+        //val translateFields =
+        //  MaybeCommentedDecl("Translation of all fields", (fields flatMap translateField).toList)
         nameMaps = (methods ++ functions ++ predicates).map(_.name -> new mutable.HashMap[String, String]()).toMap
         val members = (domains flatMap translateDomainDecl) ++
-          translateFields ++
           (functions flatMap (f => translateFunction(f, nameMaps.get(f.name)))) ++
           (predicates flatMap (p => translatePredicate(p, nameMaps.get(p.name)))) ++
           (methods flatMap (m => translateMethodDecl(m, nameMaps.get(m.name)))) ++
