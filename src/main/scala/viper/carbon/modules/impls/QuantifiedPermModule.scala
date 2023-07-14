@@ -121,6 +121,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   private var inverseFuncs: ListBuffer[Func] = new ListBuffer[Func](); //list of inverse functions used for inhale/exhale qp
   private var rangeFuncs: ListBuffer[Func] = new ListBuffer[Func](); //list of inverse functions used for inhale/exhale qp
   private var triggerFuncs: ListBuffer[Func] = new ListBuffer[Func](); //list of inverse functions used for inhale/exhale qp
+  private val addToMaskName = Identifier("addMask")
 
   private val readMaskName = Identifier("readMask")
   private val updateMaskName = Identifier("updMask")
@@ -186,6 +187,28 @@ class QuantifiedPermModule(val verifier: Verifier)
       } else {
         Nil
       }) ++
+      {
+        val h = LocalVarDecl(maskName, maskType)
+        val obj = LocalVarDecl(Identifier("obj"), refType)
+        val obj2 = LocalVarDecl(Identifier("obj2"), refType)
+        val prm = LocalVarDecl(Identifier("prm"), permType)
+
+        val field = LocalVarDecl(Identifier("f"),
+          fieldTypeConstructor._2(Seq.tabulate(fieldTypeConstructor._1) { i => TypeVar("A" + i) }))
+        val field2 = LocalVarDecl(Identifier("f2"),
+          fieldTypeConstructor._2(Seq.tabulate(fieldTypeConstructor._1) { i => TypeVar("B" + i) }))
+
+
+        val storeFun =
+          Func(addToMaskName,
+            Seq(h, obj, field, prm),
+            maskType)
+        val storeDef = Axiom(Forall(Seq(h, obj, field, obj2, field2, prm),
+          Trigger(Seq(currentPermission(FuncApp(addToMaskName, Seq(h.l, obj.l, field.l, prm.l), maskType), obj2.l, field2.l))),
+          currentPermission(FuncApp(addToMaskName, Seq(h.l, obj.l, field.l, prm.l), maskType), obj2.l, field2.l) === BinExp(currentPermission(h.l, obj2.l, field2.l), Add, CondExp(obj.l === obj2.l && field.l === field2.l, prm.l, RealLit(0)))))
+        MaybeCommentedDecl("add to mask",
+          storeFun ++ storeDef)
+      } ++
       // good mask
       Func(goodMaskName, LocalVarDecl(maskName, maskType), Bool) ++
       Axiom(Forall(stateModule.staticStateContributions(),
@@ -1401,7 +1424,15 @@ class QuantifiedPermModule(val verifier: Verifier)
   }
 
   private def maskUpdate(mask: Exp, rcv: Exp, field: Exp, newPerm: Exp) : Exp = {
-    if(verifier.usePolyMapsInEncoding)
+    newPerm match {
+      case BinExp(MapSelect(`mask`, Seq(`rcv`, `field`)), Add, addition) => FuncApp(addToMaskName, Seq(mask, rcv, field, addition), maskType)
+      case BinExp(MapSelect(`mask`, Seq(`rcv`, `field`)), Sub, addition) => FuncApp(addToMaskName, Seq(mask, rcv, field, addition.neg), maskType)
+      case _ => actualMaskUpdate(mask, rcv, field, newPerm)
+    }
+  }
+
+  private def actualMaskUpdate(mask: Exp, rcv: Exp, field: Exp, newPerm: Exp): Exp = {
+    if (verifier.usePolyMapsInEncoding)
       MapUpdate(mask, Seq(rcv, field), newPerm)
     else
       FuncApp(updateMaskName, Seq(mask, rcv, field, newPerm), maskType)
