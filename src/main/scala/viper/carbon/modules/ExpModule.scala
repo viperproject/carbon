@@ -8,7 +8,7 @@ package viper.carbon.modules
 
 import viper.silver.{ast => sil}
 import viper.carbon.boogie.{Exp, LocalVar, Stmt}
-import viper.carbon.modules.components.{ComponentRegistry, DefinednessComponent}
+import viper.carbon.modules.components.{ComponentRegistry, DefinednessComponent, DefinednessState}
 import viper.silver.verifier.PartialVerificationError
 
 /**
@@ -30,30 +30,27 @@ trait ExpModule extends Module with ComponentRegistry[DefinednessComponent] {
    */
   def allFreeAssumptions(e: sil.Exp): Stmt
 
-    /**
-      * Check definedness of Viper expressions as they occur in the program.
-      *
-      * makeChecks provides the possibility of switching off most checks, to get
-      * only the side-effects (unfoldings) of unravelling the expression. Note that
-      * the parameter should be passed down through recursive calls (default true)
-      *
-      * ignoreIfInWand gives the option to ignore the definedness check if it is called during a package statement
-      *
-      * inWand distinguish when check definedness is called during a package statement.
-      */
+  /***
+    * Check well-definedness of Viper expressions. This method should only be invoked on pure Viper expressions or
+    * impure *atomic* Viper assertions (e.g., accessibility predicates, quantified permissions).
+    * For other kinds of impure assertions such as separating conjunctions where one conjunct is impure, well-definedness
+    * is always tied to an inhale or exhale (or assert) operation. In those cases, the corresponding inhale and exhale
+    * methods should be invoked, which permit switching on well-definedness checks.
+    *
+    * @param e
+    * @param error
+    * @param makeChecks provides the possibility of switching off most checks, to get only the side-effects (unfoldings)
+    *                   of unravelling the expression. Note that the parameter should be passed down through recursive
+    *                   calls (default true)
+    * @param definednessStateOpt If defined, then represents the state in which permission checks that are part of the definedness
+    *                            check should be made, otherwise these checks should be made in the currently active state.
+    *                            Expressions should be evaluated in the currently active state.
+    * @param insidePackageStmt true if call is made during a package statement
+    * @param ignoreIfInWand gives the option to ignore the definedness check if it is called during a package statement
+    * @return
+    */
   def checkDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean = true,
+                       definednessStateOpt: Option[DefinednessState] = None,
                        insidePackageStmt: Boolean = false, ignoreIfInWand: Boolean = false): Stmt
 
-  /**
-   * Check definedness of Viper assertions such as pre-/postconditions or invariants.
-   * The implementation works by exhaling 'e' and checking the necessary properties
-   * along the way.
-   *
-   * statesStackForPackageStmt stack of states used in translating statements during packaging a wand (carries currentState and LHS of wands)
-   * insidePackageStmt      Boolean that represents whether this method is being called during packaging a wand or not.
-   * The 'statesStackForPackageStmt' and 'insidePackageStmt' are used when translating statements during packaging a wand.
-   * For more details refer to the general note in 'wandModule'.
-   */
-  def checkDefinednessOfSpecAndExhale(e: sil.Exp, definednessError: PartialVerificationError, exhaleError: PartialVerificationError,
-                                      statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt
 }

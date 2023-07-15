@@ -12,7 +12,7 @@ import viper.carbon.boogie._
 import viper.carbon.verifier.Verifier
 import viper.carbon.boogie.Implicits._
 import viper.carbon.modules.impls.dafny_axioms.SequenceAxiomatization
-import viper.carbon.modules.components.DefinednessComponent
+import viper.carbon.modules.components.{DefinednessComponent, DefinednessState}
 import viper.silver.ast.{SeqIndex, SeqLength}
 import viper.silver.verifier.{PartialVerificationError, reasons}
 
@@ -110,7 +110,7 @@ class DefaultSeqModule(val verifier: Verifier)
   }
 
 
-  override def simplePartialCheckDefinednessAfter(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
+  override def simplePartialCheckDefinednessAfter(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, definednessStateOpt: Option[DefinednessState]): Stmt = {
 
     if(makeChecks)
       e match {
