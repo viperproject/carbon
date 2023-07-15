@@ -206,8 +206,18 @@ class QuantifiedPermModule(val verifier: Verifier)
         val storeDef = Axiom(Forall(Seq(h, obj, field, obj2, field2, prm),
           Trigger(Seq(currentPermission(FuncApp(addToMaskName, Seq(h.l, obj.l, field.l, prm.l), maskType), obj2.l, field2.l))),
           currentPermission(FuncApp(addToMaskName, Seq(h.l, obj.l, field.l, prm.l), maskType), obj2.l, field2.l) === BinExp(currentPermission(h.l, obj2.l, field2.l), Add, CondExp(obj.l === obj2.l && field.l === field2.l, prm.l, RealLit(0)))))
+
+
+        val storeDefInner = Forall(Seq(obj2, field2), Seq(Trigger(Seq(currentPermission(FuncApp(addToMaskName, Seq(h.l, obj.l, field.l, prm.l), maskType), obj2.l, field2.l)))),  // , Trigger(Seq(currentPermission(h.l, obj2.l, field2.l)))), /// ME: trying, doesnt seem to help?
+          currentPermission(FuncApp(addToMaskName, Seq(h.l, obj.l, field.l, prm.l), maskType), obj2.l, field2.l) === BinExp(currentPermission(h.l, obj2.l, field2.l), Add, CondExp(obj.l === obj2.l && field.l === field2.l, prm.l, RealLit(0))),
+          Seq(TypeVar("B0"), TypeVar("B1")))
+        val storeDef2 = Axiom(Forall(Seq(h, obj, field, prm),
+          Trigger(Seq(FuncApp(addToMaskName, Seq(h.l, obj.l, field.l, prm.l), maskType))),
+          storeDefInner, Seq(TypeVar("A0"), TypeVar("A1"))))
+
+
         MaybeCommentedDecl("add to mask",
-          storeFun ++ storeDef)
+          storeFun ++ storeDef2)
       } ++
       // good mask
       Func(goodMaskName, LocalVarDecl(maskName, maskType), Bool) ++
@@ -223,6 +233,18 @@ class QuantifiedPermModule(val verifier: Verifier)
           // permissions for fields which aren't predicates or wands are smaller than 1
           ((staticGoodMask && heapModule.isPredicateField(field.l).not && heapModule.isWandField(field.l).not) ==> perm <= fullPerm )))
       ))    } ++ {
+      val prm = LocalVarDecl(Identifier("prm"), permType)
+      val perm = MapSelect(FuncApp(addToMaskName, Seq(staticStateContributions(false, true).head.l, obj.l, field.l, prm.l), maskType), Seq(obj.l, field.l))// currentPermission(obj.l, field.l)
+      Axiom(Forall(staticStateContributions(true, true) ++ obj ++ field ++ prm ,
+        Seq(Trigger(Seq(FuncApp(goodMaskName, FuncApp(addToMaskName, Seq(staticStateContributions(false, true).head.l, obj.l, field.l, prm.l), maskType), Bool)))), // ME: new trigger
+        // permissions are non-negative
+        (staticGoodMask ==> (perm >= noPerm &&
+          // permissions for fields which aren't predicates are smaller than 1
+          // permissions for fields which aren't predicates or wands are smaller than 1
+          ((staticGoodMask && heapModule.isPredicateField(field.l).not && heapModule.isWandField(field.l).not) ==> perm <= fullPerm)))
+      ))
+    } ++
+    {
       val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
       val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
       val args = staticMask ++ Seq(obj, field)
