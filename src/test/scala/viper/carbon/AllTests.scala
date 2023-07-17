@@ -31,5 +31,16 @@ class AllTests extends SilSuite {
     fe
   }
 
-  lazy val verifiers = List(CarbonVerifier(StdIOReporter()))
+  lazy val verifiers = List(carbonVerifier)
+
+  override def configureVerifiersFromConfigMap(configMap: Map[String, Any]): Unit = {
+    carbonVerifier.parseCommandLine(commandLineArguments :+ "dummy.vpr")
+  }
+
+  val carbonVerifier: CarbonVerifier = {
+    CarbonVerifier(StdIOReporter())
+  }
+
+  val commandLineArguments: Seq[String] =
+    Seq("--boogieOpt=/timeLimit:600" /* seconds */)
 }
