@@ -82,7 +82,7 @@ class DefaultHeapModule(val verifier: Verifier)
   private val qpHeap = LocalVar(qpHeapName, heapTyp)
   private var heap: Var = originalHeap
   private def heapVar: Var = {assert (!usingOldState); heap}
-  private def heapExp: Exp = (if (usingOldState) Old(heap) else heap)
+  private def heapExp: Exp = if (usingPureState) dummyHeap else (if (usingOldState) Old(heap) else heap)
   private val nullName = Identifier("null")
   private val nullLit = Const(nullName)
   private val freshObjectName = Identifier("freshObj")
@@ -100,6 +100,8 @@ class DefaultHeapModule(val verifier: Verifier)
   private val sumHeapName = Identifier("SumHeap")
   private val readHeapName = Identifier("readHeap")
   private val updateHeapName = Identifier("updHeap")
+  private val dummyHeapName = Identifier("dummyHeap")
+  private val dummyHeap = Const(dummyHeapName)
 
   override def refType = NamedType("Ref")
 
@@ -121,6 +123,7 @@ class DefaultHeapModule(val verifier: Verifier)
       ConstDecl(nullName, refType) ++
       TypeDecl(fieldType) ++
       TypeDecl(normalFieldType) ++
+      ConstDecl(dummyHeapName, heapTyp) ++
       // Heap Type Definition :
       (if(verifier.usePolyMapsInEncoding) TypeAlias(heapTyp, MapType(Seq(refType, fieldType), TypeVar("B"), Seq(TypeVar("A"), TypeVar("B")))) else TypeDecl(heapTyp)) ++
       (if(enableAllocationEncoding) ConstDecl(allocName, NamedType(fieldTypeName, Seq(normalFieldType, Bool)), unique = true) ++
@@ -796,6 +799,7 @@ class DefaultHeapModule(val verifier: Verifier)
 
   override def usingOldState = stateModuleIsUsingOldState
 
+  override def usingPureState = stateModuleIsUsingPureState
 
   override def beginExhale: Stmt = {
 //    Havoc(exhaleHeap)
