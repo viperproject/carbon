@@ -940,6 +940,11 @@ class QuantifiedPermModule(val verifier: Verifier)
           } else {
             (translatePerm(perm), Nil)
           }
+        val permValToUse = permVal match {
+          case `fullPerm` => permVal
+          case l: RealLit => permVal
+          case _ => permVar
+        }
         stmts ++
          (permVar := permVal) ++
           (if (perm.isInstanceOf[WildcardPerm])
@@ -948,7 +953,7 @@ class QuantifiedPermModule(val verifier: Verifier)
             Assert(permissionPositiveInternal(permVar, Some(perm), true), error.dueTo(reasons.NegativePermission(perm))) ++
             assmsToStmt(permissionPositiveInternal(permVar, Some(perm), false) ==> checkNonNullReceiver(loc))
           ) ++
-          (if (!usingOldState) currentMaskAssignUpdate(loc, permAdd(curPerm, permVar)) else Nil)
+          (if (!usingOldState) currentMaskAssignUpdate(loc, permAdd(curPerm, permValToUse)) else Nil)
       case w@sil.MagicWand(left,right) =>
         val wandRep = wandModule.getWandRepresentation(w)
         val curPerm = currentPermission(translateNull, wandRep)
@@ -1505,17 +1510,22 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   private def currentMaskAssignUpdate(loc: LocationAccess, newPerm: Exp) : Stmt = {
     val (rcv, field) = rcvAndFieldExp(loc)
-    currentMaskAssignUpdate(rcv, field, newPerm)
+    currentMaskAssignUpdate(rcv, field, newPerm, loc.loc(program).isInstanceOf[sil.Field])
   }
 
-  private def currentMaskAssignUpdate(rcv: Exp, field: Exp, newPerm: Exp) : Stmt = {
-    mask := maskUpdate(mask, rcv, field, newPerm)
+  private def currentMaskAssignUpdate(rcv: Exp, field: Exp, newPerm: Exp, isField: Boolean = false) : Stmt = {
+    val msk = mask
+    newPerm match {
+      case BinExp(MapSelect(`msk`, Seq(`rcv`, `field`)), Add, addition) if isField && addition == fullPerm =>
+        Assume(currentPermission(mask, rcv, field) === noPerm) ++ (mask := maskUpdate(mask, rcv, field, addition))
+      case _ => mask := maskUpdate(mask, rcv, field, newPerm)
+    }
   }
 
-  private def maskUpdate(mask: Exp, loc: LocationAccess, newPerm: Exp) : Exp = {
+  /*private def maskUpdate(mask: Exp, loc: LocationAccess, newPerm: Exp) : Exp = {
     val (rcv, field) = rcvAndFieldExp(loc)
     maskUpdate(mask, rcv, field, newPerm)
-  }
+  }*/
 
   private def maskUpdate(mask: Exp, rcv: Exp, field: Exp, newPerm: Exp) : Exp = {
     newPerm match {
