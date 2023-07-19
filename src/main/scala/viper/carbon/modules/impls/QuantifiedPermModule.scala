@@ -418,13 +418,18 @@ class QuantifiedPermModule(val verifier: Verifier)
         val permVar = LocalVar(Identifier("perm"), permType)
         if (!p.isInstanceOf[sil.WildcardPerm]) {
           val prmTranslated = translatePerm(p)
+          val permValToUse = prmTranslated match {
+            case `fullPerm` => prmTranslated
+            case l: RealLit => prmTranslated
+            case _ => permVar
+          }
 
             (permVar := prmTranslated) ++
               Assert(permissionPositiveInternal(permVar, Some(p), true), error.dueTo(reasons.NegativePermission(p))) ++
             If(permVar !== noPerm,
               Assert(permLe(permVar, curPerm), error.dueTo(reasons.InsufficientPermission(loc))),
               Nil) ++
-            subtractFromMask(permVar)
+            subtractFromMask(permValToUse)
         } else {
           val curPerm = currentPermission(loc)
           val wildcard = LocalVar(Identifier("wildcard"), Real)
@@ -1518,6 +1523,8 @@ class QuantifiedPermModule(val verifier: Verifier)
     newPerm match {
       case BinExp(MapSelect(`msk`, Seq(`rcv`, `field`)), Add, addition) if isField && addition == fullPerm =>
         Assume(currentPermission(mask, rcv, field) === noPerm) ++ (mask := maskUpdate(mask, rcv, field, addition))
+      case BinExp(MapSelect(`msk`, Seq(`rcv`, `field`)), Sub, addition) if isField && addition == fullPerm =>
+        mask := maskUpdate(mask, rcv, field, noPerm)
       case _ => mask := maskUpdate(mask, rcv, field, newPerm)
     }
   }
