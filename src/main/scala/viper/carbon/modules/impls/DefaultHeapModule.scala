@@ -456,6 +456,7 @@ class DefaultHeapModule(val verifier: Verifier)
       Func(pmField, varDecls, pmT) ++
       Axiom(MaybeForall(varDecls, Trigger(f1), f1 === f2)) ++
       Axiom(MaybeForall(varDecls, Trigger(f0), isPredicateField(f0))) ++
+      Axiom(MaybeForall(varDecls, Trigger(f0), isWandField(f0).not)) ++
       Axiom(MaybeForall(varDecls, Trigger(f0), getPredicateId(f0) === IntLit(predId))) ++
       Func(predicateTriggerIdentifier(p), Seq(LocalVarDecl(heapName, heapTyp), LocalVarDecl(Identifier("pred"), predicateVersionFieldType())), Bool) ++
       Func(predicateTriggerAnyStateIdentifier(p), Seq(LocalVarDecl(Identifier("pred"), predicateVersionFieldType())), Bool) ++
