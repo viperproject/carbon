@@ -100,8 +100,6 @@ class QuantifiedPermModule(val verifier: Verifier)
   private val permConstructName = Identifier("Perm")
   private val goodMaskName = Identifier("GoodMask")
   private val hasDirectPermName = Identifier("HasDirectPerm")
-  private val predicateMaskFieldName = Identifier("PredicateMaskField")
-  private val wandMaskFieldName = Identifier("WandMaskField")
 
 
   private val resultMask = LocalVarDecl(Identifier("ResultMask"),maskType)
@@ -160,13 +158,6 @@ class QuantifiedPermModule(val verifier: Verifier)
         Seq(obj, field),
         Trigger(permInZeroPMask),
         permInZeroPMask === FalseLit())) ::
-      // predicate mask function
-      Func(predicateMaskFieldName,
-        Seq(LocalVarDecl(Identifier("f"), predicateVersionFieldType())),
-        predicateMaskFieldType) ::
-      Func(wandMaskFieldName,
-        Seq(LocalVarDecl(Identifier("f"), predicateVersionFieldType())),
-        predicateMaskFieldType) ::
       // permission amount constants
       ConstDecl(noPermName, permType) ::
       Axiom(noPerm === RealLit(0)) ::
@@ -313,14 +304,6 @@ class QuantifiedPermModule(val verifier: Verifier)
   override def usingOldState = stateModuleIsUsingOldState
 
   override def usingPureState: Boolean = stateModuleIsUsingPureState
-
-  override def predicateMaskField(pred: Exp): Exp = {
-    FuncApp(predicateMaskFieldName, Seq(pred), pmaskType)
-  }
-
-  override def wandMaskField(wand: Exp): Exp = {
-    FuncApp(wandMaskFieldName, Seq(wand), pmaskType)
-  }
 
   def staticGoodMask = FuncApp(goodMaskName, LocalVar(maskName, maskType), Bool)
 

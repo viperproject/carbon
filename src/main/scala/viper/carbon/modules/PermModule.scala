@@ -63,12 +63,6 @@ trait PermModule extends Module with CarbonStateComponent {
   /**
    * The predicate mask field of a given predicate (as its ghost location).
    */
-  def predicateMaskField(pred: Exp): Exp
-
-  /**
-    * The wand mask field of a given wand (as its ghost location).
-    */
-  def wandMaskField(wand: Exp): Exp
 
   /**
     * The type used for masks.

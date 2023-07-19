@@ -112,22 +112,18 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
     case fun@Func(name,args,typ,_) =>
       val vars = args.map(decl => decl.l)
       val f0 = FuncApp(name,vars,typ)
-      val f1 = FuncApp(heapModule.wandMaskIdentifier(name), vars, heapModule.predicateMaskFieldTypeOfWand(name.name)) // w#sm (wands secondary mask)
       val f2 = FuncApp(heapModule.wandFtIdentifier(name), vars, heapModule.predicateVersionFieldTypeOfWand(name.name)) // w#ft (permission to w#fm is added when at the begining of a package statement)
-      val f3 = wandMaskField(f2) // wandMaskField (wandMaskField(w) == w#sm)
       val typeDecl: Seq[TypeDecl] = heapModule.wandBasicType(name.preferredName) match {
         case named: NamedType => TypeDecl(named)
         case _ => Nil
       }
       typeDecl ++
         fun ++
-        Func(heapModule.wandMaskIdentifier(name), args, heapModule.predicateMaskFieldTypeOfWand(name.name)) ++
         Func(heapModule.wandFtIdentifier(name), args, heapModule.predicateVersionFieldTypeOfWand(name.name)) ++
       Axiom(MaybeForall(args, Trigger(f0),heapModule.isWandField(f0))) ++
         Axiom(MaybeForall(args, Trigger(f2),heapModule.isWandField(f2))) ++
         Axiom(MaybeForall(args, Trigger(f0),heapModule.isPredicateField(f0).not)) ++
-        Axiom(MaybeForall(args, Trigger(f2),heapModule.isPredicateField(f2).not)) ++
-        Axiom(MaybeForall(args, Trigger(f3), f1 === f3))
+        Axiom(MaybeForall(args, Trigger(f2),heapModule.isPredicateField(f2).not))
     }).flatten[Decl].toSeq
 
   /*
@@ -164,7 +160,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
         if(ftsm == 0){
           FuncApp(heapModule.wandFtIdentifier(name), arguments.map(arg => expModule.translateExp(arg)), typ)
         }else if(ftsm == 1){
-          FuncApp(heapModule.wandMaskIdentifier(name), arguments.map(arg => expModule.translateExp(arg)), typ)
+          ???
         }else{
           throw new RuntimeException()
         }
@@ -399,7 +395,8 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
       val removeFromTop = heapModule.beginExhale ++
         (components flatMap (_.transferRemove(e,used.boolVar))) ++
          {if(top != OPS){ // Sets the transferred field in secondary mask of the wand to true ,eg., Heap[null, w#sm][x, f] := true
-           heapModule.addPermissionToWMask(getWandFtSmRepresentation(currentWand, 1), e.originalSILExp)
+           //heapModule.addPermissionToWMask(getWandFtSmRepresentation(currentWand, 1), e.originalSILExp)
+           Statements.EmptyStmt
           }else{
            Statements.EmptyStmt
           }
