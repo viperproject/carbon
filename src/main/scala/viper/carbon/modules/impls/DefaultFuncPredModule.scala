@@ -63,12 +63,13 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private val emptyFrameName = Identifier("EmptyFrame")
   private val emptyFrame = Const(emptyFrameName)
   private val combineFramesName = Identifier("CombineFrames")
+  private val frameFirstName = Identifier("FrameFirst")
+  private val frameSecondName = Identifier("FrameSecond")
   private val frameFragmentName = Identifier("FrameFragment")
-  private val unFrameFragmentName = Identifier("UnFrameFragment")
+  private val frameContentName = Identifier("FrameContent")
   private val condFrameName = Identifier("ConditionalFrame")
   private val dummyTriggerName = Identifier("dummyFunction")
   private val resultName = Identifier("Result")
-  private val insidePredicateName = Identifier("InsidePredicate")
 
   private var qpPrecondId = 0
   private var qpCondFuncs: ListBuffer[(Func,sil.Forall)] = new ListBuffer[(Func, sil.Forall)]();
@@ -97,9 +98,25 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         TypeDecl(frameType) ++
           ConstDecl(emptyFrameName, frameType) ++
           Func(frameFragmentName, Seq(LocalVarDecl(Identifier("t"), TypeVar("T"))), frameType) ++
-          Func(unFrameFragmentName, Seq(LocalVarDecl(Identifier("t"), frameType)), TypeVar("T")) ++
+          Func(frameContentName, Seq(LocalVarDecl(Identifier("t"), frameType)), TypeVar("T")) ++
+          {
+            val t = LocalVarDecl(Identifier("t"), TypeVar("T"))
+            Axiom(Forall(Seq(t), Trigger(FuncApp(frameFragmentName, Seq(t.l), frameType)),
+              FuncApp(frameContentName, Seq(FuncApp(frameFragmentName, Seq(t.l), frameType)), frameType) === t.l))
+          } ++
           Func(condFrameName, Seq(LocalVarDecl(Identifier("p"), permType), LocalVarDecl(Identifier("f"), frameType)), frameType) ++
           Func(dummyTriggerName, Seq(LocalVarDecl(Identifier("t"), TypeVar("T"))), Bool) ++
+          Func(frameFirstName, Seq(LocalVarDecl(Identifier("f"), frameType)), frameType) ++
+          Func(frameSecondName, Seq(LocalVarDecl(Identifier("f"), frameType)), frameType) ++
+          {
+            val f1 = LocalVarDecl(Identifier("f1"), frameType)
+            val f2 = LocalVarDecl(Identifier("f2"), frameType)
+            val combined = FuncApp(combineFramesName, Seq(f1.l, f2.l), frameType)
+            Axiom(Forall(Seq(f1, f2), Trigger(combined),
+              FuncApp(frameFirstName, Seq(combined), frameType) === f1.l &&
+                FuncApp(frameSecondName, Seq(combined), frameType) === f2.l))
+          }
+           ++
           Func(combineFramesName,
             Seq(LocalVarDecl(Identifier("a"), frameType), LocalVarDecl(Identifier("b"), frameType)),
             frameType), size = 1) ++
@@ -110,57 +127,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           condFrameApp === CondExp(LocalVar(Identifier("p"), permType) > RealLit(0),LocalVar(Identifier("f"), frameType), emptyFrame)
         ))
       }
-      ) ++
-      CommentedDecl("Function for recording enclosure of one predicate instance in another",
-        Func(insidePredicateName,
-          Seq(
-            LocalVarDecl(Identifier("p"), predicateVersionFieldType("A")),
-            LocalVarDecl(Identifier("v"), predicateVersionType),
-            LocalVarDecl(Identifier("q"), predicateVersionFieldType("B")),
-            LocalVarDecl(Identifier("w"), predicateVersionType)
-          ),
-          Bool), size = 1) ++
-      CommentedDecl(s"Transitivity of ${insidePredicateName.name}", {
-        val vars1 = Seq(
-          LocalVarDecl(Identifier("p"), predicateVersionFieldType("A")),
-          LocalVarDecl(Identifier("v"), predicateVersionType)
-        )
-        val vars2 = Seq(
-          LocalVarDecl(Identifier("q"), predicateVersionFieldType("B")),
-          LocalVarDecl(Identifier("w"), predicateVersionType)
-        )
-        val vars3 = Seq(
-          LocalVarDecl(Identifier("r"), predicateVersionFieldType("C")),
-          LocalVarDecl(Identifier("u"), predicateVersionType)
-        )
-        val f1 = FuncApp(insidePredicateName, (vars1 ++ vars2) map (_.l), Bool)
-        val f2 = FuncApp(insidePredicateName, (vars2 ++ vars3) map (_.l), Bool)
-        val f3 = FuncApp(insidePredicateName, (vars1 ++ vars3) map (_.l), Bool)
-        Axiom(
-          Forall(
-            vars1 ++ vars2 ++ vars3,
-            Trigger(Seq(f1, f2)),
-            (f1 && f2) ==> f3
-          )
-        )
-      }, size = 1) ++
-      CommentedDecl(s"Knowledge that two identical instances of the same predicate cannot be inside each other", {
-        val p = LocalVarDecl(Identifier("p"), predicateVersionFieldType())
-        val vars = Seq(
-          p,
-          LocalVarDecl(Identifier("v"), predicateVersionType),
-          p,
-          LocalVarDecl(Identifier("w"), predicateVersionType)
-        )
-        val f = FuncApp(insidePredicateName, vars map (_.l), Bool)
-        Axiom(
-          Forall(
-            vars.distinct,
-            Trigger(f),
-            UnExp(Not, f)
-          )
-        )
-      }, size = 1)
+      )
   }
 
   override def start(): Unit = {
@@ -1049,8 +1016,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         ( () => MaybeCommentBlock("Update version of predicate",
           If(UnExp(Not,hasDirectPerm(loc)), stmt, Nil)), () => Nil)
       case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(_, _), _) if duringFold =>
-        ( () => MaybeCommentBlock("Record predicate instance information",
-          insidePredicate(foldInfo, pap)), () => Nil)
+        ( () => Nil, () => Nil)
 
       case _ => (() => Nil, () => Nil)
     }
@@ -1058,11 +1024,6 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   override def predicateVersionType : Type = {
     frameType
-  }
-
-  private def insidePredicate(p1: sil.PredicateAccessPredicate, p2: sil.PredicateAccessPredicate): Stmt = {
-    Assume(FuncApp(insidePredicateName,Seq(translateLocation(verifier.program.findPredicate(p1.loc.predicateName), p1.loc.args.map(translateExp(_))),translateExp(p1.loc),translateLocation(verifier.program.findPredicate(p2.loc.predicateName), p2.loc.args.map(translateExp(_))),translateExp(p2.loc)),
-      Bool))
   }
 
   var exhaleTmpStateId = -1
@@ -1099,7 +1060,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           r
         } else Nil
         MaybeCommentBlock("Extra unfolding of predicate",
-          res ++ (if (duringUnfold) insidePredicate(unfoldInfo, pap) else Nil))
+          res)
       case _ => Nil
     }
   }

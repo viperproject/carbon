@@ -106,7 +106,8 @@ trait HeapModule extends Module with CarbonStateComponent {
   /**
     * Translation of a field read.
     */
-  def translateLocationAccess(rcv: Exp, loc:Exp):Exp
+
+  def translateLocationAccess(rcv: Exp, r: sil.Resource): Exp
 
   def translateLocation(f: sil.LocationAccess): Exp
   def translateLocation(pred: sil.Predicate, args: Seq[Exp]): Exp
@@ -177,8 +178,6 @@ trait HeapModule extends Module with CarbonStateComponent {
     */
   def equateWithCurrentHeap(s: Seq[Var]): Stmt
 
-  // returns wand#sm (secondary mask for the wand)
-  def wandMaskIdentifier(f: Identifier): Identifier
 
   // returns wand#ft (footprint of the magic wand)
   // this is inhaled at the beginning of packaging a wand to frame fields while the wand being packaged (

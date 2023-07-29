@@ -112,22 +112,18 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
     case fun@Func(name,args,typ,_) =>
       val vars = args.map(decl => decl.l)
       val f0 = FuncApp(name,vars,typ)
-      val f1 = FuncApp(heapModule.wandMaskIdentifier(name), vars, heapModule.predicateMaskFieldTypeOfWand(name.name)) // w#sm (wands secondary mask)
       val f2 = FuncApp(heapModule.wandFtIdentifier(name), vars, heapModule.predicateVersionFieldTypeOfWand(name.name)) // w#ft (permission to w#fm is added when at the begining of a package statement)
-      val f3 = wandMaskField(f2) // wandMaskField (wandMaskField(w) == w#sm)
       val typeDecl: Seq[TypeDecl] = heapModule.wandBasicType(name.preferredName) match {
         case named: NamedType => TypeDecl(named)
         case _ => Nil
       }
       typeDecl ++
         fun ++
-        Func(heapModule.wandMaskIdentifier(name), args, heapModule.predicateMaskFieldTypeOfWand(name.name)) ++
         Func(heapModule.wandFtIdentifier(name), args, heapModule.predicateVersionFieldTypeOfWand(name.name)) ++
       Axiom(MaybeForall(args, Trigger(f0),heapModule.isWandField(f0))) ++
         Axiom(MaybeForall(args, Trigger(f2),heapModule.isWandField(f2))) ++
         Axiom(MaybeForall(args, Trigger(f0),heapModule.isPredicateField(f0).not)) ++
-        Axiom(MaybeForall(args, Trigger(f2),heapModule.isPredicateField(f2).not)) ++
-        Axiom(MaybeForall(args, Trigger(f3), f1 === f3))
+        Axiom(MaybeForall(args, Trigger(f2),heapModule.isPredicateField(f2).not))
     }).flatten[Decl].toSeq
 
   /*
@@ -164,7 +160,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
         if(ftsm == 0){
           FuncApp(heapModule.wandFtIdentifier(name), arguments.map(arg => expModule.translateExp(arg)), typ)
         }else if(ftsm == 1){
-          FuncApp(heapModule.wandMaskIdentifier(name), arguments.map(arg => expModule.translateExp(arg)), typ)
+          ???
         }else{
           throw new RuntimeException()
         }
@@ -354,7 +350,7 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
 
   val (transferEntity, initStmt)  = setupTransferableEntity(e, transferAmountLocal)
   val initPermVars = (neededLocal := permAmount) ++
-    (initNeededLocal := permModule.currentPermission(transferEntity.rcv, transferEntity.loc)+neededLocal)
+    (initNeededLocal := permModule.currentPermission(transferEntity.rcv, transferEntity.resource)+neededLocal)
 
 
   val positivePerm = Assert(neededLocal >= RealLit(0), mainError.dueTo(reasons.NegativePermission(e)))
@@ -384,7 +380,7 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
 
       val topHeap = heapModule.currentHeap
       val equateLHS:Option[Exp] = e match {
-        case TransferableAccessPred(rcv,loc,_,_) => Some(heapModule.translateLocationAccess(rcv,loc))
+        case TransferableAccessPred(rcv,loc,res,_,_) => Some(heapModule.translateLocationAccess(rcv,res))
         case _ => None
       }
 
@@ -395,11 +391,12 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
 
       val nofractionsStmt = (transferAmountLocal := RealLit(1.0))
 
-      val curPermTop = permModule.currentPermission(e.rcv, e.loc)
+      val curPermTop = permModule.currentPermission(e.rcv, e.resource)
       val removeFromTop = heapModule.beginExhale ++
         (components flatMap (_.transferRemove(e,used.boolVar))) ++
          {if(top != OPS){ // Sets the transferred field in secondary mask of the wand to true ,eg., Heap[null, w#sm][x, f] := true
-           heapModule.addPermissionToWMask(getWandFtSmRepresentation(currentWand, 1), e.originalSILExp)
+           //heapModule.addPermissionToWMask(getWandFtSmRepresentation(currentWand, 1), e.originalSILExp)
+           Statements.EmptyStmt
           }else{
            Statements.EmptyStmt
           }
@@ -427,8 +424,8 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
         (used.boolVar := used.boolVar&&stateModule.currentGoodState)
 
       val equateStmt:Stmt = e match {
-        case TransferableFieldAccessPred(rcv,loc,_,_) => (used.boolVar := used.boolVar&&(equateLHS.get === heapModule.translateLocationAccess(rcv,loc)))
-        case TransferablePredAccessPred(rcv,loc,_,_) =>
+        case TransferableFieldAccessPred(rcv,loc,_,_, res) => (used.boolVar := used.boolVar&&(equateLHS.get === heapModule.translateLocationAccess(rcv,res)))
+        case TransferablePredAccessPred(rcv,loc,_,_, res) =>
           val (tempMask, initTMaskStmt) = permModule.tempInitMask(rcv,loc)
           initTMaskStmt ++
             (used.boolVar := used.boolVar&&heapModule.identicalOnKnownLocations(topHeap,tempMask))
@@ -454,7 +451,7 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
           )
       ) ++ transferAcc(xs,used,e,allStateAssms, mainError, havocHeap) //recurse over rest of states
     case Nil =>
-      val curPermUsed = permModule.currentPermission(e.rcv,e.loc)
+      val curPermUsed = permModule.currentPermission(e.rcv,e.resource)
       Assert((allStateAssms&&used.boolVar) ==> (neededLocal === boogieNoPerm && curPermUsed === initNeededLocal),
         e.transferError(mainError))
     /**
@@ -560,7 +557,7 @@ private def setupTransferableEntity(e: sil.Exp, permTransfer: Exp):(Transferable
     case fa@sil.FieldAccessPredicate(loc, _) =>
       val assignStmt = rcvLocal := expModule.translateExpInWand(loc.rcv)
       val evalLoc = heapModule.translateLocation(loc)
-      (TransferableFieldAccessPred(rcvLocal, evalLoc, permTransfer,fa), assignStmt)
+      (TransferableFieldAccessPred(rcvLocal, evalLoc, permTransfer,fa, loc.field), assignStmt)
 
     case p@sil.PredicateAccessPredicate(loc, _) =>
       val localsStmt: Seq[(LocalVar, Stmt)] = (for (arg <- loc.args) yield {
@@ -570,7 +567,7 @@ private def setupTransferableEntity(e: sil.Exp, permTransfer: Exp):(Transferable
       })
       val (locals, assignStmt) = localsStmt.unzip
       val predTransformed = heapModule.translateLocation(p.loc.loc(verifier.program), locals)
-      (TransferablePredAccessPred(heapModule.translateNull, predTransformed, permTransfer,p), assignStmt)
+      (TransferablePredAccessPred(heapModule.translateNull, predTransformed, permTransfer,p, p.loc.loc(verifier.program)), assignStmt)
 
     case w:sil.MagicWand =>
       val wandRep = getWandRepresentation(w)
