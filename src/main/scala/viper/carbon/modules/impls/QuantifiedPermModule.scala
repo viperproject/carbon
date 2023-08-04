@@ -107,6 +107,10 @@ class QuantifiedPermModule(val verifier: Verifier)
   private val summandMask1 = LocalVarDecl(Identifier("SummandMask1"),maskType)
   private val summandMask2 = LocalVarDecl(Identifier("SummandMask2"),maskType)
   private val sumMasks = Identifier("sumMask")
+  private val presultMask = LocalVarDecl(Identifier("pResultMask"), pmaskType)
+  private val psummandMask1 = LocalVarDecl(Identifier("pSummandMask1"), pmaskType)
+  private val psummandMask2 = LocalVarDecl(Identifier("pSummandMask2"), pmaskType)
+  private val psumMasks = Identifier("psumMask")
   private val tempMask = LocalVar(Identifier("TempMask"),maskType)
 
   private val qpMaskName = Identifier("QPMask")
@@ -247,7 +251,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
         MaybeCommentedDecl("add to mask",
           storeFun ++ storeDef ++ pstoreFun ++ pstoreDef)
-      } ++
+      } ++ {
       // good mask
       val pmask = LocalVarDecl(maskName, maskType)
       Func(goodMaskName, pmask, Bool) ++
@@ -262,7 +266,7 @@ class QuantifiedPermModule(val verifier: Verifier)
           // permissions for fields which aren't predicates are smaller than 1
           // permissions for fields which aren't predicates or wands are smaller than 1
           ((staticGoodMask && heapModule.isPredicateField(field.l).not && heapModule.isWandField(field.l).not) ==> perm <= fullPerm )))
-      ))    } ++ {
+      ))    }} ++ {
       val prm = LocalVarDecl(Identifier("prm"), permType)
       val perm = MapSelect(FuncApp(addToMaskName, Seq(staticStateContributions(false, true).head.l, obj.l, field.l, prm.l), maskType), Seq(obj.l, field.l))// currentPermission(obj.l, field.l)
       Axiom(Forall(staticStateContributions(true, true) ++ obj ++ field ++ prm ,
@@ -288,18 +292,30 @@ class QuantifiedPermModule(val verifier: Verifier)
         ))
     } ++ {
       val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
-      val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
+      val pred = LocalVarDecl(Identifier("o")(axiomNamespace), funcPredModule.snapType())
       val args = Seq(resultMask,summandMask1,summandMask2)
+      val pargs = Seq(presultMask,psummandMask1,psummandMask2)
       val funcApp = FuncApp(sumMasks, args map (_.l), Bool)
-      val permResult = currentPermission(resultMask.l, obj.l, field.l)
-      val permSummand1 = currentPermission(summandMask1.l,obj.l,field.l)
-      val permSummand2 = currentPermission(summandMask2.l,obj.l,field.l)
+      val pfuncApp = FuncApp(psumMasks, pargs map (_.l), Bool)
+      val permResult = currentPermission(resultMask.l, obj.l)
+      val permSummand1 = currentPermission(summandMask1.l,obj.l)
+      val permSummand2 = currentPermission(summandMask2.l,obj.l)
+      val ppermResult = currentPermission(presultMask.l, pred.l)
+      val ppermSummand1 = currentPermission(psummandMask1.l, pred.l)
+      val ppermSummand2 = currentPermission(psummandMask2.l, pred.l)
       Func(sumMasks,args,Bool) ++
         Axiom(Forall(
-          args++Seq(obj,field),
+          args++Seq(obj),
           Trigger(Seq(funcApp,permResult)) ++ Trigger(Seq(funcApp,permSummand1)) ++
             Trigger(Seq(funcApp,permSummand2)),
           funcApp ==> (permResult === (permSummand1 + permSummand2))
+        )) ++
+        Func(psumMasks, pargs, Bool) ++
+        Axiom(Forall(
+          pargs ++ Seq(pred),
+          Trigger(Seq(pfuncApp, ppermResult)) ++ Trigger(Seq(pfuncApp, ppermSummand1)) ++
+            Trigger(Seq(pfuncApp, ppermSummand2)),
+          pfuncApp ==> (ppermResult === (ppermSummand1 + ppermSummand2))
         ))
     } ++ {
       MaybeCommentedDecl("Function for trigger used in checks which are never triggered",
