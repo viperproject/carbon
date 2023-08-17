@@ -7,7 +7,7 @@
 package viper.carbon
 
 import ch.qos.logback.classic.Logger
-import viper.silver.frontend.{SilFrontend, SilFrontendConfig}
+import viper.silver.frontend.{MinimalViperFrontendAPI, SilFrontend, SilFrontendConfig, ViperFrontendAPI}
 import viper.silver.logger.ViperStdOutLogger
 import viper.silver.reporter.{Reporter, StdIOReporter}
 import viper.silver.verifier.{Verifier => SilVerifier}
@@ -56,6 +56,22 @@ class CarbonFrontend(override val reporter: Reporter,
     _config = carbonInstance.config
   }
 }
+
+/**
+  * Carbon "frontend" for use by actual Viper frontends.
+  * Performs consistency check and verification.
+  * See [[viper.silver.frontend.ViperFrontendAPI]] for usage information.
+  */
+class CarbonFrontendAPI(override val reporter: Reporter)
+  extends CarbonFrontend(reporter, ViperStdOutLogger("CarbonFrontend", "INFO").get) with ViperFrontendAPI
+
+/**
+  * Carbon "frontend" for use by actual Viper frontends.
+  * Performs only verification (no consistency check).
+  * See [[viper.silver.frontend.ViperFrontendAPI]] for usage information.
+  */
+class MinimalCarbonFrontendAPI(override val reporter: Reporter)
+  extends CarbonFrontend(reporter, ViperStdOutLogger("CarbonFrontend", "INFO").get) with MinimalViperFrontendAPI
 
 class CarbonConfig(args: Seq[String]) extends SilFrontendConfig(args, "Carbon") {
   val boogieProverLog = opt[String]("proverLog",
