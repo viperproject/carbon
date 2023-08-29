@@ -106,6 +106,7 @@ class DefaultHeapModule(val verifier: Verifier)
   private val nullName = Identifier("null")
   private val nullLit = Const(nullName)
   private val fidenticalOnKnownLocsName = Identifier("IdenticalOnKnownLocations")
+  private val allocidenticalOnKnownLocsName = Identifier("allocIdenticalOnKnownLocations")
   private val pidenticalOnKnownLocsName = Identifier("PIdenticalOnKnownLocations")
   private lazy val allocField = if(enableAllocationEncoding) sil.Field("$allocated", sil.Bool)() else null
   private val fsumHeapName = Identifier("SumHeap")
@@ -155,14 +156,17 @@ class DefaultHeapModule(val verifier: Verifier)
       TypeAlias(genfheapTyp, MapType(Seq(refType), TypeVar("B"))) ++
       TypeAlias(pheapTyp, MapType(Seq(funcPredModule.snapType()), funcPredModule.snapType())) ++
       // TODO: allocationEncoding
-    /*(if(enableAllocationEncoding) ConstDecl(allocName, NamedType(fieldTypeName, Seq(normalFieldType, Bool)), unique = true) ++
-      // all heap-lookups yield allocated objects or null
-      Axiom(Forall(
-        obj ++
-          refField ++
-          stateModule.staticStateContributions(withPermissions = false),
-        Trigger(Seq(obj_refField)),
-        validReference(obj.l) ==> validReference(obj_refField))) else Nil) ++ */
+    /*(if(enableAllocationEncoding) ConstDecl(allocName, NamedType(fieldTypeName, Seq(normalFieldType, Bool)), unique = true) ++*/
+      {
+        val relevantHeaps = heapMap.filter(h => h._1.isInstanceOf[sil.Field] && h._1.asInstanceOf[sil.Field].typ == sil.Ref)
+        val triggers = relevantHeaps.map(h => Trigger(Seq(staticGoodState, validReference(lookup(h._2, obj.l)))))
+        // all heap-lookups yield allocated objects or null
+        Axiom(Forall(
+          obj ++
+            stateModule.staticStateContributions(),
+          triggers.toSeq,
+          validReference(obj.l) ==> All(relevantHeaps.map(h => validReference(lookup(heapMap(h._1), obj.l))).toSeq)))
+      }  ++
       // TODO: succHeap?
     /*Func(succHeapName,
         Seq(LocalVarDecl(heap0Name, heapTyp), LocalVarDecl(heap1Name, heapTyp)),
@@ -171,6 +175,9 @@ class DefaultHeapModule(val verifier: Verifier)
         Seq(LocalVarDecl(heap0Name, heapTyp), LocalVarDecl(heap1Name, heapTyp)),
         Bool) ++ */
       Func(fidenticalOnKnownLocsName,
+        Seq(LocalVarDecl(heapName, genfheapTyp), LocalVarDecl(exhaleHeapName, genfheapTyp), LocalVarDecl(Identifier("msk"), maskType)),
+        Bool) ++
+      Func(allocidenticalOnKnownLocsName,
         Seq(LocalVarDecl(heapName, genfheapTyp), LocalVarDecl(exhaleHeapName, genfheapTyp), LocalVarDecl(Identifier("msk"), maskType)),
         Bool) ++
       Func(pidenticalOnKnownLocsName,
@@ -202,7 +209,7 @@ class DefaultHeapModule(val verifier: Verifier)
       val vars = Seq(h, eh, m)
       val identicalFuncApp = FuncApp(fidenticalOnKnownLocsName, vars map (_.l), Bool)
 
-      identicalOnKnownLocsAxioms() ++ pidenticalOnKnownLocsAxioms() ++
+      identicalOnKnownLocsAxioms() ++ pidenticalOnKnownLocsAxioms() ++ allocidenticalOnKnownLocsAxioms() ++
        /* MaybeCommentedDecl("Updated Heaps are Successor Heaps", {
           val value = LocalVarDecl(Identifier("v"), TypeVar("B"));
           val upd = heapUpdate(h.l, obj.l, field.l, value.l)
@@ -313,6 +320,30 @@ class DefaultHeapModule(val verifier: Verifier)
       identicalFuncApp ==>
         (currentPermission(m.l, obj.l) > noPerm ==>
           (lookup(h.l, obj.l) === lookup(eh.l, obj.l))), TypeVar("B")
+    )), size = 1)
+
+  }
+
+  private def allocidenticalOnKnownLocsAxioms(): Seq[Decl] = {
+    // for fields
+    val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
+    val ht = fheapTyp(Bool)
+    val h = LocalVarDecl(heapName, ht)
+    val eh = LocalVarDecl(exhaleHeapName, ht)
+    val m = LocalVarDecl(Identifier("mask"), maskType)
+    val vars = Seq(h, eh, m)
+
+    val funcName = allocidenticalOnKnownLocsName
+
+
+    val identicalFuncApp = FuncApp(funcName, vars map (_.l), Bool)
+    // frame all locations with direct permission
+    MaybeCommentedDecl("Frame all locations with direct permissions", Axiom(Forall(
+      vars ++ Seq(obj),
+      //        Trigger(Seq(identicalFuncApp, lookup(h.l, obj.l, field.l))) ++
+      Trigger(Seq(identicalFuncApp, lookup(eh.l, obj.l))),
+      identicalFuncApp ==>
+        ((lookup(h.l, obj.l) ==> lookup(eh.l, obj.l)))
     )), size = 1)
 
   }
@@ -651,7 +682,7 @@ class DefaultHeapModule(val verifier: Verifier)
 
   override def endExhale: Stmt = {
     if (!usingOldState) exhaleHeapMap.map(eh => {
-      val fname = if (eh._1.isInstanceOf[sil.Field]) fidenticalOnKnownLocsName else pidenticalOnKnownLocsName
+      val fname = if (eh._1.isInstanceOf[sil.Field]) (if (eh._1 == allocField) allocidenticalOnKnownLocsName else fidenticalOnKnownLocsName) else pidenticalOnKnownLocsName
       val ehStmt: Stmt  = (Havoc(eh._2) ++ Assume(FuncApp(fname, Seq(heapExp(eh._1), eh._2) ++ currentMask(eh._1), Bool)) ++ (heapVar(eh._1) := eh._2)).toSeq
       ehStmt
     }
