@@ -608,12 +608,10 @@ class DefaultHeapModule(val verifier: Verifier)
   override def nullLiteral: Exp = nullLit
 
   def initBoogieState: Stmt = {
-    println("initBoogieState")
     heaps = heapMap.values.toSeq
     Nil
   }
   def resetBoogieState: Stmt = {
-    println("resetBoogieState")
     if (resources == null)
       reset()
     heaps.map(Havoc(_))
@@ -666,7 +664,6 @@ class DefaultHeapModule(val verifier: Verifier)
    * after verifier gets a new program.
    */
   override def reset = {
-    println("reset")
     resources = cmpResources
     heapTypes = cmpHeapTypes
     heapMap = cmpHeapMap

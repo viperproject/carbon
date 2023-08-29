@@ -332,10 +332,9 @@ class QuantifiedPermModule(val verifier: Verifier)
     resetBoogieState
   }
   def resetBoogieState: Stmt = {
-    println("permmodule resetBoogieState")
     if (resources == null)
       reset()
-    val res : Stmt = maskMap.map{
+    val res : Stmt = masks.map{
       case (f: sil.Field, m) => m := zeroMask
       case (p: sil.Predicate, m) => m := zeroPMask
     }.toSeq
