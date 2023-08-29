@@ -23,20 +23,12 @@ trait HeapModule extends Module with CarbonStateComponent {
     */
   def heapType: Type
 
+  def heapTypeMap: Map[sil.Resource, Type]
+
   /**
    * The type used for references.
    */
   def refType: Type
-
-  /**
-   * The type used for fields.
-   */
-  def fieldType: Type
-
-  /**
-   * The type used for fields of type t.
-   */
-  def fieldTypeOf(t: Type): Type
 
 
   /**
@@ -161,7 +153,7 @@ trait HeapModule extends Module with CarbonStateComponent {
 
   def predicateTrigger(extras: Seq[Exp], pred: sil.PredicateAccess): Exp
 
-  def currentHeap:Seq[Exp]
+  def currentHeap(r: sil.Resource):Exp
 
   /**
     * store {@code newVal} at {@code loc} in the current heap

@@ -371,7 +371,7 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
 /*
  * Precondition: current state is set to the used state
   */
-private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEntity, allStateAssms: Exp, mainError: PartialVerificationError, havocHeap: Boolean = true):Stmt = {
+private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEntity, allStateAssms: Exp, mainError: PartialVerificationError, havocHeap: Boolean = true):Stmt = ???/*{
   states match {
     case (top :: xs) =>
       //Compute all values needed from top state
@@ -460,7 +460,7 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
      * in case of bugs
      * */
   }
-}
+}*/
 
 
   override def createAndSetState(initBool:Option[Exp],usedString:String = "Used",setToNew:Boolean=true,
@@ -496,7 +496,7 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
 
 
   //create a state Result which is the "sum" of the current and the input state (stateOtherO)
-  override def createAndSetSumState(stateOtherO: Any ,boolOther:Exp,boolCur:Exp):StateSetup = {
+  override def createAndSetSumState(stateOtherO: Any ,boolOther:Exp,boolCur:Exp):StateSetup = ??? /*{
     // get heap and mask from other state
     val stateOther = stateOtherO.asInstanceOf[StateSnapshot]
     val currentState = stateModule.state
@@ -506,7 +506,7 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
     stateModule.replaceState(currentState)
 
     createAndSetSumState(heapOther, maskOther, boolOther, boolCur)
-  }
+  }*/
 
   /**
     * only heap and mask of one summand state, while current state will be used as second summand
@@ -516,17 +516,8 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
     * @param boolCur bool containing facts for current state
     * @return
     */
-  private def createAndSetSumState(heapOther: Seq[Exp], maskOther: Seq[Exp],boolOther:Exp,boolCur:Exp):StateSetup = {
-    /*create a state Result which is the "sum" of the current  and Other states, i.e.:
-  *1) at each heap location o.f the permission of the Result state is the sum of the permissions
-  * for o.f in the current and Other state
-  * 2) if the current state has some positive nonzero amount of permission for heap location o.f then the heap values for
-  * o.f in the current state and Result state are the same
-  * 3) point 2) also holds for the Other state in place of the current state
-  *
-  * Note: the boolean for the Result state is initialized to the conjunction of the booleans of the current state
-   *  and the other state and used (since all facts of each state is transferred)
-  */
+  private def createAndSetSumState(heapOther: Seq[Exp], maskOther: Seq[Exp],boolOther:Exp,boolCur:Exp):StateSetup = ??? /*{
+
     val curHeap = heapModule.currentHeap
     val curMask = permModule.currentMask
 
@@ -543,7 +534,7 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
 
     StateSetup(resultState, initStmt)
 
-  }
+  }*/
 
 
 /**

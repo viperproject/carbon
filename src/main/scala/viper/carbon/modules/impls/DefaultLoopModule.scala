@@ -11,7 +11,7 @@ import viper.silver.ast.utility.ViperStrategy
 import viper.silver.cfg.utility.{IdInfo, LoopDetector, LoopInfo}
 import viper.silver.verifier.{PartialVerificationError, errors}
 
-import scala.collection.mutable
+import scala.collection.{immutable, mutable}
 import scala.collection.mutable.Map
 import scala.collection.immutable.{Map => ImmutableMap}
 
@@ -39,7 +39,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
   implicit val namespace = verifier.freshNamespace("loop")
 
   //separate masks for each loop to store the permissions which are framed away
-  private var frames: Map[Int, (LocalVarDecl,LocalVarDecl)] = Map[Int, (LocalVarDecl, LocalVarDecl)]();
+  private var frames: Map[Int, (immutable.Map[sil.Resource, LocalVarDecl],immutable.Map[sil.Resource, LocalVarDecl])] = Map[Int, (immutable.Map[sil.Resource, LocalVarDecl],immutable.Map[sil.Resource, LocalVarDecl])]();
 
   private var loopToInvs: Map[Int, Seq[sil.Exp]] = Map.empty
   private var labelLoopInfoMap: Map[String, LoopInfo] = Map.empty
@@ -50,6 +50,8 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
 
   private val sumMaskName : Identifier = Identifier("LoopSumMask")(namespace)
   private val sumMask = LocalVar(sumMaskName, maskType)
+  private val psumMaskName: Identifier = Identifier("PLoopSumMask")(namespace)
+  private val psumMask = LocalVar(psumMaskName, pmaskType)
 
   private val sumHeapName : Identifier = Identifier("LoopSumHeap")(namespace)
   private val sumHeap = LocalVar(sumHeapName, heapType)
@@ -561,11 +563,13 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
         executeUnfoldings(invs, (inv => errors.LoopInvariantNotEstablished(inv))) ++ exhaleWithoutDefinedness(invs map (e => (e, errors.LoopInvariantNotEstablished(e))))
       ) ++
         loopIdOpt.fold(Nil:Stmt)(loopId => {
-          val (frameMask, frameHeap) = getFrame(loopId)
+          val (frameMasks, frameHeaps) = getFrame(loopId)
           MaybeCommentBlock("Store frame in mask associated with loop",
-            Seq(Assign(frameMask.l, currentMask(0)),
-                Assign(frameHeap.l, currentHeap(0))
-            )
+            frameMasks.map(fm => Assign(fm._2.l, currentMask(fm._1))).toSeq ++
+              frameHeaps.map(fh => Assign(fh._2.l, currentHeap(fh._1))).toSeq
+            //Seq(Assign(frameMask.l, currentMask(0)),
+            //    Assign(frameHeap.l, currentHeap(0))
+            //)
           )
         } )
     )
@@ -577,20 +581,24 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
     } else {
       MaybeCommentBlock("Exiting loops " + loopIds.foldLeft("")((output, i) => output + ", " + i),
         loopIds.foldLeft[Stmt](Nil)((curStmt, loopId) => {
-            val (frameMask, frameHeap) = getFrame(loopId)
-            curStmt ++
-              // sum masks and heaps
-              Seq(
-                Havoc(Seq(sumHeap)),
-                Havoc(Seq(sumMask)),
-                Assume(heapModule.sumHeap(sumHeap, currentHeap(0), currentMask(0), frameHeap.l, frameMask.l)),
-                Assign(currentHeap(0), sumHeap),
-                Assume(permModule.sumMask(Seq(sumMask), currentMask, Seq(frameMask.l))),
-                Assign(currentMask(0), sumMask),
-                stateModule.assumeGoodState
-              )
-          })
-      )
+            val (frameMasks, frameHeaps) = getFrame(loopId)
+            val loopStmt: Stmt = (
+              frameMasks.keys.map(r => {
+                // sum masks and heaps
+                val sumMaskVar = if (r.isInstanceOf[sil.Field]) sumMask else psumMask
+                val rStmt: Stmt = Seq(
+                  Havoc(Seq(sumHeap)),
+                  Havoc(Seq(sumMaskVar)),
+                  Assume(heapModule.sumHeap(sumHeap, currentHeap(r), currentMask(r), frameHeaps(r).l, frameMasks(r).l)),
+                  Assign(currentHeap(r), sumHeap),
+                  Assume(permModule.sumMask(Seq(sumMaskVar), currentMask(r), Seq(frameMasks(r).l))),
+                  Assign(currentMask(r), sumMaskVar)
+                )
+                rStmt
+              }
+              ).toSeq)
+          curStmt ++ loopStmt ++ stateModule.assumeGoodState
+          }))
     }
   }
 
@@ -605,14 +613,14 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
     useLoopDetector = false
   }
 
-  private def getFrame(loopId: Int): (LocalVarDecl, LocalVarDecl) = {
+  private def getFrame(loopId: Int): (immutable.Map[sil.Resource, LocalVarDecl],immutable.Map[sil.Resource, LocalVarDecl]) = {
     frames.get(loopId) match {
       case Some(fMask) => fMask
       case None => {
-        val freshMaskDecl = LocalVarDecl(Identifier("frameMask" + loopId), permModule.maskType)
-        val freshHeapDecl = LocalVarDecl(Identifier("frameHeap" + loopId), heapModule.heapType)
-        frames += (loopId -> (freshMaskDecl, freshHeapDecl))
-        (freshMaskDecl, freshHeapDecl)
+        val freshMaskDecls = maskTypeMap.map(mt => mt._1 -> LocalVarDecl(Identifier("frameMask_" + getResourceName(mt._1) + "_" + loopId), mt._2)).toMap
+        val freshHeapDecls = heapTypeMap.map(ht => ht._1 -> LocalVarDecl(Identifier("frameHeap" + getResourceName(ht._1) + "_" + loopId), ht._2)).toMap
+        frames += (loopId -> (freshMaskDecls, freshHeapDecls))
+        (freshMaskDecls, freshHeapDecls)
       }
     }
   }

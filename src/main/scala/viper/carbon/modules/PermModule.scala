@@ -48,7 +48,7 @@ trait PermModule extends Module with CarbonStateComponent {
   /**
    * The current mask.
    */
-  def currentMask: Seq[Exp]
+  def currentMask(r: sil.Resource): Exp
 
   /**
    * A static reference to the mask.
@@ -68,6 +68,10 @@ trait PermModule extends Module with CarbonStateComponent {
     * The type used for masks.
     */
   def maskType: Type
+
+  def maskTypeMap: Map[sil.Resource, Type]
+
+  def getResourceName(r: sil.Resource): String
 
   def maskTypeForKey(keyType: Type): Type
 
@@ -97,6 +101,8 @@ trait PermModule extends Module with CarbonStateComponent {
 
   def currentPermission(rcv:Exp, loc:sil.Resource):Exp
 
+  def currentPermission(mask: Exp, rcv: Exp): Exp
+
   /**these methods are for experimental purposes, not yet finalized **/
   /*def beginSumMask : Stmt
 
@@ -115,7 +121,7 @@ trait PermModule extends Module with CarbonStateComponent {
     * @param summandMask2
     * @return expression for which its validity implies that the current mask is the sum of the two input masks
     */
-  def sumMask(summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp
+  //def sumMask(summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp
 
   /**
     *

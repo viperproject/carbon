@@ -44,7 +44,8 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
       // This axiom corresponds to the Boogie expression "state(dummyHeap, emptyMask)",
       // which is necessary since function definitional axioms trigger on "state(heap, mask), f(heap, args)",
       // so without this assumption, function calls with dummyHeap and emptyMask won't trigger the definition.
-      Axiom(res)
+      //Axiom(res)
+      Nil
     }
   }
 
