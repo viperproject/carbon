@@ -63,7 +63,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       case sil.BoolLit(b) =>
         BoolLit(b)
       case sil.NullLit() =>
-        translateNull
+        nullLiteral
       case l@sil.LocalVar(_, _) =>
         translateLocalVar(l)
       case r@sil.Result(_) =>

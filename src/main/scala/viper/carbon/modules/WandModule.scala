@@ -59,7 +59,6 @@ trait WandModule extends Module with ComponentRegistry[TransferComponent] {
     */
   def translatePackage(p: sil.Package, error: PartialVerificationError, statesStackForPackageStmt: List[Any] = null, allStateAssms: Exp = TrueLit(), insidePackageStmt: Boolean = false):Stmt
 
-  def getWandRepresentation(w: sil.MagicWand):Exp
 
   /**
     * Translates the 'apply' statements to the corresponding Boogie statements

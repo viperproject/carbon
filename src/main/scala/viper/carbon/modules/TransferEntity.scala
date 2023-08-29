@@ -14,7 +14,6 @@ import viper.silver.{ast => sil}
 
 sealed trait TransferableEntity {
   def rcv: Exp
-  def loc: Exp
   def resource: sil.Resource
   def transferAmount: Exp
   def originalSILExp: sil.Exp
@@ -23,7 +22,7 @@ sealed trait TransferableEntity {
 }
 
 object TransferableEntity {
-  def unapply(te: TransferableEntity) = Some((te.rcv,te.loc,te.resource,te.transferAmount))
+  def unapply(te: TransferableEntity) = Some((te.rcv,te.resource,te.transferAmount))
 }
 
 sealed trait TransferableAccessPred extends TransferableEntity {
@@ -36,14 +35,14 @@ sealed trait TransferableAccessPred extends TransferableEntity {
 }
 
 object TransferableAccessPred {
-  def unapply(tap: TransferableAccessPred) = Some((tap.rcv,tap.loc,tap.resource,tap.transferAmount, tap.originalSILExp))
+  def unapply(tap: TransferableAccessPred) = Some((tap.rcv,tap.resource,tap.transferAmount, tap.originalSILExp))
 }
 
-case class TransferableFieldAccessPred(rcv: Exp, loc:Exp, transferAmount: Exp,originalSILExp: sil.AccessPredicate, resource: sil.Field) extends TransferableAccessPred
+case class TransferableFieldAccessPred(rcv: Exp, transferAmount: Exp,originalSILExp: sil.AccessPredicate, resource: sil.Field) extends TransferableAccessPred
 
-case class TransferablePredAccessPred(rcv: Exp, loc:Exp, transferAmount: Exp,originalSILExp: sil.AccessPredicate, resource: sil.Predicate) extends TransferableAccessPred
+case class TransferablePredAccessPred(rcv: Exp, transferAmount: Exp,originalSILExp: sil.AccessPredicate, resource: sil.Predicate) extends TransferableAccessPred
 
-case class TransferableWand(rcv:Exp, loc: Exp, transferAmount: Exp,originalSILExp: sil.MagicWand) extends TransferableEntity {
+case class TransferableWand(rcv:Exp, transferAmount: Exp,originalSILExp: sil.MagicWand) extends TransferableEntity {
 
   override def resource: sil.Resource = originalSILExp
   override def transferError(error: PartialVerificationError): VerificationError = {

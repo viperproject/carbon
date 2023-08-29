@@ -109,13 +109,10 @@ trait HeapModule extends Module with CarbonStateComponent {
 
   def translateLocationAccess(rcv: Exp, r: sil.Resource): Exp
 
-  def translateLocation(f: sil.LocationAccess): Exp
-  def translateLocation(pred: sil.Predicate, args: Seq[Exp]): Exp
-
   /**
    * Translation of the null literal.
    */
-  def translateNull: Exp
+  def nullLiteral: Exp
 
   /**
    * Check that the receiver of a location access is non-null.
@@ -123,13 +120,13 @@ trait HeapModule extends Module with CarbonStateComponent {
   def checkNonNullReceiver(loc: sil.LocationAccess): Exp = {
     loc match {
       case sil.FieldAccess(rcv, _) =>
-        verifier.expModule.translateExp(rcv) !== translateNull
+        verifier.expModule.translateExp(rcv) !== nullLiteral
       case _ => TrueLit()
     }
   }
 
   def checkNonNullReceiver(rcv: Exp):Exp = {
-    rcv !== translateNull
+    rcv !== nullLiteral
   }
 
   /**
@@ -162,7 +159,7 @@ trait HeapModule extends Module with CarbonStateComponent {
    */
   def isWandField(f: Exp): Exp
 
-  def predicateTrigger(extras: Seq[Exp], pred: sil.PredicateAccess, anyState: Boolean = false): Exp
+  def predicateTrigger(extras: Seq[Exp], pred: sil.PredicateAccess): Exp
 
   def currentHeap:Seq[Exp]
 

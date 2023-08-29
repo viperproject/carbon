@@ -456,6 +456,14 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     }
   }
 
+  override def toSnap(es: Seq[Exp]): Exp = {
+    if (es.isEmpty) emptyFrame
+    else es.map(frameFragment(_)).reduceLeft(combineFrames)
+  }
+
+  override def silExpsToSnap(es: Seq[sil.Exp]): Exp = {
+    toSnap(es map translateExp)
+  }
 
   private def computeFrame(conjuncts: Seq[sil.Exp], renaming : sil.Exp => sil.Exp, functionName: String, args:Seq[LocalVarDecl]): (Exp, Seq[(Func, sil.Forall)]) = {
     (conjuncts match {
@@ -469,10 +477,12 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     if (b.equals(emptyFrame)) a else
     FuncApp(combineFramesName, Seq(a, b), frameType)
   }
+
+  def frameFragment(e: Exp) = {
+    FuncApp(frameFragmentName, Seq(e), frameType)
+  }
+
   private def computeFrameHelper(assertion: sil.Exp, renaming: sil.Exp=>sil.Exp, name: String, args:Seq[LocalVarDecl]): Exp = {
-    def frameFragment(e: Exp) = {
-      FuncApp(frameFragmentName, Seq(e), frameType)
-    }
     assertion match {
       case s@sil.AccessPredicate(la, perm) =>
         val fragmentBody = translateLocationAccess(renaming(la).asInstanceOf[sil.LocationAccess])
@@ -855,11 +865,9 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val translatedArgs = p.formalArgs map translateLocalVarDecl
     val predAcc = sil.PredicateAccess(args map (_.localVar),p)(p.pos,p.info,p.errT)
     val trigger = predicateTrigger(heapModule.staticStateContributions(true, true) map (_.l), predAcc)
-    val anystate = predicateTrigger(Seq(), predAcc, true)
     val framingFunctionsToDeclare = if (p.isAbstract) Nil else getPredicateFrame(p,translatedArgs map (_.l))._2 // argument parameters here are just placeholders - we want the auxiliary function definitions.
     val res = MaybeCommentedDecl(s"Translation of predicate ${p.name}",
-      predicateGhostFieldDecl(p)) ++
-    Axiom(Forall(heapModule.staticStateContributions(true, true) ++ translatedArgs, Seq(Trigger(trigger)), anystate)) ++
+      predicateGhostFieldDecl(p))  ++
       (if (p.isAbstract) Nil else
         translateCondAxioms("predicate "+p.name, p.formalArgs, framingFunctionsToDeclare))  ++
       checkPredicateDefinedness(p)

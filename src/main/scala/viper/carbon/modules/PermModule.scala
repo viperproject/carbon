@@ -58,7 +58,7 @@ trait PermModule extends Module with CarbonStateComponent {
   /**
    * Is the permission for a given expression positive (using the static mask).
    */
-  def staticPermissionPositive(rcv: Exp, loc: Exp): Exp
+  def staticPermissionPositive(rcv: Exp, loc: sil.Resource): Exp
 
   /**
    * The predicate mask field of a given predicate (as its ghost location).
@@ -132,7 +132,7 @@ trait PermModule extends Module with CarbonStateComponent {
       * this should only be used temporarily, i.e. if there are two calls to this then the previous tempMask returned
       * will be overwritten in the Boogie code
       */
-  def tempInitMask(rcv: Exp, loc:Exp):(Seq[Exp], Stmt)
+  def tempInitMask(rcv: Exp, loc:sil.Resource):(Seq[Exp], Stmt)
 
   def getCurrentAbstractReads(): collection.mutable.ListBuffer[String]
 

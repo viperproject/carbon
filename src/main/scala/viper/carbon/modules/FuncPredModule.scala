@@ -25,6 +25,10 @@ trait FuncPredModule extends Module {
 
   def snapType(): Type
 
+  def toSnap(es: Seq[Exp]): Exp
+
+  def silExpsToSnap(es: Seq[sil.Exp]): Exp
+
   // wrap an expression in a dummy function with "true" value (sometimes useful for triggering)
   def dummyFuncApp(e: Exp): Exp
 

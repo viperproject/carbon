@@ -380,7 +380,7 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
 
       val topHeap = heapModule.currentHeap
       val equateLHS:Option[Exp] = e match {
-        case TransferableAccessPred(rcv,loc,res,_,_) => Some(heapModule.translateLocationAccess(rcv,res))
+        case TransferableAccessPred(rcv,res,_,_) => Some(heapModule.translateLocationAccess(rcv,res))
         case _ => None
       }
 
@@ -424,9 +424,9 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
         (used.boolVar := used.boolVar&&stateModule.currentGoodState)
 
       val equateStmt:Stmt = e match {
-        case TransferableFieldAccessPred(rcv,loc,_,_, res) => (used.boolVar := used.boolVar&&(equateLHS.get === heapModule.translateLocationAccess(rcv,res)))
-        case TransferablePredAccessPred(rcv,loc,_,_, res) =>
-          val (tempMask, initTMaskStmt) = permModule.tempInitMask(rcv,loc)
+        case TransferableFieldAccessPred(rcv,_,_, res) => (used.boolVar := used.boolVar&&(equateLHS.get === heapModule.translateLocationAccess(rcv,res)))
+        case TransferablePredAccessPred(rcv,_,_, res) =>
+          val (tempMask, initTMaskStmt) = permModule.tempInitMask(rcv,res)
           initTMaskStmt ++
             (used.boolVar := used.boolVar&&heapModule.identicalOnKnownLocations(topHeap,tempMask))
         case _ => Nil
@@ -556,8 +556,7 @@ private def setupTransferableEntity(e: sil.Exp, permTransfer: Exp):(Transferable
   e match {
     case fa@sil.FieldAccessPredicate(loc, _) =>
       val assignStmt = rcvLocal := expModule.translateExpInWand(loc.rcv)
-      val evalLoc = heapModule.translateLocation(loc)
-      (TransferableFieldAccessPred(rcvLocal, evalLoc, permTransfer,fa, loc.field), assignStmt)
+      (TransferableFieldAccessPred(rcvLocal, permTransfer,fa, loc.field), assignStmt)
 
     case p@sil.PredicateAccessPredicate(loc, _) =>
       val localsStmt: Seq[(LocalVar, Stmt)] = (for (arg <- loc.args) yield {
@@ -566,13 +565,13 @@ private def setupTransferableEntity(e: sil.Exp, permTransfer: Exp):(Transferable
         (v, v := expModule.translateExpInWand(arg))
       })
       val (locals, assignStmt) = localsStmt.unzip
-      val predTransformed = heapModule.translateLocation(p.loc.loc(verifier.program), locals)
-      (TransferablePredAccessPred(heapModule.translateNull, predTransformed, permTransfer,p, p.loc.loc(verifier.program)), assignStmt)
+      (TransferablePredAccessPred(funcPredModule.toSnap(locals), permTransfer,p, p.loc.loc(verifier.program)), assignStmt)
 
     case w:sil.MagicWand =>
       val wandRep = getWandRepresentation(w)
+      val args = funcPredModule.silExpsToSnap(w.args)
       //GP: maybe should store holes of wand first in local variables
-      (TransferableWand(heapModule.translateNull, wandRep, permTransfer, w),Nil)
+      (TransferableWand(args, permTransfer, w),Nil)
   }
 }
 

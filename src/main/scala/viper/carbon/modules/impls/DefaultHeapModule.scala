@@ -47,7 +47,7 @@ class DefaultHeapModule(val verifier: Verifier)
   var enableAllocationEncoding : Boolean = true // note: this may be modified on configuration, so should only be used e.g. in method defs which will be called later (e.g. during verification)
 
 
-  def cmpResources: Seq[sil.Resource] = verifier.program.fields ++ verifier.program.predicates ++ verifier.program.magicWandStructures
+  def cmpResources: Seq[sil.Resource] = Seq(allocField) ++ verifier.program.fields ++ verifier.program.predicates ++ verifier.program.magicWandStructures
 
   var resources: Seq[sil.Resource] = _
 
@@ -99,7 +99,7 @@ class DefaultHeapModule(val verifier: Verifier)
   private val nullName = Identifier("null")
   private val nullLit = Const(nullName)
   private val identicalOnKnownLocsName = Identifier("IdenticalOnKnownLocations")
-  private lazy val allocName = if(enableAllocationEncoding) Identifier("$allocated")(fieldNamespace) else null
+  private lazy val allocField = if(enableAllocationEncoding) sil.Field("$allocated", sil.Bool)() else null
   private val sumHeapName = Identifier("SumHeap")
   private val freshObjectName = Identifier("freshObj")
   private val freshObjectVar = LocalVar(freshObjectName, refType)
@@ -343,60 +343,59 @@ class DefaultHeapModule(val verifier: Verifier)
   private def predicateTriggerAnyStateIdentifier(f: sil.Predicate): Identifier = {
     Identifier(f.name + "#everUsed")(fieldNamespace)
   }
-  private def predicateTrigger(extras : Seq[Exp], predicate: sil.Predicate, predicateField: Exp): Exp = {
-    FuncApp(predicateTriggerIdentifier(predicate), extras ++ Seq(predicateField), Bool)
+  private def predicateTrigger(extras : Seq[Exp], predicate: sil.Predicate, predicateArgSnap: Exp): Exp = {
+    FuncApp(predicateTriggerIdentifier(predicate), extras ++ Seq(predicateArgSnap), Bool)
   }
-  private def predicateTriggerAnyState( predicate: sil.Predicate, predicateField: Exp): Exp = {
-    FuncApp(predicateTriggerAnyStateIdentifier(predicate), Seq(predicateField), Bool)
-  }
-  override def predicateTrigger(extras : Seq[Exp], pred: sil.PredicateAccess, anyState : Boolean = false): Exp = {
+  override def predicateTrigger(extras : Seq[Exp], pred: sil.PredicateAccess): Exp = {
     val predicate = verifier.program.findPredicate(pred.predicateName)
-    val location = translateLocation(pred)
-    if (anyState) predicateTriggerAnyState(predicate, location) else predicateTrigger(extras, predicate, location)
+    val receiver = translateReceiver(pred)
+    predicateTrigger(extras, predicate, receiver)
   }
 
   /** Returns a heap-lookup of the allocated field of an object. */
   /** (should only be used for known-non-null references) */
-  private def alloc(o: Exp): Exp = ??? // lookup(heapExp, o, Const(allocName))
+  private def alloc(o: Exp): Exp = lookup(heapMap(allocField), o)
 
   /** Returns assignment that updates heap to reflect that @{code ref} is assigned  */
-  private def allocUpdateRef(ref: Exp) : Stmt = currentHeapAssignUpdate(ref, Const(allocName), TrueLit())
+  private def allocUpdateRef(ref: Exp) : Stmt = currentHeapAssignUpdate(ref, allocField, TrueLit())
 
   /** Returns a heap-lookup for o.f in a given heap h. */
-  private def lookup(h: Exp, o: Exp, f: Exp, isPMask: Boolean = false): Exp =  ??? /*{
+  private def lookup(h: Exp, o: Exp, isPMask: Boolean = false): Exp =  {
     if(verifier.usePolyMapsInEncoding) {
-      MapSelect(h, Seq(o, f))
+      MapSelect(h, Seq(o))
     } else {
-      FuncApp( if(isPMask) { permModule.pmaskTypeDesugared.selectId } else { readHeapName }, Seq(h,o,f), Bool)
+      ??? // FuncApp( if(isPMask) { permModule.pmaskTypeDesugared.selectId } else { readHeapName }, Seq(h,o,f), Bool)
     }
-  }*/
-
-  def rcvAndFieldExp(f: sil.LocationAccess) : (Exp, Exp) =
-    f match {
-      case sil.FieldAccess(rcv, _) => (translateExp(rcv), translateLocation(f))
-      case sil.PredicateAccess(_, _) => (nullLit, translateLocation(f))
-    }
+  }
 
   override def currentHeapAssignUpdate(f: sil.LocationAccess, newVal: Exp): Stmt = {
-    val (rcvExp, fieldExp) = rcvAndFieldExp(f)
-    currentHeapAssignUpdate(rcvExp, fieldExp, newVal)
+    val rcvExp = translateReceiver(f)
+    currentHeapAssignUpdate(rcvExp, f.loc(program), newVal)
   }
 
-  private def currentHeapAssignUpdate(rcv: Exp, field: Exp, newVal: Exp): Stmt = ??? /*{
-    heap := heapUpdate(heap, rcv, field, newVal)
-  }*/
+  private def currentHeapAssignUpdate(rcv: Exp, res: sil.Resource, newVal: Exp): Stmt = {
+    val heap = heapMap(res)
+    (heap := heapUpdate(heap, rcv, newVal))
+  }
 
   private def heapUpdateLoc(heap: Exp, f: sil.LocationAccess, newVal: Exp, isPMask: Boolean = false): Exp = {
-    val (rcvExp, fieldExp) = rcvAndFieldExp(f)
-    heapUpdate(heap, rcvExp, fieldExp, newVal, isPMask)
+    val rcvExp = translateReceiver(f)
+    heapUpdate(heap, rcvExp, newVal, isPMask)
   }
 
-  private def heapUpdate(heap: Exp, rcv: Exp, field: Exp, newVal: Exp, isPMask: Boolean = false): Exp = ??? /*{
+  def translateReceiver(la: sil.LocationAccess): Exp = {
+    la match {
+      case sil.FieldAccess(rcv, _) => translateExp(rcv)
+      case sil.PredicateAccess(args, _) => funcPredModule.silExpsToSnap(args)
+    }
+  }
+
+  private def heapUpdate(heap: Exp, rcv: Exp, newVal: Exp, isPMask: Boolean = false): Exp = {
     if(verifier.usePolyMapsInEncoding)
-      MapUpdate(heap, Seq(rcv, field), newVal)
+      MapUpdate(heap, Seq(rcv), newVal)
     else
-      FuncApp(if(isPMask) { permModule.pmaskTypeDesugared.storeId } else { updateHeapName }, Seq(heap, rcv, field, newVal), Bool)
-  }*/
+      ???
+  }
 
   override def translateLocationAccess(f: sil.LocationAccess): Exp = ??? /*{
     translateLocationAccess(f, heapExp)
@@ -407,13 +406,10 @@ class DefaultHeapModule(val verifier: Verifier)
   }*/
 
   private def translateLocationAccess(f: sil.LocationAccess, heap: Exp, isPMask: Boolean = false): Exp = {
-    val (rcvExp, fieldExp) = rcvAndFieldExp(f)
-    lookup(heap, rcvExp, fieldExp, isPMask)
+    val res = f.loc(program)
+    val rcvExp = translateReceiver(f)
+    lookup(heap, rcvExp, isPMask)
   }
-
-  override def translateLocation(l: sil.LocationAccess): Exp = ???
-
-  override def translateLocation(pred: sil.Predicate, args: Seq[Exp]): Exp = ???
 
   override def handleStmt(s: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), insidePackageStmt: Boolean = false) : (Seqn => Seqn) = {
 
@@ -467,7 +463,7 @@ class DefaultHeapModule(val verifier: Verifier)
     }
   }
 
-  override def addPermissionToWMask(wMaskField: Exp, e: sil.Exp): Stmt = {
+  override def addPermissionToWMask(wMaskField: Exp, e: sil.Exp): Stmt = ??? /*{
     if(usingOldState) { sys.error("Updating wand mask while using old state") }
     e match {
       case sil.FieldAccessPredicate(loc, perm) =>
@@ -485,10 +481,11 @@ class DefaultHeapModule(val verifier: Verifier)
       case _ =>
         Statements.EmptyStmt
     }
-  }
+  }*/
   /**
    * Adds the permissions from an expression to a permission mask.
    */
+    /*
   private def addPermissionToPMaskHelper(e: sil.Exp, loc: sil.PredicateAccess, pmask: PredicateMask): Stmt = {
     if(usingOldState) { sys.error("Updating wand mask while using old state") }
     e match {
@@ -539,7 +536,7 @@ class DefaultHeapModule(val verifier: Verifier)
         If(translateExp(c), addPermissionToPMaskHelper(e1, loc, pmask), addPermissionToPMaskHelper(e2, loc, pmask))
       case _ => Nil
     }
-  }
+  }*/
 
   override def validValue(typ: sil.Type, variable: LocalVar, isParameter: Boolean): Option[Exp] = {
     if(enableAllocationEncoding) typ match {
@@ -552,7 +549,7 @@ class DefaultHeapModule(val verifier: Verifier)
     /*exp === nullLit ||*/ alloc(exp)
   }
 
-  override def translateNull: Exp = nullLit
+  override def nullLiteral: Exp = nullLit
 
   def initBoogieState: Stmt = {
     println("initBoogieState")
