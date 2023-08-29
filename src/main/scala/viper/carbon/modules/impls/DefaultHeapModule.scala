@@ -52,9 +52,9 @@ class DefaultHeapModule(val verifier: Verifier)
   var resources: Seq[sil.Resource] = _
 
   def getHeapType(r: sil.Resource): Type = r match {
-    case f: sil.Field => MapType(Seq(refType), translateType(f.typ), Seq())
-    case _: sil.Predicate => MapType(Seq(funcPredModule.snapType()), funcPredModule.snapType(), Seq())
-    case _: sil.MagicWand => MapType(Seq(funcPredModule.snapType()), funcPredModule.snapType(), Seq())
+    case f: sil.Field => fheapTyp(translateType(f.typ)) //MapType(Seq(refType), translateType(f.typ), Seq())
+    case _: sil.Predicate => pheapTyp // MapType(Seq(funcPredModule.snapType()), funcPredModule.snapType(), Seq())
+    case _: sil.MagicWand => pheapTyp // MapType(Seq(funcPredModule.snapType()), funcPredModule.snapType(), Seq())
   }
 
   def cmpHeapTypes = resources.map(r => r -> getHeapType(r)).toMap
@@ -90,7 +90,10 @@ class DefaultHeapModule(val verifier: Verifier)
 
   override def wandBasicType(wand: String): Type = ???
   override def wandFieldType(wand: String) : Type = ???
-  private val heapTyp = NamedType("HeapType")
+  private val genfheapTyp = NamedType("HeapType", Seq(TypeVar("B")))
+  def genfheapType = genfheapTyp
+  private def fheapTyp(ta: Type) = NamedType("HeapType", Seq(ta))
+  private val pheapTyp = NamedType("PHeapType")
   private val heapName = Identifier("Heap")
   private val heap0Name = Identifier("Heap0")
   private val heap1Name = Identifier("Heap1")
@@ -102,9 +105,11 @@ class DefaultHeapModule(val verifier: Verifier)
   private var heaps: Seq[Var] = _
   private val nullName = Identifier("null")
   private val nullLit = Const(nullName)
-  private val identicalOnKnownLocsName = Identifier("IdenticalOnKnownLocations")
+  private val fidenticalOnKnownLocsName = Identifier("IdenticalOnKnownLocations")
+  private val pidenticalOnKnownLocsName = Identifier("PIdenticalOnKnownLocations")
   private lazy val allocField = if(enableAllocationEncoding) sil.Field("$allocated", sil.Bool)() else null
-  private val sumHeapName = Identifier("SumHeap")
+  private val fsumHeapName = Identifier("SumHeap")
+  private val psumHeapName = Identifier("PSumHeap")
   private val freshObjectName = Identifier("freshObj")
   private val freshObjectVar = LocalVar(freshObjectName, refType)
   private def heapVars: Seq[Var] = {assert (!usingOldState); heaps}
@@ -147,7 +152,8 @@ class DefaultHeapModule(val verifier: Verifier)
       heaps.map(v => GlobalVarDecl(v.name, v.typ)) ++
       exhaleHeapMap.map(v => GlobalVarDecl(v._2.name, v._2.typ)) ++
       ConstDecl(nullName, refType) ++
-      TypeAlias(heapTyp, MapType(Seq(TypeVar("A")), TypeVar("B"), Seq(TypeVar("A"), TypeVar("B")))) ++
+      TypeAlias(genfheapTyp, MapType(Seq(refType), TypeVar("B"))) ++
+      TypeAlias(pheapTyp, MapType(Seq(funcPredModule.snapType()), funcPredModule.snapType())) ++
       // TODO: allocationEncoding
     /*(if(enableAllocationEncoding) ConstDecl(allocName, NamedType(fieldTypeName, Seq(normalFieldType, Bool)), unique = true) ++
       // all heap-lookups yield allocated objects or null
@@ -164,27 +170,39 @@ class DefaultHeapModule(val verifier: Verifier)
       Func(succHeapTransName,
         Seq(LocalVarDecl(heap0Name, heapTyp), LocalVarDecl(heap1Name, heapTyp)),
         Bool) ++ */
-      Func(identicalOnKnownLocsName,
-        Seq(LocalVarDecl(heapName, heapTyp), LocalVarDecl(exhaleHeapName, heapTyp)) ++ staticMask,
+      Func(fidenticalOnKnownLocsName,
+        Seq(LocalVarDecl(heapName, genfheapTyp), LocalVarDecl(exhaleHeapName, genfheapTyp), LocalVarDecl(Identifier("msk"), maskType)),
+        Bool) ++
+      Func(pidenticalOnKnownLocsName,
+        Seq(LocalVarDecl(heapName, pheapTyp), LocalVarDecl(exhaleHeapName, pheapTyp), LocalVarDecl(Identifier("msk"), pmaskType)),
         Bool) ++
       {
         if(useSumOfStatesAxioms)
-          Func(sumHeapName,
-            Seq(LocalVarDecl(heapName, heapTyp), LocalVarDecl(heap1Name, heapTyp), LocalVarDecl(Identifier("mask1"), maskType),
-              LocalVarDecl(heap2Name, heapTyp), LocalVarDecl(Identifier("mask2"), maskType)),
-            Bool)
+          (Func(fsumHeapName,
+            Seq(LocalVarDecl(heapName, genfheapTyp), LocalVarDecl(heap1Name, genfheapTyp), LocalVarDecl(Identifier("mask1"), maskType),
+              LocalVarDecl(heap2Name, genfheapTyp), LocalVarDecl(Identifier("mask2"), maskType)),
+            Bool) ++
+            Func(psumHeapName,
+              Seq(LocalVarDecl(heapName, pheapTyp), LocalVarDecl(heap1Name, pheapTyp), LocalVarDecl(Identifier("mask1"), pmaskType),
+                LocalVarDecl(heap2Name, pheapTyp), LocalVarDecl(Identifier("mask2"), pmaskType)),
+              Bool))
         else Nil
       } ++ {
-      val h = LocalVarDecl(heapName, heapTyp)
-      val eh = LocalVarDecl(exhaleHeapName, heapTyp)
-      val h0 = LocalVarDecl(heap0Name, heapTyp)
-      val h1 = LocalVarDecl(heap1Name, heapTyp)
-      val h2 = LocalVarDecl(heap2Name, heapTyp)
+      val h = LocalVarDecl(heapName, genfheapTyp)
+      val ph = LocalVarDecl(heapName, pheapTyp)
+      val eh = LocalVarDecl(exhaleHeapName, genfheapTyp)
+      val h0 = LocalVarDecl(heap0Name, genfheapTyp)
+      val h1 = LocalVarDecl(heap1Name, genfheapTyp)
+      val h2 = LocalVarDecl(heap2Name, genfheapTyp)
+      val peh = LocalVarDecl(exhaleHeapName, pheapTyp)
+      val ph0 = LocalVarDecl(heap0Name, pheapTyp)
+      val ph1 = LocalVarDecl(heap1Name, pheapTyp)
+      val ph2 = LocalVarDecl(heap2Name, pheapTyp)
       val m = LocalVarDecl(Identifier("mask"), maskType)
       val vars = Seq(h, eh, m)
-      val identicalFuncApp = FuncApp(identicalOnKnownLocsName, vars map (_.l), Bool)
+      val identicalFuncApp = FuncApp(fidenticalOnKnownLocsName, vars map (_.l), Bool)
 
-      identicalOnKnownLocsAxioms() ++
+      identicalOnKnownLocsAxioms() ++ pidenticalOnKnownLocsAxioms() ++
        /* MaybeCommentedDecl("Updated Heaps are Successor Heaps", {
           val value = LocalVarDecl(Identifier("v"), TypeVar("B"));
           val upd = heapUpdate(h.l, obj.l, field.l, value.l)
@@ -236,33 +254,32 @@ class DefaultHeapModule(val verifier: Verifier)
         }, size = 1) ++*/
         {
           if (useSumOfStatesAxioms) {
-            identicalOnKnownLocsAxioms() ++ pidenticalOnKnownLocsAxioms()
               MaybeCommentedDecl("Sum of heaps", {
                 val mask1 = LocalVarDecl(Identifier("Mask1"),maskType)
                 val mask2 = LocalVarDecl(Identifier("Mask2"),maskType)
 
-                val sumStateApp = sumHeap(h.l, h1.l, mask1.l, h2.l, mask2.l)
+                val sumStateApp = sumFHeap(h.l, h1.l, mask1.l, h2.l, mask2.l)
 
                 Axiom(Forall(
                   Seq(h, h1, mask1, h2, mask2),
                   Trigger(sumStateApp),
                   sumStateApp <==> (
-                    FuncApp(identicalOnKnownLocsName, Seq(h1.l, h.l, mask1.l), Bool) &&
-                      FuncApp(identicalOnKnownLocsName, Seq(h2.l, h.l, mask2.l), Bool)
+                    FuncApp(fidenticalOnKnownLocsName, Seq(h1.l, h.l, mask1.l), Bool) &&
+                      FuncApp(fidenticalOnKnownLocsName, Seq(h2.l, h.l, mask2.l), Bool)
                     )))
               }) ++
                 MaybeCommentedDecl("Sum of predicate heaps", {
                   val pmask1 = LocalVarDecl(Identifier("pMask1"), pmaskType)
                   val pmask2 = LocalVarDecl(Identifier("pMask2"), pmaskType)
 
-                  val sumStateApp = sumHeap(h.l, h1.l, pmask1.l, h2.l, pmask2.l)
+                  val sumStateApp = sumPHeap(ph.l, ph1.l, pmask1.l, ph2.l, pmask2.l)
 
                   Axiom(Forall(
-                    Seq(h, h1, pmask1, h2, pmask2),
+                    Seq(ph, ph1, pmask1, ph2, pmask2),
                     Trigger(sumStateApp),
                     sumStateApp <==> (
-                      FuncApp(identicalOnKnownLocsName, Seq(h1.l, h.l, pmask1.l), Bool) &&
-                        FuncApp(identicalOnKnownLocsName, Seq(h2.l, h.l, pmask2.l), Bool)
+                      FuncApp(pidenticalOnKnownLocsName, Seq(ph1.l, ph.l, pmask1.l), Bool) &&
+                        FuncApp(pidenticalOnKnownLocsName, Seq(ph2.l, ph.l, pmask2.l), Bool)
                       )))
                 })
           } else {
@@ -279,12 +296,12 @@ class DefaultHeapModule(val verifier: Verifier)
   private def identicalOnKnownLocsAxioms():Seq[Decl] = {
     // for fields
     val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
-    val h = LocalVarDecl(heapName, heapTyp)
-    val eh = LocalVarDecl(exhaleHeapName, heapTyp)
+    val h = LocalVarDecl(heapName, genfheapTyp)
+    val eh = LocalVarDecl(exhaleHeapName, genfheapTyp)
     val m = LocalVarDecl(Identifier("mask"), maskType)
     val vars = Seq(h, eh, m)
 
-    val funcName = identicalOnKnownLocsName
+    val funcName = fidenticalOnKnownLocsName
 
 
     val identicalFuncApp = FuncApp(funcName, vars map (_.l), Bool)
@@ -294,8 +311,8 @@ class DefaultHeapModule(val verifier: Verifier)
       //        Trigger(Seq(identicalFuncApp, lookup(h.l, obj.l, field.l))) ++
       Trigger(Seq(identicalFuncApp, lookup(eh.l, obj.l))),
       identicalFuncApp ==>
-        (currentPermission(m.l, obj.l) ==>
-          (lookup(h.l, obj.l) === lookup(eh.l, obj.l)))
+        (currentPermission(m.l, obj.l) > noPerm ==>
+          (lookup(h.l, obj.l) === lookup(eh.l, obj.l))), TypeVar("B")
     )), size = 1)
 
   }
@@ -303,12 +320,12 @@ class DefaultHeapModule(val verifier: Verifier)
   private def pidenticalOnKnownLocsAxioms(): Seq[Decl] = {
     // for fields
     val args = LocalVarDecl(Identifier("o")(axiomNamespace), funcPredModule.snapType())
-    val h = LocalVarDecl(heapName, heapTyp)
-    val eh = LocalVarDecl(exhaleHeapName, heapTyp)
+    val h = LocalVarDecl(heapName, pheapTyp)
+    val eh = LocalVarDecl(exhaleHeapName, pheapTyp)
     val m = LocalVarDecl(Identifier("pmask"), pmaskType)
     val vars = Seq(h, eh, m)
 
-    val funcName = identicalOnKnownLocsName
+    val funcName = pidenticalOnKnownLocsName
 
 
     val identicalFuncApp = FuncApp(funcName, vars map (_.l), Bool)
@@ -318,17 +335,23 @@ class DefaultHeapModule(val verifier: Verifier)
       //        Trigger(Seq(identicalFuncApp, lookup(h.l, obj.l, field.l))) ++
       Trigger(Seq(identicalFuncApp, lookup(eh.l, args.l))),
       identicalFuncApp ==>
-        (currentPermission(m.l, args.l) ==>
+        (currentPermission(m.l, args.l) > noPerm ==>
           (lookup(h.l, args.l) === lookup(eh.l, args.l)))
     )), size = 1)
 
   }
 
-  override def sumHeap(resultHeap: Exp, heap1: Exp, mask1: Exp, heap2: Exp, mask2: Exp): Exp = {
-    FuncApp(sumHeapName, Seq(resultHeap, heap1, mask1, heap2, mask2), Bool)
+  override def sumFHeap(resultHeap: Exp, heap1: Exp, mask1: Exp, heap2: Exp, mask2: Exp): Exp = {
+    FuncApp(fsumHeapName, Seq(resultHeap, heap1, mask1, heap2, mask2), Bool)
   }
 
-  override def heapType: Type = heapTyp
+  override def sumPHeap(resultHeap: Exp, heap1: Exp, mask1: Exp, heap2: Exp, mask2: Exp): Exp = {
+    FuncApp(psumHeapName, Seq(resultHeap, heap1, mask1, heap2, mask2), Bool)
+  }
+
+  override def fheapType(ta: Type): Type = fheapTyp(ta)
+
+  override def pheapType: Type = pheapTyp
 
   override def successorHeapState(first: Seq[LocalVarDecl], second: Seq[LocalVarDecl]): Exp = ???
 
@@ -347,7 +370,7 @@ class DefaultHeapModule(val verifier: Verifier)
 
 
 // AS: Seems that many concerns here would be better addressed in / delegated to the FuncPredModule
-  override def predicateGhostFieldDecl(p: sil.Predicate): Seq[Decl] = Seq()
+  override def predicateGhostFieldDecl(p: sil.Predicate): Seq[Decl] = Seq(Func(predicateTriggerIdentifier(p), staticStateContributions(true, false) ++ Seq(LocalVarDecl(Identifier("args"), funcPredModule.snapType())), Bool))
 
   def wandMaskIdentifier(f: Identifier) = ???
 
@@ -608,7 +631,7 @@ class DefaultHeapModule(val verifier: Verifier)
 
   override def freshTempState(name: String): Seq[Var] = {
     //Seq(LocalVar(Identifier(s"${name}Heap"), heapTyp))
-    heapMap.map(h => LocalVar(Identifier(s"${name}Heap_${getResourceName(h._1)}"), heapTyp)).toSeq
+    heapMap.map(h => LocalVar(Identifier(s"${name}Heap_${getResourceName(h._1)}"), if (h._1.isInstanceOf[sil.Field]) fheapTyp(translateType(h._1.asInstanceOf[sil.Field].typ)) else pheapTyp)).toSeq
   }
 
   override def restoreState(s: Seq[Var]): Unit = {
@@ -630,7 +653,8 @@ class DefaultHeapModule(val verifier: Verifier)
 
   override def endExhale: Stmt = {
     if (!usingOldState) exhaleHeapMap.map(eh => {
-      val ehStmt: Stmt  = (Havoc(eh._2) ++ Assume(FuncApp(identicalOnKnownLocsName, Seq(heapExp(eh._1), eh._2) ++ currentMask(eh._1), Bool)) ++ (heapVar(eh._1) := eh._2)).toSeq
+      val fname = if (eh._1.isInstanceOf[sil.Field]) fidenticalOnKnownLocsName else pidenticalOnKnownLocsName
+      val ehStmt: Stmt  = (Havoc(eh._2) ++ Assume(FuncApp(fname, Seq(heapExp(eh._1), eh._2) ++ currentMask(eh._1), Bool)) ++ (heapVar(eh._1) := eh._2)).toSeq
       ehStmt
     }
     ).toSeq
@@ -652,6 +676,9 @@ class DefaultHeapModule(val verifier: Verifier)
 
   override def currentHeap(r: sil.Resource) = heapMap(r)
 
-  override def identicalOnKnownLocations(otherHeap:Seq[Exp],otherMask:Seq[Exp]):Exp =
-    FuncApp(identicalOnKnownLocsName,otherHeap ++ heaps ++ otherMask, Bool)
+  override def fidenticalOnKnownLocations(otherHeap:Seq[Exp],otherMask:Seq[Exp]):Exp =
+    FuncApp(fidenticalOnKnownLocsName,otherHeap ++ heaps ++ otherMask, Bool)
+
+  override def pidenticalOnKnownLocations(otherHeap: Seq[Exp], otherMask: Seq[Exp]): Exp =
+    FuncApp(pidenticalOnKnownLocsName, otherHeap ++ heaps ++ otherMask, Bool)
 }

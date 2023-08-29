@@ -29,6 +29,8 @@ trait PermModule extends Module with CarbonStateComponent {
    */
   def translatePerm(e: sil.Exp): Exp
 
+  def noPerm: Exp
+
   /**
    * Translate a permission comparison
    */

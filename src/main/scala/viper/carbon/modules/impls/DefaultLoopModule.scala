@@ -54,7 +54,8 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
   private val psumMask = LocalVar(psumMaskName, pmaskType)
 
   private val sumHeapName : Identifier = Identifier("LoopSumHeap")(namespace)
-  private val sumHeap = LocalVar(sumHeapName, heapType)
+  private val sumFHeap = LocalVar(sumHeapName, genfheapType)
+  private val sumPHeap = LocalVar(sumHeapName, pheapType)
 
   private var currentMethodIsAbstract = false;
   private var usedLoopDetectorOnce = false;
@@ -585,12 +586,12 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
             val loopStmt: Stmt = (
               frameMasks.keys.map(r => {
                 // sum masks and heaps
-                val sumMaskVar = if (r.isInstanceOf[sil.Field]) sumMask else psumMask
+                val (sumMaskVar, sumHeapVar, sumHeapFunc) = if (r.isInstanceOf[sil.Field]) (sumMask, sumFHeap, (e1, e2, e3, e4, e5) => heapModule.sumFHeap(e1, e2, e3, e4, e5)) else (psumMask, sumPHeap, (e1: Exp, e2: Exp, e3: Exp, e4: Exp, e5: Exp) => heapModule.sumPHeap(e1, e2, e3, e4, e5))
                 val rStmt: Stmt = Seq(
-                  Havoc(Seq(sumHeap)),
+                  Havoc(Seq(sumHeapVar)),
                   Havoc(Seq(sumMaskVar)),
-                  Assume(heapModule.sumHeap(sumHeap, currentHeap(r), currentMask(r), frameHeaps(r).l, frameMasks(r).l)),
-                  Assign(currentHeap(r), sumHeap),
+                  Assume(sumHeapFunc(sumHeapVar, currentHeap(r), currentMask(r), frameHeaps(r).l, frameMasks(r).l)),
+                  Assign(currentHeap(r), sumHeapVar),
                   Assume(permModule.sumMask(Seq(sumMaskVar), currentMask(r), Seq(frameMasks(r).l))),
                   Assign(currentMask(r), sumMaskVar)
                 )

@@ -92,7 +92,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   private val zeroPMaskName = Identifier("ZeroPMask")
   override val zeroPMask = Const(zeroPMaskName)
   private val noPermName = Identifier("NoPerm")
-  private val noPerm = Const(noPermName)
+  val noPerm = Const(noPermName)
   private val fullPermName = Identifier("FullPerm")
   private val fullPerm = Const(fullPermName)
   private val permAddName = Identifier("PermAdd")
@@ -233,11 +233,10 @@ class QuantifiedPermModule(val verifier: Verifier)
 
 
         val storeDefInner = Forall(Seq(obj2), Seq(Trigger(Seq(currentPermission(FuncApp(addToMaskName, Seq(h.l, obj.l, prm.l), maskType), obj2.l)))),  // , Trigger(Seq(currentPermission(h.l, obj2.l, field2.l)))), /// ME: trying, doesnt seem to help?
-          currentPermission(FuncApp(addToMaskName, Seq(h.l, obj.l, prm.l), maskType), obj2.l) === BinExp(currentPermission(h.l, obj2.l), Add, CondExp(obj.l === obj2.l, prm.l, RealLit(0))),
-          Seq(TypeVar("B0"), TypeVar("B1")))
+          currentPermission(FuncApp(addToMaskName, Seq(h.l, obj.l, prm.l), maskType), obj2.l) === BinExp(currentPermission(h.l, obj2.l), Add, CondExp(obj.l === obj2.l, prm.l, RealLit(0))))
         val storeDef = Axiom(Forall(Seq(h, obj, prm),
           Trigger(Seq(FuncApp(addToMaskName, Seq(h.l, obj.l, prm.l), maskType))),
-          storeDefInner, Seq(TypeVar("A0"), TypeVar("A1"))))
+          storeDefInner))
 
         val pstoreFun =
           Func(paddToMaskName,
@@ -246,11 +245,10 @@ class QuantifiedPermModule(val verifier: Verifier)
 
 
         val pstoreDefInner = Forall(Seq(pred2), Seq(Trigger(Seq(currentPermission(FuncApp(paddToMaskName, Seq(ph.l, pred.l, prm.l), pmaskType), pred2.l)))), // , Trigger(Seq(currentPermission(h.l, obj2.l, field2.l)))), /// ME: trying, doesnt seem to help?
-          currentPermission(FuncApp(paddToMaskName, Seq(ph.l, pred.l, prm.l), pmaskType), pred2.l) === BinExp(currentPermission(ph.l, pred2.l), Add, CondExp(pred.l === pred2.l, prm.l, RealLit(0))),
-          Seq(TypeVar("B0"), TypeVar("B1")))
+          currentPermission(FuncApp(paddToMaskName, Seq(ph.l, pred.l, prm.l), pmaskType), pred2.l) === BinExp(currentPermission(ph.l, pred2.l), Add, CondExp(pred.l === pred2.l, prm.l, RealLit(0))))
         val pstoreDef = Axiom(Forall(Seq(ph, pred, prm),
           Trigger(Seq(FuncApp(paddToMaskName, Seq(ph.l, pred.l, prm.l), pmaskType))),
-          pstoreDefInner, Seq(TypeVar("A0"), TypeVar("A1"))))
+          pstoreDefInner))
 
 
         MaybeCommentedDecl("add to mask",
@@ -1446,8 +1444,9 @@ class QuantifiedPermModule(val verifier: Verifier)
   }
 
   override def tempInitMask(rcv: Exp, loc:sil.Resource):(Seq[Exp], Stmt) = {
-    val zrMsk = if (loc.isInstanceOf[sil.Field]) zeroMask else zeroPMask
-    val setMaskStmt = tempMask := maskUpdate(zrMsk, rcv, fullPerm)
+    val isField = loc.isInstanceOf[sil.Field]
+    val zrMsk = if (isField) zeroMask else zeroPMask
+    val setMaskStmt = tempMask := maskUpdate(zrMsk, rcv, fullPerm, isField)
     (tempMask, setMaskStmt)
   }
 
@@ -1489,10 +1488,10 @@ class QuantifiedPermModule(val verifier: Verifier)
     val isField = r.isInstanceOf[sil.Field]
     newPerm match {
       case BinExp(MapSelect(`msk`, Seq(`rcv`)), Add, addition) if isField && addition == fullPerm =>
-        Assume(currentPermission(msk, rcv) === noPerm) ++ (msk := maskUpdate(msk, rcv, addition))
+        Assume(currentPermission(msk, rcv) === noPerm) ++ (msk := maskUpdate(msk, rcv, addition, isField))
       case BinExp(MapSelect(`msk`, Seq(`rcv`)), Sub, addition) if isField && addition == fullPerm =>
-        msk := maskUpdate(msk, rcv, noPerm)
-      case _ => msk := maskUpdate(msk, rcv, newPerm)
+        msk := maskUpdate(msk, rcv, noPerm, isField)
+      case _ => msk := maskUpdate(msk, rcv, newPerm, isField)
     }
   }
 
@@ -1501,10 +1500,11 @@ class QuantifiedPermModule(val verifier: Verifier)
     maskUpdate(mask, rcv, field, newPerm)
   }*/
 
-  private def maskUpdate(mask: Exp, rcv: Exp, newPerm: Exp) : Exp = {
+  private def maskUpdate(mask: Exp, rcv: Exp, newPerm: Exp, isField: Boolean) : Exp = {
+    val (addFuncName, mskTyp) = if (isField) (addToMaskName, maskType) else (paddToMaskName, pmaskType)
     newPerm match {
-      case BinExp(MapSelect(`mask`, Seq(`rcv`)), Add, addition) => FuncApp(addToMaskName, Seq(mask, rcv, addition), maskType)
-      case BinExp(MapSelect(`mask`, Seq(`rcv`)), Sub, addition) => FuncApp(addToMaskName, Seq(mask, rcv, addition.neg), maskType)
+      case BinExp(MapSelect(`mask`, Seq(`rcv`)), Add, addition) => FuncApp(addFuncName, Seq(mask, rcv, addition), mskTyp)
+      case BinExp(MapSelect(`mask`, Seq(`rcv`)), Sub, addition) => FuncApp(addFuncName, Seq(mask, rcv, addition.neg), mskTyp)
       case _ => actualMaskUpdate(mask, rcv, newPerm)
     }
   }

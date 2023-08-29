@@ -21,7 +21,10 @@ trait HeapModule extends Module with CarbonStateComponent {
   /**
     * The type used for heaps
     */
-  def heapType: Type
+  def fheapType(vt: Type): Type
+  def genfheapType: Type
+
+  def pheapType: Type
 
   def heapTypeMap: Map[sil.Resource, Type]
 
@@ -160,7 +163,9 @@ trait HeapModule extends Module with CarbonStateComponent {
     */
   def currentHeapAssignUpdate(loc: sil.LocationAccess, newVal: Exp): Stmt
 
-  def identicalOnKnownLocations(heap:Seq[Exp],mask:Seq[Exp]):Exp
+  def fidenticalOnKnownLocations(heap:Seq[Exp],mask:Seq[Exp]):Exp
+
+  def pidenticalOnKnownLocations(heap:Seq[Exp],mask:Seq[Exp]):Exp
 
   /**
     * Adds assumption that current heap equals heap represented by s
@@ -182,6 +187,8 @@ trait HeapModule extends Module with CarbonStateComponent {
 
   // If expression evaluates to true then resultHeap is the sum of of heap1, where mask1 is defined,
   // and heap2, where mask2 is defined.
-  def sumHeap(resultHeap: Exp, heap1: Exp, mask1: Exp, heap2: Exp, mask2: Exp): Exp
+  def sumFHeap(resultHeap: Exp, heap1: Exp, mask1: Exp, heap2: Exp, mask2: Exp): Exp
+
+  def sumPHeap(resultHeap: Exp, heap1: Exp, mask1: Exp, heap2: Exp, mask2: Exp): Exp
 
 }
