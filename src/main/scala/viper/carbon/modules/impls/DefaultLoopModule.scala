@@ -54,8 +54,9 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
   private val psumMask = LocalVar(psumMaskName, pmaskType)
 
   private val sumHeapName : Identifier = Identifier("LoopSumHeap")(namespace)
-  private val sumFHeap = LocalVar(sumHeapName, genfheapType)
-  private val sumPHeap = LocalVar(sumHeapName, pheapType)
+  private val psumHeapName : Identifier = Identifier("PLoopSumHeap")(namespace)
+  private def sumFHeap(ht: Type) = LocalVar(Identifier("LoopSumHeap" + ht.toString), fheapType(ht))
+  private val sumPHeap = LocalVar(psumHeapName, pheapType)
 
   private var currentMethodIsAbstract = false;
   private var usedLoopDetectorOnce = false;
@@ -586,13 +587,18 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
             val loopStmt: Stmt = (
               frameMasks.keys.map(r => {
                 // sum masks and heaps
-                val (sumMaskVar, sumHeapVar, sumHeapFunc) = if (r.isInstanceOf[sil.Field]) (sumMask, sumFHeap, (e1, e2, e3, e4, e5) => heapModule.sumFHeap(e1, e2, e3, e4, e5)) else (psumMask, sumPHeap, (e1: Exp, e2: Exp, e3: Exp, e4: Exp, e5: Exp) => heapModule.sumPHeap(e1, e2, e3, e4, e5))
+                val (sumMaskVar, sumHeapVar, sumHeapFunc, sumMaskFunc) = if (r.isInstanceOf[sil.Field]) (sumMask, sumFHeap(typeModule.translateType(r.asInstanceOf[sil.Field].typ)),
+                  (e1, e2, e3, e4, e5) => heapModule.sumFHeap(e1, e2, e3, e4, e5),
+                  (e1, e2, e3) => permModule.sumMask(e1, e2, e3))
+                else (psumMask, sumPHeap,
+                  (e1: Exp, e2: Exp, e3: Exp, e4: Exp, e5: Exp) => heapModule.sumPHeap(e1, e2, e3, e4, e5),
+                  (e1, e2, e3) => permModule.psumMask(e1, e2, e3))
                 val rStmt: Stmt = Seq(
                   Havoc(Seq(sumHeapVar)),
                   Havoc(Seq(sumMaskVar)),
                   Assume(sumHeapFunc(sumHeapVar, currentHeap(r), currentMask(r), frameHeaps(r).l, frameMasks(r).l)),
                   Assign(currentHeap(r), sumHeapVar),
-                  Assume(permModule.sumMask(Seq(sumMaskVar), currentMask(r), Seq(frameMasks(r).l))),
+                  Assume(sumMaskFunc(Seq(sumMaskVar), currentMask(r), Seq(frameMasks(r).l))),
                   Assign(currentMask(r), sumMaskVar)
                 )
                 rStmt

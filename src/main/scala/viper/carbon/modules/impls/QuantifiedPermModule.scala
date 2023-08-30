@@ -431,6 +431,9 @@ class QuantifiedPermModule(val verifier: Verifier)
   override def sumMask(resultMask: Seq[Exp], summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp =
     FuncApp(sumMasks, resultMask++summandMask1++summandMask2,Bool)
 
+  override def psumMask(resultMask: Seq[Exp], summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp =
+    FuncApp(psumMasks, resultMask ++ summandMask1 ++ summandMask2, Bool)
+
   override def containsWildCard(e: sil.Exp): Boolean = {
     e match {
       case sil.AccessPredicate(loc, prm) =>

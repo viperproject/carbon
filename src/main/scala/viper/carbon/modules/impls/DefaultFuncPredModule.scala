@@ -289,7 +289,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
             val frameExp : Exp = {
               getFunctionFrame(func, recargs)._1 // the declarations will be taken care of when the function is translated
             }
-            Some(FuncApp(Identifier(func.name + framePostfix), Seq(frameExp) ++ (recargs.tail /* drop Heap argument */ map (_.transform(transformer))), t))
+            Some(FuncApp(Identifier(func.name + framePostfix), Seq(frameExp) ++ (recargs.drop(heapModule.heapTypeMap.size) /* drop Heap arguments */ map (_.transform(transformer))), t))
 
           } else Some(FuncApp(Identifier(recf.name + limitedPostfix), recargs map (_.transform(transformer)), t))
 
