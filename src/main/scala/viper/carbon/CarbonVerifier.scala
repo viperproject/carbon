@@ -8,14 +8,15 @@ package viper.carbon
 
 import boogie.{BoogieModelTransformer, Namespace}
 import modules.impls._
-import viper.silver.ast.{MagicWand, Program, Quasihavoc, Quasihavocall}
+import viper.silver.{ast => sil}
 import viper.silver.utility.Paths
 import viper.silver.verifier._
 import verifier.{BoogieDependency, BoogieInterface, Verifier}
+import viper.silver.ast.utility.rewriter.Traverse
 
 import java.io.{BufferedOutputStream, File, FileOutputStream, IOException}
 import viper.silver.frontend.{MissingDependencyException, NativeModel, VariablesModel}
-import viper.silver.reporter.Reporter
+import viper.silver.reporter.{Reporter, WarningsDuringTypechecking}
 
 /**
  * The main class to perform verification of Viper programs.  Deals with command-line arguments, configuration
@@ -148,16 +149,35 @@ case class CarbonVerifier(override val reporter: Reporter,
     })
   }
 
-  def verify(program: Program) : VerificationResult = {
+  def verify(prgrm: sil.Program) : VerificationResult = {
+    val program = prgrm.transform(
+      {
+        case f: sil.Forall => {
+          val res = f.autoTrigger
+          if (res.triggers.isEmpty) {
+            reporter.report(WarningsDuringTypechecking(Seq(TypecheckerWarning("No triggers provided or inferred for quantifier.", res.pos))))
+          }
+          res
+        }
+        case e: sil.Exists => {
+          val res = e.autoTrigger
+          if (res.triggers.isEmpty) {
+            reporter.report(WarningsDuringTypechecking(Seq(TypecheckerWarning("No triggers provided or inferred for quantifier.", res.pos))))
+          }
+          res
+        }
+        case q: sil.Quasihavoc => mainModule.desugarQuasihavoc(q)
+      },
+      Traverse.TopDown)
     _program = program
 
     val unsupportedFeatures : Seq[AbstractError] =
       program.shallowCollect(
         n =>
           n match {
-            case q: Quasihavocall =>
+            case q: sil.Quasihavocall =>
               ConsistencyError("Carbon does not support quasihavocall", q.pos)
-            case q@Quasihavoc(_, MagicWand(_, _)) =>
+            case q@sil.Quasihavoc(_, sil.MagicWand(_, _)) =>
               ConsistencyError("Carbon does not support quasihavoc of magic wands", q.pos)
           }
       )
@@ -245,11 +265,11 @@ case class CarbonVerifier(override val reporter: Reporter,
   private var _translated: viper.carbon.boogie.Program = null
   def translated = _translated
 
-  private var _program: Program = null
+  private var _program: sil.Program = null
   def program = _program
-  def program_=(p : Program): Unit = {
+  def program_=(p : sil.Program): Unit = {
     _program = p
   }
 
-  def replaceProgram(prog : Program) = {this.program = prog}
+  def replaceProgram(prog : sil.Program) = {this.program = prog}
 }

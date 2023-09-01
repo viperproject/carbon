@@ -54,25 +54,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
   override def translate(p: sil.Program, reporter: Reporter): (Program, Map[String, Map[String, String]]) = {
 
     verifier.replaceProgram(
-      p.transform(
-        {
-          case f: sil.Forall => {
-            val res = f.autoTrigger
-            if (res.triggers.isEmpty) {
-              reporter.report(WarningsDuringTypechecking(Seq(TypecheckerWarning("No triggers provided or inferred for quantifier.", res.pos))))
-            }
-            res
-          }
-          case e: sil.Exists => {
-            val res = e.autoTrigger
-            if (res.triggers.isEmpty) {
-              reporter.report(WarningsDuringTypechecking(Seq(TypecheckerWarning("No triggers provided or inferred for quantifier.", res.pos))))
-            }
-            res
-          }
-          case q: Quasihavoc => desugarQuasihavoc(q)
-        },
-        Traverse.TopDown)
+      p
     )
 
     val backendFuncs = new mutable.HashSet[sil.DomainFunc]()
@@ -259,7 +241,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
     * @param q should be a field or pedicate quasihavoc
     * @return
     */
-  private def desugarQuasihavoc(q: sil.Quasihavoc) = {
+  def desugarQuasihavoc(q: sil.Quasihavoc) = {
     val curPermVarDecl = sil.LocalVarDecl("perm_temp_quasihavoc_", sil.Perm)()
     val curPermVar = curPermVarDecl.localVar
     val resourceCurPerm =

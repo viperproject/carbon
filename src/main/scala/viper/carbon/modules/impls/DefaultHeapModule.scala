@@ -102,7 +102,7 @@ class DefaultHeapModule(val verifier: Verifier)
   //private val exhaleHeap = LocalVar(exhaleHeapName, heapTyp)
   private val qpHeapName = Identifier("QPHeap")
   //private val qpHeap = LocalVar(qpHeapName, heapTyp)
-  private var heaps: Seq[Var] = _
+  private var heaps: Map[sil.Resource, Var] = _
   private val nullName = Identifier("null")
   private val nullLit = Const(nullName)
   private val fidenticalOnKnownLocsName = Identifier("IdenticalOnKnownLocations")
@@ -113,11 +113,11 @@ class DefaultHeapModule(val verifier: Verifier)
   private val psumHeapName = Identifier("PSumHeap")
   private val freshObjectName = Identifier("freshObj")
   private val freshObjectVar = LocalVar(freshObjectName, refType)
-  private def heapVars: Seq[Var] = {assert (!usingOldState); heaps}
-  private def heapVar(r: sil.Resource): Var = {assert (!usingOldState); heapMap(r)}
+  private def heapVars: Map[sil.Resource, Var] = {assert (!usingOldState); heaps}
+  private def heapVar(r: sil.Resource): Var = {assert (!usingOldState); heaps(r)}
 
-  private def heapExps: Seq[Exp] = (if (usingOldState) heaps.map(Old(_)) else heaps)
-  private def heapExp(r: sil.Resource): Exp = if (usingOldState) Old(heapMap(r)) else heapMap(r)
+  private def heapExps: Seq[Exp] = (if (usingOldState) heaps.values.map(Old(_)).toSeq else heaps.values.toSeq)
+  private def heapExp(r: sil.Resource): Exp = if (usingOldState) Old(heaps(r)) else heaps(r)
 
   /*
 
@@ -150,7 +150,8 @@ class DefaultHeapModule(val verifier: Verifier)
     val useSumOfStatesAxioms = loopModule.sumOfStatesAxiomRequired
 
     TypeDecl(refType) ++
-      heaps.map(v => GlobalVarDecl(v.name, v.typ)) ++
+      // Re-translating types so the type module knows those types are used.
+      heaps.map(v => GlobalVarDecl(v._2.name, if (v._1.isInstanceOf[sil.Field]) fheapTyp(translateType(v._1.asInstanceOf[sil.Field].typ)) else v._2.typ)) ++
       exhaleHeapMap.map(v => GlobalVarDecl(v._2.name, v._2.typ)) ++
       ConstDecl(nullName, refType) ++
       TypeAlias(genfheapTyp, MapType(Seq(refType), TypeVar("B"))) ++
@@ -158,14 +159,14 @@ class DefaultHeapModule(val verifier: Verifier)
       // TODO: allocationEncoding
     /*(if(enableAllocationEncoding) ConstDecl(allocName, NamedType(fieldTypeName, Seq(normalFieldType, Bool)), unique = true) ++*/
       {
-        val relevantHeaps = heapMap.filter(h => h._1.isInstanceOf[sil.Field] && h._1.asInstanceOf[sil.Field].typ == sil.Ref)
+        val relevantHeaps = heaps.filter(h => h._1.isInstanceOf[sil.Field] && h._1.asInstanceOf[sil.Field].typ == sil.Ref)
         val triggers = relevantHeaps.map(h => Trigger(Seq(staticGoodState, validReference(lookup(h._2, obj.l)))))
         // all heap-lookups yield allocated objects or null
         Axiom(Forall(
           obj ++
             stateModule.staticStateContributions(),
           triggers.toSeq,
-          validReference(obj.l) ==> All(relevantHeaps.map(h => validReference(lookup(heapMap(h._1), obj.l))).toSeq)))
+          validReference(obj.l) ==> All(relevantHeaps.map(h => validReference(lookup(heaps(h._1), obj.l))).toSeq)))
       }  ++
       // TODO: succHeap?
     /*Func(succHeapName,
@@ -441,7 +442,7 @@ class DefaultHeapModule(val verifier: Verifier)
 
   /** Returns a heap-lookup of the allocated field of an object. */
   /** (should only be used for known-non-null references) */
-  private def alloc(o: Exp): Exp = lookup(heapMap(allocField), o)
+  private def alloc(o: Exp): Exp = lookup(heaps(allocField), o)
 
   /** Returns assignment that updates heap to reflect that @{code ref} is assigned  */
   private def allocUpdateRef(ref: Exp) : Stmt = currentHeapAssignUpdate(ref, allocField, TrueLit())
@@ -461,7 +462,7 @@ class DefaultHeapModule(val verifier: Verifier)
   }
 
   private def currentHeapAssignUpdate(rcv: Exp, res: sil.Resource, newVal: Exp): Stmt = {
-    val heap = heapMap(res)
+    val heap = heaps(res)
     (heap := heapUpdate(heap, rcv, newVal))
   }
 
@@ -488,9 +489,9 @@ class DefaultHeapModule(val verifier: Verifier)
     translateLocationAccess(f, heapExp(f.res(program)))
   }
 
-  override def translateLocationAccess(rcv: Exp, res: sil.Resource): Exp = ??? /*{
-    translateLocationAccess(f, heap, false)
-  }*/
+  override def translateLocationAccess(rcv: Exp, res: sil.Resource): Exp = {
+    lookup(heapExp(res), rcv, !res.isInstanceOf[sil.Field])
+  }
 
   private def translateLocationAccess(f: sil.LocationAccess, heap: Exp, isPMask: Boolean = false): Exp = {
     val res = f.loc(program)
@@ -639,22 +640,22 @@ class DefaultHeapModule(val verifier: Verifier)
   override def nullLiteral: Exp = nullLit
 
   def initBoogieState: Stmt = {
-    heaps = heapMap.values.toSeq
+    heaps = heapMap
     Nil
   }
   def resetBoogieState: Stmt = {
     if (resources == null)
       reset()
-    heaps.map(Havoc(_))
+    heaps.values.map(Havoc(_)).toSeq
   }
   def initOldState: Stmt = {
-    heaps.map(h => Assume(Old(h) === h))
+    heaps.values.map(h => Assume(Old(h) === h)).toSeq
   }
 
   def staticStateContributions(withHeap: Boolean, withPermissions: Boolean): Seq[LocalVarDecl] = if (withHeap) heapMap.values.map(h => LocalVarDecl(h.name, h.typ)).toSeq else Seq()
 
-  def currentStateContributions: Seq[LocalVarDecl] = heaps.map(h => LocalVarDecl(h.name, h.typ)).toSeq
-  def currentStateVars: Seq[Var] = heaps
+  def currentStateContributions: Seq[LocalVarDecl] = heaps.values.map(h => LocalVarDecl(h.name, h.typ)).toSeq
+  def currentStateVars: Seq[Var] = heaps.values.toSeq
   def currentStateExps: Seq[Exp] = heapExps
 
 
@@ -664,11 +665,11 @@ class DefaultHeapModule(val verifier: Verifier)
   }
 
   override def restoreState(s: Seq[Var]): Unit = {
-    heaps = s // note: this should be accessed via heapVar or heapExp as appropriate (whether a variable is essential or not)
+    heaps = heaps.zipWithIndex.map(z => z._1._1 -> s(z._2)).toMap // note: this should be accessed via heapVar or heapExp as appropriate (whether a variable is essential or not)
   }
 
   def equateWithCurrentHeap(s: Seq[Var]): Stmt ={
-    Assume(All(heaps.zip(s).map(p => p._1 === p._2)))
+    Assume(All(heaps.values.zip(s).map(p => p._1 === p._2).toSeq))
   }
 
   override def usingOldState = stateModuleIsUsingOldState
@@ -699,14 +700,14 @@ class DefaultHeapModule(val verifier: Verifier)
     heapTypes = cmpHeapTypes
     heapMap = cmpHeapMap
     exhaleHeapMap = cmpExhaleHeapMap
-    heaps = heapMap.values.toSeq
+    heaps = heapMap
   }
 
-  override def currentHeap(r: sil.Resource) = heapMap(r)
+  override def currentHeap(r: sil.Resource) = heaps(r)
 
   override def fidenticalOnKnownLocations(otherHeap:Seq[Exp],otherMask:Seq[Exp]):Exp =
-    FuncApp(fidenticalOnKnownLocsName,otherHeap ++ heaps ++ otherMask, Bool)
+    FuncApp(fidenticalOnKnownLocsName,otherHeap ++ heaps.values ++ otherMask, Bool)
 
   override def pidenticalOnKnownLocations(otherHeap: Seq[Exp], otherMask: Seq[Exp]): Exp =
-    FuncApp(pidenticalOnKnownLocsName, otherHeap ++ heaps ++ otherMask, Bool)
+    FuncApp(pidenticalOnKnownLocsName, otherHeap ++ heaps.values ++ otherMask, Bool)
 }

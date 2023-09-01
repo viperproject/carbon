@@ -70,6 +70,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private val condFrameName = Identifier("ConditionalFrame")
   private val dummyTriggerName = Identifier("dummyFunction")
   private val resultName = Identifier("Result")
+  private val snapFuncs = Set(combineFramesName, frameFirstName, frameSecondName, frameFragmentName, frameContentName, condFrameName)
 
   private var qpPrecondId = 0
   private var qpCondFuncs: ListBuffer[(Func,sil.Forall)] = new ListBuffer[(Func, sil.Forall)]();
@@ -272,7 +273,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
    */
   private def transformFuncAppsToLimitedOrTriggerForm(exp: Exp, heightToSkip : Int = -1, triggerForm: Boolean = false): Exp = {
     def transformer: PartialFunction[Exp, Option[Exp]] = {
-      case FuncApp(recf, recargs, t) if recf.namespace == fpNamespace && (heightToSkip == -1 || heights(recf.name) <= heightToSkip) =>
+      case FuncApp(recf, recargs, t) if recf.namespace == fpNamespace && (heightToSkip == -1 || heights(recf.name) <= heightToSkip) && !snapFuncs.contains(recf) =>
         // change all function applications to use the limited form, and still go through all arguments
         if (triggerForm)
           {val func = verifier.program.findFunction(recf.name)
@@ -557,7 +558,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           val res = CommentedDecl("Function used for framing of quantified permission " + qp.toString() +  " in " + originalName,
             condFunc ++
             Axiom(
-              Forall(heap1 ++ heap2 ++ origArgs, Seq(Trigger(Seq(funApp1, funApp2, heapModule.successorHeapState(heap1,heap2)))),
+              Forall(heap1 ++ heap2 ++ origArgs, Seq(Trigger(Seq(funApp1, funApp2  /*, heapModule.successorHeapState(heap1,heap2)*/))),
                   (Forall(vsFresh.map(vFresh => translateLocalVarDecl(vFresh)), triggers,
                     (translatedCond1 <==> translatedCond2) && (translatedCond1 ==> (locationAccess1 === locationAccess2))) ==> (funApp1 === funApp2))
                   ))
