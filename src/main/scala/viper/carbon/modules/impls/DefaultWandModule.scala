@@ -108,7 +108,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
     lazyWandToShapes = None
   }
 
-  override def preamble = wandToShapes.values.collect({
+  override def preamble = Seq()/*wandToShapes.values.collect({
     case fun@Func(name,args,typ,_) =>
       val vars = args.map(decl => decl.l)
       val f0 = FuncApp(name,vars,typ)
@@ -124,7 +124,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
         Axiom(MaybeForall(args, Trigger(f2),heapModule.isWandField(f2))) ++
         Axiom(MaybeForall(args, Trigger(f0),heapModule.isPredicateField(f0).not)) ++
         Axiom(MaybeForall(args, Trigger(f2),heapModule.isPredicateField(f2).not))
-    }).flatten[Decl].toSeq
+    }).flatten[Decl].toSeq*/
 
   /*
    * method returns the boogie predicate which corresponds to the magic wand shape of the given wand
@@ -371,14 +371,14 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
 /*
  * Precondition: current state is set to the used state
   */
-private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEntity, allStateAssms: Exp, mainError: PartialVerificationError, havocHeap: Boolean = true):Stmt = ???/*{
+private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEntity, allStateAssms: Exp, mainError: PartialVerificationError, havocHeap: Boolean = true):Stmt = {
   states match {
     case (top :: xs) =>
       //Compute all values needed from top state
       stateModule.replaceState(top.state)
       val isOriginalState: Boolean = xs.isEmpty
 
-      val topHeap = heapModule.currentHeap
+      val topHeap = heapModule.currentHeap(e.resource)
       val equateLHS:Option[Exp] = e match {
         case TransferableAccessPred(rcv,res,_,_) => Some(heapModule.translateLocationAccess(rcv,res))
         case _ => None
@@ -428,7 +428,7 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
         case TransferablePredAccessPred(rcv,_,_, res) =>
           val (tempMask, initTMaskStmt) = permModule.tempInitMask(rcv,res)
           initTMaskStmt ++
-            (used.boolVar := used.boolVar&&heapModule.identicalOnKnownLocations(topHeap,tempMask))
+            (used.boolVar := used.boolVar&&heapModule.identicalOnKnownLocations(res, topHeap,tempMask))
         case _ => Nil
       }
 
@@ -460,7 +460,7 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
      * in case of bugs
      * */
   }
-}*/
+}
 
 
   override def createAndSetState(initBool:Option[Exp],usedString:String = "Used",setToNew:Boolean=true,
@@ -496,17 +496,17 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
 
 
   //create a state Result which is the "sum" of the current and the input state (stateOtherO)
-  override def createAndSetSumState(stateOtherO: Any ,boolOther:Exp,boolCur:Exp):StateSetup = ??? /*{
+  override def createAndSetSumState(stateOtherO: Any ,boolOther:Exp,boolCur:Exp):StateSetup = {
     // get heap and mask from other state
     val stateOther = stateOtherO.asInstanceOf[StateSnapshot]
     val currentState = stateModule.state
     stateModule.replaceState(stateOther)
-    val heapOther = heapModule.currentHeap
-    val maskOther = permModule.currentMask
+    val heapOther = heapModule.currentStateExps
+    val maskOther = permModule.currentStateExps
     stateModule.replaceState(currentState)
 
     createAndSetSumState(heapOther, maskOther, boolOther, boolCur)
-  }*/
+  }
 
   /**
     * only heap and mask of one summand state, while current state will be used as second summand
@@ -516,25 +516,29 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
     * @param boolCur bool containing facts for current state
     * @return
     */
-  private def createAndSetSumState(heapOther: Seq[Exp], maskOther: Seq[Exp],boolOther:Exp,boolCur:Exp):StateSetup = ??? /*{
+  private def createAndSetSumState(heapOther: Seq[Exp], maskOther: Seq[Exp],boolOther:Exp,boolCur:Exp):StateSetup = {
 
-    val curHeap = heapModule.currentHeap
-    val curMask = permModule.currentMask
+    val curHeap = heapModule.currentStateExps
+    val curMask = permModule.currentStateExps
 
     val StateSetup(resultState, initStmtResult) =
       createAndSetState(Some(boolOther && boolCur), "Result", true, false)
 
     val boolRes = resultState.boolVar
-    val sumStates = (boolRes := boolRes && permModule.sumMask(maskOther, curMask))
-    val equateKnownValues = (boolRes := boolRes && heapModule.identicalOnKnownLocations(heapOther, maskOther) &&
-      heapModule.identicalOnKnownLocations(curHeap, curMask))
+    val sumStates = (boolRes := boolRes && All(maskOther.zip(curMask).zip(heapModule.heapTypeMap).map(m => permModule.issumMask(m._2._1, m._1._1, m._1._2))))
+    val other = heapOther.zip(maskOther)
+    val cur = curHeap.zip(curMask)
+    val otherIdentical = other.zip(heapModule.heapTypeMap).map(o => heapModule.identicalOnKnownLocations(o._2._1, o._1._1, o._1._2))
+    val curIdentical = cur.zip(heapModule.heapTypeMap).map(o => heapModule.identicalOnKnownLocations(o._2._1, o._1._1, o._1._2))
+    val equateKnownValues = (boolRes := boolRes && All(otherIdentical) &&
+      All(curIdentical))
     val goodState = exchangeAssumesWithBoolean(stateModule.assumeGoodState, boolRes)
     val initStmt =CommentBlock("Creating state which is the sum of the two previously built up states",
       initStmtResult ++ sumStates ++ equateKnownValues ++ goodState)
 
     StateSetup(resultState, initStmt)
 
-  }*/
+  }
 
 
 /**
@@ -559,10 +563,10 @@ private def setupTransferableEntity(e: sil.Exp, permTransfer: Exp):(Transferable
       (TransferablePredAccessPred(funcPredModule.toSnap(locals), permTransfer,p, p.loc.loc(verifier.program)), assignStmt)
 
     case w:sil.MagicWand =>
-      val wandRep = getWandRepresentation(w)
-      val args = funcPredModule.silExpsToSnap(w.args)
+      //val wandRep = getWandRepresentation(w)
+      val args = funcPredModule.silExpsToSnap(w.subexpressionsToEvaluate(program))
       //GP: maybe should store holes of wand first in local variables
-      (TransferableWand(args, permTransfer, w),Nil)
+      (TransferableWand(args, permTransfer, w.structure(program)),Nil)
   }
 }
 

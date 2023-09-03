@@ -705,9 +705,8 @@ class DefaultHeapModule(val verifier: Verifier)
 
   override def currentHeap(r: sil.Resource) = heaps(r)
 
-  override def fidenticalOnKnownLocations(otherHeap:Seq[Exp],otherMask:Seq[Exp]):Exp =
-    FuncApp(fidenticalOnKnownLocsName,otherHeap ++ heaps.values ++ otherMask, Bool)
-
-  override def pidenticalOnKnownLocations(otherHeap: Seq[Exp], otherMask: Seq[Exp]): Exp =
-    FuncApp(pidenticalOnKnownLocsName, otherHeap ++ heaps.values ++ otherMask, Bool)
+  override def identicalOnKnownLocations(r: sil.Resource, otherHeap: Seq[Exp], otherMask: Seq[Exp]): Exp = {
+    val fname = if (r.isInstanceOf[sil.Field]) fidenticalOnKnownLocsName else pidenticalOnKnownLocsName
+    FuncApp(fname, otherHeap ++ heapVars(r) ++ otherMask, Bool)
+  }
 }

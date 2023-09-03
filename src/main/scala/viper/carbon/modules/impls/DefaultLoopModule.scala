@@ -589,7 +589,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
                 // sum masks and heaps
                 val (sumMaskVar, sumHeapVar, sumHeapFunc, sumMaskFunc) = if (r.isInstanceOf[sil.Field]) (sumMask, sumFHeap(typeModule.translateType(r.asInstanceOf[sil.Field].typ)),
                   (e1, e2, e3, e4, e5) => heapModule.sumFHeap(e1, e2, e3, e4, e5),
-                  (e1, e2, e3) => permModule.sumMask(e1, e2, e3))
+                  (e1, e2, e3) => permModule.fsumMask(e1, e2, e3))
                 else (psumMask, sumPHeap,
                   (e1: Exp, e2: Exp, e3: Exp, e4: Exp, e5: Exp) => heapModule.sumPHeap(e1, e2, e3, e4, e5),
                   (e1, e2, e3) => permModule.psumMask(e1, e2, e3))

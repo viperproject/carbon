@@ -123,7 +123,7 @@ trait PermModule extends Module with CarbonStateComponent {
     * @param summandMask2
     * @return expression for which its validity implies that the current mask is the sum of the two input masks
     */
-  //def sumMask(summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp
+  def issumMask(r: sil.Resource, summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp
 
   /**
     *
@@ -133,7 +133,7 @@ trait PermModule extends Module with CarbonStateComponent {
     * @return expression for which its validity implies that @{code resultMask} is the sum of the other two input
     *         masks
     */
-  def sumMask(resultMask: Seq[Exp], summandMask1: Seq[Exp], summandMask2: Seq[Exp]) : Exp
+  def fsumMask(resultMask: Seq[Exp], summandMask1: Seq[Exp], summandMask2: Seq[Exp]) : Exp
 
   def psumMask(resultMask: Seq[Exp], summandMask1: Seq[Exp], summandMask2: Seq[Exp]) : Exp
 

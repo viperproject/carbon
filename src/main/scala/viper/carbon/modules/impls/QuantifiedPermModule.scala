@@ -112,6 +112,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   private val psummandMask2 = LocalVarDecl(Identifier("pSummandMask2"), pmaskType)
   private val psumMasks = Identifier("psumMask")
   private val tempMask = LocalVar(Identifier("TempMask"),maskType)
+  private val ptempMask = LocalVar(Identifier("PTempMask"),pmaskType)
 
   private val qpMaskName = Identifier("QPMask")
   private val pqpMaskName = Identifier("pQPMask")
@@ -335,8 +336,8 @@ class QuantifiedPermModule(val verifier: Verifier)
     if (resources == null)
       reset()
     val res : Stmt = masks.map{
-      case (f: sil.Field, m) => m := zeroMask
-      case (p: sil.Predicate, m) => m := zeroPMask
+      case (_: sil.Field, m) => m := zeroMask
+      case (_, m) => m := zeroPMask
     }.toSeq
     res
   }
@@ -425,10 +426,15 @@ class QuantifiedPermModule(val verifier: Verifier)
     }
   }
 
-  //override def sumMask(summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp =
-  //  FuncApp(sumMasks, currentMask++summandMask1++summandMask2,Bool)
+  override def issumMask(r: sil.Resource, summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp = {
+    val curMask = currentMask(r)
+    if (r.isInstanceOf[sil.Field])
+      fsumMask(curMask, summandMask1, summandMask2)
+    else
+      psumMask(curMask, summandMask1, summandMask2)
+  }
 
-  override def sumMask(resultMask: Seq[Exp], summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp =
+  override def fsumMask(resultMask: Seq[Exp], summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp =
     FuncApp(sumMasks, resultMask++summandMask1++summandMask2,Bool)
 
   override def psumMask(resultMask: Seq[Exp], summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp =
@@ -478,12 +484,13 @@ class QuantifiedPermModule(val verifier: Verifier)
             subtractFromMask(wildcard)
         }
       case w@sil.MagicWand(_,_) =>
-        val args = w.args.map(translateExp)
+        val args = w.subexpressionsToEvaluate(program).map(translateExp)
         val rcv = funcPredModule.toSnap(args)
-        val curPerm = currentPermission(rcv, w)
+        val wstruct = w.structure(program)
+        val curPerm = currentPermission(rcv, wstruct)
         Comment("permLe")++
           Assert(permLe(fullPerm, curPerm), error.dueTo(reasons.MagicWandChunkNotFound(w))) ++
-          (if (!usingOldState) currentMaskAssignUpdate(rcv, w, permSub(curPerm, fullPerm)) else Nil)
+          (if (!usingOldState) currentMaskAssignUpdate(rcv, wstruct, permSub(curPerm, fullPerm)) else Nil)
 
       case fa@sil.Forall(v, cond, expr) =>
 
@@ -966,9 +973,10 @@ class QuantifiedPermModule(val verifier: Verifier)
           ) ++
           (if (!usingOldState) currentMaskAssignUpdate(loc, permAdd(curPerm, permValToUse)) else Nil)
       case w@sil.MagicWand(left,right) =>
-        //val curPerm = currentPermission(translateNull, wandRep)
-        //if (!usingOldState) currentMaskAssignUpdate(translateNull, wandRep, permAdd(curPerm, fullPerm)) else Nil
-        ???
+        val args = funcPredModule.silExpsToSnap(w.subexpressionsToEvaluate(program))
+        val wandStruct = w.structure(program)
+        val curPerm = currentPermission(args, wandStruct)
+        if (!usingOldState) currentMaskAssignUpdate(args, wandStruct, permAdd(curPerm, fullPerm)) else Nil
       //Quantified Permission Expression
       case fa@sil.Forall(_, _, _) =>
         if (fa.isPure) {
@@ -1450,8 +1458,9 @@ class QuantifiedPermModule(val verifier: Verifier)
   override def tempInitMask(rcv: Exp, loc:sil.Resource):(Seq[Exp], Stmt) = {
     val isField = loc.isInstanceOf[sil.Field]
     val zrMsk = if (isField) zeroMask else zeroPMask
-    val setMaskStmt = tempMask := maskUpdate(zrMsk, rcv, fullPerm, isField)
-    (tempMask, setMaskStmt)
+    val tmpMsk = if (isField) tempMask else ptempMask
+    val setMaskStmt = tmpMsk := maskUpdate(zrMsk, rcv, fullPerm, isField)
+    (tmpMsk, setMaskStmt)
   }
 
   def currentPermission(loc: sil.LocationAccess): Exp = {

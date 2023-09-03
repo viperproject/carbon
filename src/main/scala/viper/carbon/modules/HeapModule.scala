@@ -163,9 +163,7 @@ trait HeapModule extends Module with CarbonStateComponent {
     */
   def currentHeapAssignUpdate(loc: sil.LocationAccess, newVal: Exp): Stmt
 
-  def fidenticalOnKnownLocations(heap:Seq[Exp],mask:Seq[Exp]):Exp
-
-  def pidenticalOnKnownLocations(heap:Seq[Exp],mask:Seq[Exp]):Exp
+  def identicalOnKnownLocations(r: sil.Resource, heap:Seq[Exp],mask:Seq[Exp]):Exp
 
   /**
     * Adds assumption that current heap equals heap represented by s
