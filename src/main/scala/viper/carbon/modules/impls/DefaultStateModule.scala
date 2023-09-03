@@ -54,6 +54,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     curState = null
     //usingOldState = false
     //treatOldAsCurrent = false
+    stateRepository.clear()
     resetBoogieState
   }
 

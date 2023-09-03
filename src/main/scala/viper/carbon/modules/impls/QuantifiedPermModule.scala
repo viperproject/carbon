@@ -86,7 +86,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   //private val originalMask = GlobalVar(maskName, maskType)
   private var masks: Map[sil.Resource, Var] = _ // When reading, don't use this directly: use either maskVar or maskExp as needed
   private def maskVars : Map[sil.Resource, Var] = {assert (!usingOldState); masks}
-  private def maskExps : Map[sil.Resource, Exp] = if (usingPureState) resources.map(r => r -> zeroMask).toMap else (if (usingOldState) resources.map(r => r -> Old(maskMap(r))).toMap else masks)
+  private def maskExps : Map[sil.Resource, Exp] = if (usingPureState) resources.map(r => r -> zeroMask).toMap else (if (usingOldState) resources.map(r => r -> Old(masks(r))).toMap else masks)
   private val zeroMaskName = Identifier("ZeroMask")
   private val zeroMask = Const(zeroMaskName)
   private val zeroPMaskName = Identifier("ZeroPMask")
@@ -383,7 +383,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   }
 
   def hasDirectPerm(rcv: Exp, r: sil.Resource): Exp = {
-    val mask = masks(r)
+    val mask = maskExps(r)
     currentPermission(mask, rcv) > noPerm
   }
 
@@ -916,14 +916,14 @@ class QuantifiedPermModule(val verifier: Verifier)
   override def inhaleWandFt(w: sil.MagicWand): Stmt = {
     val rcv = funcPredModule.toSnap(w.args.map(translateExp))
     val res = w.structure(program)
-    val curPerm = currentPermission(masks(res), rcv)
+    val curPerm = currentPermission(maskExps(res), rcv)
     if (!usingOldState) currentMaskAssignUpdate(rcv, res, permAdd(curPerm, fullPerm)) else Nil
   }
 
   override def exhaleWandFt(w: sil.MagicWand): Stmt = {
     val rcv = funcPredModule.toSnap(w.args.map(translateExp))
     val res = w.structure(program)
-      val curPerm = currentPermission(masks(res), rcv)
+      val curPerm = currentPermission(maskExps(res), rcv)
       (if (!usingOldState) currentMaskAssignUpdate(rcv, res, permSub(curPerm, fullPerm)) else Nil)
   }
 
@@ -1473,7 +1473,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   }
 
   def currentPermission(rcv: Exp, location: sil.Resource): Exp = {
-    currentPermission(masks(location), rcv)
+    currentPermission(maskExps(location), rcv)
   }
   def currentPermission(mask: Exp, rcv: Exp): Exp = {
     if(verifier.usePolyMapsInEncoding) {
