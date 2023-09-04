@@ -403,13 +403,13 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
          }
         ( //if original state then don't need to guard assumptions
           if(isOriginalState) {
-            heapModule.endExhale ++
+            heapModule.endExhale() ++
               stateModule.assumeGoodState
           } else if(top != OPS || havocHeap){
             // We only havoc the heap from which we remove the permission only if:
             //      The translated statement requires havocing the heap (fold)
             //      OR if the state from which the permission is removed is not OPS state
-              exchangeAssumesWithBoolean(heapModule.endExhale, top.boolVar) ++
+              exchangeAssumesWithBoolean(heapModule.endExhale(), top.boolVar) ++
               (top.boolVar := top.boolVar && stateModule.currentGoodState)
           }else
             top.boolVar := top.boolVar && stateModule.currentGoodState)
@@ -684,7 +684,7 @@ case class PackageSetup(hypState: StateRep, usedState: StateRep, initStmt: Stmt)
       CommentBlock("check if LHS holds and remove permissions ", exhaleModule.exhaleSingleWithoutDefinedness(w.left, error, false, insidePackageStmt = inWand, statesStackForPackageStmt = statesStack)) ++
       (if(inWand) exchangeAssumesWithBoolean(stateModule.assumeGoodState, OPS.boolVar) else stateModule.assumeGoodState) ++
       CommentBlock("inhale the RHS of the wand",inhaleModule.inhale(Seq((w.right, error)), addDefinednessChecks = false, statesStackForPackageStmt = statesStack, insidePackageStmt = inWand)) ++
-      heapModule.beginExhale ++ heapModule.endExhale ++
+      heapModule.beginExhale ++ heapModule.endExhale() ++
       (if(inWand) exchangeAssumesWithBoolean(stateModule.assumeGoodState, OPS.boolVar) else stateModule.assumeGoodState)
     //GP: using beginExhale, endExhale works now, but isn't intuitive, maybe should duplicate code to avoid this breaking
     //in the future when beginExhale and endExhale's implementations are changed

@@ -681,8 +681,8 @@ class DefaultHeapModule(val verifier: Verifier)
     Statements.EmptyStmt
   }
 
-  override def endExhale: Stmt = {
-    if (!usingOldState) exhaleHeapMap.map(eh => {
+  override def endExhale(changedResources: Option[Set[sil.Resource]] = None): Stmt = {
+    if (!usingOldState) exhaleHeapMap.filter(eh => changedResources.isEmpty || changedResources.get.contains(eh._1)).map(eh => {
       val fname = if (eh._1.isInstanceOf[sil.Field]) (if (eh._1 == allocField) allocidenticalOnKnownLocsName else fidenticalOnKnownLocsName) else pidenticalOnKnownLocsName
       val ehStmt: Stmt  = (Havoc(eh._2) ++ Assume(FuncApp(fname, Seq(heapExp(eh._1), eh._2) ++ currentMask(eh._1), Bool)) ++ (heapVar(eh._1) := eh._2)).toSeq
       ehStmt

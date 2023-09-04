@@ -30,7 +30,9 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
 
   def name = "Exhale module"
 
-  override def reset = { }
+  override def reset = {
+    affectedResourceMap = null
+  }
 
   override def start(): Unit = {
     register(this)
@@ -90,9 +92,66 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
         exhaleStmt ++
         assumptions ++
         Comment("Finish exhale") ++
-        endExhale
+        endExhale(Some(collectAffectedResources(exps map (_._1))))
     }
 
+  }
+
+  var affectedResourceMap: Map[sil.Resource, Set[sil.Resource]] = null
+  private def computeAffectedResourceMap() = {
+    val resources = heapModule.heapTypeMap.keys.toSeq
+    var todo = resources.filter(r => !r.isInstanceOf[sil.Field])
+    var map = resources.map(r => r -> Set(r)).toMap
+    while (todo.nonEmpty) {
+      val current = todo.head
+      todo = todo.tail
+      current match {
+        case p: sil.Predicate if p.body.isDefined =>
+          map = map.updated(p, map(p) ++ collectDirectlyAffectedResources(Seq(p.body.get)))
+        case mw: sil.MagicWand =>
+          map = map.updated(mw, map(mw) ++ collectDirectlyAffectedResources(mw.args))
+        case _ =>
+      }
+    }
+
+    for (r <- resources.filter(r => !r.isInstanceOf[sil.Field])) {
+      var todo = map(r).filter(rp => !rp.isInstanceOf[sil.Field] && rp != r)
+      while (todo.nonEmpty) {
+        val current = todo.head
+        todo = todo.tail
+        val curDeps: Set[sil.Resource] = current match {
+          case p: sil.Predicate if p.body.isDefined =>
+            collectDirectlyAffectedResources(Seq(p.body.get))
+          case mw: sil.MagicWand =>
+            collectDirectlyAffectedResources(mw.args)
+          case _ => Set()
+        }
+        val newDeps = curDeps -- map(r)
+        if (newDeps.nonEmpty) {
+          map = map.updated(r, map(r) ++ newDeps)
+          todo ++= newDeps.filter(rp => !rp.isInstanceOf[sil.Field])
+        }
+      }
+    }
+
+    affectedResourceMap = map
+  }
+
+  private def collectAffectedResources(exps: Seq[sil.Exp]): Set[sil.Resource] = {
+    if (affectedResourceMap == null) {
+      computeAffectedResourceMap()
+    }
+    collectDirectlyAffectedResources(exps).flatMap(r => affectedResourceMap(r))
+  }
+
+  private def collectDirectlyAffectedResources(exps: Seq[sil.Exp]): Set[sil.Resource] = {
+    val rs = exps.map(e => e.collect{
+      case mw: sil.MagicWand =>
+        mw.structure(program)
+      case ap: sil.AccessPredicate =>
+        ap.loc.res(program)
+    }).flatten.toSet
+    rs
   }
 
   /**

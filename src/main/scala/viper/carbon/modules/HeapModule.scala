@@ -132,7 +132,7 @@ trait HeapModule extends Module with CarbonStateComponent {
   /**
    * End of exhale
    */
-  def endExhale: Stmt
+  def endExhale(changedResources: Option[Set[sil.Resource]] = None): Stmt
 
   /**
    * Is the given field a predicate field?
