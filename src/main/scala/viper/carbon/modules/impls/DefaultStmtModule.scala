@@ -253,9 +253,11 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
       case sil.Seqn(ss, scopedDecls) =>
         val locals = scopedDecls.collect {case l: sil.LocalVarDecl => l}
         locals map (v => mainModule.env.define(v.localVar)) // add local variables to environment
-        val s =
+        val s = {
+          MaybeCommentBlock("Havoc scoped variables", locals map (lv => Havoc(mainModule.env.get(lv.localVar)))) ++
           MaybeCommentBlock("Assumptions about local variables", locals map (a => mainModule.allAssumptionsAboutValue(a.typ, mainModule.translateLocalVarDecl(a), true))) ++
           Seqn(ss map (st => translateStmt(st, statesStack, allStateAssms, duringPackage)))
+        }
         locals map (v => mainModule.env.undefine(v.localVar)) // remove local variables from environment
         // return to avoid adding a comment, and to avoid the extra 'assumeGoodState'
         return s
