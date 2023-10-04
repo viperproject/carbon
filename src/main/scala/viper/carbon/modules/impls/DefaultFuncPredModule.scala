@@ -946,6 +946,15 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private var duringUnfolding = false
   private var duringUnfoldingExtraUnfold = false // are we executing an extra unfold, to reflect the meaning of inhaling or exhaling an unfolding expression?
   private var unfoldInfo: sil.PredicateAccessPredicate = null
+
+  override def isUnfolding() = {
+    duringUnfold || duringUnfolding
+  }
+
+  override def isFolding() = {
+    duringFold
+  }
+
   override def translateUnfold(unfold: sil.Unfold, statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt = {
     unfold match {
       case sil.Unfold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(_, _), perm)) =>

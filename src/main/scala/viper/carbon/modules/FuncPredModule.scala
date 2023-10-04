@@ -54,6 +54,10 @@ trait FuncPredModule extends Module {
     */
   def translateUnfold(unfold: sil.Unfold, statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt
 
+  def isUnfolding: Boolean
+
+  def isFolding: Boolean
+
   def toExpressionsUsedInTriggers(e: Exp): Seq[Exp]
   def toExpressionsUsedInTriggers(e: Seq[Exp]): Seq[Seq[Exp]]
   def rewriteTriggersToExpressionsUsedInTriggers(e: Seq[Trigger]) : Seq[Trigger] =

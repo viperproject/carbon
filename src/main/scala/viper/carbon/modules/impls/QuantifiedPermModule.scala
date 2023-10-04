@@ -374,7 +374,8 @@ class QuantifiedPermModule(val verifier: Verifier)
           val prmTranslated = translatePerm(p)
 
             (permVar := prmTranslated) ++
-              Assert(permissionPositiveInternal(permVar, Some(p), true), error.dueTo(reasons.NegativePermission(p))) ++
+              Assert(permissionPositiveInternal(permVar, Some(p), !funcPredModule.isUnfolding),
+                error.dueTo(if (funcPredModule.isUnfolding) reasons.NonPositivePermission(p) else reasons.NegativePermission(p))) ++
             If(permVar !== noPerm,
               Assert(permLe(permVar, curPerm), error.dueTo(reasons.InsufficientPermission(loc))),
               Nil) ++
@@ -874,10 +875,13 @@ class QuantifiedPermModule(val verifier: Verifier)
          (permVar := permVal) ++
           (if (perm.isInstanceOf[WildcardPerm])
             assmsToStmt(checkNonNullReceiver(loc))
-          else
-            Assert(permissionPositiveInternal(permVar, Some(perm), true), error.dueTo(reasons.NegativePermission(perm))) ++
+          else {
+            val zeroOk = !funcPredModule.isFolding
+            Assert(permissionPositiveInternal(permVar, Some(perm), zeroOk),
+              error.dueTo(if (zeroOk) reasons.NegativePermission(perm) else reasons.NonPositivePermission(perm))) ++
             assmsToStmt(permissionPositiveInternal(permVar, Some(perm), false) ==> checkNonNullReceiver(loc))
-          ) ++
+          }
+            ) ++
           (if (!usingOldState) currentMaskAssignUpdate(loc, permAdd(curPerm, permVar)) else Nil)
       case w@sil.MagicWand(left,right) =>
         val wandRep = wandModule.getWandRepresentation(w)
