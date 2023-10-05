@@ -45,6 +45,8 @@ trait PermModule extends Module with CarbonStateComponent {
 
   def conservativeIsPositivePerm(e: sil.Exp): Boolean
 
+  def isStrictlyPositivePerm(e: sil.Exp): Exp
+
   /**
    * The current mask.
    */
