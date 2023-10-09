@@ -46,6 +46,16 @@ trait PermModule extends Module with CarbonStateComponent {
   def conservativeIsPositivePerm(e: sil.Exp): Boolean
 
   /**
+    * Returns an expression representing that a permission amount is positive.
+    * Similar to [[permissionPositive]], but works directly on Viper expressions, *including* ones containing
+    * wildcards, and performs more aggressive simplifications.
+    *
+    * @param e the permission amount to be checked
+    * @return the expression representing the fact that the permission is positive
+    */
+  def isStrictlyPositivePerm(e: sil.Exp): Exp
+
+  /**
    * The current mask.
    */
   def currentMask: Seq[Exp]
