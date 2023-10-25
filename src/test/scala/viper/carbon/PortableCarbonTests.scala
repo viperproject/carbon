@@ -75,9 +75,18 @@ class PortableCarbonTests extends SilSuite with StatisticalTestSuite {
   override val warmupLocationPropertyName = "CARBONTESTS_WARMUP"
   override val targetLocationPropertyName = "CARBONTESTS_TARGET"
   override val csvFilePropertyName = "CARBONTESTS_CSV"
+  val timeoutPropertyName = "CARBONTESTS_TIMEOUT"
 
   val reporter = NoopReporter
-  override def verifier: CarbonVerifier = CarbonVerifier(reporter)
+
+  val commandLineArguments: Seq[String] = Seq(
+    s"--boogieOpt=/vcsCores:1 /timeLimit:${System.getProperty(timeoutPropertyName, "180")}"
+  )
+  override def verifier: CarbonVerifier = {
+    val carbon = CarbonVerifier(reporter)
+    carbon.parseCommandLine(commandLineArguments)
+    carbon
+  }
 
   override def frontend(verifier: Verifier, files: Seq[Path]): Frontend = {
     require(files.length == 1, "tests should consist of exactly one file")
