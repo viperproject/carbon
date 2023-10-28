@@ -299,8 +299,11 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   private def hasDirectPerm(obj: Exp, loc: Exp): Exp = hasDirectPerm(maskExp, obj, loc)
 
-  override def hasDirectPerm(la: sil.LocationAccess): Exp = {
-    hasDirectPerm(translateReceiver(la), translateLocation(la))
+  override def hasDirectPerm(ra: sil.ResourceAccess): Exp = {
+    ra match {
+      case la: sil.LocationAccess => hasDirectPerm(translateReceiver(la), translateLocation(la))
+      case w: sil.MagicWand => hasDirectPerm(translateNull, wandModule.getWandRepresentation(w))
+    }
   }
 
   /**
@@ -1384,12 +1387,14 @@ class QuantifiedPermModule(val verifier: Verifier)
       case sil.PredicateAccess(_, _) => (translateNull, translateLocation(f))
     }
 
-  def currentPermission(loc: sil.LocationAccess): Exp = {
+  def currentPermission(loc: sil.ResourceAccess): Exp = {
     loc match {
-      case sil.FieldAccess(rcv, field) =>
-        currentPermission(translateExp(rcv), translateLocation(loc))
-      case sil.PredicateAccess(_, _) =>
-        currentPermission(translateNull, translateLocation(loc))
+      case fa@sil.FieldAccess(rcv, field) =>
+        currentPermission(translateExp(rcv), translateLocation(fa))
+      case pa@sil.PredicateAccess(_, _) =>
+        currentPermission(translateNull, translateLocation(pa))
+      case w: sil.MagicWand =>
+        currentPermission(translateNull, wandModule.getWandRepresentation(w))
     }
   }
 
@@ -1449,11 +1454,8 @@ class QuantifiedPermModule(val verifier: Verifier)
         sys.error("cannot translate wildcard at an arbitrary position (should only occur directly in an accessibility predicate)")
       case sil.EpsilonPerm() =>
         sys.error("epsilon permissions are not supported by this permission module")
-      case sil.CurrentPerm(loc: LocationAccess) =>
-        currentPermission(loc)
       case sil.CurrentPerm(res: ResourceAccess) =>
-        //Magic wands
-        sys.error("Carbon does not support magic wands in perm expressions, see Carbon issue #243")
+        currentPermission(res)
       case sil.FractionalPerm(left, right) =>
         BinExp(translateExp(left), Div, translateExp(right))
       case sil.PermMinus(a) =>
