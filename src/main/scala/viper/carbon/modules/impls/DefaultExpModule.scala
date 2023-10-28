@@ -144,7 +144,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       }
       case sil.ForPerm(variables, accessRes, body) => {
 
-        val locations = Seq(accessRes.asInstanceOf[LocationAccess].loc(program))
+        val locations = Seq(accessRes)
 
         // alpha renaming, to avoid clashes in context
         val renamedVars: Seq[sil.LocalVarDecl] = variables.map(variable => {
@@ -152,22 +152,24 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         })
         val renaming = (e: sil.Exp) => Expressions.instantiateVariables(e, variables.map(_.localVar), renamedVars.map(_.localVar))
         // val ts = triggers map (t => Trigger(t.exps map {e => verifier.funcPredModule.toTriggers(translateExp(renaming(e)))} // no triggers yet?
-        val perLocFilter: sil.Location => (Exp, Trigger) = loc => {
+        val perResFilter: sil.ResourceAccess => (Exp, Trigger) = resAcc => {
           val zipped = variables.map(_.localVar) zip renamedVars.map(_.localVar)
           val replacements = zipped.toMap
 
-          val locAccess: LocationAccess = loc match {
-            case f: sil.Field => sil.FieldAccess(renamedVars.head.localVar, f)(loc.pos, loc.info)
-            case p: sil.Predicate =>
-              accessRes.asInstanceOf[sil.PredicateAccess].replace(replacements)
-              //sil.PredicateAccess(renamedVars.map(_.localVar), p)(loc.pos, loc.info, loc.errT)
+          val substitutedResAccess: sil.ResourceAccess = resAcc match {
+            case fa: sil.FieldAccess =>
+              sil.FieldAccess(renamedVars.head.localVar, fa.field)(fa.pos, fa.info)
+            case pp: sil.PredicateAccess =>
+              pp.replace(replacements)
+            case w: sil.MagicWand =>
+              w.replace(replacements)
           }
-          val pl = permissionLookup(locAccess)
-          (hasDirectPerm(locAccess), Trigger(pl))
+          val pl = currentPermission(substitutedResAccess)
+          (hasDirectPerm(substitutedResAccess), Trigger(pl))
         }
         val filter = locations.foldLeft[(Exp, Seq[Trigger])](BoolLit(false), Seq())((soFar, loc) => soFar match {
           case (exp, triggers) =>
-            perLocFilter(loc) match {
+            perResFilter(loc) match {
               case (newExp, newTrigger) => (BinExp(exp, Or, newExp), triggers ++ Seq(newTrigger))
             }
         })
@@ -426,7 +428,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           val res = if (e.isInstanceOf[sil.ForPerm]) {
             val eAsForallRef = Expressions.renameVariables(e, orig_vars.map(_.localVar), bound_vars.map(_.localVar)).asInstanceOf[sil.ForPerm]
 
-            val filter: Exp = hasDirectPerm(eAsForallRef.resource.asInstanceOf[LocationAccess])
+            val filter: Exp = hasDirectPerm(eAsForallRef.resource.asInstanceOf[sil.ResourceAccess])
 
             handleQuantifiedLocals(bound_vars, If(filter, translate(eAsForallRef, definednessStateOpt), Nil))
           } else {
