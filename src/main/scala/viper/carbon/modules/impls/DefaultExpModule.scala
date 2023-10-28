@@ -74,6 +74,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         sys.error("should not occur here (either, we inhale or exhale this expression, in which case whenInhaling/whenExhaling should be used, or the expression is not allowed to occur.")
       case p@sil.PredicateAccess(_, _) =>
         translateLocationAccess(p)
+      case w: sil.MagicWand =>
+        translateLocationAccess(translateNull, wandModule.getWandRepresentation(w))
       case sil.Unfolding(_, exp) =>
         translateExp(exp)
       case sil.Applying(_, exp) => translateExp(exp)
