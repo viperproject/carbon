@@ -112,7 +112,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
     case fun@Func(name,args,typ,_) =>
       val vars = args.map(decl => decl.l)
       val args2 = args map (
-        v => LocalVarDecl(Identifier(v.name.name + "2")(v.name.namespace), v.typ))
+        v => LocalVarDecl(Identifier(v.name.name + "_2")(v.name.namespace), v.typ))
       val vars2 = args2 map (_.l)
       val varsEqual = All((vars zip vars2) map {
         case (v1, v2) => v1 === v2
@@ -122,6 +122,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
       val f1 = FuncApp(heapModule.wandMaskIdentifier(name), vars, heapModule.predicateMaskFieldTypeOfWand(name.name)) // w#sm (wands secondary mask)
       val f2 = FuncApp(heapModule.wandFtIdentifier(name), vars, heapModule.predicateVersionFieldTypeOfWand(name.name)) // w#ft (permission to w#fm is added when at the begining of a package statement)
       val f3 = wandMaskField(f2) // wandMaskField (wandMaskField(w) == w#sm)
+      val wandId = heapModule.getPredicateId(name.name)
       val typeDecl: Seq[TypeDecl] = heapModule.wandBasicType(name.preferredName) match {
         case named: NamedType => TypeDecl(named)
         case _ => Nil
@@ -135,6 +136,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
         Axiom(MaybeForall(args, Trigger(f0),heapModule.isPredicateField(f0).not)) ++
         Axiom(MaybeForall(args, Trigger(f2),heapModule.isPredicateField(f2).not)) ++
         Axiom(MaybeForall(args, Trigger(f3), f1 === f3)) ++
+        Axiom(MaybeForall(args, Trigger(f0), heapModule.getPredicateId(f0) === IntLit(wandId))) ++
         Axiom(Forall(args ++ args2, Trigger(Seq(f0, f0_2)),
           (f0 === f0_2) ==> varsEqual))
     }).flatten[Decl].toSeq
@@ -155,6 +157,26 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
 
     shape match {
       case Func(name, _, typ,_) => FuncApp(name, arguments.map(arg => expModule.translateExp(arg)), typ)
+    }
+  }
+
+  def getWandRepresentationWithArgs(wand: sil.MagicWand, args: Seq[sil.Exp]): Exp = {
+
+    //need to compute shape of wand
+    val ghostFreeWand = wand
+
+    //get all the expressions which form the "holes" of the shape,
+    val shape: WandShape = wandToShapes(wand.structure(mainModule.verifier.program))
+
+    shape match {
+      case Func(name, _, typ, _) => FuncApp(name, args.map(arg => expModule.translateExp(arg)), typ)
+    }
+  }
+
+  override def getWandName(w: MagicWand): Identifier = {
+    val shape = wandToShapes(w.structure(mainModule.verifier.program))
+    shape match {
+      case Func(name, _, _, _) => name
     }
   }
 
