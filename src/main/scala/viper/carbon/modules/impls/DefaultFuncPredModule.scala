@@ -297,10 +297,15 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         case _ => None}.flatten
     }
 
+    // Do not use predicate triggers if the function is annotated as opaque
+    val usePredicateTriggers = f.info.getUniqueInfo[sil.AnnotationInfo] match {
+      case Some(ai) if ai.values.contains("opaque") => false
+      case _ => true
+    }
 
     Axiom(Forall(
       stateModule.staticStateContributions() ++ args,
-      Seq(Trigger(Seq(staticGoodState,fapp))) ++ (if (predicateTriggers.isEmpty) Seq()  else Seq(Trigger(Seq(staticGoodState, triggerFuncStatelessApp(f,args map (_.l))) ++ predicateTriggers))),
+      Seq(Trigger(Seq(staticGoodState,fapp))) ++ (if (!usePredicateTriggers || predicateTriggers.isEmpty) Seq()  else Seq(Trigger(Seq(staticGoodState, triggerFuncStatelessApp(f,args map (_.l))) ++ predicateTriggers))),
       (staticGoodState && assumeFunctionsAbove(height)) ==>
         (precondition ==> (fapp === body))
     ))
