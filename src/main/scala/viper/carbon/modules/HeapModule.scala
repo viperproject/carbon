@@ -92,23 +92,15 @@ trait HeapModule extends Module with CarbonStateComponent {
   def predicateGhostFieldDecl(f: sil.Predicate): Seq[Decl]
 
   /**
-   * Translation of a resource access (field read/write, predicate or wand instance)
+   * Translation of a field read, predicate instance, or wand instance.
    */
-  def translateResourceAccess(r: sil.ResourceAccess): Exp = r match {
-    case la: LocationAccess => translateLocationAccess(la)
-    case mw: MagicWand => sys.error(s"Unexpectedly found magic wand $mw")
-  }
-
-  /**
-   * Translation of a field read or predicate instance
-   */
-  def translateLocationAccess(f: sil.LocationAccess): Exp
+  def translateResourceAccess(f: sil.ResourceAccess): Exp
   /**
     * Translation of a field read.
     */
   def translateLocationAccess(rcv: Exp, loc:Exp):Exp
 
-  def translateLocation(f: sil.LocationAccess): Exp
+  def translateResource(f: sil.ResourceAccess): Exp
   def translateLocation(pred: sil.Predicate, args: Seq[Exp]): Exp
 
   /**
@@ -147,15 +139,14 @@ trait HeapModule extends Module with CarbonStateComponent {
   def isPredicateField(f: Exp): Exp
 
   /**
-    * get Predicate Id (unique for each Predicate)
+    * get Predicate or wand Id (unique for each Predicate or wand)
     */
-  def getPredicateId(f:Exp): Exp
+  def getPredicateOrWandId(f:Exp): Exp
 
   /**
-    * Predicate name mapping to Id
+    * Predicate or (internal) wand name mapping to Id
     */
-
-  def getPredicateId(s:String):BigInt
+  def getPredicateOrWandId(s:String):BigInt
   /**
    * Is the given field a wand field?
    */

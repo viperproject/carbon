@@ -63,7 +63,7 @@ trait WandModule extends Module with ComponentRegistry[TransferComponent] {
 
   def getWandRepresentationWithArgs(w: sil.MagicWand, args: Seq[sil.Exp]):Exp
 
-  def getWandName(w: sil.MagicWand): Identifier
+  def getWandName(w: sil.MagicWand): String
 
   /**
     * Translates the 'apply' statements to the corresponding Boogie statements

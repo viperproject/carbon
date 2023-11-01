@@ -122,7 +122,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
       val f1 = FuncApp(heapModule.wandMaskIdentifier(name), vars, heapModule.predicateMaskFieldTypeOfWand(name.name)) // w#sm (wands secondary mask)
       val f2 = FuncApp(heapModule.wandFtIdentifier(name), vars, heapModule.predicateVersionFieldTypeOfWand(name.name)) // w#ft (permission to w#fm is added when at the begining of a package statement)
       val f3 = wandMaskField(f2) // wandMaskField (wandMaskField(w) == w#sm)
-      val wandId = heapModule.getPredicateId(name.name)
+      val wandId = heapModule.getPredicateOrWandId(name.name)
       val typeDecl: Seq[TypeDecl] = heapModule.wandBasicType(name.preferredName) match {
         case named: NamedType => TypeDecl(named)
         case _ => Nil
@@ -136,7 +136,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
         Axiom(MaybeForall(args, Trigger(f0),heapModule.isPredicateField(f0).not)) ++
         Axiom(MaybeForall(args, Trigger(f2),heapModule.isPredicateField(f2).not)) ++
         Axiom(MaybeForall(args, Trigger(f3), f1 === f3)) ++
-        Axiom(MaybeForall(args, Trigger(f0), heapModule.getPredicateId(f0) === IntLit(wandId))) ++
+        Axiom(MaybeForall(args, Trigger(f0), heapModule.getPredicateOrWandId(f0) === IntLit(wandId))) ++
         Axiom(Forall(args ++ args2, Trigger(Seq(f0, f0_2)),
           (f0 === f0_2) ==> varsEqual))
     }).flatten[Decl].toSeq
@@ -173,10 +173,10 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
     }
   }
 
-  override def getWandName(w: MagicWand): Identifier = {
+  override def getWandName(w: MagicWand): String = {
     val shape = wandToShapes(w.structure(mainModule.verifier.program))
     shape match {
-      case Func(name, _, _, _) => name
+      case Func(name, _, _, _) => name.name
     }
   }
 
@@ -590,7 +590,7 @@ private def setupTransferableEntity(e: sil.Exp, permTransfer: Exp):(Transferable
   e match {
     case fa@sil.FieldAccessPredicate(loc, _) =>
       val assignStmt = rcvLocal := expModule.translateExpInWand(loc.rcv)
-      val evalLoc = heapModule.translateLocation(loc)
+      val evalLoc = heapModule.translateResource(loc)
       (TransferableFieldAccessPred(rcvLocal, evalLoc, permTransfer,fa), assignStmt)
 
     case p@sil.PredicateAccessPredicate(loc, _) =>
