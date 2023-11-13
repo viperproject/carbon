@@ -1698,26 +1698,30 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   override def conservativeIsPositivePerm(e: sil.Exp): Boolean = PermissionHelper.conservativeStaticIsStrictlyPositivePerm(e)
 
+  override def isStrictlyPositivePerm(e: sil.Exp): Exp = PermissionHelper.isStrictlyPositivePerm(e)
+
   object PermissionHelper {
 
     def isStrictlyPositivePerm(e: sil.Exp): Exp = {
       require(e isSubtype sil.Perm, s"found ${e.typ} ($e), but required Perm")
-      val backup = permissionPositiveInternal(translatePerm(e), Some(e))
+      // Use backup lazily when needed only. This allows the function to work on WildcardPerms for which
+      // translatePerm would throw an exception.
+      val backup = () => permissionPositiveInternal(translatePerm(e), Some(e))
       e match {
         case sil.NoPerm() => FalseLit()
         case sil.FullPerm() => TrueLit()
         case sil.WildcardPerm() => TrueLit()
         case sil.EpsilonPerm() =>  sys.error("epsilon permissions are not supported by this permission module")
         case x: sil.LocalVar if isAbstractRead(x) => TrueLit()
-        case sil.CurrentPerm(loc) => backup
+        case sil.CurrentPerm(loc) => backup()
         case sil.FractionalPerm(left, right) =>
           val (l, r) = (translateExp(left), translateExp(right))
           ((l > IntLit(0)) && (r > IntLit(0))) || ((l < IntLit(0)) && (r < IntLit(0)))
         case sil.PermMinus(a) =>
           isStrictlyNegativePerm(a)
         case sil.PermAdd(left, right) =>
-          (isStrictlyPositivePerm(left) && isStrictlyPositivePerm(right)) || backup
-        case sil.PermSub(left, right) => backup
+          (isStrictlyPositivePerm(left) && isStrictlyPositivePerm(right)) || backup()
+        case sil.PermSub(left, right) => backup()
         case sil.PermMul(a, b) =>
           (isStrictlyPositivePerm(a) && isStrictlyPositivePerm(b)) || (isStrictlyNegativePerm(a) && isStrictlyNegativePerm(b))
         case sil.PermDiv(a, b) =>
@@ -1730,7 +1734,7 @@ class QuantifiedPermModule(val verifier: Verifier)
           ((n > IntLit(0)) && isStrictlyPositivePerm(b)) || ((n < IntLit(0)) && isStrictlyNegativePerm(b))
         case sil.CondExp(cond, thn, els) =>
           CondExp(translateExp(cond), isStrictlyPositivePerm(thn), isStrictlyPositivePerm(els))
-        case _ => backup
+        case _ => backup()
       }
     }
 
@@ -1802,22 +1806,24 @@ class QuantifiedPermModule(val verifier: Verifier)
 
     def isStrictlyNegativePerm(e: sil.Exp): Exp = {
       require(e isSubtype sil.Perm)
-      val backup = UnExp(Not,permissionPositiveInternal(translatePerm(e), Some(e), true))
+      // Use backup lazily when needed only. This allows the function to work on WildcardPerms for which
+      // translatePerm would throw an exception.
+      val backup = () => UnExp(Not,permissionPositiveInternal(translatePerm(e), Some(e), true))
       e match {
         case sil.NoPerm() => FalseLit() // strictly negative
         case sil.FullPerm() => FalseLit()
         case sil.WildcardPerm() => FalseLit()
         case sil.EpsilonPerm() =>  sys.error("epsilon permissions are not supported by this permission module")
         case x: sil.LocalVar if isAbstractRead(x) => FalseLit()
-        case sil.CurrentPerm(loc) => backup
+        case sil.CurrentPerm(loc) => backup()
         case sil.FractionalPerm(left, right) =>
           val (l, r) = (translateExp(left), translateExp(right))
           ((l < IntLit(0)) && (r > IntLit(0))) || ((l > IntLit(0)) && (r < IntLit(0)))
         case sil.PermMinus(a) =>
           isStrictlyPositivePerm(a)
         case sil.PermAdd(left, right) =>
-          (isStrictlyNegativePerm(left) && isStrictlyNegativePerm(right)) || backup
-        case sil.PermSub(left, right) => backup
+          (isStrictlyNegativePerm(left) && isStrictlyNegativePerm(right)) || backup()
+        case sil.PermSub(left, right) => backup()
         case sil.PermMul(a, b) =>
           (isStrictlyPositivePerm(a) && isStrictlyNegativePerm(b)) || (isStrictlyNegativePerm(a) && isStrictlyPositivePerm(b))
         case sil.PermDiv(a, b) =>
@@ -1830,7 +1836,7 @@ class QuantifiedPermModule(val verifier: Verifier)
           ((n > IntLit(0)) && isStrictlyNegativePerm(b)) || ((n < IntLit(0)) && isStrictlyPositivePerm(b))
         case sil.CondExp(cond, thn, els) =>
           CondExp(translateExp(cond), isStrictlyNegativePerm(thn), isStrictlyNegativePerm(els))
-        case _ => backup
+        case _ => backup()
       }
     }
 
