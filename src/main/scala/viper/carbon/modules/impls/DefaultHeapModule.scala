@@ -471,10 +471,11 @@ class DefaultHeapModule(val verifier: Verifier)
     heapUpdate(heap, rcvExp, newVal, isPMask)
   }
 
-  def translateReceiver(la: sil.LocationAccess): Exp = {
+  def translateReceiver(la: sil.ResourceAccess): Exp = {
     la match {
       case sil.FieldAccess(rcv, _) => translateExp(rcv)
       case sil.PredicateAccess(args, _) => funcPredModule.silExpsToSnap(args)
+      case w: sil.MagicWand => funcPredModule.silExpsToSnap(w.subexpressionsToEvaluate(program))
     }
   }
 
@@ -485,16 +486,20 @@ class DefaultHeapModule(val verifier: Verifier)
       ???
   }
 
-  override def translateLocationAccess(f: sil.LocationAccess): Exp = {
-    translateLocationAccess(f, heapExp(f.res(program)))
+  override def translateLocationAccess(f: sil.ResourceAccess): Exp = {
+    val res = f.res(program) match {
+      case w: sil.MagicWand => w.structure(program)
+      case r => r
+    }
+    translateLocationAccess(f, heapExp(res))
   }
 
   override def translateLocationAccess(rcv: Exp, res: sil.Resource): Exp = {
     lookup(heapExp(res), rcv, !res.isInstanceOf[sil.Field])
   }
 
-  private def translateLocationAccess(f: sil.LocationAccess, heap: Exp, isPMask: Boolean = false): Exp = {
-    val res = f.loc(program)
+  private def translateLocationAccess(f: sil.ResourceAccess, heap: Exp, isPMask: Boolean = false): Exp = {
+    val res = f.res(program)
     val rcvExp = translateReceiver(f)
     lookup(heap, rcvExp, isPMask)
   }

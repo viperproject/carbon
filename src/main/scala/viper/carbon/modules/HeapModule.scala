@@ -97,7 +97,7 @@ trait HeapModule extends Module with CarbonStateComponent {
   /**
    * Translation of a field read or predicate instance
    */
-  def translateLocationAccess(f: sil.LocationAccess): Exp
+  def translateLocationAccess(f: sil.ResourceAccess): Exp
   /**
     * Translation of a field read.
     */

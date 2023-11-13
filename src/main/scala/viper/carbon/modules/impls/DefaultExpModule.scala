@@ -74,6 +74,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         sys.error("should not occur here (either, we inhale or exhale this expression, in which case whenInhaling/whenExhaling should be used, or the expression is not allowed to occur.")
       case p@sil.PredicateAccess(_, _) =>
         translateLocationAccess(p)
+      case w:sil.MagicWand =>
+        translateLocationAccess(w)
       case sil.Unfolding(_, exp) =>
         translateExp(exp)
       case sil.Applying(_, exp) => translateExp(exp)
@@ -144,41 +146,41 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       }
       case sil.ForPerm(variables, accessRes, body) => {
 
-        val variable = variables.head
-
-        if (variables.length != 1) sys.error("Carbon only supports a single quantified variable in forperm, see Carbon issue #243")
-        if (variable.typ != Ref) sys.error("Carbon only supports Ref type in forperm, see Carbon issue #243")
-        accessRes match {
-          case _: MagicWand => sys.error("Carbon does not support magic wands in forperm, see Carbon issue #243")
-          case p: PredicateAccess => if (p.loc(program).formalArgs.length != 1) sys.error("Carbon only supports predicates with a single argument in forperm, see Carbon issue #243")
-          case _ =>
-        }
-
-        val locations = Seq(accessRes.asInstanceOf[LocationAccess].loc(program))
+        val locations = Seq(accessRes)
 
         // alpha renaming, to avoid clashes in context
-        val renamedVar: sil.LocalVarDecl = {
-          val v1 = env.makeUniquelyNamed(variable); env.define(v1.localVar); v1
-        }
-        val renaming = (e: sil.Exp) => Expressions.instantiateVariables(e, Seq(variable.localVar), Seq(renamedVar.localVar))
+        val renamedVars: Seq[sil.LocalVarDecl] = variables.map(variable => {
+          val v1 = env.makeUniquelyNamed(variable);
+          env.define(v1.localVar);
+          v1
+        })
+        val renaming = (e: sil.Exp) => Expressions.instantiateVariables(e, variables.map(_.localVar), renamedVars.map(_.localVar))
         // val ts = triggers map (t => Trigger(t.exps map {e => verifier.funcPredModule.toTriggers(translateExp(renaming(e)))} // no triggers yet?
-        val perLocFilter: sil.Location => (Exp, Trigger) = loc => {
-          val locAccess: LocationAccess = loc match {
-            case f: sil.Field => sil.FieldAccess(renamedVar.localVar, f)(loc.pos, loc.info)
-            case p: sil.Predicate => sil.PredicateAccess(Seq(renamedVar.localVar), p)(loc.pos, loc.info, loc.errT)
+        val perResFilter: sil.ResourceAccess => (Exp, Trigger) = resAcc => {
+          val zipped = variables.map(_.localVar) zip renamedVars.map(_.localVar)
+          val replacements = zipped.toMap
+
+          val substitutedResAccess: sil.ResourceAccess = resAcc match {
+            case fa: sil.FieldAccess =>
+              sil.FieldAccess(renamedVars.head.localVar, fa.field)(fa.pos, fa.info)
+            case pp: sil.PredicateAccess =>
+              pp.replace(replacements)
+            case w: sil.MagicWand =>
+              w.replace(replacements)
           }
-          (hasDirectPerm(locAccess), Trigger(permissionLookup(locAccess)))
+          val pl = currentPermission(substitutedResAccess)
+          (hasDirectPerm(substitutedResAccess), Trigger(pl))
         }
         val filter = locations.foldLeft[(Exp, Seq[Trigger])](BoolLit(false), Seq())((soFar, loc) => soFar match {
           case (exp, triggers) =>
-            perLocFilter(loc) match {
+            perResFilter(loc) match {
               case (newExp, newTrigger) => (BinExp(exp, Or, newExp), triggers ++ Seq(newTrigger))
             }
         })
 
-        val res = Forall(translateLocalVarDecl(renamedVar), filter._2, // no triggers yet :(
+        val res = Forall(renamedVars.map(renamedVar => translateLocalVarDecl(renamedVar)), filter._2, // no triggers yet :(
           BinExp(filter._1, Implies, translateExp(renaming(body))))
-        env.undefine(renamedVar.localVar)
+        renamedVars.foreach(renamedVar => env.undefine(renamedVar.localVar))
         res
       }
       case sil.WildcardPerm() =>
@@ -430,15 +432,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           val res = if (e.isInstanceOf[sil.ForPerm]) {
             val eAsForallRef = Expressions.renameVariables(e, orig_vars.map(_.localVar), bound_vars.map(_.localVar)).asInstanceOf[sil.ForPerm]
 
-            if (eAsForallRef.variables.length != 1) sys.error("Carbon only supports a single quantified variable in forperm, see Carbon issue #243")
-            if (eAsForallRef.variables.head.typ != Ref) sys.error("Carbon only supports Ref type in forperm, see Carbon issue #243")
-            eAsForallRef.resource match {
-              case _: MagicWand => sys.error("Carbon does not support magic wands in forperm, see Carbon issue #243")
-              case p: PredicateAccess => if (p.loc(program).formalArgs.length != 1) sys.error("Carbon only supports predicates with a single argument in forperm, see Carbon issue #243")
-              case _ =>
-            }
 
-            val filter: Exp = hasDirectPerm(eAsForallRef.resource.asInstanceOf[LocationAccess])
+            val filter: Exp = hasDirectPerm(eAsForallRef.resource)
 
             handleQuantifiedLocals(bound_vars, If(filter, translate(eAsForallRef, definednessStateOpt), Nil))
           } else {
