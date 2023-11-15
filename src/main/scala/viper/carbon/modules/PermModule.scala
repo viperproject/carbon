@@ -101,9 +101,6 @@ trait PermModule extends Module with CarbonStateComponent {
 
   def hasDirectPerm(ra: sil.ResourceAccess): Exp
 
-  def permissionLookup(la: sil.LocationAccess) : Exp
-/** FIXME: duplicate method, here */
-
   /**
    * The expression for the current permission at a location.
    */

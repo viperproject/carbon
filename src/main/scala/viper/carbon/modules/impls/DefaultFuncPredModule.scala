@@ -505,7 +505,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     }
     assertion match {
       case s@sil.AccessPredicate(la, perm) =>
-        val fragmentBody = translateLocationAccess(renaming(la).asInstanceOf[sil.LocationAccess])
+        val fragmentBody = translateResourceAccess(renaming(la).asInstanceOf[sil.LocationAccess])
         val fragment = if (s.isInstanceOf[PredicateAccessPredicate]) fragmentBody else frameFragment(fragmentBody)
         if (permModule.conservativeIsPositivePerm(perm)) fragment else
         FuncApp(condFrameName, Seq(translatePerm(renaming(perm)),fragment),frameType)
@@ -936,7 +936,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       val location = acc.loc
       val predicate = verifier.program.findPredicate(location.predicateName)
       val translatedArgs = location.args map (x => translateExpInWand(x))
-      Assume(translateLocationAccess(location) === getPredicateFrame(predicate,translatedArgs)._1)
+      Assume(translateResourceAccess(location) === getPredicateFrame(predicate,translatedArgs)._1)
     }
 
     foldInfo = null
@@ -973,7 +973,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         val location = acc.loc
         val predicate = verifier.program.findPredicate(location.predicateName)
         val translatedArgs = location.args map translateExp
-        Assume(translateLocationAccess(location) === getPredicateFrame(predicate,translatedArgs)._1)
+        Assume(translateResourceAccess(location) === getPredicateFrame(predicate,translatedArgs)._1)
       } ++
       (if(exhaleUnfoldedPredicate)
           exhaleSingleWithoutDefinedness(acc, error, havocHeap = false, statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)

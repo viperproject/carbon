@@ -13,7 +13,7 @@ package viper.carbon.modules
 import viper.carbon.modules.components.{ComponentRegistry, TransferComponent}
 import viper.silver.verifier.PartialVerificationError
 import viper.silver.{ast => sil}
-import viper.carbon.boogie.{Exp, LocalVar, Stmt, TrueLit}
+import viper.carbon.boogie.{Exp, Identifier, LocalVar, Stmt, TrueLit}
 
 
 trait WandModule extends Module with ComponentRegistry[TransferComponent] {
@@ -60,6 +60,10 @@ trait WandModule extends Module with ComponentRegistry[TransferComponent] {
   def translatePackage(p: sil.Package, error: PartialVerificationError, statesStackForPackageStmt: List[Any] = null, allStateAssms: Exp = TrueLit(), insidePackageStmt: Boolean = false):Stmt
 
   def getWandRepresentation(w: sil.MagicWand):Exp
+
+  def getWandRepresentationWithArgs(w: sil.MagicWand, args: Seq[sil.Exp]):Exp
+
+  def getWandName(w: sil.MagicWand): String
 
   /**
     * Translates the 'apply' statements to the corresponding Boogie statements
