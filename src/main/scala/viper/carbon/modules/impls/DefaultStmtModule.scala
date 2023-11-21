@@ -207,7 +207,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
         //handled by LoopModule
         Nil
       case i@sil.If(cond, thn, els) =>
-        val condTr = if(allStateAssms == TrueLit()) { translateExpInWand(cond) } else { (allStateAssms) ==> translateExpInWand(cond) }
+        val condTr = if(allStateAssms == TrueLit()) { translateExpInWand(cond) } else { allStateAssms ==> translateExpInWand(cond) }
         checkDefinedness(cond, errors.IfFailed(cond), insidePackageStmt = insidePackageStmt) ++
         If(condTr,
           translateStmt(thn, statesStack, allStateAssms, insidePackageStmt),
