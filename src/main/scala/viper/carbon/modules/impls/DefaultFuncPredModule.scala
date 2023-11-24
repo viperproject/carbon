@@ -55,6 +55,11 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private val assumeFunctionsAbove: Const = Const(assumeFunctionsAboveName)
   private val specialRefName = Identifier("special_ref")
   private val specialRef = Const(specialRefName)
+
+  /* limitedPostfix is appended to the actual function name to get the name of the limited function.
+   * It must be a string that cannot appear in Viper identifiers to ensure that we can easily check if a given identifier
+   * refers to the limited version of a function or not.
+   */
   private val limitedPostfix = "'"
   private val triggerFuncPostfix = "#trigger"
   private val triggerFuncNoHeapPostfix = "#triggerStateless"
@@ -319,6 +324,9 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private def transformFuncAppsToLimitedOrTriggerForm(exp: Exp, heightToSkip : Int = -1, triggerForm: Boolean = false): Exp = {
     def transformer: PartialFunction[Exp, Option[Exp]] = {
       case FuncApp(recf, recargs, t) if recf.namespace == fpNamespace &&
+        // recf might refer to a limited function already if the function was marked as opaque.
+        // In that case, we have to drop the limited postfix, since heights contains only the original function names.
+        // We assume that any name that ends with limitedPostfix refers to a limited function (see limitedPostfix above).
         (heightToSkip == -1 || heights(if (recf.name.endsWith(limitedPostfix)) recf.name.dropRight(limitedPostfix.length) else recf.name) <= heightToSkip) =>
 
         val baseName = if (recf.name.endsWith(limitedPostfix)) recf.name.dropRight(limitedPostfix.length) else recf.name
