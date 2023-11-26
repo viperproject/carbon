@@ -7,6 +7,7 @@
 package viper.carbon.modules.components
 
 import viper.carbon.boogie._
+import viper.silver.ast.Resource
 
 /**
  * The [[viper.carbon.modules.StateModule]] allows to register state components that
@@ -31,6 +32,8 @@ trait CarbonStateComponent extends Component {
    * same even if the state is changed.
    */
   def staticStateContributions(withHeap: Boolean, withPermissions: Boolean): Seq[LocalVarDecl]
+
+  def staticStateContributions(withHeap: Boolean, withPermissions: Boolean, res: Set[Resource]): Seq[LocalVarDecl]
 
 
   /**

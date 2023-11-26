@@ -108,6 +108,7 @@ class DefaultHeapModule(val verifier: Verifier)
   private val fidenticalOnKnownLocsName = Identifier("IdenticalOnKnownLocations")
   private val allocidenticalOnKnownLocsName = Identifier("allocIdenticalOnKnownLocations")
   private val pidenticalOnKnownLocsName = Identifier("PIdenticalOnKnownLocations")
+  private val isAllocHeap = Identifier("isAllocHeap")
   private lazy val allocField = if(enableAllocationEncoding) sil.Field("$allocated", sil.Bool)() else null
   private val fsumHeapName = Identifier("SumHeap")
   private val psumHeapName = Identifier("PSumHeap")
@@ -160,13 +161,17 @@ class DefaultHeapModule(val verifier: Verifier)
     /*(if(enableAllocationEncoding) ConstDecl(allocName, NamedType(fieldTypeName, Seq(normalFieldType, Bool)), unique = true) ++*/
       {
         val relevantHeaps = heaps.filter(h => h._1.isInstanceOf[sil.Field] && h._1.asInstanceOf[sil.Field].typ == sil.Ref)
-        val triggers = relevantHeaps.map(h => Trigger(Seq(staticGoodState, validReference(lookup(h._2, obj.l)))))
+        val foralls: Seq[Exp] = relevantHeaps.map(rh => Forall(obj ++ LocalVarDecl(heapMap(rh._1).name, heapMap(rh._1).typ) ++ LocalVarDecl(heapMap(allocField).name, heapMap(allocField).typ), Trigger(Seq(FuncApp(isAllocHeap, Seq(heapMap(allocField)), Bool), validReference(lookup(rh._2, obj.l)))),
+          FuncApp(isAllocHeap, Seq(heapMap(allocField)), Bool) && validReference(obj.l) ==> validReference(lookup(heaps(rh._1), obj.l))
+        )).toSeq
+        //val triggers = relevantHeaps.map(h => Trigger(Seq(staticGoodState, validReference(lookup(h._2, obj.l)))))
         // all heap-lookups yield allocated objects or null
-        Axiom(Forall(
-          obj ++
-            stateModule.staticStateContributions(),
-          triggers.toSeq,
-          validReference(obj.l) ==> All(relevantHeaps.map(h => validReference(lookup(heaps(h._1), obj.l))).toSeq)))
+        //Axiom(Forall(
+        //  obj ++
+        //    stateModule.staticStateContributions(withPermissions = false),
+        //  triggers.toSeq,
+        //  validReference(obj.l) ==> All(relevantHeaps.map(h => validReference(lookup(heaps(h._1), obj.l))).toSeq)))
+        Axiom(foralls.all)
       }  ++
       // TODO: succHeap?
     /*Func(succHeapName,
@@ -184,6 +189,7 @@ class DefaultHeapModule(val verifier: Verifier)
       Func(pidenticalOnKnownLocsName,
         Seq(LocalVarDecl(heapName, pheapTyp), LocalVarDecl(exhaleHeapName, pheapTyp), LocalVarDecl(Identifier("msk"), pmaskType)),
         Bool) ++
+      Func(isAllocHeap, Seq(LocalVarDecl(heapName, fheapTyp(Bool))), Bool) ++
       {
         if(useSumOfStatesAxioms)
           (Func(fsumHeapName,
@@ -343,9 +349,16 @@ class DefaultHeapModule(val verifier: Verifier)
       vars ++ Seq(obj),
       //        Trigger(Seq(identicalFuncApp, lookup(h.l, obj.l, field.l))) ++
       Trigger(Seq(identicalFuncApp, lookup(eh.l, obj.l))),
-      identicalFuncApp ==>
-        ((lookup(h.l, obj.l) ==> lookup(eh.l, obj.l)))
-    )), size = 1)
+      (identicalFuncApp ==>
+        ((lookup(h.l, obj.l) ==> lookup(eh.l, obj.l))))
+    ) &&
+      Forall(
+        vars,
+        //        Trigger(Seq(identicalFuncApp, lookup(h.l, obj.l, field.l))) ++
+        Trigger(Seq(identicalFuncApp)),
+        (identicalFuncApp ==>
+          (FuncApp(isAllocHeap, Seq(h.l), Bool) ==> FuncApp(isAllocHeap, Seq(eh.l), Bool)))
+      )), size = 1)
 
   }
 
@@ -445,7 +458,9 @@ class DefaultHeapModule(val verifier: Verifier)
   private def alloc(o: Exp): Exp = lookup(heaps(allocField), o)
 
   /** Returns assignment that updates heap to reflect that @{code ref} is assigned  */
-  private def allocUpdateRef(ref: Exp) : Stmt = currentHeapAssignUpdate(ref, allocField, TrueLit())
+  private def allocUpdateRef(ref: Exp) : Stmt = {
+    currentHeapAssignUpdate(ref, allocField, TrueLit()) ++ (Assume(FuncApp(isAllocHeap, Seq(heaps(allocField)), Bool)))
+  }
 
   /** Returns a heap-lookup for o.f in a given heap h. */
   private def lookup(h: Exp, o: Exp, isPMask: Boolean = false): Exp =  {
@@ -646,7 +661,7 @@ class DefaultHeapModule(val verifier: Verifier)
 
   def initBoogieState: Stmt = {
     heaps = heapMap
-    Nil
+    Assume(FuncApp(isAllocHeap, Seq(heapMap(allocField)), Bool))
   }
   def resetBoogieState: Stmt = {
     if (resources == null)
@@ -658,6 +673,8 @@ class DefaultHeapModule(val verifier: Verifier)
   }
 
   def staticStateContributions(withHeap: Boolean, withPermissions: Boolean): Seq[LocalVarDecl] = if (withHeap) heapMap.values.map(h => LocalVarDecl(h.name, h.typ)).toSeq else Seq()
+
+  def staticStateContributions(withHeap: Boolean, withPermissions: Boolean, res: Set[sil.Resource]): Seq[LocalVarDecl] = if (withHeap) heapMap.filter(h => res.contains(h._1)).values.map(h => LocalVarDecl(h.name, h.typ)).toSeq else Seq()
 
   def currentStateContributions: Seq[LocalVarDecl] = heaps.values.map(h => LocalVarDecl(h.name, h.typ)).toSeq
   def currentStateVars: Seq[Var] = heaps.values.toSeq

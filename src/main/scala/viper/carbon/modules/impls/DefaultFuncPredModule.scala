@@ -217,7 +217,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   private def definitionalAxiom(f: sil.Function): Seq[Decl] = {
     val height = heights(f.name)
-    val heap = heapModule.staticStateContributions(true, true)
+    val heap = heapModule.staticStateContributions(true, false)
     val args = f.formalArgs map translateLocalVarDecl
     val fapp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
     val precondition : Exp = f.pres.map(p => translateExp(Expressions.asBooleanExp(p).whenExhaling)) match {
@@ -260,9 +260,9 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
 
     Axiom(Forall(
-      stateModule.staticStateContributions() ++ args,
-      Seq(Trigger(Seq(staticGoodState,fapp))) ++ (if (predicateTriggers.isEmpty) Seq()  else Seq(Trigger(Seq(staticGoodState, triggerFuncStatelessApp(f,args map (_.l))) ++ predicateTriggers))),
-      (staticGoodState && assumeFunctionsAbove(height)) ==>
+      stateModule.staticStateContributions(withPermissions = false) ++ args,
+      Seq(Trigger(Seq(fapp))) ++ (if (predicateTriggers.isEmpty) Seq()  else Seq(Trigger(Seq(triggerFuncStatelessApp(f,args map (_.l))) ++ predicateTriggers))),
+      (assumeFunctionsAbove(height)) ==>
         (precondition ==> (fapp === body))
     ))
   }
@@ -327,9 +327,9 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       }
       val bPost = translatedPost transform resultToFapp
       Axiom(Forall(
-        stateModule.staticStateContributions() ++ args,
-        Trigger(Seq(staticGoodState, limitedFapp)),
-        (staticGoodState && (assumeFunctionsAbove(height) || triggerFuncApp(f,heapModule.staticStateContributions(true,true) map (_.l), args map (_.l)))) ==> (precondition ==> transformFuncAppsToLimitedForm(bPost, height))))
+        stateModule.staticStateContributions(withPermissions = false) ++ args,
+        Trigger(Seq(limitedFapp)),
+        ((assumeFunctionsAbove(height) || triggerFuncApp(f,heapModule.staticStateContributions(true,true) map (_.l), args map (_.l)))) ==> (precondition ==> transformFuncAppsToLimitedForm(bPost, height))))
     }
   }
 
@@ -352,7 +352,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private def framingAxiom(f: sil.Function): Seq[Decl] = {
     stateModule.reset()
     val typ = translateType(f.typ)
-    val heap = heapModule.staticStateContributions(true, true)
+    val heap = heapModule.staticStateContributions(true, false)
     val realArgs = (f.formalArgs map translateLocalVarDecl)
     val args = heap ++ realArgs
     val name = Identifier(f.name + framePostfix)
@@ -374,9 +374,9 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
     Seq(func) ++
       Seq(Axiom(Forall(
-        stateModule.staticStateContributions() ++ realArgs,
-        Seq(Trigger(Seq(staticGoodState, transformFuncAppsToLimitedForm(funcApp2)))) ++ (if (predicateTriggers.isEmpty) Seq()  else Seq(Trigger(Seq(staticGoodState, triggerFuncStatelessApp(f,realArgs map (_.l))) ++ predicateTriggers))),
-        staticGoodState ==> (transformFuncAppsToLimitedForm(funcApp2) === funcApp))) ) ++
+        stateModule.staticStateContributions(withPermissions = false) ++ realArgs,
+        Seq(Trigger(Seq(transformFuncAppsToLimitedForm(funcApp2)))) ++ (if (predicateTriggers.isEmpty) Seq()  else Seq(Trigger(Seq(triggerFuncStatelessApp(f,realArgs map (_.l))) ++ predicateTriggers))),
+        (transformFuncAppsToLimitedForm(funcApp2) === funcApp))) ) ++
         translateCondAxioms("function "+f.name, f.formalArgs, funcFrameInfo._2)
   }
 

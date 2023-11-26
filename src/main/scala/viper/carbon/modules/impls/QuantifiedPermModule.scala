@@ -324,6 +324,9 @@ class QuantifiedPermModule(val verifier: Verifier)
   def permType = NamedType(permTypeName)
 
   def staticStateContributions(withHeap: Boolean, withPermissions: Boolean): Seq[LocalVarDecl] = if (withPermissions) maskMap.values.map(h => LocalVarDecl(h.name, h.typ)).toSeq else Seq()
+
+  def staticStateContributions(withHeap: Boolean, withPermissions: Boolean, res: Set[sil.Resource]): Seq[LocalVarDecl] = if (withPermissions) maskMap.filter(m => res.contains(m._1)).values.map(h => LocalVarDecl(h.name, h.typ)).toSeq else Seq()
+
   def currentStateContributions: Seq[LocalVarDecl] = masks.values.map(h => LocalVarDecl(h.name, h.typ)).toSeq
   def currentStateVars : Seq[Var] = masks.values.toSeq
   def currentStateExps: Seq[Exp] = maskExps.values.toSeq
@@ -364,6 +367,19 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   def goodMask(mask: Exp): Exp = FuncApp(goodMaskName, Seq(mask), Bool)
   def goodFieldMask(mask: Exp): Exp = FuncApp(goodFieldMaskName, Seq(mask), Bool)
+
+  def assumeGoodMask(r: sil.Resource): Stmt = {
+    val actualRes = r match {
+      case mw: sil.MagicWand => mw.structure(program)
+      case _ => r
+    }
+    val mask = maskExps(actualRes)
+    val isGoodMask = r match {
+      case _: sil.Field => goodFieldMask(mask)
+      case _ => goodMask(mask)
+    }
+    Assume(isGoodMask)
+  }
 
   private def permAdd(a: Exp, b: Exp): Exp = a + b
   private def permSub(a: Exp, b: Exp): Exp = a - b
@@ -473,7 +489,8 @@ class QuantifiedPermModule(val verifier: Verifier)
             If(permVar !== noPerm,
               Assert(permLe(permVar, curPerm), error.dueTo(reasons.InsufficientPermission(loc))),
               Nil) ++
-            subtractFromMask(permValToUse)
+            subtractFromMask(permValToUse) ++
+            assumeGoodMask(loc.res(program))
         } else {
           val curPerm = currentPermission(loc)
           val wildcard = LocalVar(Identifier("wildcard"), Real)
@@ -482,7 +499,8 @@ class QuantifiedPermModule(val verifier: Verifier)
             LocalVarWhereDecl(wildcard.name, wildcard > noPerm) ++
             Havoc(wildcard) ++
             Assume(wildcard < curPerm) ++
-            subtractFromMask(wildcard)
+            subtractFromMask(wildcard) ++
+            assumeGoodMask(loc.res(program))
         }
       case w@sil.MagicWand(_,_) =>
         val args = w.subexpressionsToEvaluate(program).map(translateExp)
@@ -491,7 +509,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         val curPerm = currentPermission(rcv, wstruct)
         Comment("permLe")++
           Assert(permLe(fullPerm, curPerm), error.dueTo(reasons.MagicWandChunkNotFound(w))) ++
-          (if (!usingOldState) currentMaskAssignUpdate(rcv, wstruct, permSub(curPerm, fullPerm)) else Nil)
+          (if (!usingOldState) currentMaskAssignUpdate(rcv, wstruct, permSub(curPerm, fullPerm)) ++ assumeGoodMask(w) else Nil)
 
       case fa@sil.Forall(v, cond, expr) =>
 
@@ -902,7 +920,11 @@ class QuantifiedPermModule(val verifier: Verifier)
               Nil
             }
         }
-        res
+        val resource = expr match {
+          case w: sil.MagicWand => w.structure(program)
+          case ap: sil.AccessPredicate => ap.res(program)
+        }
+        res ++ assumeGoodMask(resource)
       case _ => Nil
       //Field Access
 
@@ -986,12 +1008,13 @@ class QuantifiedPermModule(val verifier: Verifier)
             Assert(permissionPositiveInternal(permVar, Some(perm), true), error.dueTo(reasons.NegativePermission(perm))) ++
             assmsToStmt(permissionPositiveInternal(permVar, Some(perm), false) ==> checkNonNullReceiver(loc))
           ) ++
-          (if (!usingOldState) currentMaskAssignUpdate(loc, permAdd(curPerm, permValToUse)) else Nil)
+          (if (!usingOldState) currentMaskAssignUpdate(loc, permAdd(curPerm, permValToUse)) else Nil) ++
+          (assumeGoodMask(loc.res(program)))
       case w@sil.MagicWand(left,right) =>
         val args = funcPredModule.silExpsToSnap(w.subexpressionsToEvaluate(program))
         val wandStruct = w.structure(program)
         val curPerm = currentPermission(args, wandStruct)
-        if (!usingOldState) currentMaskAssignUpdate(args, wandStruct, permAdd(curPerm, fullPerm)) else Nil
+        (if (!usingOldState) currentMaskAssignUpdate(args, wandStruct, permAdd(curPerm, fullPerm)) ++ assumeGoodMask(w) else Nil)
       //Quantified Permission Expression
       case fa@sil.Forall(_, _, _) =>
         if (fa.isPure) {
@@ -1426,7 +1449,11 @@ class QuantifiedPermModule(val verifier: Verifier)
          case _ =>
            Nil
        }
-       res
+       val resource = expr match {
+         case mw: sil.MagicWand => mw.structure(program)
+         case ap: sil.AccessPredicate => ap.res(program)
+       }
+       res ++ assumeGoodMask(resource)
     case _ => Nil
   }
 
@@ -1636,7 +1663,7 @@ class QuantifiedPermModule(val verifier: Verifier)
       s match {
         case n@sil.NewStmt(target, fields) =>
           stmts ++ (for (field <- fields) yield {
-            currentMaskAssignUpdate(sil.FieldAccess(target, field)(), currentPermission(sil.FieldAccess(target, field)()) + fullPerm)
+            Seqn(Seq(currentMaskAssignUpdate(sil.FieldAccess(target, field)(), currentPermission(sil.FieldAccess(target, field)()) + fullPerm), assumeGoodMask(field)))
           })
         case assign@sil.FieldAssign(fa, rhs) =>
            stmts ++ Assert(permGe(currentPermission(fa), fullPerm, true), errors.AssignmentFailed(assign).dueTo(reasons.InsufficientPermission(fa))) // add the check after the definedness checks for LHS/RHS (in heap module)

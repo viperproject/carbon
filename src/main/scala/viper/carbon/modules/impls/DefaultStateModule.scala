@@ -27,8 +27,9 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
 
   implicit val stateNamespace = verifier.freshNamespace("state")
 
-  override def assumeGoodState = {
-    Assume(currentGoodState)
+  override def assumeGoodState: Stmt = {
+    // Assume(currentGoodState)
+    Nil
   }
 
   override def preamble: Seq[Decl] = {
