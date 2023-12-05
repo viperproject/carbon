@@ -252,10 +252,6 @@ class QuantifiedPermModule(val verifier: Verifier)
   def resetBoogieState = {
     (maskVar := zeroMask)
   }
-  def initOldState: Stmt = {
-    val mVar = maskVar
-    Assume(Old(mVar) === mVar)
-  }
 
   override def reset = {
     mask = originalMask

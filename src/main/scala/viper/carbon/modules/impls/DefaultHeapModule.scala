@@ -774,10 +774,6 @@ class DefaultHeapModule(val verifier: Verifier)
   def resetBoogieState: Stmt = {
     Havoc(heapVar)
   }
-  def initOldState: Stmt = {
-    val hVar = heapVar
-    Assume(Old(hVar) === hVar)
-  }
 
   def staticStateContributions(withHeap: Boolean, withPermissions: Boolean): Seq[LocalVarDecl] = if(withHeap) Seq(LocalVarDecl(heapName, heapTyp)) else Seq()
   def currentStateContributions: Seq[LocalVarDecl] = Seq(LocalVarDecl(heap.name, heapTyp))
