@@ -82,7 +82,7 @@ class DefaultHeapModule(val verifier: Verifier)
   private val qpHeap = LocalVar(qpHeapName, heapTyp)
   private var heap: Var = originalHeap
   private def heapVar: Var = {assert (!usingOldState); heap}
-  private def heapExp: Exp = if (usingPureState) dummyHeap else (if (usingOldState) Old(heap) else heap)
+  private def heapExp: Exp = if (usingPureState) dummyHeap else heap
   private val nullName = Identifier("null")
   private val nullLit = Const(nullName)
   private val freshObjectName = Identifier("freshObj")
