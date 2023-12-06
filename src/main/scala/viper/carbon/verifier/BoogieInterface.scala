@@ -60,6 +60,8 @@ trait BoogieInterface {
     "/proverOpt:O:smt.qi.max_multi_patterns=1000",
     s"/proverOpt:PROVER_PATH=$z3Path")
 
+  val timeoutErrorName = "TIMEOUT"
+
   /** The (resolved) path where Boogie is supposed to be located. */
   def boogiePath: String
 
@@ -73,9 +75,9 @@ trait BoogieInterface {
   // Hence, for now we have to trust Boogie to manage its own sub-processes.
   // private var _z3ProcessStream: Option[LazyList[ProcessHandle]] = None
 
-  var errormap: Map[Int, VerificationError] = Map()
+  var errormap: Map[Int, AbstractError] = Map()
   var models : collection.mutable.ListBuffer[String] = new collection.mutable.ListBuffer[String]
-  def invokeBoogie(program: Program, options: Seq[String]): (String,VerificationResult) = {
+  def invokeBoogie(program: Program, options: Seq[String], timeout: Option[Int]): (String,VerificationResult) = {
     // find all errors and assign everyone a unique id
     errormap = Map()
     program.visit {
@@ -84,18 +86,22 @@ trait BoogieInterface {
     }
 
     // invoke Boogie
-    val output = run(program.toString, defaultOptions ++ options)
-
+    val output = run(program.toString, defaultOptions ++ options, timeout)
     // parse the output
-    parse(output) match {
+    parse(output, timeout) match {
       case (version,Nil) =>
         (version,Success)
       case (version,errorIds) => {
         val errors = (0 until errorIds.length).map(i => {
           val id = errorIds(i)
           val error = errormap.get(id).get
-          if (models.nonEmpty)
-            error.failureContexts = Seq(FailureContextImpl(Some(SimpleCounterexample(Model(models(i))))))
+          if (models.nonEmpty) {
+            error match {
+              case e: AbstractVerificationError =>
+                e.failureContexts = Seq(FailureContextImpl(Some(SimpleCounterexample(Model(models(i))))))
+              case _ =>
+            }
+          }
           error
         })
         (version,Failure(errors))
@@ -106,7 +112,7 @@ trait BoogieInterface {
   /**
     * Parse the output of Boogie. Returns a pair of the detected version number and a sequence of error identifiers.
     */
-  private def parse(output: String): (String,Seq[Int]) = {
+  private def parse(output: String, timeout: Option[Int]): (String,Seq[Int]) = {
     val LogoPattern = "Boogie program verifier version ([0-9.]+),.*".r
     val SummaryPattern = "Boogie program verifier finished with ([0-9]+) verified, ([0-9]+) error.*".r
     val ErrorPattern = "  .+ \\[([0-9]+)\\]".r
@@ -119,6 +125,13 @@ trait BoogieInterface {
       errors += otherErrId
       val internalError = Internal(InternalReason(DummyNode, msg))
       errormap += (otherErrId -> internalError)
+    }
+
+    def reportTimeout() = {
+      otherErrId -= 1
+      errors += otherErrId
+      val timeoutError = TimeoutOccurred(timeout.get, "second(s)")
+      errormap += (otherErrId -> timeoutError)
     }
 
     var parsingModel : Option[StringBuilder] = None
@@ -144,7 +157,7 @@ trait BoogieInterface {
         case SummaryPattern(v, e) =>
           if(e.toInt != errors.size) unexpected(s"Found ${errors.size} errors, but there should be $e. The output was: $output")
         case "" => // ignore empty lines
-        case _ if l.startsWith("[quantifier_instances]") => println(l)
+        case `timeoutErrorName` if timeout.isDefined => reportTimeout()
         case _ =>
           unexpected(s"Found an unparsable output from Boogie: $l")
       }
@@ -155,7 +168,7 @@ trait BoogieInterface {
   /**
     * Invoke Boogie.
     */
-  private def run(input: String, options: Seq[String]) = {
+  private def run(input: String, options: Seq[String], timeout: Option[Int]) = {
     reporter report BackendSubProcessReport("carbon", boogiePath, BeforeInputSent, _boogieProcessPid)
 
     // When the filename is "stdin.bpl" Boogie reads the program from standard input.
@@ -191,8 +204,15 @@ trait BoogieInterface {
     proc.getOutputStream.write(input.getBytes);
     proc.getOutputStream.close()
 
+    var boogieTimeout = false
+
     try {
-      proc.waitFor()
+      timeout match {
+        case Some(t) if t > 0 =>
+          boogieTimeout = !proc.waitFor(t, java.util.concurrent.TimeUnit.SECONDS)
+        case _ =>
+          proc.waitFor()
+      }
     } finally {
       destroyProcessAndItsChildren(proc, boogiePath)
     }
@@ -212,7 +232,7 @@ trait BoogieInterface {
       //println(after - before)
       reporter report BackendSubProcessReport("carbon", boogiePath, OnExit, _boogieProcessPid)
 
-      errorOutput + normalOutput
+      errorOutput + normalOutput + (if (boogieTimeout) timeoutErrorName else "")
     } catch {
       case _: NoSuchElementException => sys.error("Could not retrieve output from Boogie")
     }
