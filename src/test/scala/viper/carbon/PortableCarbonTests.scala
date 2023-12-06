@@ -80,7 +80,7 @@ class PortableCarbonTests extends SilSuite with StatisticalTestSuite {
   val reporter = NoopReporter
 
   val commandLineArguments: Seq[String] = Seq(
-    s"--boogieOpt=/vcsCores:1 --assumeInjectivityOnInhale /timeLimit:${System.getProperty(timeoutPropertyName, "180")}"
+    s"--boogieOpt=/vcsCores:1 --assumeInjectivityOnInhale --timeout=${System.getProperty(timeoutPropertyName, "180")}"
   )
   override def verifier: CarbonVerifier = {
     val carbon = CarbonVerifier(reporter)
