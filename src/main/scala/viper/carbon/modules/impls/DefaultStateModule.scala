@@ -85,7 +85,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   }
 
   def initOldState: Stmt = {
-    val freshSnapshot = freshTempStateKeepCurrent("old")
+    val freshSnapshot = freshTempStateKeepCurrentAux("old", true)
     curOldState = freshSnapshot._1
     initToCurrentStmt(freshSnapshot)
   }
