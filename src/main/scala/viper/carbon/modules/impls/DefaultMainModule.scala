@@ -122,7 +122,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
         Program(header, preambles ++ members)
     }
 
-    (output.optimize.asInstanceOf[Program], nameMaps.map(e => e._1 -> e._2.toMap))
+    (output.optimized.asInstanceOf[Program], nameMaps.map(e => e._1 -> e._2.toMap))
   }
 
   def translateMethodDecl(m: sil.Method, names: Option[mutable.Map[String, String]]): Seq[Decl] = {

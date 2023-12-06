@@ -23,7 +23,7 @@ sealed trait Node {
   /**
    * Optimize a program or expression
    */
-  lazy val optimize: Node = Optimizer.optimize(this)
+  lazy val optimized: Node = Optimizer.optimize(this)
 
   /**
    * Applies the function `f` to the node and the results of the subnodes.
@@ -236,7 +236,7 @@ case object Div extends ProdOp("/")
 case object Mod extends ProdOp("mod")
 case object LtCmp extends RelOp("<")
 //case object LeCmp extends RelOp("?" or "<=") // removed non ASCII character alternative (can't display/edit)
-case object LeCmp extends RelOp("<=") 
+case object LeCmp extends RelOp("<=")
 case object GtCmp extends RelOp(">")
 case object GeCmp extends RelOp(">=")// removed non ASCII character alternative (can't display/edit)
 case object EqCmp extends RelOp("==")
@@ -358,8 +358,8 @@ case class LocalVarWhereDecl(name: Identifier, where: Exp) extends Stmt
 case class Comment(s: String) extends Stmt
 object MaybeComment {
   def apply(s: String, stmt: Stmt) = {
-    if (stmt.optimize.asInstanceOf[Stmt].children.isEmpty) Statements.EmptyStmt
-    else Seqn(Comment(s) :: stmt.optimize.asInstanceOf[Stmt] :: Nil)
+    if (stmt.optimized.asInstanceOf[Stmt].children.isEmpty) Statements.EmptyStmt
+    else Seqn(Comment(s) :: stmt.optimized.asInstanceOf[Stmt] :: Nil)
   }
 }
 /**
@@ -369,8 +369,8 @@ object MaybeComment {
 case class CommentBlock(s: String, stmt: Stmt) extends Stmt
 object MaybeCommentBlock {
   def apply(s: String, stmt: Stmt) = {
-    if (stmt.optimize.asInstanceOf[Stmt].children.isEmpty) Statements.EmptyStmt
-    else CommentBlock(s, stmt.optimize.asInstanceOf[Stmt])
+    if (stmt.optimized.asInstanceOf[Stmt].children.isEmpty) Statements.EmptyStmt
+    else CommentBlock(s, stmt.optimized.asInstanceOf[Stmt])
   }
 }
 
@@ -379,7 +379,7 @@ object MaybeCommentBlock {
  */
 object MaybeStmt {
   def apply(isEmpty: Stmt, maybe: Stmt): Stmt = {
-    if (isEmpty.optimize.asInstanceOf[Stmt].children.isEmpty) Statements.EmptyStmt
+    if (isEmpty.optimized.asInstanceOf[Stmt].children.isEmpty) Statements.EmptyStmt
     else Seqn(Seq(isEmpty, maybe))
   }
 }
