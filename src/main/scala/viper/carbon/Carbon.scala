@@ -116,5 +116,12 @@ class CarbonConfig(args: Seq[String]) extends SilFrontendConfig(args, "Carbon") 
     noshort = true
   )
 
+  val timeout = opt[Int]("timeout",
+    descr = ("Time out after approx. n seconds. The timeout is for the whole verification in Boogie, "
+           + "not per method or proof obligation (default: 0, i.e. no timeout)."),
+    default = None,
+    noshort = true
+  )
+
   verify()
 }

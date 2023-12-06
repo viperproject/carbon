@@ -224,7 +224,7 @@ case class CarbonVerifier(override val reporter: Reporter,
       }
     }
 
-    invokeBoogie(_translated, options) match {
+    invokeBoogie(_translated, options, config.timeout.toOption) match {
       case (version,result) =>
         if (version!=null) { dependencies.foreach(_ match {
           case b:BoogieDependency => b.version = version
