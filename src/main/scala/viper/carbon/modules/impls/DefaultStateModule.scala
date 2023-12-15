@@ -127,9 +127,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   override def stateRepositoryGet(name:String) : Option[StateSnapshot] = stateRepository.get(name)
 
   override def freshTempState(name: String, discardCurrent: Boolean = false, initialise: Boolean = false): (Stmt, StateSnapshot) = {
-    if(name == "old") {
-      sys.error("freshTempState invoked with reserved \"old\" name")
-    }
+    assert(name != "old")
 
     val previousState = new StateSnapshot(new StateComponentMapping(), usingOldState, usingPureState)
 
@@ -154,9 +152,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   }
 
   private def freshTempStateKeepCurrentAux(name: String, usedForOldState: Boolean) : StateSnapshot = {
-    if(name == "old" && !usedForOldState) {
-      sys.error("freshTempStateKeepCurrent invoked with reserved \"old\" name")
-    }
+    assert(usedForOldState || name != "old")
 
     val freshState = new StateComponentMapping()
 
