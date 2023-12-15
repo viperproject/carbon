@@ -623,7 +623,6 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val res = sil.Result(f.typ)()
     val init : Stmt = MaybeCommentBlock("Initializing the state",
       stateModule.initBoogieState ++ (f.formalArgs map (a => allAssumptionsAboutValue(a.typ,mainModule.translateLocalVarDecl(a),true))) ++ assumeFunctionsAt(heights(f.name)))
-    val initOld : Stmt = MaybeCommentBlock("Initializing the old state", stateModule.initOldState)
     val checkPre : Stmt = checkFunctionPreconditionDefinedness(f)
     val checkExp : Stmt = if (f.isAbstract) MaybeCommentBlock("(no definition for abstract function)",Nil) else
       MaybeCommentBlock("Check definedness of function body",
@@ -632,7 +631,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       MaybeCommentBlock("Translate function body",
       translateResult(res) := translateExp(f.body.get))
     val checkPost = checkFunctionPostconditionDefinedness(f)
-    val body : Stmt = Seq(init, initOld, checkPre, checkExp, exp, checkPost)
+    val body : Stmt = Seq(init, checkPre, checkExp, exp, checkPost)
     val definednessChecks = Procedure(Identifier(f.name + "#definedness"), args, translateResultDecl(res), body)
     checkingDefinednessOfFunction = None
     definednessChecks
