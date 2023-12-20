@@ -331,6 +331,8 @@ class QuantifiedPermModule(val verifier: Verifier)
   def currentStateVars : Seq[Var] = masks.values.toSeq
   def currentStateExps: Seq[Exp] = maskExps.values.toSeq
 
+  def currentStateExpMap: Map[sil.Resource, Exp] = maskExps
+
   def initBoogieState: Stmt = {
     masks = maskMap
     resetBoogieState
@@ -388,6 +390,10 @@ class QuantifiedPermModule(val verifier: Verifier)
   override def freshTempState(name: String): Seq[Var] = {
     ///Seq(LocalVar(Identifier(s"${name}Mask"), maskType))
     maskMap.map(m => LocalVar(Identifier(s"${name}Mask_${getResourceName(m._1)}"), if (m._1.isInstanceOf[sil.Field]) maskType else pmaskType)).toSeq
+  }
+
+  override def freshPartialTempState(name: String, resources: Seq[sil.Resource]): Seq[Var] = {
+    resources.map(r => (r, maskMap(r))).map(m => LocalVar(Identifier(s"${name}Mask_${getResourceName(m._1)}"), if (m._1.isInstanceOf[sil.Field]) maskType else pmaskType)).toSeq
   }
 
   override def restoreState(s: Seq[Var]): Unit = {

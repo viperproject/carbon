@@ -14,6 +14,7 @@ import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
 import viper.carbon.verifier.Verifier
 import viper.carbon.utility.{PolyMapDesugarHelper, PolyMapRep}
+import viper.silver.ast.Resource
 import viper.silver.ast.utility.QuantifiedPermissions.QuantifiedPermissionAssertion
 import viper.silver.verifier.PartialVerificationError
 
@@ -680,10 +681,18 @@ class DefaultHeapModule(val verifier: Verifier)
   def currentStateVars: Seq[Var] = heaps.values.toSeq
   def currentStateExps: Seq[Exp] = heapExps
 
+  def currentStateExpMap: Map[sil.Resource, Exp] = {
+    if (usingOldState) heaps.map(h => (h._1, Old(h._2))) else heaps
+  }
+
 
   override def freshTempState(name: String): Seq[Var] = {
     //Seq(LocalVar(Identifier(s"${name}Heap"), heapTyp))
     heapMap.map(h => LocalVar(Identifier(s"${name}Heap_${getResourceName(h._1)}"), if (h._1.isInstanceOf[sil.Field]) fheapTyp(translateType(h._1.asInstanceOf[sil.Field].typ)) else pheapTyp)).toSeq
+  }
+
+  override def freshPartialTempState(name: String, resources: Seq[sil.Resource]): Seq[Var] = {
+    resources.map(r => (r, heapMap(r))).map(h => LocalVar(Identifier(s"${name}Heap_${getResourceName(h._1)}"), if (h._1.isInstanceOf[sil.Field]) fheapTyp(translateType(h._1.asInstanceOf[sil.Field].typ)) else pheapTyp)).toSeq
   }
 
   override def restoreState(s: Seq[Var]): Unit = {

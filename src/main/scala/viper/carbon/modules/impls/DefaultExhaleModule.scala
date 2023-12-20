@@ -46,7 +46,7 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
     nestedExhaleId += 1
 
     // create a definedness state that matches the state before the exhale
-    val wellDefState = stateModule.freshTempStateKeepCurrent(s"ExhaleWellDef${nestedExhaleId - 1}")
+    val wellDefState = stateModule.freshPartialTempStateKeepCurrent(s"ExhaleWellDef${nestedExhaleId - 1}", exps.flatMap(e => stateModule.getResourcesFromExp(e._1)).distinct)
     val wellDefStateInitStmt = stateModule.initToCurrentStmt(wellDefState)
 
     // creating a new temp state if we are inside a package statement

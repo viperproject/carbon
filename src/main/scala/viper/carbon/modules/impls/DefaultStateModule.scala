@@ -11,6 +11,7 @@ import viper.carbon.verifier.Verifier
 import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
 import viper.carbon.modules.components.CarbonStateComponent
+import viper.silver.{ast => sil}
 
 import scala.collection.mutable
 import scala.jdk.CollectionConverters.CollectionHasAsScala
@@ -56,6 +57,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     //usingOldState = false
     //treatOldAsCurrent = false
     stateRepository.clear()
+    predicateResourceCache.clear()
     resetBoogieState
   }
 
@@ -132,6 +134,37 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
 
   override def stateRepositoryGet(name:String) : Option[StateSnapshot] = stateRepository.get(name)
 
+  val predicateResourceCache = new mutable.HashMap[String, Set[sil.Resource]]()
+  def getResourcesForPredicate(p: sil.Predicate): Set[sil.Resource] = {
+    if (predicateResourceCache.contains(p.name)) {
+      predicateResourceCache(p.name)
+    } else {
+      p.body match {
+        case None => Set()
+        case Some(body) => {
+          val res = getResourcesFromExp(body, Some(p)).toSet
+          predicateResourceCache.put(p.name, res)
+          res
+        }
+      }
+    }
+  }
+
+  def getResourcesFromExp(e: sil.Exp, except: Option[sil.Predicate] = None) : Seq[sil.Resource] = {
+    val collected: Iterable[Set[sil.Resource]] = e.collect{
+      case mw: sil.MagicWand => Set(mw.structure(program))
+      case rap: sil.AccessPredicate => Set(rap.res(program))
+      case uf: sil.Unfolding if !except.contains(uf.acc.loc.loc(program)) => {
+        val pred = uf.acc.loc.loc(program)
+        val resFromPredicate = getResourcesForPredicate(pred)
+        val resFromBody = getResourcesFromExp(uf.body)
+        val huh: Set[sil.Resource] = resFromPredicate ++ resFromBody.toSet
+        huh ++ Set(pred)
+      }
+    }
+    collected.toSeq.flatten.distinct
+  }
+
   override def freshTempState(name: String, discardCurrent: Boolean = false, initialise: Boolean = false): (Stmt, StateSnapshot) = {
     val previousState = new StateSnapshot(new StateComponentMapping(), usingOldState, usingPureState)
 
@@ -151,6 +184,35 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     (s, previousState)
   }
 
+  override def freshPartialTempState(name: String, resources: Seq[sil.Resource], discardCurrent: Boolean = false, initialise: Boolean = false): (Stmt, StateSnapshot) = {
+    val previousState = new StateSnapshot(new StateComponentMapping(), usingOldState, usingPureState)
+
+    curState = new StateComponentMapping() // essentially, the code below "clones" what curState should represent anyway. But, if we omit this line, we inadvertently alias the previous hash map.
+
+    val s = for (c <- components) yield {
+      val tmpExps = c.freshPartialTempState(name, resources)
+      val curExps = c.currentStateExpMap // note: this will wrap them in "Old" as necessary for correct initialisation
+      val stmt: Stmt = if (discardCurrent) Nil else resources.zip(tmpExps).map(r => (r._2 := curExps(r._1)))
+      previousState._1.put(c, c.currentStateVars) // reconstruct information from previous state (this is logically similar to a clone of what curState used to represent)
+
+      val currentStateVars = c.currentStateVars
+      val allResourcesOrdered = curExps.keys.toSeq
+      val completeTempExps = allResourcesOrdered.map(r => {
+        if (resources.contains(r)) {
+          tmpExps(resources.indexOf(r))
+        } else {
+          currentStateVars(allResourcesOrdered.indexOf(r))
+        }
+      })
+      curState.put(c, completeTempExps) // repopulate current state
+      c.restoreState(completeTempExps)
+
+      (if (initialise) c.resetBoogieState else stmt)
+    }
+    usingOldState = false // we have now set up a temporary state in terms of "old" - this could happen when an unfolding expression is inside an "old"
+    (s, previousState)
+  }
+
   override def freshTempStateKeepCurrent(name: String) : StateSnapshot = {
     val freshState = new StateComponentMapping()
 
@@ -162,9 +224,30 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     (freshState, false, false)
   }
 
+  override def freshPartialTempStateKeepCurrent(name: String, resources: Seq[sil.Resource]): StateSnapshot = {
+    val freshState = new StateComponentMapping()
+
+    for (c <- components) yield {
+      val tmpExps = c.freshPartialTempState(name, resources)
+      val curExps = c.currentStateExpMap
+      val currentStateVars = c.currentStateVars
+      val allResourcesOrdered = curExps.keys.toSeq
+      val completeTempExps = allResourcesOrdered.map(r => {
+        if (resources.contains(r)) {
+          tmpExps(resources.indexOf(r))
+        } else {
+          currentStateVars(allResourcesOrdered.indexOf(r))
+        }
+      })
+      freshState.put(c, completeTempExps)
+    }
+
+    (freshState, false, false)
+  }
+
   override def initToCurrentStmt(snapshot: StateSnapshot) : Stmt = {
     for (e <- snapshot._1.entrySet().asScala.toSeq) yield {
-      val s: Stmt = (e.getValue zip e.getKey.currentStateExps) map (x => x._1 := x._2)
+      val s: Stmt = (e.getValue zip e.getKey.currentStateExps) filter (x => x._1 != x._2) map (x => x._1 := x._2)
       s
     }
   }

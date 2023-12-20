@@ -8,6 +8,7 @@ package viper.carbon.modules
 
 import components.{CarbonStateComponent, ComponentRegistry}
 import viper.silver.components.StatefulComponent
+import viper.silver.{ast => sil}
 import viper.carbon.boogie.{Exp, LocalVar, LocalVarDecl, Stmt}
 
 /**
@@ -76,6 +77,8 @@ trait StateModule extends Module with ComponentRegistry[CarbonStateComponent] wi
 
   type StateSnapshot// used to abstractly capture the Boogie variables, old expressions etc. used to represent a current state in the translation
 
+  def getResourcesFromExp(e: sil.Exp, except: Option[sil.Predicate] = None) : Seq[sil.Resource]
+
   /**
    * Backup the current state and return enough information such that it can
    * be restored again at a later point.
@@ -93,10 +96,14 @@ trait StateModule extends Module with ComponentRegistry[CarbonStateComponent] wi
    */
   def freshTempState(name: String, discardCurrent: Boolean = false, initialise: Boolean = false): (Stmt, StateSnapshot)
 
+  def freshPartialTempState(name: String, resources: Seq[sil.Resource], discardCurrent: Boolean = false, initialise: Boolean = false): (Stmt, StateSnapshot)
+
   /**
     * Returns a fresh state that is not an old state. This method has no side-effects on the current state.
     */
   def freshTempStateKeepCurrent(name: String) : StateSnapshot
+
+  def freshPartialTempStateKeepCurrent(name: String, resources: Seq[sil.Resource]) : StateSnapshot
 
   /**
     * Returns the statement that initializes the input state to the current state. This method has no side-effects on

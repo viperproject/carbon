@@ -57,10 +57,14 @@ trait CarbonStateComponent extends Component {
    */
   def currentStateExps: Seq[Exp]
 
+  def currentStateExpMap: Map[Resource, Exp]
+
   /**
    * Set up a fresh temporary state and returns that new state.
    */
   def freshTempState(name: String): Seq[Var]
+
+  def freshPartialTempState(name: String, resources: Seq[Resource]): Seq[Var]
 
   /**
    * Throw away the current state and go back to a snapshot.
