@@ -11,14 +11,20 @@ import viper.silver.frontend.{MinimalViperFrontendAPI, SilFrontend, SilFrontendC
 import viper.silver.logger.ViperStdOutLogger
 import viper.silver.reporter.{Reporter, StdIOReporter}
 import viper.silver.verifier.{Verifier => SilVerifier}
+import viper.silver.utility.{FileProgramSubmitter}
 
 /**
  * The main object for Carbon containing the execution start-point.
  */
 object Carbon extends CarbonFrontend(StdIOReporter("carbon_reporter"), ViperStdOutLogger("Carbon", "INFO").get) {
   def main(args: Array[String]): Unit = {
-    execute(args)
-    specifyAppExitCode()
+    val submitter = new FileProgramSubmitter(this)
+    submitter.setArgs(args)
+    try {
+      execute(args)
+      specifyAppExitCode()
+    }
+    submitter.submit()
     sys.exit(appExitCode)
   }
 }
