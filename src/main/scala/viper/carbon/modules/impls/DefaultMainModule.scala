@@ -70,7 +70,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
             }
             res
           }
-          case q: Quasihavoc => desugarQuasihavoc(q)
+          //case q: Quasihavoc => desugarQuasihavoc(q)
         },
         Traverse.TopDown)
     )

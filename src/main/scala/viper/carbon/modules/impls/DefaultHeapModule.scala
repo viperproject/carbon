@@ -90,6 +90,7 @@ class DefaultHeapModule(val verifier: Verifier)
   private lazy val allocName = if(enableAllocationEncoding) Identifier("$allocated")(fieldNamespace) else null
   private val succHeapName = Identifier("succHeap")
   private val succHeapTransName = Identifier("succHeapTrans")
+  private val identicalExceptFieldName = Identifier("IdenticalExceptField")
   private val identicalOnKnownLocsName = Identifier("IdenticalOnKnownLocations")
   private val identicalOnKnownLocsLiberalName = Identifier("IdenticalOnKnownLocationsLiberal")
   private val isPredicateFieldName = Identifier("IsPredicateField")
@@ -140,6 +141,8 @@ class DefaultHeapModule(val verifier: Verifier)
       Func(succHeapTransName,
         Seq(LocalVarDecl(heap0Name, heapTyp), LocalVarDecl(heap1Name, heapTyp)),
         Bool) ++
+      Func(identicalExceptFieldName, Seq(LocalVarDecl(heapName, heapTyp), LocalVarDecl(exhaleHeapName, heapTyp), LocalVarDecl(Identifier("predId"), Int)),
+        Bool) ++
       Func(identicalOnKnownLocsName,
         Seq(LocalVarDecl(heapName, heapTyp), LocalVarDecl(exhaleHeapName, heapTyp)) ++ staticMask,
         Bool) ++
@@ -179,6 +182,7 @@ class DefaultHeapModule(val verifier: Verifier)
         else Nil
       } ++ {
       val h = LocalVarDecl(heapName, heapTyp)
+      val predIdArg = LocalVarDecl(Identifier("predId"), Int)
       val eh = LocalVarDecl(exhaleHeapName, heapTyp)
       val h0 = LocalVarDecl(heap0Name, heapTyp)
       val h1 = LocalVarDecl(heap1Name, heapTyp)
@@ -186,8 +190,18 @@ class DefaultHeapModule(val verifier: Verifier)
       val vars = Seq(h, eh) ++ staticMask
       val identicalFuncApp = FuncApp(identicalOnKnownLocsName, vars map (_.l), Bool)
       val identicalLiberalFuncApp = FuncApp(identicalOnKnownLocsLiberalName, vars map (_.l), Bool)
+      val iefVarDecls = Seq(h, eh, predIdArg)
+      val iefVars = iefVarDecls map (_.l)
+      val identicalExceptFieldFuncApp = FuncApp(identicalExceptFieldName, iefVars, Bool)
+
 
       identicalOnKnownLocsAxioms(false) ++
+        MaybeCommentedDecl("IdenticalExceptField definition", {
+          Axiom(Forall(iefVarDecls ++ Seq(obj, field2),
+            Seq(Trigger(Seq(lookup(eh.l, obj.l, field2.l), identicalExceptFieldFuncApp))),
+            (identicalExceptFieldFuncApp && (isPredicateField(field2.l).not || (getPredicateOrWandId(field2.l) !== predIdArg.l))) ==>
+              (lookup(eh.l, obj.l, field2.l) === lookup(h.l, obj.l, field2.l))))
+        }) ++
         MaybeCommentedDecl("Updated Heaps are Successor Heaps", {
           val value = LocalVarDecl(Identifier("v"), TypeVar("B"));
           val upd = heapUpdate(h.l, obj.l, field.l, value.l)
@@ -662,6 +676,16 @@ class DefaultHeapModule(val verifier: Verifier)
           // for loops (see the StateModule implementation)
           Assume(if(enableAllocationEncoding) (freshObjectVar !== nullLit) && alloc(freshObjectVar).not else (freshObjectVar !== nullLit)) ::
           (if(enableAllocationEncoding) allocUpdateRef(freshObjectVar) :: (translateExp(target) := freshObjectVar) :: Nil else (translateExp(target) := freshObjectVar) :: Nil)
+
+      case sil.Quasihavocall(vars, None, sil.PredicateAccess(args, predName)) if vars.map(v => v.localVar) == args =>
+        val newHeap = LocalVar(Identifier("QuasiHavocHeap"), heapTyp)
+        val predId = getPredicateOrWandId(predName)
+        val assume = Assume(FuncApp(identicalExceptFieldName, Seq(heapExp, newHeap, IntLit(predId)), Bool))
+        Seqn(Seq(Havoc(newHeap), assume, (heapVar := newHeap)))
+      case sil.Quasihavoc(None, pa@sil.PredicateAccess(args, predName)) =>
+        //val fieldExp = translateResourceAccess(pa)
+        val newVal = LocalVar(Identifier("HavocVal"), funcPredModule.predicateVersionType)
+        Seqn(Seq(Havoc(newVal), currentHeapAssignUpdate(pa, newVal)))
       case _ => Statements.EmptyStmt
     }
   }
