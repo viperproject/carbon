@@ -193,7 +193,7 @@ case class CarbonVerifier(override val reporter: Reporter,
           }
           res
         }
-        case q: sil.Quasihavoc => mainModule.desugarQuasihavoc(q)
+        //case q: sil.Quasihavoc => mainModule.desugarQuasihavoc(q)
       },
       Traverse.TopDown)
     _program = program
@@ -202,8 +202,8 @@ case class CarbonVerifier(override val reporter: Reporter,
       program.shallowCollect(
         n =>
           n match {
-            case q: sil.Quasihavocall =>
-              ConsistencyError("Carbon does not support quasihavocall", q.pos)
+            //case q: sil.Quasihavocall =>
+            //  ConsistencyError("Carbon does not support quasihavocall", q.pos)
             case q@sil.Quasihavoc(_, sil.MagicWand(_, _)) =>
               ConsistencyError("Carbon does not support quasihavoc of magic wands", q.pos)
           }

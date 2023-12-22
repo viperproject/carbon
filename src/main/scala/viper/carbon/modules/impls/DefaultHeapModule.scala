@@ -560,6 +560,11 @@ class DefaultHeapModule(val verifier: Verifier)
           // for loops (see the StateModule implementation)
           Assume(if(enableAllocationEncoding) (freshObjectVar !== nullLit) && alloc(freshObjectVar).not else (freshObjectVar !== nullLit)) ::
           (if(enableAllocationEncoding) allocUpdateRef(freshObjectVar) :: (translateExp(target) := freshObjectVar) :: Nil else (translateExp(target) := freshObjectVar) :: Nil)
+      case sil.Quasihavocall(vars, None, sil.PredicateAccess(args, predName)) if vars.map(_.localVar) == args =>
+        Havoc(heapMap(program.findPredicate(predName)))
+      case sil.Quasihavoc(None, pa@sil.PredicateAccess(args, predName)) =>
+        val newVal = LocalVar(Identifier("HavocVal"), funcPredModule.predicateVersionType)
+        Seqn(Seq(Havoc(newVal), currentHeapAssignUpdate(pa, newVal)))
       case _ => Statements.EmptyStmt
     }
   }
