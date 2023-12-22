@@ -149,7 +149,34 @@ case class CarbonVerifier(override val reporter: Reporter,
     })
   }
 
-  def verify(prgrm: sil.Program) : VerificationResult = {
+  def filterFields(p: sil.Program): sil.Program = {
+    if (p.fields.length <= 20)
+      return p
+    val newFields = p.fields.filter(f => {
+      p.predicates.exists(pred => pred.body.exists(bod => bod.existsDefined {
+        case fa: sil.FieldAccess if fa.field == f =>
+      })) ||
+        p.functions.exists(fun => {
+          val allParts: Seq[sil.Exp] = fun.pres ++ fun.body ++ fun.posts
+          allParts.exists(part => part.existsDefined {
+            case fa: sil.FieldAccess if fa.field == f =>
+          })
+        }) ||
+        p.methods.exists(m => {
+          val allParts = m.pres ++ Seq(m.bodyOrAssumeFalse) ++ m.posts
+          allParts.exists(part => part.existsDefined {
+            case fa: sil.FieldAccess if fa.field == f =>
+          })
+        })
+    })
+    p.copy(fields = newFields)(p.pos, p.info, p.errT)
+  }
+
+  def verify(prgrm0: sil.Program) : VerificationResult = {
+    //val before = System.currentTimeMillis()
+    val prgrm = filterFields(prgrm0)
+    //val after = System.currentTimeMillis()
+    //println(after - before)
     val program = prgrm.transform(
       {
         case f: sil.Forall => {

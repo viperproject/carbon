@@ -186,6 +186,7 @@ trait BoogieInterface {
     errorStreamThread.start()
     inputStreamThread.start()
 
+    //val before = System.currentTimeMillis()
     // Send the program to Boogie
     proc.getOutputStream.write(input.getBytes);
     proc.getOutputStream.close()
@@ -207,6 +208,8 @@ trait BoogieInterface {
     try {
       val errorOutput = errorConsumer.result.get
       val normalOutput = inputConsumer.result.get
+      //val after = System.currentTimeMillis()
+      //println(after - before)
       reporter report BackendSubProcessReport("carbon", boogiePath, OnExit, _boogieProcessPid)
 
       errorOutput + normalOutput

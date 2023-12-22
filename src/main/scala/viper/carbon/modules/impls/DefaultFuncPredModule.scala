@@ -773,7 +773,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
               //Note: the following statement has a side-effect on the definedness state, which is then reverted via @{code restoreState}
               unfoldingIntoDefinednessState(acc, error, defState, tmpStateName)
             case None =>
-              val (initStmt, prevState) = stateModule.freshTempState(tmpStateName)
+              val affectedResources = stateModule.getResourcesFromExp(e)
+              val (initStmt, prevState) = stateModule.freshPartialTempState(tmpStateName, affectedResources)
               val unfoldStmt = unfoldPredicate(acc, error, true)
               ((initStmt ++ unfoldStmt) : Stmt, () => stateModule.replaceState(prevState))
           }

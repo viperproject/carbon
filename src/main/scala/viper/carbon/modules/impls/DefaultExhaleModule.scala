@@ -46,7 +46,8 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
     nestedExhaleId += 1
 
     // create a definedness state that matches the state before the exhale
-    val wellDefState = stateModule.freshPartialTempStateKeepCurrent(s"ExhaleWellDef${nestedExhaleId - 1}", exps.flatMap(e => stateModule.getResourcesFromExp(e._1)).distinct)
+    val affectedResources = exps.flatMap(e => stateModule.getResourcesFromExp(e._1)).distinct
+    val wellDefState = stateModule.freshPartialTempStateKeepCurrent(s"ExhaleWellDef${nestedExhaleId - 1}", affectedResources)
     val wellDefStateInitStmt = stateModule.initToCurrentStmt(wellDefState)
 
     // creating a new temp state if we are inside a package statement
@@ -86,13 +87,19 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
       // if this is a translation of an Assert statement, there is also no need for heap copies
       wellDefStateInitStmtOpt ++ initStmtWand ++ exhaleStmt ++ assumptions
     } else {
+      //val otherAffectedResources = collectAffectedResources(exps map (_._1))
+      //val sameAffected = otherAffectedResources.size == affectedResources.size
+      //if (!sameAffected) {
+      //  println("whatsgoingon")
+      //  val recompute = collectAffectedResources(exps map (_._1))
+      //}
       beginExhale ++
       wellDefStateInitStmtOpt ++
       initStmtWand ++
         exhaleStmt ++
         assumptions ++
         Comment("Finish exhale") ++
-        endExhale(Some(collectAffectedResources(exps map (_._1))))
+        endExhale(Some(affectedResources.toSet))
     }
 
   }
