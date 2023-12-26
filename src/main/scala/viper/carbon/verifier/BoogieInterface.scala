@@ -9,12 +9,14 @@ package viper.carbon.verifier
 import viper.carbon.boogie.{Assert, Program}
 import viper.silver.reporter.BackendSubProcessStages._
 import viper.silver.reporter.{BackendSubProcessReport, Reporter}
+import viper.silver.testing.BenchmarkStatCollector
 import viper.silver.verifier.errors.Internal
 import viper.silver.verifier.reasons.InternalReason
 import viper.silver.verifier._
 
 import java.io._
 import scala.jdk.CollectionConverters._
+import scala.util.Random
 
 class BoogieDependency(_location: String) extends Dependency {
   def name = "Boogie"
@@ -77,7 +79,7 @@ trait BoogieInterface {
 
   var errormap: Map[Int, AbstractError] = Map()
   var models : collection.mutable.ListBuffer[String] = new collection.mutable.ListBuffer[String]
-  def invokeBoogie(program: Program, options: Seq[String], timeout: Option[Int]): (String,VerificationResult) = {
+  def invokeBoogie(program: Program, options: Seq[String], timeout: Option[Int], randomize: Boolean): (String,VerificationResult) = {
     // find all errors and assign everyone a unique id
     errormap = Map()
     program.visit {
@@ -85,8 +87,12 @@ trait BoogieInterface {
         errormap += (a.id -> error)
     }
 
+    var allOptions = defaultOptions ++ options
+    if (randomize)
+      allOptions = allOptions ++ Seq(s"/randomSeed:${Random.nextInt(10000)}")
+
     // invoke Boogie
-    val output = run(program.toString, defaultOptions ++ options, timeout)
+    val output = run(program.toString, allOptions, timeout)
     // parse the output
     parse(output, timeout) match {
       case (version,Nil) =>
@@ -199,7 +205,8 @@ trait BoogieInterface {
     errorStreamThread.start()
     inputStreamThread.start()
 
-    //val before = System.currentTimeMillis()
+
+    val before = System.currentTimeMillis()
     // Send the program to Boogie
     proc.getOutputStream.write(input.getBytes);
     proc.getOutputStream.close()
@@ -216,6 +223,9 @@ trait BoogieInterface {
     } finally {
       destroyProcessAndItsChildren(proc, boogiePath)
     }
+    val after = System.currentTimeMillis()
+
+    BenchmarkStatCollector.addToStat("boogieTime", after - before)
 
     // Deregister the shutdown hook, otherwise the prover process that has been stopped cannot be garbage collected.
     // Explanation: https://blog.creekorful.org/2020/03/classloader-and-memory-leaks/

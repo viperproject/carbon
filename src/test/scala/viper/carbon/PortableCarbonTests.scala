@@ -76,12 +76,16 @@ class PortableCarbonTests extends SilSuite with StatisticalTestSuite {
   override val targetLocationPropertyName = "CARBONTESTS_TARGET"
   override val csvFilePropertyName = "CARBONTESTS_CSV"
   val timeoutPropertyName = "CARBONTESTS_TIMEOUT"
+  val randomizePropertyName = "CARBONTESTS_RANDOMIZE_Z3"
 
   val reporter = NoopReporter
 
-  val commandLineArguments: Seq[String] = Seq(
-    s"--boogieOpt=/vcsCores:1 --assumeInjectivityOnInhale --timeout=${System.getProperty(timeoutPropertyName, "180")}"
-  )
+  val commandLineArguments: Seq[String] = {
+    (if (System.getProperty(randomizePropertyName, "false").toBoolean) Seq("--proverRandomizeSeeds") else Seq.empty) ++
+    Seq(
+      "--boogieOpt=/vcsCores:1", "--assumeInjectivityOnInhale", "--timeout=600"
+    )
+  }
 
   override def verifier: CarbonVerifier = {
     val carbon = CarbonVerifier(reporter)
