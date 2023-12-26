@@ -123,5 +123,11 @@ class CarbonConfig(args: Seq[String]) extends SilFrontendConfig(args, "Carbon") 
     noshort = true
   )
 
+  val proverRandomizeSeeds = opt[Boolean]("proverRandomizeSeeds",
+    descr = "Set various random seeds of the prover to random values",
+    default = Some(false),
+    noshort = true
+  )
+
   verify()
 }

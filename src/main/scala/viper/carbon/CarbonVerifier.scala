@@ -16,6 +16,7 @@ import verifier.{BoogieDependency, BoogieInterface, Verifier}
 import java.io.{BufferedOutputStream, File, FileOutputStream, IOException}
 import viper.silver.frontend.{MissingDependencyException, NativeModel, VariablesModel}
 import viper.silver.reporter.Reporter
+import viper.silver.testing.BenchmarkStatCollector
 
 /**
  * The main class to perform verification of Viper programs.  Deals with command-line arguments, configuration
@@ -151,6 +152,8 @@ case class CarbonVerifier(override val reporter: Reporter,
   def verify(program: Program) : VerificationResult = {
     _program = program
 
+    BenchmarkStatCollector.addStat("boogieTime")
+
     val unsupportedFeatures : Seq[AbstractError] =
       program.shallowCollect(
         n =>
@@ -225,7 +228,7 @@ case class CarbonVerifier(override val reporter: Reporter,
       timeout = config.timeout.toOption
     }
 
-    invokeBoogie(_translated, options, timeout) match {
+    invokeBoogie(_translated, options, timeout, config.proverRandomizeSeeds()) match {
       case (version,result) =>
         if (version!=null) { dependencies.foreach(_ match {
           case b:BoogieDependency => b.version = version
