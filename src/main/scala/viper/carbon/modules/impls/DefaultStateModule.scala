@@ -161,7 +161,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
       }
       case rap: sil.AccessPredicate => Set(rap.res(program))
     }
-    collected.toSeq.flatten.distinct
+    (collected.toSeq.flatten ++ heapModule.getAllocationFields).distinct
   }
 
   override def freshTempState(name: String, discardCurrent: Boolean = false, initialise: Boolean = false): (Stmt, StateSnapshot) = {

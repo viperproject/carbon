@@ -47,6 +47,7 @@ class DefaultHeapModule(val verifier: Verifier)
 
   var enableAllocationEncoding : Boolean = true // note: this may be modified on configuration, so should only be used e.g. in method defs which will be called later (e.g. during verification)
 
+  def getAllocationFields: Seq[sil.Field] = if(enableAllocationEncoding) Seq(allocField) else Seq()
 
   def cmpResources: Seq[sil.Resource] = Seq(allocField) ++ verifier.program.fields ++ verifier.program.predicates ++ verifier.program.magicWandStructures
 
@@ -162,7 +163,8 @@ class DefaultHeapModule(val verifier: Verifier)
     /*(if(enableAllocationEncoding) ConstDecl(allocName, NamedType(fieldTypeName, Seq(normalFieldType, Bool)), unique = true) ++*/
       {
         val relevantHeaps = heaps.filter(h => h._1.isInstanceOf[sil.Field] && h._1.asInstanceOf[sil.Field].typ == sil.Ref)
-        val foralls: Seq[Exp] = relevantHeaps.map(rh => Forall(obj ++ LocalVarDecl(heapMap(rh._1).name, heapMap(rh._1).typ) ++ LocalVarDecl(heapMap(allocField).name, heapMap(allocField).typ), Trigger(Seq(FuncApp(isAllocHeap, Seq(heapMap(allocField)), Bool), validReference(lookup(rh._2, obj.l)))),
+        val foralls: Seq[Exp] = relevantHeaps.map(rh => Forall(obj ++ LocalVarDecl(heapMap(rh._1).name, heapMap(rh._1).typ) ++ LocalVarDecl(heapMap(allocField).name, heapMap(allocField).typ),
+          Trigger(Seq(FuncApp(isAllocHeap, Seq(heapMap(allocField)), Bool), validReference(lookup(rh._2, obj.l)))),
           FuncApp(isAllocHeap, Seq(heapMap(allocField)), Bool) && validReference(obj.l) ==> validReference(lookup(heaps(rh._1), obj.l))
         )).toSeq
         //val triggers = relevantHeaps.map(h => Trigger(Seq(staticGoodState, validReference(lookup(h._2, obj.l)))))

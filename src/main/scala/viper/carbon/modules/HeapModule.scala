@@ -33,6 +33,8 @@ trait HeapModule extends Module with CarbonStateComponent {
    */
   def refType: Type
 
+  def getAllocationFields: Seq[sil.Field]
+
 
   /**
     * Represents the Boogie type constructor for fields.
