@@ -69,7 +69,7 @@ trait HeapModule extends Module with CarbonStateComponent {
   /**
    * Get a function application representing that one heap-state (as represented by currentStateContributions of HeapModule) is a predecessor of another
    */
-  def successorHeapState(first: Seq[LocalVarDecl], second: Seq[LocalVarDecl]) : Exp
+  //def successorHeapState(first: Seq[LocalVarDecl], second: Seq[LocalVarDecl]) : Exp
 
   /**
    * The type used for wands.

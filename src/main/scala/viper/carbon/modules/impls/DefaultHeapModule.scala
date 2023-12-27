@@ -88,8 +88,6 @@ class DefaultHeapModule(val verifier: Verifier)
   private val freshObjectName = Identifier("freshObj")
   private val freshObjectVar = LocalVar(freshObjectName, refType)
   private lazy val allocName = if(enableAllocationEncoding) Identifier("$allocated")(fieldNamespace) else null
-  private val succHeapName = Identifier("succHeap")
-  private val succHeapTransName = Identifier("succHeapTrans")
   private val identicalExceptFieldName = Identifier("IdenticalExceptField")
   private val identicalOnKnownLocsName = Identifier("IdenticalOnKnownLocations")
   private val identicalOnKnownLocsLiberalName = Identifier("IdenticalOnKnownLocationsLiberal")
@@ -135,12 +133,6 @@ class DefaultHeapModule(val verifier: Verifier)
           stateModule.staticStateContributions(withPermissions = false),
         Trigger(Seq(obj_refField)),
         validReference(obj.l) ==> validReference(obj_refField))) else Nil) ++
-      Func(succHeapName,
-        Seq(LocalVarDecl(heap0Name, heapTyp), LocalVarDecl(heap1Name, heapTyp)),
-        Bool) ++
-      Func(succHeapTransName,
-        Seq(LocalVarDecl(heap0Name, heapTyp), LocalVarDecl(heap1Name, heapTyp)),
-        Bool) ++
       Func(identicalExceptFieldName, Seq(LocalVarDecl(heapName, heapTyp), LocalVarDecl(exhaleHeapName, heapTyp), LocalVarDecl(Identifier("predId"), Int)),
         Bool) ++
       Func(identicalOnKnownLocsName,
@@ -202,55 +194,6 @@ class DefaultHeapModule(val verifier: Verifier)
             (identicalExceptFieldFuncApp && (isPredicateField(field2.l).not || (getPredicateOrWandId(field2.l) !== predIdArg.l))) ==>
               (lookup(eh.l, obj.l, field2.l) === lookup(h.l, obj.l, field2.l))))
         }) ++
-        MaybeCommentedDecl("Updated Heaps are Successor Heaps", {
-          val value = LocalVarDecl(Identifier("v"), TypeVar("B"));
-          val upd = heapUpdate(h.l, obj.l, field.l, value.l)
-          Axiom(Forall(
-            Seq(h, obj, field, value),
-            Trigger(Seq(upd))
-            ,
-            FuncApp(succHeapName, Seq(h.l, upd), Bool)
-          ))
-        }, size = 1) ++
-        MaybeCommentedDecl("IdenticalOnKnownLocations Heaps are Successor Heaps",
-          Axiom(Forall(
-            vars,
-            Trigger(Seq(identicalFuncApp))
-            ,
-            identicalFuncApp ==> FuncApp(succHeapName, Seq(h.l, eh.l), Bool)
-          )), size = 1) ++
-        {
-          if (useSumOfStatesAxioms) {
-            MaybeCommentedDecl("IdenticalOnKnownLiberalLocations Heaps are Successor Heaps",
-              Axiom(Forall(
-                vars,
-                Trigger(Seq(identicalLiberalFuncApp))
-                ,
-                identicalLiberalFuncApp ==> FuncApp(succHeapName, Seq(h.l, eh.l), Bool)
-              )), size = 1)
-          } else {
-            Nil
-          }
-        } ++
-      MaybeCommentedDecl("Successor Heaps are Transitive Successor Heaps", {
-              val succHeapApp = FuncApp(succHeapName, Seq(h0.l, h1.l), Bool)
-              Axiom(Forall(
-                Seq(h0, h1),
-                Trigger(Seq(succHeapApp))
-                ,
-                succHeapApp ==> FuncApp(succHeapTransName, Seq(h0.l, h1.l), Bool)
-              ))
-            }, size = 1) ++
-        MaybeCommentedDecl("Transitivity of Transitive Successor Heaps", {
-          val succHeapTransApp = FuncApp(succHeapTransName, Seq(h0.l, h1.l), Bool)
-          val succHeapApp = FuncApp(succHeapName, Seq(h1.l, h2.l), Bool)
-          Axiom(Forall(
-            Seq(h0, h1, h2),
-            Trigger(Seq(succHeapTransApp,succHeapApp))
-            ,
-            (succHeapTransApp && succHeapApp) ==> FuncApp(succHeapTransName, Seq(h0.l, h2.l), Bool) // NOTE: ignore IDE warning - these parentheses are NOT spurious, due to how the overloaded && and ==> get desugared
-          ))
-        }, size = 1) ++
         {
           if (useSumOfStatesAxioms) {
             identicalOnKnownLocsAxioms(true) ++
@@ -414,9 +357,6 @@ class DefaultHeapModule(val verifier: Verifier)
 
   override def heapType: Type = heapTyp
 
-  override def successorHeapState(first: Seq[LocalVarDecl], second: Seq[LocalVarDecl]): Exp = {
-    FuncApp(succHeapTransName, (first ++ second) map (_.l), Bool)
-  }
 
   override def isPredicateField(f: Exp): Exp = {
     FuncApp(isPredicateFieldName, Seq(f), Bool)
