@@ -958,7 +958,10 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       } ++
       (if(exhaleUnfoldedPredicate)
           exhaleSingleWithoutDefinedness(acc, error, havocHeap = false, statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
-      else Nil) ++ inhale(Seq((Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program, env.allDefinedNames(program)).get,acc.perm), error)), addDefinednessChecks = false, statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
+      else Nil) ++ inhale(Seq((Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program, env.allDefinedNames(program)).get,acc.perm), error)), addDefinednessChecks = false, statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt) ++
+      (if (exhaleUnfoldedPredicate) {
+        heapModule.havocUnframed(acc.res(program))
+      } else Nil)
     unfoldInfo = oldUnfoldInfo
     duringUnfold = oldDuringUnfold
     duringFold = oldDuringFold
@@ -1026,8 +1029,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
            Havoc(Seq(newVersion)) ++
               //          Assume(oldVersion < newVersion) ++ // this only made sense with integer versions. In the new model, we even want to allow the possibility of the new version being equal to the old
               currentHeapAssignUpdate(loc, newVersion)
-        ( () => MaybeCommentBlock("Update version of predicate",
-          If(UnExp(Not,hasDirectPerm(loc)), stmt, Nil)), () => Nil)
+        ( () => Nil, () => Nil)
       case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(_, _), _) if duringFold =>
         ( () => Nil, () => Nil)
 

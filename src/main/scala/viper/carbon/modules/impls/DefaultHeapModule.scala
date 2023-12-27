@@ -174,7 +174,7 @@ class DefaultHeapModule(val verifier: Verifier)
         //    stateModule.staticStateContributions(withPermissions = false),
         //  triggers.toSeq,
         //  validReference(obj.l) ==> All(relevantHeaps.map(h => validReference(lookup(heaps(h._1), obj.l))).toSeq)))
-        Axiom(foralls.all)
+        Nil // Axiom(foralls.all)
       }  ++
       // TODO: succHeap?
     /*Func(succHeapName,
@@ -746,5 +746,12 @@ class DefaultHeapModule(val verifier: Verifier)
   override def identicalOnKnownLocations(r: sil.Resource, otherHeap: Seq[Exp], otherMask: Seq[Exp]): Exp = {
     val fname = if (r.isInstanceOf[sil.Field]) fidenticalOnKnownLocsName else pidenticalOnKnownLocsName
     FuncApp(fname, otherHeap ++ heapVars(r) ++ otherMask, Bool)
+  }
+
+  def havocUnframed(r: sil.Resource): Stmt = {
+    val rHeapType = if (r.isInstanceOf[sil.Field]) fheapTyp(translateType(r.asInstanceOf[sil.Field].typ)) else pheapTyp
+    val newHeap = LocalVar(Identifier("unfoldHavocHeapMarco"), rHeapType)
+    val currentMask = permModule.currentMask(r)
+    Havoc(newHeap) ++ Assume(identicalOnKnownLocations(r, Seq(newHeap), Seq(currentMask))) ++ (heapVar(r) := newHeap)
   }
 }

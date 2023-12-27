@@ -167,6 +167,8 @@ trait HeapModule extends Module with CarbonStateComponent {
 
   def identicalOnKnownLocations(r: sil.Resource, heap:Seq[Exp],mask:Seq[Exp]):Exp
 
+  def havocUnframed(r: sil.Resource): Stmt
+
   /**
     * Adds assumption that current heap equals heap represented by s
     */
