@@ -18,6 +18,8 @@ import java.io.{BufferedOutputStream, File, FileOutputStream, IOException}
 import viper.silver.frontend.{MissingDependencyException, NativeModel, VariablesModel}
 import viper.silver.reporter.{Reporter, WarningsDuringTypechecking}
 
+import scala.collection.mutable
+
 /**
  * The main class to perform verification of Viper programs.  Deals with command-line arguments, configuration
  * of modules and choosing which module implementations to use.
@@ -150,25 +152,32 @@ case class CarbonVerifier(override val reporter: Reporter,
   }
 
   def filterFields(p: sil.Program): sil.Program = {
-    if (p.fields.length <= 20)
+    if (p.fields.length <= 15)
       return p
-    val newFields = p.fields.filter(f => {
-      p.predicates.exists(pred => pred.body.exists(bod => bod.existsDefined {
-        case fa: sil.FieldAccess if fa.field == f =>
-      })) ||
-        p.functions.exists(fun => {
-          val allParts: Seq[sil.Exp] = fun.pres ++ fun.body ++ fun.posts
-          allParts.exists(part => part.existsDefined {
-            case fa: sil.FieldAccess if fa.field == f =>
-          })
-        }) ||
-        p.methods.exists(m => {
-          val allParts = m.pres ++ Seq(m.bodyOrAssumeFalse) ++ m.posts
-          allParts.exists(part => part.existsDefined {
-            case fa: sil.FieldAccess if fa.field == f =>
-          })
-        })
+    val usedFields = new mutable.HashSet[sil.Field]()
+    p.predicates.foreach(pred => {
+      pred.body.foreach(bod => {
+        bod.foreach {
+          case fa: sil.FieldAccess => usedFields.add(fa.field)
+          case _ =>
+        }
+      })
     })
+    p.functions.foreach(fun => {
+      val allParts: Seq[sil.Exp] = fun.pres ++ fun.body ++ fun.posts
+      allParts.foreach(part => part.foreach {
+        case fa: sil.FieldAccess => usedFields.add(fa.field)
+        case _ =>
+      })
+    })
+    p.methods.foreach(m => {
+      val allParts = m.pres ++ Seq(m.bodyOrAssumeFalse) ++ m.posts
+      allParts.foreach(part => part.foreach {
+        case fa: sil.FieldAccess => usedFields.add(fa.field)
+        case _ =>
+      })
+    })
+    val newFields = p.fields.filter(f => usedFields.contains(f))
     p.copy(fields = newFields)(p.pos, p.info, p.errT)
   }
 
