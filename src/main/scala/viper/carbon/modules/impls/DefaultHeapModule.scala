@@ -478,18 +478,14 @@ class DefaultHeapModule(val verifier: Verifier)
         // are the same (e.g., we immediatly know that valid(1) != valid(2))
         if (vars.size == 0) Nil
         else {
-          val varDecls2 = varDecls map (
-            v => LocalVarDecl(Identifier(v.name.name + "2")(v.name.namespace), v.typ))
-          val vars2 = varDecls2 map (_.l)
-          var varsEqual = All((vars zip vars2) map {
-            case (v1, v2) => v1 === v2
-          })
-          val f0_2 = FuncApp(predicate, vars2, t)
-          val f2_2 = FuncApp(pmField, vars2, t)
-          Axiom(Forall(varDecls ++ varDecls2, Trigger(Seq(f0, f0_2)),
-            (f0 === f0_2) ==> varsEqual)) ++
-            Axiom(Forall(varDecls ++ varDecls2, Trigger(Seq(f2, f2_2)),
-              (f2 === f2_2) ==> varsEqual))
+          val funcs = varDecls map (
+            v => Func(Identifier(predicate.name + "___" + v.name.name), Seq(LocalVarDecl(Identifier("pred"), t)), v.typ)
+          )
+          val injAxiom = Axiom(Forall(varDecls, Trigger(Seq(f0)),
+            All(vars.zip(funcs).map(v => FuncApp(v._2.name, Seq(f0), v._2.typ) === v._1))
+          ))
+
+          funcs ++ Seq(injAxiom)
         }
       }
   }
