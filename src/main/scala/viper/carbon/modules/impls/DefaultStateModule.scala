@@ -143,7 +143,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
       p.body match {
         case None => Set()
         case Some(body) => {
-          val res = getResourcesFromExp(body, except ++ Set(p)).toSet
+          val res = getResourcesFromExp(body, true, except ++ Set(p)).toSet
           predicateResourceCache.put(key, res)
           res
         }
@@ -151,13 +151,19 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     }
   }
 
-  def getResourcesFromExp(e: sil.Exp, except: Set[sil.Predicate] = Set.empty) : Seq[sil.Resource] = {
+  def getResourcesFromExp(e: sil.Exp, includeAllPredBody: Boolean, except: Set[sil.Predicate] = Set.empty) : Seq[sil.Resource] = {
     val collected: Iterable[Set[sil.Resource]] = e.collect{
       case mw: sil.MagicWand => Set(mw.structure(program))
-      case pap: sil.PredicateAccessPredicate if !except.contains(pap.loc.loc(program)) => {
+      case pap: sil.PredicateAccessPredicate if includeAllPredBody && !except.contains(pap.loc.loc(program)) => {
         val pred = pap.loc.loc(program)
         val resFromPredicate = getResourcesForPredicate(pred, except)
         resFromPredicate ++ Set(pred)
+      }
+      case uf: sil.Unfolding if !except.contains(uf.acc.loc.loc(program)) => {
+        val pred = uf.acc.loc.loc(program)
+        val resFromBody = getResourcesFromExp(uf.body, includeAllPredBody, except + pred)
+        val resFromPredicate = getResourcesForPredicate(pred, except)
+        resFromPredicate ++ resFromBody ++ Set(pred)
       }
       case rap: sil.AccessPredicate => Set(rap.res(program))
     }

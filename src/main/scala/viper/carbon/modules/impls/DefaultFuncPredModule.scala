@@ -375,7 +375,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     Seq(func) ++
       Seq(Axiom(Forall(
         stateModule.staticStateContributions(withPermissions = false) ++ realArgs,
-        Seq(Trigger(Seq(transformFuncAppsToLimitedForm(funcApp2)))) ++ (if (predicateTriggers.isEmpty) Seq()  else Seq(Trigger(Seq(triggerFuncStatelessApp(f,realArgs map (_.l))) ++ predicateTriggers))),
+        Seq(Trigger(Seq(transformFuncAppsToLimitedForm(funcApp2)))),
         (transformFuncAppsToLimitedForm(funcApp2) === funcApp))) ) ++
         translateCondAxioms("function "+f.name, f.formalArgs, funcFrameInfo._2)
   }
@@ -773,7 +773,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
               //Note: the following statement has a side-effect on the definedness state, which is then reverted via @{code restoreState}
               unfoldingIntoDefinednessState(acc, error, defState, tmpStateName)
             case None =>
-              val affectedResources = stateModule.getResourcesFromExp(e)
+              val affectedResources = stateModule.getResourcesFromExp(e, false)
               val (initStmt, prevState) = stateModule.freshPartialTempState(tmpStateName, affectedResources)
               val unfoldStmt = unfoldPredicate(acc, error, true)
               ((initStmt ++ unfoldStmt) : Stmt, () => stateModule.replaceState(prevState))

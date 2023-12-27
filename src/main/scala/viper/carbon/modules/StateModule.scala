@@ -77,7 +77,7 @@ trait StateModule extends Module with ComponentRegistry[CarbonStateComponent] wi
 
   type StateSnapshot// used to abstractly capture the Boogie variables, old expressions etc. used to represent a current state in the translation
 
-  def getResourcesFromExp(e: sil.Exp, except: Set[sil.Predicate] = Set.empty) : Seq[sil.Resource]
+  def getResourcesFromExp(e: sil.Exp, includeAllPredBody: Boolean, except: Set[sil.Predicate] = Set.empty) : Seq[sil.Resource]
 
   /**
    * Backup the current state and return enough information such that it can
