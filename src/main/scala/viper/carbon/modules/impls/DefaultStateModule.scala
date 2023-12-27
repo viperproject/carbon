@@ -134,33 +134,32 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
 
   override def stateRepositoryGet(name:String) : Option[StateSnapshot] = stateRepository.get(name)
 
-  val predicateResourceCache = new mutable.HashMap[String, Set[sil.Resource]]()
-  def getResourcesForPredicate(p: sil.Predicate): Set[sil.Resource] = {
-    if (predicateResourceCache.contains(p.name)) {
-      predicateResourceCache(p.name)
+  val predicateResourceCache = new mutable.HashMap[(String, Set[sil.Predicate]), Set[sil.Resource]]()
+  def getResourcesForPredicate(p: sil.Predicate, except: Set[sil.Predicate] = Set.empty): Set[sil.Resource] = {
+    val key = (p.name, except)
+    if (predicateResourceCache.contains(key)) {
+      predicateResourceCache(key)
     } else {
       p.body match {
         case None => Set()
         case Some(body) => {
-          val res = getResourcesFromExp(body, Some(p)).toSet
-          predicateResourceCache.put(p.name, res)
+          val res = getResourcesFromExp(body, except ++ Set(p)).toSet
+          predicateResourceCache.put(key, res)
           res
         }
       }
     }
   }
 
-  def getResourcesFromExp(e: sil.Exp, except: Option[sil.Predicate] = None) : Seq[sil.Resource] = {
+  def getResourcesFromExp(e: sil.Exp, except: Set[sil.Predicate] = Set.empty) : Seq[sil.Resource] = {
     val collected: Iterable[Set[sil.Resource]] = e.collect{
       case mw: sil.MagicWand => Set(mw.structure(program))
-      case rap: sil.AccessPredicate => Set(rap.res(program))
-      case uf: sil.Unfolding if !except.contains(uf.acc.loc.loc(program)) => {
-        val pred = uf.acc.loc.loc(program)
-        val resFromPredicate = getResourcesForPredicate(pred)
-        val resFromBody = getResourcesFromExp(uf.body)
-        val huh: Set[sil.Resource] = resFromPredicate ++ resFromBody.toSet
-        huh ++ Set(pred)
+      case pap: sil.PredicateAccessPredicate if !except.contains(pap.loc.loc(program)) => {
+        val pred = pap.loc.loc(program)
+        val resFromPredicate = getResourcesForPredicate(pred, except)
+        resFromPredicate ++ Set(pred)
       }
+      case rap: sil.AccessPredicate => Set(rap.res(program))
     }
     collected.toSeq.flatten.distinct
   }
