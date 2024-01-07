@@ -228,7 +228,13 @@ case class CarbonVerifier(override val reporter: Reporter,
       timeout = config.timeout.toOption
     }
 
-    invokeBoogie(_translated, options, timeout, config.proverRandomizeSeeds()) match {
+    val randomize = if (config == null) false else config.proverRandomizeSeeds.toOption match {
+      case Some(b) => b
+      case None => false
+    }
+    val randomSeed = if (config == null) None else config.proverSpecificRandomSeed.toOption
+
+    invokeBoogie(_translated, options, timeout, randomize, randomSeed) match {
       case (version,result) =>
         if (version!=null) { dependencies.foreach(_ match {
           case b:BoogieDependency => b.version = version

@@ -68,6 +68,13 @@ trait BoogieInterface {
     "/proverOpt:O:smt.qi.max_multi_patterns=1000",
     s"/proverOpt:PROVER_PATH=$z3Path")
 
+  def randomOptions(seed: Int): Seq[String] = Seq(
+    s"/proverOpt:O:sat.random_seed=$seed",
+    s"/proverOpt:O:nlsat.seed=$seed",
+    s"/proverOpt:O:fp.spacer.random_seed=$seed",
+    s"/proverOpt:O:smt.random_seed=$seed",
+    s"/proverOpt:O:sls.random_seed=$seed")
+
   val timeoutErrorName = "TIMEOUT"
 
   /** The (resolved) path where Boogie is supposed to be located. */
@@ -85,7 +92,7 @@ trait BoogieInterface {
 
   var errormap: Map[Int, AbstractError] = Map()
   var models : collection.mutable.ListBuffer[String] = new collection.mutable.ListBuffer[String]
-  def invokeBoogie(program: Program, options: Seq[String], timeout: Option[Int], randomize: Boolean): (String,VerificationResult) = {
+  def invokeBoogie(program: Program, options: Seq[String], timeout: Option[Int], randomize: Boolean, randomSeed: Option[Int]): (String,VerificationResult) = {
     // find all errors and assign everyone a unique id
     errormap = Map()
     program.visit {
@@ -96,6 +103,11 @@ trait BoogieInterface {
     var allOptions = defaultOptions ++ options
     if (randomize)
       allOptions = allOptions ++ Seq(s"/randomSeed:${Random.nextInt(10000)}")
+    randomSeed match {
+      case Some(seed) =>
+        allOptions = allOptions ++ randomOptions(seed)
+      case _ =>
+    }
 
     // invoke Boogie
     val output = run(program.toString, allOptions, timeout)

@@ -6,6 +6,7 @@
 
 package viper.carbon.modules.impls
 
+import viper.carbon.CarbonVerifier
 import viper.carbon.boogie.{Bool, CondExp, Exp, FalseLit, Forall, If, Int, IntLit, LocalVar, LocalVarDecl, MaybeCommentBlock, Stmt, Trigger, TypeVar, _}
 import viper.carbon.modules._
 import viper.silver.ast.{FuncApp => silverFuncApp}
@@ -860,7 +861,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   override def toExpressionsUsedInTriggers(e: Exp): Seq[Exp] = {
     val inter = transformFuncAppsToLimitedOrTriggerForm(e,-1,true)
-    val seqsDone = seqModule.rewriteToTermsInTriggers(inter)
+    val config = verifier.asInstanceOf[CarbonVerifier].config
+    val seqsDone = if (config != null && config.useOldAxiomatization()) inter else seqModule.rewriteToTermsInTriggers(inter)
     val res = if (seqsDone != inter)
       (flattenConditionalsInTriggers(seqsDone) ++ flattenConditionalsInTriggers(inter)).distinct
       else flattenConditionalsInTriggers(seqsDone)
