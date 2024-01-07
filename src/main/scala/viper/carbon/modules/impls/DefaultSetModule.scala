@@ -6,6 +6,7 @@
 
 package viper.carbon.modules.impls
 
+import viper.carbon.CarbonVerifier
 import viper.carbon.modules.SetModule
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
@@ -13,6 +14,7 @@ import viper.carbon.verifier.Verifier
 import viper.carbon.boogie.Implicits._
 import viper.carbon.modules.impls.dafny_axioms.SetAxiomatization
 import viper.carbon.modules.components.DefinednessComponent
+import viper.carbon.modules.impls.sequence_axioms.SiliconSetAxiomatization
 
 /**
  * The default implementation of [[viper.carbon.modules.SetModule]].
@@ -48,7 +50,11 @@ class DefaultSetModule(val verifier: Verifier)
 
   override def preamble = {
     if (used || verifier.mapModule.isUsed()) {
-      LiteralDecl(SetAxiomatization.value)
+      val config = verifier.asInstanceOf[CarbonVerifier].config
+      if (config != null && config.useOldAxiomatization())
+        LiteralDecl(SiliconSetAxiomatization.value)
+      else
+        LiteralDecl(SetAxiomatization.value)
     } else {
       Nil
     }
@@ -107,11 +113,16 @@ class DefaultSetModule(val verifier: Verifier)
         if (isMultiset(e)) FuncApp(Identifier("MultiSet#Difference"), List(t(left), t(right)), typ)
         else FuncApp(Identifier("Set#Difference"), List(t(left), t(right)), typ)
       case sil.AnySetContains(left, right) =>
-        if (isMultiset(right))
-          FuncApp(Identifier("MultiSet#Select"), List(t(right), t(left)), Int)
-          //MapSelect(t(right),Seq(t(left)))
-        else
+        if (isMultiset(right)) {
+          val config = verifier.asInstanceOf[CarbonVerifier].config
+          if (config == null || !config.useOldAxiomatization()) {
+            FuncApp(Identifier("MultiSet#Select"), List(t(right), t(left)), Int)
+          } else {
+            MapSelect(t(right),Seq(t(left)))
+          }
+        } else {
           MapSelect(t(right),Seq(t(left)))
+        }
       case sil.AnySetCardinality(set) =>
         if (isMultiset(set)) FuncApp(Identifier("MultiSet#Card"), t(set), Bool)
         else FuncApp(Identifier("Set#Card"), t(set), Bool)

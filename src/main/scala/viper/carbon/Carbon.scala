@@ -129,5 +129,18 @@ class CarbonConfig(args: Seq[String]) extends SilFrontendConfig(args, "Carbon") 
     noshort = true
   )
 
+  val proverSpecificRandomSeed = opt[Int]("proverSpecificRandomSeed",
+    descr = "Set the random seeds of the prover to a specific value",
+    default = None,
+    noshort = true
+  )
+
+  val useOldAxiomatization = opt[Boolean]("useOldAxiomatization",
+    descr = s"Use Silicon's old axiomatization for sequences, sets, and multisets, " +
+      s"instead of Carbon's current one.",
+    default = Some(false),
+    noshort = true
+  )
+
   verify()
 }

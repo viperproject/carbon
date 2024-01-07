@@ -6,6 +6,7 @@
 
 package viper.carbon.modules.impls
 
+import viper.carbon.CarbonVerifier
 import viper.carbon.modules.SeqModule
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
@@ -13,6 +14,7 @@ import viper.carbon.verifier.Verifier
 import viper.carbon.boogie.Implicits._
 import viper.carbon.modules.impls.dafny_axioms.SequenceAxiomatization
 import viper.carbon.modules.components.{DefinednessComponent, DefinednessState}
+import viper.carbon.modules.impls.sequence_axioms.SiliconSequenceAxiomatization
 import viper.silver.ast.{SeqIndex, SeqLength}
 import viper.silver.verifier.{PartialVerificationError, reasons}
 
@@ -38,7 +40,12 @@ class DefaultSeqModule(val verifier: Verifier)
 
   override def preamble = {
     if (used) {
-      LiteralDecl(SequenceAxiomatization.value)
+      val config = verifier.asInstanceOf[CarbonVerifier].config
+      if (config != null && config.useOldAxiomatization()) {
+        LiteralDecl(SiliconSequenceAxiomatization.value)
+      } else {
+        LiteralDecl(SequenceAxiomatization.value)
+      }
     } else {
       Nil
     }
@@ -77,7 +84,7 @@ class DefaultSeqModule(val verifier: Verifier)
         FuncApp(Identifier("Seq#Drop"), List(t(seq), t(n)), typ)
       case sil.SeqContains(elem, seq) =>
         FuncApp(Identifier("Seq#Contains"), List(t(seq), t(elem)), typ)
-      case sexp@sil.SeqUpdate(seq, idx, elem) =>
+      case sexp@sil.SeqUpdate(seq, idx, elem) if verifier.asInstanceOf[CarbonVerifier].config == null || !verifier.asInstanceOf[CarbonVerifier].config.useOldAxiomatization()=>
       {
         // translate as (s[..i] ++ ([i] ++ s[i+1..])) (NOTE: this assumes i is in the range, which is not yet checked)
         t(sexp.desugaredAssumingIndexInRange)
@@ -86,6 +93,8 @@ class DefaultSeqModule(val verifier: Verifier)
        // val v = t(elem)
        // FuncApp(Identifier("Seq#Append"),List(FuncApp(Identifier("Seq#Take"), List(s,i),typ),FuncApp(Identifier("Seq#Append"),List(FuncApp(Identifier("Seq#Singleton"), v, typ),FuncApp(Identifier("Seq#Drop"), List(s,BinExp(i,Add,IntLit(1))),typ)),typ)),typ)
       }
+      case sil.SeqUpdate(seq, idx, elem) =>
+        FuncApp(Identifier("Seq#Update"), List(t(seq), t(idx), t(elem)), typ)
       case sil.SeqLength(seq) =>
         FuncApp(Identifier("Seq#Length"), t(seq), typ)
       case sil.EqCmp(left, right) =>

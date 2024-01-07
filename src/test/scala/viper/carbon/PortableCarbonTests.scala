@@ -87,7 +87,11 @@ class PortableCarbonTests extends SilSuite with StatisticalTestSuite {
     )
   }
 
-  override def verifier: CarbonVerifier = {
+  override val randomization: Option[(Seq[String], String, Int => Int)] = {
+    Some(commandLineArguments, "--proverSpecificRandomSeed", i => i)
+  }
+
+  override lazy val verifier: CarbonVerifier = {
     val carbon = CarbonVerifier(reporter)
     carbon.parseCommandLine(commandLineArguments)
     carbon
