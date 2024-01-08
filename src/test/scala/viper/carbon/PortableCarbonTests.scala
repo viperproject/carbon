@@ -83,7 +83,7 @@ class PortableCarbonTests extends SilSuite with StatisticalTestSuite {
   val commandLineArguments: Seq[String] = {
     (if (System.getProperty(randomizePropertyName, "false").toBoolean) Seq("--proverRandomizeSeeds") else Seq.empty) ++
     Seq(
-      "--boogieOpt=/vcsCores:1", "--assumeInjectivityOnInhale", "--timeout=600"
+      "--boogieOpt=/vcsCores:1", "--assumeInjectivityOnInhale", "--timeout=600", "--useOldAxiomatization"
     )
   }
 
@@ -93,7 +93,7 @@ class PortableCarbonTests extends SilSuite with StatisticalTestSuite {
 
   override lazy val verifier: CarbonVerifier = {
     val carbon = CarbonVerifier(reporter)
-    carbon.parseCommandLine(commandLineArguments)
+    carbon.parseCommandLine(commandLineArguments ++ Seq("dummy.vpr"))
     carbon
   }
 
