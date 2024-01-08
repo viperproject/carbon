@@ -479,7 +479,7 @@ class DefaultHeapModule(val verifier: Verifier)
         if (vars.size == 0) Nil
         else {
           val varDecls2 = varDecls map (
-            v => LocalVarDecl(Identifier(v.name.name + "2")(v.name.namespace), v.typ))
+            v => LocalVarDecl(Identifier(v.name.name + "__2")(v.name.namespace), v.typ))
           val vars2 = varDecls2 map (_.l)
           var varsEqual = All((vars zip vars2) map {
             case (v1, v2) => v1 === v2
