@@ -14,7 +14,7 @@ import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
 import viper.carbon.verifier.Verifier
 import viper.carbon.utility.{PolyMapDesugarHelper, PolyMapRep}
-import viper.silver.ast.Resource
+import viper.silver.ast.{PredicateAccessPredicate, Resource}
 import viper.silver.ast.utility.QuantifiedPermissions.QuantifiedPermissionAssertion
 import viper.silver.verifier.PartialVerificationError
 
@@ -562,11 +562,13 @@ class DefaultHeapModule(val verifier: Verifier)
           // for loops (see the StateModule implementation)
           Assume(if(enableAllocationEncoding) (freshObjectVar !== nullLit) && alloc(freshObjectVar).not else (freshObjectVar !== nullLit)) ::
           (if(enableAllocationEncoding) allocUpdateRef(freshObjectVar) :: (translateExp(target) := freshObjectVar) :: Nil else (translateExp(target) := freshObjectVar) :: Nil)
-      case sil.Quasihavocall(vars, None, sil.PredicateAccess(args, predName)) if vars.map(_.localVar) == args =>
-        Havoc(heapMap(program.findPredicate(predName)))
+      case sil.Quasihavocall(vars, None, pa@sil.PredicateAccess(args, predName)) if vars.map(_.localVar) == args =>
+        val affectedResources = stateModule.getResourcesFromExp(sil.PredicateAccessPredicate(pa, sil.FullPerm()())(), includeAllPredBody = true, except = Set.empty)
+        Seq(Havoc(heapMap(program.findPredicate(predName)))) ++ affectedResources.map(r => havocUnframed(r))
       case sil.Quasihavoc(None, pa@sil.PredicateAccess(args, predName)) =>
         val newVal = LocalVar(Identifier("HavocVal"), funcPredModule.predicateVersionType)
-        Seqn(Seq(Havoc(newVal), currentHeapAssignUpdate(pa, newVal)))
+        val affectedResources = stateModule.getResourcesFromExp(sil.PredicateAccessPredicate(pa, sil.FullPerm()())(), includeAllPredBody = true, except = Set.empty)
+        Seqn(Seq(Havoc(newVal), currentHeapAssignUpdate(pa, newVal)) ++ affectedResources.map(r => havocUnframed(r)))
       case _ => Statements.EmptyStmt
     }
   }
@@ -750,7 +752,8 @@ class DefaultHeapModule(val verifier: Verifier)
 
   def havocUnframed(r: sil.Resource): Stmt = {
     val rHeapType = if (r.isInstanceOf[sil.Field]) fheapTyp(translateType(r.asInstanceOf[sil.Field].typ)) else pheapTyp
-    val newHeap = LocalVar(Identifier("unfoldHavocHeapMarco"), rHeapType)
+    val rName = getResourceName(r)
+    val newHeap = LocalVar(Identifier("unfoldHavocHeapMarco"  + rName), rHeapType)
     val currentMask = permModule.currentMask(r)
     Havoc(newHeap) ++ Assume(identicalOnKnownLocations(r, Seq(newHeap), Seq(currentMask))) ++ (heapVar(r) := newHeap)
   }
