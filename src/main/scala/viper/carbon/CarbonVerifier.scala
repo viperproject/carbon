@@ -211,6 +211,8 @@ case class CarbonVerifier(override val reporter: Reporter,
       }
     }
 
+    var timeout: Option[Int] = None
+
     if(config != null)
     {
       config.boogieOut.toOption match {
@@ -222,9 +224,10 @@ case class CarbonVerifier(override val reporter: Reporter,
           stream.close()
         case None =>
       }
+      timeout = config.timeout.toOption
     }
 
-    invokeBoogie(_translated, options) match {
+    invokeBoogie(_translated, options, timeout) match {
       case (version,result) =>
         if (version!=null) { dependencies.foreach(_ match {
           case b:BoogieDependency => b.version = version

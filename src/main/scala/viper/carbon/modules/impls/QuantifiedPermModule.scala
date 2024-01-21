@@ -85,7 +85,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   private val originalMask = GlobalVar(maskName, maskType)
   private var mask: Var = originalMask // When reading, don't use this directly: use either maskVar or maskExp as needed
   private def maskVar : Var = {assert (!usingOldState); mask}
-  private def maskExp : Exp = if (usingPureState) zeroMask else (if (usingOldState) Old(mask) else mask)
+  private def maskExp : Exp = if (usingPureState) zeroMask else mask
   private val zeroMaskName = Identifier("ZeroMask")
   private val zeroMask = Const(zeroMaskName)
   private val zeroPMaskName = Identifier("ZeroPMask")
@@ -251,10 +251,6 @@ class QuantifiedPermModule(val verifier: Verifier)
   }
   def resetBoogieState = {
     (maskVar := zeroMask)
-  }
-  def initOldState: Stmt = {
-    val mVar = maskVar
-    Assume(Old(mVar) === mVar)
   }
 
   override def reset = {
