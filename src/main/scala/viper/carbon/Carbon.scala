@@ -20,10 +20,10 @@ object Carbon extends CarbonFrontend(StdIOReporter("carbon_reporter"), ViperStdO
   def main(args: Array[String]): Unit = {
     val submitter = new FileProgramSubmitter(this)
     submitter.setArgs(args)
-    try {
-      execute(args)
-      specifyAppExitCode()
-    }
+
+    execute(args)
+    specifyAppExitCode()
+
     submitter.submit()
     sys.exit(appExitCode)
   }
