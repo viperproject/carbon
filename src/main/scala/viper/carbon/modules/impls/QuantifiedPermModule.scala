@@ -322,7 +322,7 @@ class QuantifiedPermModule(val verifier: Verifier)
     la match {
       case sil.FieldAccess(rcv, _) => translateExp(rcv)
       case sil.PredicateAccess(_, _) => translateNull
-      case w: sil.MagicWand => translateNull
+      case sil.MagicWand(_, _) => translateNull
     }
   }
 
@@ -681,14 +681,14 @@ class QuantifiedPermModule(val verifier: Verifier)
               argsInv = argsInv.map(a => a.replace(translatedLocals(i).l, invFunApps(i)))
               permInv = permInv.replace(translatedLocals(i).l, invFunApps(i))
             }
-            val translatedLocation = translateResource(accPred.loc)
-            val translatedLocationAccess = translateResourceAccess(accPred.loc)
+            val translatedResource = translateResource(accPred.loc)
+            val translatedResourceAccess = translateResourceAccess(accPred.loc)
 
             val rangeFunApp = FuncApp(rangeFun.name, freshFormalBoogieVars, rangeFun.typ) // range(o,...): used to test whether an element of the mapped-to type is in the image of the QP's domain, projected by the receiver expression
             val rangeFunRecvApp = FuncApp(rangeFun.name, translatedArgs, rangeFun.typ) // range(e(v),...)
 
             //define inverse functions
-            lazy val candidateTriggers : Seq[Trigger] = validateTriggers(translatedLocals, Seq(Trigger(translatedLocationAccess),Trigger(currentPermission(translateNull, translatedLocation))))
+            lazy val candidateTriggers : Seq[Trigger] = validateTriggers(translatedLocals, Seq(Trigger(translatedResourceAccess),Trigger(currentPermission(translateNull, translatedResource))))
 
             val providedTriggers : Seq[Trigger] = validateTriggers(translatedLocals, translatedTriggers)
 
@@ -712,9 +712,9 @@ class QuantifiedPermModule(val verifier: Verifier)
             //check that sufficient permission is held
             val permNeeded =
               if(isWildcard) {
-                (currentPermission(translateNull, translatedLocation) > RealLit(0))
+                (currentPermission(translateNull, translatedResource) > RealLit(0))
               } else {
-                (currentPermission(translateNull, translatedLocation) >= translatedPerms)
+                (currentPermission(translateNull, translatedResource) >= translatedPerms)
               }
 
             val reason = accPred match {
@@ -727,8 +727,8 @@ class QuantifiedPermModule(val verifier: Verifier)
             //if we exhale a wildcard permission, assert that we hold some permission to all affected locations and restrict the wildcard value
             val wildcardAssms:Stmt =
               if(isWildcard) {
-                Assert(Forall(translatedLocals, Seq(), translatedCond ==> (currentPermission(translateNull, translatedLocation) > noPerm)), error.dueTo(reason)) ++
-                  Assume(Forall(translatedLocals, Seq(), translatedCond ==> (wildcard < currentPermission(translateNull, translatedLocation))))
+                Assert(Forall(translatedLocals, Seq(), translatedCond ==> (currentPermission(translateNull, translatedResource) > noPerm)), error.dueTo(reason)) ++
+                  Assume(Forall(translatedLocals, Seq(), translatedCond ==> (wildcard < currentPermission(translateNull, translatedResource))))
               } else {
                 Nil
               }

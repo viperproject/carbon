@@ -146,30 +146,22 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
    * if the shape hasn't yet been recorded yet then it will be stored
    */
   def getWandRepresentation(wand: sil.MagicWand):Exp = {
-
-    //need to compute shape of wand
-    val ghostFreeWand = wand
-
     //get all the expressions which form the "holes" of the shape,
-    val arguments = ghostFreeWand.subexpressionsToEvaluate(mainModule.verifier.program)
+    val arguments = wand.subexpressionsToEvaluate(mainModule.verifier.program)
+    val translatedArgs = arguments.map(arg => expModule.translateExp(arg))
 
-    val shape:WandShape = wandToShapes(wand.structure(mainModule.verifier.program))
-
-    shape match {
-      case Func(name, _, typ,_) => FuncApp(name, arguments.map(arg => expModule.translateExp(arg)), typ)
-    }
+    getWandExpression(wand, translatedArgs)
   }
 
   def getWandRepresentationWithArgs(wand: sil.MagicWand, args: Seq[sil.Exp]): Exp = {
+    getWandExpression(wand, args.map(arg => expModule.translateExp(arg)))
+  }
 
-    //need to compute shape of wand
-    val ghostFreeWand = wand
-
-    //get all the expressions which form the "holes" of the shape,
+  private def getWandExpression(wand: sil.MagicWand, arguments: Seq[Exp]): Exp = {
     val shape: WandShape = wandToShapes(wand.structure(mainModule.verifier.program))
 
     shape match {
-      case Func(name, _, typ, _) => FuncApp(name, args.map(arg => expModule.translateExp(arg)), typ)
+      case Func(name, _, typ, _) => FuncApp(name, arguments, typ)
     }
   }
 

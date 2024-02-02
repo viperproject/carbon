@@ -157,14 +157,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           val zipped = variables.map(_.localVar) zip renamedVars.map(_.localVar)
           val replacements = zipped.toMap
 
-          val substitutedResAccess: sil.ResourceAccess = resAcc match {
-            case fa: sil.FieldAccess =>
-              sil.FieldAccess(renamedVars.head.localVar, fa.field)(fa.pos, fa.info)
-            case pp: sil.PredicateAccess =>
-              pp.replace(replacements)
-            case w: sil.MagicWand =>
-              w.replace(replacements)
-          }
+          val substitutedResAccess: sil.ResourceAccess = resAcc.replace(replacements)
           val maskRead = currentPermission(substitutedResAccess)
           val heapRead = translateResourceAccess(substitutedResAccess)
           (hasDirectPerm(substitutedResAccess), Seq(Trigger(maskRead), Trigger(heapRead)))
