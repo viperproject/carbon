@@ -99,15 +99,12 @@ trait PermModule extends Module with CarbonStateComponent {
 
   def zeroPMask: Exp
 
-  def hasDirectPerm(la: sil.LocationAccess): Exp
-
-  def permissionLookup(la: sil.LocationAccess) : Exp
-/** FIXME: duplicate method, here */
+  def hasDirectPerm(ra: sil.ResourceAccess): Exp
 
   /**
    * The expression for the current permission at a location.
    */
-  def currentPermission(loc: sil.LocationAccess): Exp
+  def currentPermission(loc: sil.ResourceAccess): Exp
 
   def currentPermission(rcv:Exp, loc:Exp):Exp
 

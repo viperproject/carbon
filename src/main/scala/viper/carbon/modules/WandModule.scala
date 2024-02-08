@@ -61,6 +61,10 @@ trait WandModule extends Module with ComponentRegistry[TransferComponent] {
 
   def getWandRepresentation(w: sil.MagicWand):Exp
 
+  def getWandRepresentationWithArgs(w: sil.MagicWand, args: Seq[sil.Exp]):Exp
+
+  def getWandName(w: sil.MagicWand): String
+
   /**
     * Translates the 'apply' statements to the corresponding Boogie statements
     * the 'statesStackForPackageStmt', 'allStateAssms' and 'insidePackageStmt' parameters are used when being called inside a package statement
