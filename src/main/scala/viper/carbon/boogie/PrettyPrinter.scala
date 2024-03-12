@@ -183,7 +183,7 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
   }
 
   def showError(error: VerificationError, id: Int) = {
-    s"${error.readableMessage} [$id]"
+    s"${error.readableMessage.replaceAll("\"", "'")} [$id]"
   }
 
   def showBlock(stmt: Stmt) = {
