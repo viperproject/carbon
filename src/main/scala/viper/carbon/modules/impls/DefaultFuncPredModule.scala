@@ -180,6 +180,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     extraUnfolding = false
     functionFrames = FrameInfos()
     predicateFrames = FrameInfos()
+    qpPrecondId = 0
+    qpCondFuncs = new ListBuffer[(Func, sil.Forall)]();
   }
 
     override def translateFunction(f: sil.Function, names: Option[mutable.Map[String, String]]): Seq[Decl] = {

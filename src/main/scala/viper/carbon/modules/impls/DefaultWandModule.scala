@@ -106,6 +106,16 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
 
   override def reset() = {
     lazyWandToShapes = None
+    currentWand = null
+
+    lhsID = 0 // Id of the current package statement being translated (used to handle old[lhs])
+    activeWandsStack = Nil // stack of active package statements being translated
+
+    // states variables
+    OPS = null
+    tempCurState = null
+    nestingDepth = 0
+    tmpStateId = -1
   }
 
   override def preamble = wandToShapes.values.collect({

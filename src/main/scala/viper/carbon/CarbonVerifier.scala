@@ -6,7 +6,7 @@
 
 package viper.carbon
 
-import boogie.{BoogieModelTransformer, Namespace}
+import boogie.{BoogieModelTransformer, Namespace, PrettyPrinter}
 import modules.impls._
 import viper.silver.ast.{MagicWand, Program, Quasihavoc, Quasihavocall}
 import viper.silver.utility.Paths
@@ -151,6 +151,8 @@ case class CarbonVerifier(override val reporter: Reporter,
 
   def verify(program: Program) : VerificationResult = {
     _program = program
+
+    //PrettyPrinter.reset()
 
     BenchmarkStatCollector.addStat("boogieTime")
 

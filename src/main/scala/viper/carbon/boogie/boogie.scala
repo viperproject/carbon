@@ -110,6 +110,10 @@ case class LocalVarDecl(name: Identifier, typ: Type, where: Option[Exp] = None) 
  */
 trait Identifier {
   def name: String
+
+  if (name == "Result_2Heap") {
+    println("!!!")
+  }
   def namespace: Namespace
   def preferredName = name
   override def equals(o: Any) = {

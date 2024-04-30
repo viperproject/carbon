@@ -603,6 +603,10 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
     loopToInvs = Map.empty
     loopToWrittenVars = ImmutableMap.empty
     useLoopDetector = false
+    currentMethodIsAbstract = false;
+    usedLoopDetectorOnce = false;
+
+    labelLoopInfoMap = Map.empty
   }
 
   private def getFrame(loopId: Int): (LocalVarDecl, LocalVarDecl) = {

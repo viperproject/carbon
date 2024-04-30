@@ -15,6 +15,11 @@ import viper.silver.verifier.VerificationError
  */
 object PrettyPrinter {
 
+  def reset(): Unit = {
+    idnMap.clear()
+    backMap.clear()
+  }
+
   /**
     * The current mapping from identifier to names.
     */
@@ -99,6 +104,9 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
       case Some(s) => s
       case None =>
         val s = PrettyPrinter.names.createUniqueIdentifier(i.preferredName)
+        if (s == "Result_2Heap") {
+          println("??????????????????")
+        }
         PrettyPrinter.idnMap.put(i, s)
         PrettyPrinter.backMap.update(s, i.name)
         s
