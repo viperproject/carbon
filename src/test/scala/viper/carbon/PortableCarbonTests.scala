@@ -91,11 +91,19 @@ class PortableCarbonTests extends SilSuite with StatisticalTestSuite {
     Some(commandLineArguments, "--proverSpecificRandomSeed", i => i)
   }
 
-  override lazy val verifier: CarbonVerifier = {
+  override def resetVerifier(): Unit = {
+    _verifier = getNewVerifier
+  }
+
+  def getNewVerifier: CarbonVerifier = {
     val carbon = CarbonVerifier(reporter)
     carbon.parseCommandLine(commandLineArguments ++ Seq("dummy.vpr"))
     carbon
   }
+
+  private var _verifier: CarbonVerifier = getNewVerifier
+
+  override def verifier: Verifier = _verifier
 
   override def frontend(verifier: Verifier, files: Seq[Path]): Frontend = {
     require(files.length == 1, "tests should consist of exactly one file")
