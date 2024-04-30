@@ -18,27 +18,27 @@ trait Verifier {
   // All modules
   // Note: we use vals to make it possible to import methods from other modules for
   // convenience.
-  val mainModule: MainModule
-  val heapModule: HeapModule
-  val stateModule: StateModule
-  val stmtModule: StmtModule
-  val expModule: ExpModule
-  val typeModule: TypeModule
-  val exhaleModule: ExhaleModule
-  val inhaleModule: InhaleModule
-  val funcPredModule: FuncPredModule
-  val permModule: PermModule
-  val domainModule: DomainModule
-  val seqModule: SeqModule
-  val setModule: SetModule
-  val mapModule: MapModule
-  val wandModule: WandModule
-  val loopModule: LoopModule
+  def mainModule: MainModule
+  def heapModule: HeapModule
+  def stateModule: StateModule
+  def stmtModule: StmtModule
+  def expModule: ExpModule
+  def typeModule: TypeModule
+  def exhaleModule: ExhaleModule
+  def inhaleModule: InhaleModule
+  def funcPredModule: FuncPredModule
+  def permModule: PermModule
+  def domainModule: DomainModule
+  def seqModule: SeqModule
+  def setModule: SetModule
+  def mapModule: MapModule
+  def wandModule: WandModule
+  def loopModule: LoopModule
 
   /**
    * A list of all modules.
    */
-  lazy val allModules: Seq[Module] = {
+  def allModules: Seq[Module] = {
     Seq(mainModule, stateModule, heapModule, permModule, stmtModule, expModule, typeModule,
       exhaleModule, inhaleModule, funcPredModule, domainModule, seqModule, setModule,
       loopModule, mapModule, wandModule)

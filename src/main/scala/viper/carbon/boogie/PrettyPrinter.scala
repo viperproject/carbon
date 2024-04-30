@@ -18,6 +18,7 @@ object PrettyPrinter {
   def reset(): Unit = {
     idnMap.clear()
     backMap.clear()
+    names = new BoogieNameGenerator()
   }
 
   /**
@@ -26,7 +27,7 @@ object PrettyPrinter {
   private val idnMap = collection.mutable.HashMap[Identifier, String]()
 
   /** BoogieNameGenerator instance. */
-  private val names = new BoogieNameGenerator()
+  private var names = new BoogieNameGenerator()
 
   /**
     * The current mapping from unique Boogie names to the original identifiers (inverse mapping of idnMap,
@@ -104,7 +105,7 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
       case Some(s) => s
       case None =>
         val s = PrettyPrinter.names.createUniqueIdentifier(i.preferredName)
-        if (s == "Result_2Heap") {
+        if (s == "Seq#Length_1") {
           println("??????????????????")
         }
         PrettyPrinter.idnMap.put(i, s)

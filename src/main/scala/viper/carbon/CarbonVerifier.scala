@@ -48,22 +48,38 @@ case class CarbonVerifier(override val reporter: Reporter,
     Namespace(name, namespaceId)
   }
 
-  val stmtModule = new DefaultStmtModule(this)
-  val expModule = new DefaultExpModule(this)
-  val typeModule = new DefaultTypeModule(this)
-  val exhaleModule = new DefaultExhaleModule(this)
-  val inhaleModule = new DefaultInhaleModule(this)
-  val heapModule = new DefaultHeapModule(this)
-  val funcPredModule = new DefaultFuncPredModule(this)
-  val permModule = new QuantifiedPermModule(this)
-  val mainModule = new DefaultMainModule(this)
-  val stateModule = new DefaultStateModule(this)
-  val domainModule = new DefaultDomainModule(this)
-  val seqModule = new DefaultSeqModule(this)
-  val setModule = new DefaultSetModule(this)
-  val mapModule = new DefaultMapModule(this)
-  val wandModule = new DefaultWandModule(this)
-  val loopModule = new DefaultLoopModule(this)
+  var _stmtModule = new DefaultStmtModule(this)
+  def stmtModule = _stmtModule
+  var _expModule = new DefaultExpModule(this)
+  def expModule = _expModule
+  var _typeModule = new DefaultTypeModule(this)
+  def typeModule = _typeModule
+  var _exhaleModule = new DefaultExhaleModule(this)
+  def exhaleModule = _exhaleModule
+  var _inhaleModule = new DefaultInhaleModule(this)
+  def inhaleModule = _inhaleModule
+  var _heapModule = new DefaultHeapModule(this)
+  def heapModule = _heapModule
+  var _funcPredModule = new DefaultFuncPredModule(this)
+  def funcPredModule = _funcPredModule
+  var _permModule = new QuantifiedPermModule(this)
+  def permModule = _permModule
+  var _mainModule = new DefaultMainModule(this)
+  def mainModule = _mainModule
+  var _stateModule = new DefaultStateModule(this)
+  def stateModule = _stateModule
+  var _domainModule = new DefaultDomainModule(this)
+  def domainModule = _domainModule
+  var _seqModule = new DefaultSeqModule(this)
+  def seqModule = _seqModule
+  var _setModule = new DefaultSetModule(this)
+  def setModule = _setModule
+  var _mapModule = new DefaultMapModule(this)
+  def mapModule = _mapModule
+  var _wandModule = new DefaultWandModule(this)
+  def wandModule = _wandModule
+  var _loopModule = new DefaultLoopModule(this)
+  def loopModule = _loopModule
 
   // initialize all modules
   allModules foreach (m => {
@@ -149,10 +165,38 @@ case class CarbonVerifier(override val reporter: Reporter,
     })
   }
 
+  def replaceAndStartAllModules() = {
+    namespaceId = 0
+    PrettyPrinter.reset()
+
+    _stmtModule = new DefaultStmtModule(this)
+    _expModule = new DefaultExpModule(this)
+    _typeModule = new DefaultTypeModule(this)
+    _exhaleModule = new DefaultExhaleModule(this)
+    _inhaleModule = new DefaultInhaleModule(this)
+    _heapModule = new DefaultHeapModule(this)
+    _funcPredModule = new DefaultFuncPredModule(this)
+    _permModule = new QuantifiedPermModule(this)
+    _mainModule = new DefaultMainModule(this)
+    _stateModule = new DefaultStateModule(this)
+    _domainModule = new DefaultDomainModule(this)
+    _seqModule = new DefaultSeqModule(this)
+    _setModule = new DefaultSetModule(this)
+    _mapModule = new DefaultMapModule(this)
+    _wandModule = new DefaultWandModule(this)
+    _loopModule = new DefaultLoopModule(this)
+
+
+    // initialize all modules
+    allModules foreach (m => {
+      m.start()
+    })
+  }
+
   def verify(program: Program) : VerificationResult = {
     _program = program
 
-    //PrettyPrinter.reset()
+    replaceAndStartAllModules()
 
     BenchmarkStatCollector.addStat("boogieTime")
 
