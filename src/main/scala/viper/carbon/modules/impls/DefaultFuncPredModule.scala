@@ -20,6 +20,7 @@ import viper.silver.verifier.{NullPartialVerificationError, PartialVerificationE
 
 import scala.collection.mutable.ListBuffer
 import viper.silver.ast.utility.QuantifiedPermissions.QuantifiedPermissionAssertion
+import viper.silver.verifier.reasons.NonPositivePermission
 
 import scala.collection.mutable
 
@@ -54,6 +55,11 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private val assumeFunctionsAbove: Const = Const(assumeFunctionsAboveName)
   private val specialRefName = Identifier("special_ref")
   private val specialRef = Const(specialRefName)
+
+  /* limitedPostfix is appended to the actual function name to get the name of the limited function.
+   * It must be a string that cannot appear in Viper identifiers to ensure that we can easily check if a given identifier
+   * refers to the limited version of a function or not.
+   */
   private val limitedPostfix = "'"
   private val triggerFuncPostfix = "#trigger"
   private val triggerFuncNoHeapPostfix = "#triggerStateless"
@@ -225,10 +231,21 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   override def dummyFuncApp(e: Exp): Exp = FuncApp(dummyTriggerName, Seq(e), Bool)
 
   override def translateFuncApp(fa: sil.FuncApp) = {
-    translateFuncApp(fa.funcname, heapModule.currentStateExps ++ (fa.args map translateExp), fa.typ)
+    val forceNonLimited = fa.info.getUniqueInfo[sil.AnnotationInfo] match {
+      case Some(ai) if ai.values.contains("reveal") => true
+      case _ => false
+    }
+    translateFuncApp(fa.funcname, heapModule.currentStateExps ++ (fa.args map translateExp), fa.typ, forceNonLimited)
   }
-  def translateFuncApp(fname : String, args: Seq[Exp], typ: sil.Type) = {
-    FuncApp(Identifier(fname), args, translateType(typ))
+
+  def translateFuncApp(fname : String, args: Seq[Exp], typ: sil.Type, forceNonLimited: Boolean) = {
+    val func = verifier.program.findFunction(fname)
+    val useLimited = !forceNonLimited && (func.info.getUniqueInfo[sil.AnnotationInfo] match {
+      case Some(ai) if ai.values.contains("opaque") => true
+      case _ => false
+    })
+    val ident = if (useLimited) Identifier(fname + limitedPostfix) else Identifier(fname)
+    FuncApp(ident, args, translateType(typ))
   }
 
   private def assumeFunctionsAbove(i: Int): Exp =
@@ -246,7 +263,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val height = heights(f.name)
     val heap = heapModule.staticStateContributions(true, true)
     val args = f.formalArgs map translateLocalVarDecl
-    val fapp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
+    val fapp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ, true)
     val precondition : Exp = f.pres.map(p => translateExp(Expressions.asBooleanExp(p).whenExhaling)) match {
       case Seq() => TrueLit()
       case Seq(p) => p
@@ -285,10 +302,15 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         case _ => None}.flatten
     }
 
+    // Do not use predicate triggers if the function is annotated as opaque
+    val usePredicateTriggers = f.info.getUniqueInfo[sil.AnnotationInfo] match {
+      case Some(ai) if ai.values.contains("opaque") => false
+      case _ => true
+    }
 
     Axiom(Forall(
       stateModule.staticStateContributions() ++ args,
-      Seq(Trigger(Seq(staticGoodState,fapp))) ++ (if (predicateTriggers.isEmpty) Seq()  else Seq(Trigger(Seq(staticGoodState, triggerFuncStatelessApp(f,args map (_.l))) ++ predicateTriggers))),
+      Seq(Trigger(Seq(staticGoodState,fapp))) ++ (if (!usePredicateTriggers || predicateTriggers.isEmpty) Seq()  else Seq(Trigger(Seq(staticGoodState, triggerFuncStatelessApp(f,args map (_.l))) ++ predicateTriggers))),
       (staticGoodState && assumeFunctionsAbove(height)) ==>
         (precondition ==> (fapp === body))
     ))
@@ -301,10 +323,16 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
    */
   private def transformFuncAppsToLimitedOrTriggerForm(exp: Exp, heightToSkip : Int = -1, triggerForm: Boolean = false): Exp = {
     def transformer: PartialFunction[Exp, Option[Exp]] = {
-      case FuncApp(recf, recargs, t) if recf.namespace == fpNamespace && (heightToSkip == -1 || heights(recf.name) <= heightToSkip) =>
+      case FuncApp(recf, recargs, t) if recf.namespace == fpNamespace &&
+        // recf might refer to a limited function already if the function was marked as opaque.
+        // In that case, we have to drop the limited postfix, since heights contains only the original function names.
+        // We assume that any name that ends with limitedPostfix refers to a limited function (see limitedPostfix above).
+        (heightToSkip == -1 || heights(if (recf.name.endsWith(limitedPostfix)) recf.name.dropRight(limitedPostfix.length) else recf.name) <= heightToSkip) =>
+
+        val baseName = if (recf.name.endsWith(limitedPostfix)) recf.name.dropRight(limitedPostfix.length) else recf.name
         // change all function applications to use the limited form, and still go through all arguments
         if (triggerForm)
-          {val func = verifier.program.findFunction(recf.name)
+          {val func = verifier.program.findFunction(baseName)
             // This was an attempt to make triggering functions heap-independent.
             // But the problem is that, for soundness such a function cannot be equated with/substituted for
             // the original function application, and if nested inside further structure in a trigger, the
@@ -318,9 +346,9 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
             val frameExp : Exp = {
               getFunctionFrame(func, recargs)._1 // the declarations will be taken care of when the function is translated
             }
-            Some(FuncApp(Identifier(func.name + framePostfix), Seq(frameExp) ++ (recargs.tail /* drop Heap argument */ map (_.transform(transformer))), t))
+            Some(FuncApp(Identifier(baseName + framePostfix), Seq(frameExp) ++ (recargs.tail /* drop Heap argument */ map (_.transform(transformer))), t))
 
-          } else Some(FuncApp(Identifier(recf.name + limitedPostfix), recargs map (_.transform(transformer)), t))
+          } else Some(FuncApp(Identifier(baseName + limitedPostfix), recargs map (_.transform(transformer)), t))
 
       case Forall(vs,ts,e,tvs,w) => Some(Forall(vs,ts,e.transform(transformer),tvs,w)) // avoid recursing into the triggers of nested foralls (which will typically get translated via another call to this anyway)
       case Exists(vs,ts,e,w) => Some(Exists(vs,ts,e.transform(transformer),w)) // avoid recursing into the triggers of nested exists (which will typically get translated via another call to this anyway)
@@ -333,7 +361,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val height = heights(f.name)
     val heap = heapModule.staticStateContributions(true, true)
     val args = f.formalArgs map translateLocalVarDecl
-    val fapp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ)
+    val fapp = translateFuncApp(f.name, (heap ++ args) map (_.l), f.typ, true)
     val precondition : Exp = f.pres.map(p => translateExp(Expressions.asBooleanExp(p).whenExhaling)) match {
       case Seq() => TrueLit()
       case Seq(p) => p
@@ -386,7 +414,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val func = Func(name, LocalVarDecl(Identifier("frame"), frameType) ++ realArgs, typ)
     val funcFrameInfo = getFunctionFrame(f, args map (_.l))
     val funcApp = FuncApp(name, funcFrameInfo._1 ++ (realArgs map (_.l)), typ)
-    val funcApp2 = translateFuncApp(f.name, args map (_.l), f.typ)
+    val funcApp2 = translateFuncApp(f.name, args map (_.l), f.typ, true)
     val outerUnfoldings : Seq[Unfolding] = Functions.recursiveCallsAndSurroundingUnfoldings(f).map((pair) => pair._2.headOption).flatten
 
     //only include predicate accesses that do not refer to bound variables
@@ -504,7 +532,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     }
     assertion match {
       case s@sil.AccessPredicate(la, perm) =>
-        val fragmentBody = translateLocationAccess(renaming(la).asInstanceOf[sil.LocationAccess])
+        val fragmentBody = translateResourceAccess(renaming(la).asInstanceOf[sil.LocationAccess])
         val fragment = if (s.isInstanceOf[PredicateAccessPredicate]) fragmentBody else frameFragment(fragmentBody)
         if (permModule.conservativeIsPositivePerm(perm)) fragment else
         FuncApp(condFrameName, Seq(translatePerm(renaming(perm)),fragment),frameType)
@@ -595,7 +623,6 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val res = sil.Result(f.typ)()
     val init : Stmt = MaybeCommentBlock("Initializing the state",
       stateModule.initBoogieState ++ (f.formalArgs map (a => allAssumptionsAboutValue(a.typ,mainModule.translateLocalVarDecl(a),true))) ++ assumeFunctionsAt(heights(f.name)))
-    val initOld : Stmt = MaybeCommentBlock("Initializing the old state", stateModule.initOldState)
     val checkPre : Stmt = checkFunctionPreconditionDefinedness(f)
     val checkExp : Stmt = if (f.isAbstract) MaybeCommentBlock("(no definition for abstract function)",Nil) else
       MaybeCommentBlock("Check definedness of function body",
@@ -604,7 +631,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       MaybeCommentBlock("Translate function body",
       translateResult(res) := translateExp(f.body.get))
     val checkPost = checkFunctionPostconditionDefinedness(f)
-    val body : Stmt = Seq(init, initOld, checkPre, checkExp, exp, checkPost)
+    val body : Stmt = Seq(init, checkPre, checkExp, exp, checkPost)
     val definednessChecks = Procedure(Identifier(f.name + "#definedness"), args, translateResultDecl(res), body)
     checkingDefinednessOfFunction = None
     definednessChecks
@@ -927,14 +954,15 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
                            , statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): (Stmt,Stmt) = {
     duringFold = true
     foldInfo = acc
-    val stmt = exhaleSingleWithoutDefinedness(Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program, env.allDefinedNames(program)).get,acc.perm), error, havocHeap = false,
+    val stmt = Assert(permModule.isStrictlyPositivePerm(acc.perm), error.dueTo(NonPositivePermission(acc.perm))) ++
+      exhaleSingleWithoutDefinedness(Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program, env.allDefinedNames(program)).get,acc.perm), error, havocHeap = false,
       statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt) ++
       inhale(Seq((acc, error)), addDefinednessChecks = false, statesStackForPackageStmt, insidePackageStmt)
     val stmtLast =  Assume(predicateTrigger(heapModule.currentStateExps, acc.loc)) ++ {
       val location = acc.loc
       val predicate = verifier.program.findPredicate(location.predicateName)
       val translatedArgs = location.args map (x => translateExpInWand(x))
-      Assume(translateLocationAccess(location) === getPredicateFrame(predicate,translatedArgs)._1)
+      Assume(translateResourceAccess(location) === getPredicateFrame(predicate,translatedArgs)._1)
     }
 
     foldInfo = null
@@ -965,12 +993,13 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     duringUnfold = true
     duringUnfolding = isUnfolding
     unfoldInfo = acc
-    val stmt = Assume(predicateTrigger(heapModule.currentStateExps, acc.loc)) ++
+    val stmt = Assert(permModule.isStrictlyPositivePerm(acc.perm), error.dueTo(NonPositivePermission(acc.perm))) ++
+      Assume(predicateTrigger(heapModule.currentStateExps, acc.loc)) ++
       {
         val location = acc.loc
         val predicate = verifier.program.findPredicate(location.predicateName)
         val translatedArgs = location.args map translateExp
-        Assume(translateLocationAccess(location) === getPredicateFrame(predicate,translatedArgs)._1)
+        Assume(translateResourceAccess(location) === getPredicateFrame(predicate,translatedArgs)._1)
       } ++
       (if(exhaleUnfoldedPredicate)
           exhaleSingleWithoutDefinedness(acc, error, havocHeap = false, statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)

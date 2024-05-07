@@ -79,7 +79,7 @@ trait BoogieInterface {
 
   var errormap: Map[Int, VerificationError] = Map()
   var models : collection.mutable.ListBuffer[String] = new collection.mutable.ListBuffer[String]
-  def invokeBoogie(program: Program, options: Seq[String]): (String,VerificationResult) = {
+  def invokeBoogie(program: Program, options: Seq[String], timeout: Option[Int]): (String,VerificationResult) = {
     // find all errors and assign everyone a unique id
     errormap = Map()
     program.visit {
@@ -88,22 +88,28 @@ trait BoogieInterface {
     }
 
     // invoke Boogie
-    val output = run(program.toString, defaultOptions ++ options)
-
-    // parse the output
-    parse(output) match {
-      case (version,Nil) =>
-        (version,Success)
-      case (version,errorIds) => {
-        val errors = (0 until errorIds.length).map(i => {
-          val id = errorIds(i)
-          val error = errormap.get(id).get
-          if (models.nonEmpty)
-            error.failureContexts = Seq(FailureContextImpl(Some(SimpleCounterexample(Model(models(i))))))
-          error
-        })
-        (version,Failure(errors))
-      }
+    val optOutput = run(program.toString, defaultOptions ++ options, timeout)
+    optOutput match {
+      case None =>
+        // Timeout
+        (null, Failure(Seq(TimeoutOccurred(timeout.get, "second(s)"))))
+      case Some(output) =>
+        // parse the output
+        parse(output) match {
+          case (version, Nil) =>
+            (version, Success)
+          case (version, errorIds) => {
+            val errors = (0 until errorIds.length).map(i => {
+              val id = errorIds(i)
+              val error = errormap.get(id).get
+              if (models.nonEmpty) {
+                error.failureContexts = Seq(FailureContextImpl(Some(SimpleCounterexample(Model(models(i))))))
+              }
+              error
+            })
+            (version, Failure(errors))
+          }
+        }
     }
   }
 
@@ -157,8 +163,9 @@ trait BoogieInterface {
 
   /**
     * Invoke Boogie.
+    * Returns None if there was a timeout, otherwise the Boogie output.
     */
-  private def run(input: String, options: Seq[String]) = {
+  private def run(input: String, options: Seq[String], timeout: Option[Int]) = {
     reporter report BackendSubProcessReport("carbon", boogiePath, BeforeInputSent, _boogieProcessPid)
 
     // When the filename is "stdin.bpl" Boogie reads the program from standard input.
@@ -193,8 +200,15 @@ trait BoogieInterface {
     proc.getOutputStream.write(input.getBytes);
     proc.getOutputStream.close()
 
+    var boogieTimeout = false
+
     try {
-      proc.waitFor()
+      timeout match {
+        case Some(t) if t > 0 =>
+          boogieTimeout = !proc.waitFor(t, java.util.concurrent.TimeUnit.SECONDS)
+        case _ =>
+          proc.waitFor()
+      }
     } finally {
       destroyProcessAndItsChildren(proc, boogiePath)
     }
@@ -212,7 +226,10 @@ trait BoogieInterface {
       val normalOutput = inputConsumer.result.get
       reporter report BackendSubProcessReport("carbon", boogiePath, OnExit, _boogieProcessPid)
 
-      errorOutput + normalOutput
+      if (boogieTimeout)
+        None
+      else
+        Some(errorOutput + normalOutput)
     } catch {
       case _: NoSuchElementException => sys.error("Could not retrieve output from Boogie")
     }

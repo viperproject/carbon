@@ -22,7 +22,7 @@ import viper.silver.verifier.{TypecheckerWarning, errors}
 import viper.carbon.verifier.Verifier
 import viper.silver.ast.Quasihavoc
 import viper.silver.ast.utility.rewriter.Traverse
-import viper.silver.reporter.{Reporter, WarningsDuringTypechecking}
+import viper.silver.reporter.{Reporter, WarningsDuringTypechecking, QuantifierChosenTriggersMessage}
 
 import scala.collection.mutable
 
@@ -61,6 +61,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
             if (res.triggers.isEmpty) {
               reporter.report(WarningsDuringTypechecking(Seq(TypecheckerWarning("No triggers provided or inferred for quantifier.", res.pos))))
             }
+            reporter report QuantifierChosenTriggersMessage(res, res.triggers, f.triggers)
             res
           }
           case e: sil.Exists => {
@@ -68,6 +69,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
             if (res.triggers.isEmpty) {
               reporter.report(WarningsDuringTypechecking(Seq(TypecheckerWarning("No triggers provided or inferred for quantifier.", res.pos))))
             }
+            reporter report QuantifierChosenTriggersMessage(res, res.triggers, e.triggers)
             res
           }
           case q: Quasihavoc => desugarQuasihavoc(q)
@@ -168,9 +170,8 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
   }
 
   private def translateMethodDeclCheckPosts(posts: Seq[sil.Exp]): Stmt = {
-    val (stmt, state) = stateModule.freshTempState("Post")
-
-    val reset = stateModule.resetBoogieState
+    val (freshStateStmtAux, state) = stateModule.freshTempState("Post", discardCurrent = true, initialise = true)
+    val freshStateStmt = freshStateStmtAux ++ stateModule.assumeGoodState
 
     // note that the order here matters - onlyExhalePosts should be computed with respect to the reset state
     val onlyExhalePosts: Seq[Stmt] = inhaleModule.inhaleExhaleSpecWithDefinednessCheck(
@@ -178,31 +179,33 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
       errors.ContractNotWellformed(_)
     })
 
-    val stmts = stmt ++ reset ++ (
-    if (Expressions.contains[sil.InhaleExhaleExp](posts)) {
-      // Postcondition contains InhaleExhale expression.
-      // Need to check inhale and exhale parts separately.
-      val onlyInhalePosts: Seq[Stmt] = inhaleModule.inhaleInhaleSpecWithDefinednessCheck(
-      posts, {
-        errors.ContractNotWellformed(_)
-      })
+    val stmts = (
+      if (Expressions.contains[sil.InhaleExhaleExp](posts)) {
+        // Postcondition contains InhaleExhale expression.
+        // Need to check inhale and exhale parts separately.
+        val onlyInhalePosts: Seq[Stmt] = inhaleModule.inhaleInhaleSpecWithDefinednessCheck(
+        posts, {
+          errors.ContractNotWellformed(_)
+        })
 
-          NondetIf(
+        NondetIf(
+          freshStateStmt ++
           MaybeComment("Checked inhaling of postcondition to check definedness",
             MaybeCommentBlock("Do welldefinedness check of the inhale part.",
               NondetIf(onlyInhalePosts ++ Assume(FalseLit()))) ++
               MaybeCommentBlock("Normally inhale the exhale part.",
                 onlyExhalePosts)
           ) ++
-            MaybeComment("Stop execution", Assume(FalseLit()))
-      )
-    }
-    else {
-      NondetIf(
-        MaybeComment("Checked inhaling of postcondition to check definedness", onlyExhalePosts) ++
           MaybeComment("Stop execution", Assume(FalseLit()))
-      )
-    })
+        )
+      }
+      else {
+        NondetIf(
+          freshStateStmt ++
+          MaybeComment("Checked inhaling of postcondition to check definedness", onlyExhalePosts) ++
+            MaybeComment("Stop execution", Assume(FalseLit()))
+        )
+      })
 
     stateModule.replaceState(state)
 

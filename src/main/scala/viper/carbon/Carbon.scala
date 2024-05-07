@@ -7,18 +7,24 @@
 package viper.carbon
 
 import ch.qos.logback.classic.Logger
-import viper.silver.frontend.{SilFrontend, SilFrontendConfig}
+import viper.silver.frontend.{MinimalViperFrontendAPI, SilFrontend, SilFrontendConfig, ViperFrontendAPI}
 import viper.silver.logger.ViperStdOutLogger
 import viper.silver.reporter.{Reporter, StdIOReporter}
 import viper.silver.verifier.{Verifier => SilVerifier}
+import viper.silver.utility.{FileProgramSubmitter}
 
 /**
  * The main object for Carbon containing the execution start-point.
  */
 object Carbon extends CarbonFrontend(StdIOReporter("carbon_reporter"), ViperStdOutLogger("Carbon", "INFO").get) {
   def main(args: Array[String]): Unit = {
+    val submitter = new FileProgramSubmitter(this)
+    submitter.setArgs(args)
+
     execute(args)
     specifyAppExitCode()
+
+    submitter.submit()
     sys.exit(appExitCode)
   }
 }
@@ -56,6 +62,22 @@ class CarbonFrontend(override val reporter: Reporter,
     _config = carbonInstance.config
   }
 }
+
+/**
+  * Carbon "frontend" for use by actual Viper frontends.
+  * Performs consistency check and verification.
+  * See [[viper.silver.frontend.ViperFrontendAPI]] for usage information.
+  */
+class CarbonFrontendAPI(override val reporter: Reporter)
+  extends CarbonFrontend(reporter, ViperStdOutLogger("CarbonFrontend", "INFO").get) with ViperFrontendAPI
+
+/**
+  * Carbon "frontend" for use by actual Viper frontends.
+  * Performs only verification (no consistency check).
+  * See [[viper.silver.frontend.ViperFrontendAPI]] for usage information.
+  */
+class MinimalCarbonFrontendAPI(override val reporter: Reporter)
+  extends CarbonFrontend(reporter, ViperStdOutLogger("CarbonFrontend", "INFO").get) with MinimalViperFrontendAPI
 
 class CarbonConfig(args: Seq[String]) extends SilFrontendConfig(args, "Carbon") {
   val boogieProverLog = opt[String]("proverLog",
@@ -97,6 +119,13 @@ class CarbonConfig(args: Seq[String]) extends SilFrontendConfig(args, "Carbon") 
   val desugarPolymorphicMaps = opt[Boolean]("desugarPolymorphicMaps",
     descr = "Do not use polymorphic maps in the Boogie encoding and instead desugar them (default: false).",
     default = Some(false),
+    noshort = true
+  )
+
+  val timeout = opt[Int]("timeout",
+    descr = ("Time out after approx. n seconds. The timeout is for the whole verification in Boogie, "
+           + "not per method or proof obligation (default: 0, i.e. no timeout)."),
+    default = None,
     noshort = true
   )
 
