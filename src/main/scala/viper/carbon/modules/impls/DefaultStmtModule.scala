@@ -191,24 +191,26 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           (targets map (e => checkDefinedness(e, errors.CallFailed(mc), insidePackageStmt = insidePackageStmt))) ++
           (args map (e => checkDefinedness(e, errors.CallFailed(mc), insidePackageStmt = insidePackageStmt))) ++
           (actualArgs map (_._2)) ++
-          Havoc((targets map translateExp).asInstanceOf[Seq[Var]]) ++
           MaybeCommentBlock("Exhaling precondition", executeUnfoldings(pres, (pre => errors.PreconditionInCallFalse(mc).withReasonNodeTransformed(renamingArguments))) ++
-            exhaleWithoutDefinedness(pres map (e => (e, errors.PreconditionInCallFalse(mc).withReasonNodeTransformed(renamingArguments))), statesStackForPackageStmt = statesStack, insidePackageStmt = insidePackageStmt)) ++ {
-          stateModule.replaceOldState(preCallState)
-          val res = MaybeCommentBlock("Inhaling postcondition",
-            inhale(posts map (e => (e, errors.CallFailed(mc).withReasonNodeTransformed(renamingArguments))), addDefinednessChecks = false, statesStack, insidePackageStmt) ++
-            executeUnfoldings(posts, (post => errors.Internal(post).withReasonNodeTransformed(renamingArguments))))
-          stateModule.replaceOldState(oldState)
-          toUndefine map mainModule.env.undefine
-          res
-        }
+            exhaleWithoutDefinedness(pres map (e => (e, errors.PreconditionInCallFalse(mc).withReasonNodeTransformed(renamingArguments))), statesStackForPackageStmt = statesStack, insidePackageStmt = insidePackageStmt)) ++
+          MaybeCommentBlock("Havocing target variables", Havoc((targets map translateExp).asInstanceOf[Seq[Var]])) ++
+          {
+            stateModule.replaceOldState(preCallState)
+            val res = MaybeCommentBlock("Inhaling postcondition",
+              inhale(posts map (e => (e, errors.CallFailed(mc).withReasonNodeTransformed(renamingArguments))), addDefinednessChecks = false, statesStack, insidePackageStmt) ++
+              executeUnfoldings(posts, (post => errors.Internal(post).withReasonNodeTransformed(renamingArguments))))
+            stateModule.replaceOldState(oldState)
+            toUndefine map mainModule.env.undefine
+            res
+          }
         res
       case sil.While(_, _, _) =>
         //handled by LoopModule
         Nil
       case i@sil.If(cond, thn, els) =>
+        val condTr = if(allStateAssms == TrueLit()) { translateExpInWand(cond) } else { allStateAssms ==> translateExpInWand(cond) }
         checkDefinedness(cond, errors.IfFailed(cond), insidePackageStmt = insidePackageStmt) ++
-        If((allStateAssms) ==> translateExpInWand(cond),
+        If(condTr,
           translateStmt(thn, statesStack, allStateAssms, insidePackageStmt),
           translateStmt(els, statesStack, allStateAssms, insidePackageStmt))
       case sil.Label(name, _) => {

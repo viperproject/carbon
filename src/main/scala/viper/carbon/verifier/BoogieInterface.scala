@@ -110,26 +110,32 @@ trait BoogieInterface {
     }
 
     // invoke Boogie
-    val output = run(program.toString, allOptions, timeout)
-    // parse the output
-    parse(output, timeout) match {
-      case (version,Nil) =>
-        (version,Success)
-      case (version,errorIds) => {
-        val errors = (0 until errorIds.length).map(i => {
-          val id = errorIds(i)
-          val error = errormap.get(id).get
-          if (models.nonEmpty) {
-            error match {
-              case e: AbstractVerificationError =>
-                e.failureContexts = Seq(FailureContextImpl(Some(SimpleCounterexample(Model(models(i))))))
-              case _ =>
-            }
+    val optOutput = run(program.toString, allOptions, timeout)
+    optOutput match {
+      case None =>
+        // Timeout
+        (null, Failure(Seq(TimeoutOccurred(timeout.get, "second(s)"))))
+      case Some(output) =>
+        // parse the output
+        parse(output, timeout) match {
+          case (version, Nil) =>
+            (version, Success)
+          case (version, errorIds) => {
+            val errors = (0 until errorIds.length).map(i => {
+              val id = errorIds(i)
+              val error = errormap.get(id).get
+              if (models.nonEmpty) {
+                error match {
+                  case e: AbstractVerificationError =>
+                    e.failureContexts = Seq(FailureContextImpl(Some(SimpleCounterexample(Model(models(i))))))
+                  case _ =>
+                }
+              }
+              error
+            })
+            (version, Failure(errors))
           }
-          error
-        })
-        (version,Failure(errors))
-      }
+        }
     }
   }
 
@@ -191,6 +197,7 @@ trait BoogieInterface {
 
   /**
     * Invoke Boogie.
+    * Returns None if there was a timeout, otherwise the Boogie output.
     */
   private def run(input: String, options: Seq[String], timeout: Option[Int]) = {
     reporter report BackendSubProcessReport("carbon", boogiePath, BeforeInputSent, _boogieProcessPid)
@@ -257,7 +264,10 @@ trait BoogieInterface {
       val normalOutput = inputConsumer.result.get
       reporter report BackendSubProcessReport("carbon", boogiePath, OnExit, _boogieProcessPid)
 
-      errorOutput + normalOutput + (if (boogieTimeout) timeoutErrorName else "")
+      if (boogieTimeout)
+        None
+      else
+        Some(errorOutput + normalOutput)
     } catch {
       case _: NoSuchElementException => sys.error("Could not retrieve output from Boogie")
     }

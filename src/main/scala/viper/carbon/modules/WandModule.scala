@@ -13,7 +13,7 @@ package viper.carbon.modules
 import viper.carbon.modules.components.{ComponentRegistry, TransferComponent}
 import viper.silver.verifier.PartialVerificationError
 import viper.silver.{ast => sil}
-import viper.carbon.boogie.{Exp, Identifier, LocalVar, Stmt, TrueLit}
+import viper.carbon.boogie.{Exp, LocalVar, Stmt, TrueLit}
 
 
 trait WandModule extends Module with ComponentRegistry[TransferComponent] {

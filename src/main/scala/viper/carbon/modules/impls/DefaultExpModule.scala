@@ -153,26 +153,19 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           val v1 = env.makeUniquelyNamed(variable); env.define(v1.localVar); v1
         })
         val renaming = (e: sil.Exp) => Expressions.instantiateVariables(e, variables.map(_.localVar), renamedVars.map(_.localVar))
-        // val ts = triggers map (t => Trigger(t.exps map {e => verifier.funcPredModule.toTriggers(translateExp(renaming(e)))} // no triggers yet?
-        val perResFilter: sil.ResourceAccess => (Exp, Trigger) = resAcc => {
+        val perResFilter: sil.ResourceAccess => (Exp, Seq[Trigger]) = resAcc => {
           val zipped = variables.map(_.localVar) zip renamedVars.map(_.localVar)
           val replacements = zipped.toMap
 
-          val substitutedResAccess: sil.ResourceAccess = resAcc match {
-            case fa: sil.FieldAccess =>
-              sil.FieldAccess(renamedVars.head.localVar, fa.field)(fa.pos, fa.info)
-            case pp: sil.PredicateAccess =>
-              pp.replace(replacements)
-            case w: sil.MagicWand =>
-              w.replace(replacements)
-          }
-          val pl = currentPermission(substitutedResAccess)
-          (hasDirectPerm(substitutedResAccess), Trigger(pl))
+          val substitutedResAccess: sil.ResourceAccess = resAcc.replace(replacements)
+          val maskRead = currentPermission(substitutedResAccess)
+          val heapRead = translateResourceAccess(substitutedResAccess)
+          (hasDirectPerm(substitutedResAccess), Seq(Trigger(maskRead), Trigger(heapRead)))
         }
         val filter = locations.foldLeft[(Exp, Seq[Trigger])](BoolLit(false), Seq())((soFar, loc) => soFar match {
           case (exp, triggers) =>
             perResFilter(loc) match {
-              case (newExp, newTrigger) => (BinExp(exp, Or, newExp), triggers ++ Seq(newTrigger))
+              case (newExp, newTriggers) => (BinExp(exp, Or, newExp), triggers ++ newTriggers)
             }
         })
 
@@ -430,7 +423,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           val res = if (e.isInstanceOf[sil.ForPerm]) {
             val eAsForallRef = Expressions.renameVariables(e, orig_vars.map(_.localVar), bound_vars.map(_.localVar)).asInstanceOf[sil.ForPerm]
 
-            val filter: Exp = hasDirectPerm(eAsForallRef.resource.asInstanceOf[sil.ResourceAccess])
+            val filter: Exp = hasDirectPerm(eAsForallRef.resource)
 
             handleQuantifiedLocals(bound_vars, If(filter, translate(eAsForallRef, definednessStateOpt), Nil))
           } else {
