@@ -6,7 +6,7 @@
 
 package viper.carbon
 
-import boogie.{BoogieModelTransformer, Namespace}
+import boogie.{BoogieModelTransformer, CounterexampleGenerator, Namespace}
 import modules.impls._
 import viper.silver.ast.{MagicWand, Program, Quasihavoc, Quasihavocall}
 import viper.silver.utility.Paths
@@ -14,7 +14,7 @@ import viper.silver.verifier._
 import verifier.{BoogieDependency, BoogieInterface, Verifier}
 
 import java.io.{BufferedOutputStream, File, FileOutputStream, IOException}
-import viper.silver.frontend.{MissingDependencyException, NativeModel, VariablesModel}
+import viper.silver.frontend.{ExtendedModel, IntermediateModel, MissingDependencyException, NativeModel, VariablesModel}
 import viper.silver.reporter.Reporter
 
 /**
@@ -171,9 +171,13 @@ case class CarbonVerifier(override val reporter: Reporter,
     heapModule.enableAllocationEncoding = config == null || !config.disableAllocEncoding.isSupplied // NOTE: config == null happens on the build server / via sbt test
 
     var transformNames = false
+    var intermediateCounterexample = false
+    var extendedCounterexample = true
     if (config == null) Seq() else config.counterexample.toOption match {
       case Some(NativeModel) =>
       case Some(VariablesModel) => transformNames = true
+      case Some(IntermediateModel) => intermediateCounterexample = true
+      case Some(ExtendedModel) => extendedCounterexample = true
       case None =>
       case Some(v) => sys.error("Invalid option: " + v)
     }
@@ -236,6 +240,12 @@ case class CarbonVerifier(override val reporter: Reporter,
         result match {
           case Failure(errors) if transformNames => {
             errors.foreach(e =>  BoogieModelTransformer.transformCounterexample(e, translatedNames))
+          }
+          case Failure(errors) if intermediateCounterexample => {
+            errors.foreach(e => CounterexampleGenerator.transformInteremdiateCounterexample(e, translatedNames, program, wandModule.lazyWandToShapes))
+          }
+          case Failure(errors) if extendedCounterexample => {
+            errors.foreach(e => CounterexampleGenerator.transformExtendedCounterexample(e, translatedNames, program, wandModule.lazyWandToShapes))
           }
           case _ => result
         }
