@@ -75,6 +75,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private val resultName = Identifier("Result")
   private val insidePredicateName = Identifier("InsidePredicate")
 
+  private val qpCondPostfix = "#condqp"
   private var qpPrecondId = 0
   private var qpCondFuncs: ListBuffer[(Func,sil.Forall)] = new ListBuffer[(Func, sil.Forall)]();
 
@@ -539,7 +540,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       case QuantifiedPermissionAssertion(forall, _, _ : sil.AccessPredicate) => // works the same for fields and predicates
         qpPrecondId = qpPrecondId+1
         val heap = heapModule.staticStateContributions(true, true)
-        val condName = Identifier(name + "#condqp" +qpPrecondId.toString)
+        val condName = Identifier(name + qpCondPostfix + qpPrecondId.toString)
         val condFunc = Func(condName, heap++args,Int)
         val res = (condFunc, forall)
         qpCondFuncs += res
