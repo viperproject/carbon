@@ -600,16 +600,35 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
           val funApp2 = FuncApp(condFunc.name, (heap2++origArgs) map (_.l), condFunc.typ)
 
-          val triggers = if (locationAccess.exists(lvds.toSet)) Seq(Trigger(Seq(locationAccess1,locationAccess2))) else Seq() // TODO: we could (also in general) raise an error/warning if the tools fail to find triggers
+          // Pair each quantified variable with a Skolem function on condFunc applications (rather than all condFunc params)
+          // This shares witness variables for term equalities, resulting in fewer evaluated heap accesses in framing proofs
+          val lvsToSkFunctions: Seq[(LocalVar, Func)] = vsFresh.map(vFresh => {
+            val lvd = translateLocalVarDecl(vFresh)
+            (lvd.l,
+            Func(Identifier(env.uniqueName("sk_" + condFunc.name.name)),
+              Seq(LocalVarDecl(Identifier(env.uniqueName("fnAppH1")), condFunc.typ),
+                  LocalVarDecl(Identifier(env.uniqueName("fnAppH2")), condFunc.typ)),
+              lvd.typ))
+          })
+          val skSubs = lvsToSkFunctions.map(lvSkPair =>
+            (lvSkPair._1, FuncApp(lvSkPair._2.name, Seq(funApp1, funApp2), lvSkPair._2.typ)))
+
+          // Replace quantified index variables with Skolem functions in extensional equality on heap locations
+          val extEq = (translatedCond1 <==> translatedCond2) && (translatedCond1 ==> (locationAccess1 === locationAccess2))
+          val skExtEq = skSubs.foldLeft(extEq)((body, skSub) => body.replace(skSub._1, skSub._2))
 
           val res = CommentedDecl("Function used for framing of quantified permission " + qp.toString() +  " in " + originalName,
             condFunc ++
-            Axiom(
-              Forall(heap1 ++ heap2 ++ origArgs, Seq(Trigger(Seq(funApp1, funApp2, heapModule.successorHeapState(heap1,heap2)))),
-                  (Forall(vsFresh.map(vFresh => translateLocalVarDecl(vFresh)), triggers,
-                    (translatedCond1 <==> translatedCond2) && (translatedCond1 ==> (locationAccess1 === locationAccess2))) ==> (funApp1 === funApp2))
-                  ))
-          );
+              lvsToSkFunctions.map(_._2) ++
+              Axiom(
+                Forall(
+                  heap1 ++ heap2 ++ origArgs,
+                  Seq(Trigger(Seq(funApp1, funApp2, heapModule.successorHeapState(heap1,heap2)))),
+                  skExtEq ==> (funApp1 === funApp2)
+                )
+              )
+          )
+
           vsFresh.foreach(vFresh => env.undefine(vFresh.localVar))
           stateModule.replaceState(curState)
           res
