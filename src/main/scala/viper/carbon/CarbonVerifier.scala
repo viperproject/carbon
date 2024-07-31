@@ -178,7 +178,10 @@ case class CarbonVerifier(override val reporter: Reporter,
       case Some(v) => sys.error("Invalid option: " + v)
     }
 
+    println(s"Before CarbonTranslation ${System.currentTimeMillis()}")
     val (tProg, translatedNames) = mainModule.translate(program, reporter)
+    println(s"After CarbonTranslation ${System.currentTimeMillis()}")
+
     _translated = tProg
 
 
@@ -227,7 +230,11 @@ case class CarbonVerifier(override val reporter: Reporter,
       timeout = config.timeout.toOption
     }
 
-    invokeBoogie(_translated, options, timeout) match {
+    println(s"Before InvokeBoogie ${System.currentTimeMillis()}")
+    val resBoogie = invokeBoogie(_translated, options, timeout)
+    println(s"After InvokeBoogie ${System.currentTimeMillis()}")
+
+    resBoogie match {
       case (version,result) =>
         if (version!=null) { dependencies.foreach(_ match {
           case b:BoogieDependency => b.version = version
