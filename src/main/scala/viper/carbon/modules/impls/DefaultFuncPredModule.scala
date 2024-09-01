@@ -601,7 +601,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
           val triggers = if (locationAccess.exists(lvds.toSet)) Seq(Trigger(Seq(locationAccess1,locationAccess2))) else Seq() // TODO: we could (also in general) raise an error/warning if the tools fail to find triggers
 
-          val res = CommentedDecl("Function used for framing of quantified permission " + qp.toString() +  " in " + originalName,
+          val res = CommentedDecl("Function used for framing of quantified permission " + qp.toString +  " in " + originalName,
             condFunc ++
             Axiom(
               Forall(heap1 ++ heap2 ++ origArgs, Seq(Trigger(Seq(funApp1, funApp2, heapModule.successorHeapState(heap1,heap2)))),

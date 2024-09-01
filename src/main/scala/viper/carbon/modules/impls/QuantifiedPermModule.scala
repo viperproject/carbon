@@ -611,9 +611,9 @@ class QuantifiedPermModule(val verifier: Verifier)
               MaybeComment("wild card assumptions", stmts ++
               wildcardAssms) ++
               CommentBlock("check that the permission amount is positive", permPositive) ++
-              CommentBlock("check if receiver " + recv.toString() + " is injective",injectiveAssertion) ++
+              CommentBlock("check if receiver " + recv.toString + " is injective",injectiveAssertion) ++
               CommentBlock("check if sufficient permission is held", enoughPerm) ++
-              CommentBlock("assumptions for inverse of receiver " + recv.toString(), Assume(invAssm1)++ Assume(invAssm2)) ++
+              CommentBlock("assumptions for inverse of receiver " + recv.toString, Assume(invAssm1)++ Assume(invAssm2)) ++
               CommentBlock("assume permission updates for field " + f.name, Assume(Forall(obj,triggersForPermissionUpdateAxiom, condTrueLocations && condFalseLocations ))) ++
               CommentBlock("assume permission updates for independent locations", independentLocations) ++
               (mask := qpMask)
@@ -803,9 +803,9 @@ class QuantifiedPermModule(val verifier: Verifier)
               MaybeComment("wildcard assumptions", stmts ++
               wildcardAssms) ++
               CommentBlock("check that the permission amount is positive", permPositive) ++
-              CommentBlock("check if receiver " + accPred.toString() + " is injective",injectiveAssertion) ++
+              CommentBlock("check if receiver " + accPred.toString + " is injective",injectiveAssertion) ++
               CommentBlock("check if sufficient permission is held", enoughPerm) ++
-              CommentBlock("assumptions for inverse of receiver " + accPred.toString(), Assume(invAssm1)++ Assume(invAssm2)) ++
+              CommentBlock("assumptions for inverse of receiver " + accPred.toString, Assume(invAssm1)++ Assume(invAssm2)) ++
               CommentBlock("assume permission updates", permissionsMap ++
               independentResource) ++
               CommentBlock("assume permission updates for independent locations ", independentLocations) ++
@@ -1349,7 +1349,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
            val res1 = Havoc(qpMask) ++
              stmts ++
-             (if (!verifier.assumeInjectivityOnInhale) CommentBlock("check if receiver " + accPred.toString() + " is injective",injectiveAssertion)
+             (if (!verifier.assumeInjectivityOnInhale) CommentBlock("check if receiver " + accPred.toString + " is injective",injectiveAssertion)
              else Nil) ++
              CommentBlock("Define Inverse Function", Assume(invAssm1) ++
                Assume(invAssm2)) ++
