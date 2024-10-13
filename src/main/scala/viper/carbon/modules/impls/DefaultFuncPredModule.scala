@@ -190,6 +190,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     override def translateFunction(f: sil.Function, names: Option[mutable.Map[String, String]]): Seq[Decl] = {
     env = Environment(verifier, f)
     ErrorMemberMapping.currentMember = f
+
+    val oldPermOnlyState = permModule.setCheckReadPermissionOnlyState(true)
     val res = MaybeCommentedDecl(s"Translation of function ${f.name}",
       MaybeCommentedDecl("Uninterpreted function definitions", functionDefinitions(f), size = 1) ++
         (if (f.isAbstract) Nil else
@@ -207,6 +209,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       names.get ++= usedNames
     }
 
+    permModule.setCheckReadPermissionOnlyState(oldPermOnlyState)
     env = null
     ErrorMemberMapping.currentMember = null
     res
@@ -871,12 +874,17 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
                     * contain permission introspection.
                     */
                   val curState = stateModule.state
+                  val oldReadState = permModule.setCheckReadPermissionOnlyState(true)
                   defState.setDefState()
                   val res = executeExhale()
+                  permModule.setCheckReadPermissionOnlyState(oldReadState)
                   stateModule.replaceState(curState)
                   res
                 case None =>
-                  executeExhale()
+                  val oldReadState = permModule.setCheckReadPermissionOnlyState(true)
+                  val res = executeExhale()
+                  permModule.setCheckReadPermissionOnlyState(oldReadState)
+                  res
               }
             }
           ) ++
