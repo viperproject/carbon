@@ -202,10 +202,9 @@ class QuantifiedPermModule(val verifier: Verifier)
       Axiom(Forall(staticStateContributions(true, true) ++ obj ++ field,
         Trigger(Seq(staticGoodMask, perm)),
         // permissions are non-negative
-        ((staticGoodMask && shouldAssumePermUpperBound) ==> ( perm >= noPerm &&
-          // permissions for fields which aren't predicates are smaller than 1
+        (staticGoodMask ==> ( perm >= noPerm &&
           // permissions for fields which aren't predicates or wands are smaller than 1
-          ((staticGoodMask && heapModule.isPredicateField(field.l).not && heapModule.isWandField(field.l).not) ==> perm <= fullPerm )))
+          ((staticGoodMask && shouldAssumePermUpperBound && heapModule.isPredicateField(field.l).not && heapModule.isWandField(field.l).not) ==> perm <= fullPerm )))
       ))    } ++ {
       val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
       val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
