@@ -198,10 +198,11 @@ class QuantifiedPermModule(val verifier: Verifier)
         Trigger(Seq(staticGoodState)),
         staticGoodState ==> staticGoodMask)) ++ {
       val perm = currentPermission(obj.l, field.l)
+      val shouldAssumePermUpperBound = if (verifier.respectFunctionPrecPermAmounts) TrueLit() else assumePermUpperBound
       Axiom(Forall(staticStateContributions(true, true) ++ obj ++ field,
         Trigger(Seq(staticGoodMask, perm)),
         // permissions are non-negative
-        ((staticGoodMask && assumePermUpperBound) ==> ( perm >= noPerm &&
+        ((staticGoodMask && shouldAssumePermUpperBound) ==> ( perm >= noPerm &&
           // permissions for fields which aren't predicates are smaller than 1
           // permissions for fields which aren't predicates or wands are smaller than 1
           ((staticGoodMask && heapModule.isPredicateField(field.l).not && heapModule.isWandField(field.l).not) ==> perm <= fullPerm )))

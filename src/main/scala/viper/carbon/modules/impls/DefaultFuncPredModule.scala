@@ -191,7 +191,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     env = Environment(verifier, f)
     ErrorMemberMapping.currentMember = f
 
-    val oldPermOnlyState = permModule.setCheckReadPermissionOnlyState(true)
+    val oldPermOnlyState = permModule.setCheckReadPermissionOnlyState(!verifier.respectFunctionPrecPermAmounts)
     val res = MaybeCommentedDecl(s"Translation of function ${f.name}",
       MaybeCommentedDecl("Uninterpreted function definitions", functionDefinitions(f), size = 1) ++
         (if (f.isAbstract) Nil else
@@ -668,7 +668,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
     val args = p.formalArgs map translateLocalVarDecl
     val init : Stmt = MaybeCommentBlock("Initializing the state",
-      stateModule.initBoogieState ++ assumeAllFunctionDefinitions ++ (p.formalArgs map (a => allAssumptionsAboutValue(a.typ,mainModule.translateLocalVarDecl(a),true)))
+      stateModule.initBoogieState ++ assumeAllFunctionDefinitions ++ permModule.assumePermUpperBounds ++ (p.formalArgs map (a => allAssumptionsAboutValue(a.typ,mainModule.translateLocalVarDecl(a),true)))
     )
 
     val predicateBody = p.body.get
