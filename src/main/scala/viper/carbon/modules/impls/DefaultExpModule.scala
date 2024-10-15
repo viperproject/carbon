@@ -79,6 +79,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       case sil.Unfolding(_, exp) =>
         translateExp(exp)
       case sil.Applying(_, exp) => translateExp(exp)
+      case sil.Asserting(_, exp) => translateExp(exp)
       case sil.Old(exp) =>
         val prevState = stateModule.state
         stateModule.replaceState(stateModule.oldState)
@@ -378,6 +379,13 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
         checkDefinednessImpl(e1, error, makeChecks = makeChecks, definednessStateOpt) :: // short-circuiting evaluation:
           If(UnExp(Not, translateExp(e1)), checkDefinednessImpl(e2, error, makeChecks = makeChecks, definednessStateOpt), Statements.EmptyStmt) ::
           Nil
+      case sil.Asserting(assertion, e) =>
+        val checkAssDefined = checkDefinedness(assertion, error, makeChecks = makeChecks)
+        val (stateStmt, state) = stateModule.freshTempState("asserting")
+        val checkAssHolds = MaybeComment("Exhale assertion of asserting", exhale(Seq((assertion, error, Some(error)))))
+        stateModule.replaceState(state)
+        val checkEDefined = checkDefinedness(e, error, makeChecks = makeChecks)
+        checkAssDefined :: stateStmt :: checkAssHolds :: checkEDefined :: Nil
       case w@sil.MagicWand(_, _) =>
         checkDefinednessWand(w, error, makeChecks = makeChecks)
       case sil.Let(v, e, body) =>
