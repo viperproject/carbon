@@ -969,7 +969,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
             wandModule.translatingStmtsInWandInit()
           }
           (checkDefinedness(acc, errors.FoldFailed(fold), insidePackageStmt = insidePackageStmt) ++
-            checkDefinedness(perm, errors.FoldFailed(fold), insidePackageStmt = insidePackageStmt) ++
+            checkDefinedness(perm.getOrElse(sil.FullPerm()()), errors.FoldFailed(fold), insidePackageStmt = insidePackageStmt) ++
             foldFirst, foldLast)
         }
       }
@@ -1006,7 +1006,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     unfold match {
       case sil.Unfold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(_, _), perm)) =>
         checkDefinedness(acc, errors.UnfoldFailed(unfold), insidePackageStmt = insidePackageStmt) ++
-          checkDefinedness(perm, errors.UnfoldFailed(unfold)) ++
+          checkDefinedness(perm.getOrElse(sil.FullPerm()()), errors.UnfoldFailed(unfold)) ++
           unfoldPredicate(acc, errors.UnfoldFailed(unfold), false, statesStackForPackageStmt, insidePackageStmt)
     }
   }

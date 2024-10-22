@@ -496,13 +496,14 @@ class QuantifiedPermModule(val verifier: Verifier)
         val vs = forall.variables
 
         val res = expr match {
-          case sil.FieldAccessPredicate(fieldAccess@sil.FieldAccess(recv, f), perms) =>
+          case accPred@sil.FieldAccessPredicate(fieldAccess@sil.FieldAccess(recv, f), _) =>
             // alpha renaming, to avoid clashes in context, use vFresh instead of v
             val vsFresh = vs.map(v => {
               val vFresh = env.makeUniquelyNamed(v)
               env.define(vFresh.localVar)
               vFresh
             })
+            val perms = accPred.perm
 
             var isWildcard = false
             def renaming[E <: sil.Exp] = (e:E) => Expressions.renameVariables(e, vs.map(v => v.localVar), vsFresh.map(v => v.localVar))
@@ -1049,7 +1050,8 @@ class QuantifiedPermModule(val verifier: Verifier)
 
        val res = expr match {
          //Quantified Field Permission
-         case sil.FieldAccessPredicate(fieldAccess@sil.FieldAccess(recv, f), perms) =>
+         case accPred@sil.FieldAccessPredicate(fieldAccess@sil.FieldAccess(recv, f), _) =>
+           val perms = accPred.perm
            // alpha renaming, to avoid clashes in context, use vFresh instead of v
            var isWildcard = false
            val vsFresh = vs.map(v => env.makeUniquelyNamed(v))
@@ -1525,7 +1527,10 @@ class QuantifiedPermModule(val verifier: Verifier)
       case sil.FullPerm() =>
         fullPerm
       case sil.WildcardPerm() =>
-        sys.error("cannot translate wildcard at an arbitrary position (should only occur directly in an accessibility predicate)")
+        if (assertReadPermOnly)
+          fullPerm
+        else
+          sys.error("cannot translate wildcard at an arbitrary position (should only occur directly in an accessibility predicate)")
       case sil.EpsilonPerm() =>
         sys.error("epsilon permissions are not supported by this permission module")
       case sil.CurrentPerm(res: ResourceAccess) =>

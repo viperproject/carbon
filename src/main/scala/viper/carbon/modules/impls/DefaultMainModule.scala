@@ -269,9 +269,9 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
     val resourceCurPerm =
       q.exp match {
         case r : sil.FieldAccess =>
-          sil.FieldAccessPredicate(r, curPermVar)()
+          sil.FieldAccessPredicate(r, Some(curPermVar))()
         case r: sil.PredicateAccess =>
-          sil.PredicateAccessPredicate(r, curPermVar)()
+          sil.PredicateAccessPredicate(r, Some(curPermVar))()
         case _ => sys.error("Not supported resource in quasihavoc")
       }
 

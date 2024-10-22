@@ -94,7 +94,7 @@ case class CarbonVerifier(override val reporter: Reporter,
   }
   else false
 
-  def respectFunctionPrecPermAmounts: Boolean = if (config != null) config.respectFunctionPrecPermAmounts.toOption match {
+  def respectFunctionPrecPermAmounts: Boolean = if (config != null) config.respectFunctionPrePermAmounts.toOption match {
     case Some(b) => b
     case None => false
   }
