@@ -80,4 +80,6 @@ trait Verifier {
 
   def usePolyMapsInEncoding: Boolean
 
+  def respectFunctionPrecPermAmounts: Boolean
+
 }

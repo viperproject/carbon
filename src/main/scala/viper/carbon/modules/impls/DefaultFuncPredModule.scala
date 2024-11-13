@@ -190,6 +190,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     override def translateFunction(f: sil.Function, names: Option[mutable.Map[String, String]]): Seq[Decl] = {
     env = Environment(verifier, f)
     ErrorMemberMapping.currentMember = f
+
+    val oldPermOnlyState = permModule.setCheckReadPermissionOnlyState(!verifier.respectFunctionPrecPermAmounts)
     val res = MaybeCommentedDecl(s"Translation of function ${f.name}",
       MaybeCommentedDecl("Uninterpreted function definitions", functionDefinitions(f), size = 1) ++
         (if (f.isAbstract) Nil else
@@ -207,6 +209,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       names.get ++= usedNames
     }
 
+    permModule.setCheckReadPermissionOnlyState(oldPermOnlyState)
     env = null
     ErrorMemberMapping.currentMember = null
     res
@@ -665,7 +668,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
     val args = p.formalArgs map translateLocalVarDecl
     val init : Stmt = MaybeCommentBlock("Initializing the state",
-      stateModule.initBoogieState ++ assumeAllFunctionDefinitions ++ (p.formalArgs map (a => allAssumptionsAboutValue(a.typ,mainModule.translateLocalVarDecl(a),true)))
+      stateModule.initBoogieState ++ assumeAllFunctionDefinitions ++ permModule.assumePermUpperBounds ++ (p.formalArgs map (a => allAssumptionsAboutValue(a.typ,mainModule.translateLocalVarDecl(a),true)))
     )
 
     val predicateBody = p.body.get
@@ -871,12 +874,17 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
                     * contain permission introspection.
                     */
                   val curState = stateModule.state
+                  val oldReadState = permModule.setCheckReadPermissionOnlyState(true)
                   defState.setDefState()
                   val res = executeExhale()
+                  permModule.setCheckReadPermissionOnlyState(oldReadState)
                   stateModule.replaceState(curState)
                   res
                 case None =>
-                  executeExhale()
+                  val oldReadState = permModule.setCheckReadPermissionOnlyState(true)
+                  val res = executeExhale()
+                  permModule.setCheckReadPermissionOnlyState(oldReadState)
+                  res
               }
             }
           ) ++
@@ -961,7 +969,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
             wandModule.translatingStmtsInWandInit()
           }
           (checkDefinedness(acc, errors.FoldFailed(fold), insidePackageStmt = insidePackageStmt) ++
-            checkDefinedness(perm, errors.FoldFailed(fold), insidePackageStmt = insidePackageStmt) ++
+            checkDefinedness(perm.getOrElse(sil.FullPerm()()), errors.FoldFailed(fold), insidePackageStmt = insidePackageStmt) ++
             foldFirst, foldLast)
         }
       }
@@ -998,7 +1006,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     unfold match {
       case sil.Unfold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(_, _), perm)) =>
         checkDefinedness(acc, errors.UnfoldFailed(unfold), insidePackageStmt = insidePackageStmt) ++
-          checkDefinedness(perm, errors.UnfoldFailed(unfold)) ++
+          checkDefinedness(perm.getOrElse(sil.FullPerm()()), errors.UnfoldFailed(unfold)) ++
           unfoldPredicate(acc, errors.UnfoldFailed(unfold), false, statesStackForPackageStmt, insidePackageStmt)
     }
   }
