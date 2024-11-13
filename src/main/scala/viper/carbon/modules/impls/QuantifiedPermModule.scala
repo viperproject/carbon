@@ -1527,10 +1527,13 @@ class QuantifiedPermModule(val verifier: Verifier)
       case sil.FullPerm() =>
         fullPerm
       case sil.WildcardPerm() =>
-        if (assertReadPermOnly)
+        if (assertReadPermOnly) {
+          // We are in a context where permission amounts do not matter, so we can safely translate a wildcard to
+          // a full permission.
           fullPerm
-        else
+        } else {
           sys.error("cannot translate wildcard at an arbitrary position (should only occur directly in an accessibility predicate)")
+        }
       case sil.EpsilonPerm() =>
         sys.error("epsilon permissions are not supported by this permission module")
       case sil.CurrentPerm(res: ResourceAccess) =>
