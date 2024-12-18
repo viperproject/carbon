@@ -137,7 +137,8 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
             val initOldStateComment = "Initializing of old state"
             val ins: Seq[LocalVarDecl] = formalArgs map translateLocalVarDecl
             val outs: Seq[LocalVarDecl] = formalReturns map translateLocalVarDecl
-            val init = MaybeCommentBlock("Initializing the state", stateModule.initBoogieState ++ assumeAllFunctionDefinitions ++ permModule.assumePermUpperBounds ++ stmtModule.initStmt(method.bodyOrAssumeFalse))
+            val init = MaybeCommentBlock("Initializing the state", stateModule.initBoogieState ++ assumeAllFunctionDefinitions ++
+              (if (verifier.respectFunctionPrecPermAmounts) Nil else permModule.assumePermUpperBounds(true)) ++ stmtModule.initStmt(method.bodyOrAssumeFalse))
             val initOld = MaybeCommentBlock("Initializing the old state", stateModule.initOldState)
             val paramAssumptions = mWithLoopInfo.formalArgs map (a => allAssumptionsAboutValue(a.typ, translateLocalVarDecl(a), true))
             val inhalePre = translateMethodDeclPre(pres)

@@ -32,7 +32,6 @@ import viper.carbon.boogie.Const
 import viper.carbon.boogie.LocalVar
 import viper.silver.ast.{LocationAccess, PermMul, PredicateAccess, PredicateAccessPredicate, ResourceAccess, WildcardPerm}
 import viper.carbon.boogie.Forall
-import viper.carbon.boogie.Assign
 import viper.carbon.boogie.Func
 import viper.carbon.boogie.TypeAlias
 import viper.carbon.boogie.FuncApp
@@ -164,7 +163,6 @@ class QuantifiedPermModule(val verifier: Verifier)
         Seq(obj, field),
         Trigger(permInZeroPMask),
         permInZeroPMask === FalseLit())) ::
-      ConstDecl(assumePermUpperBoundName, Bool) ::
       // predicate mask function
       Func(predicateMaskFieldName,
         Seq(LocalVarDecl(Identifier("f"), predicateVersionFieldType())),
@@ -192,6 +190,7 @@ class QuantifiedPermModule(val verifier: Verifier)
       } else {
         Nil
       }) ++
+      (if (verifier.respectFunctionPrecPermAmounts) Nil else ConstDecl(assumePermUpperBoundName, Bool)) ++
       // good mask
       Func(goodMaskName, LocalVarDecl(maskName, maskType), Bool) ++
       Axiom(Forall(stateModule.staticStateContributions(),
@@ -246,8 +245,11 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   def permType = NamedType(permTypeName)
 
-  override def assumePermUpperBounds: Stmt = {
-    Assume(assumePermUpperBound)
+  override def assumePermUpperBounds(doAssume: Boolean) : Stmt = {
+    if (doAssume)
+      Assume(assumePermUpperBound)
+    else
+      Assume(assumePermUpperBound.not)
   }
 
   def staticStateContributions(withHeap: Boolean, withPermissions: Boolean): Seq[LocalVarDecl] = if (withPermissions) Seq(LocalVarDecl(maskName, maskType)) else Seq()
@@ -272,10 +274,10 @@ class QuantifiedPermModule(val verifier: Verifier)
     assertReadPermOnly = false
   }
 
-  override def setCheckReadPermissionOnlyState(readOnly: Boolean): Boolean = {
-    val oldState = assertReadPermOnly
+  override def setCheckReadPermissionOnly(readOnly: Boolean): Boolean = {
+    val oldValue = assertReadPermOnly
     assertReadPermOnly = readOnly
-    oldState
+    oldValue
   }
 
   override def usingOldState = stateModuleIsUsingOldState
@@ -385,7 +387,13 @@ class QuantifiedPermModule(val verifier: Verifier)
 
         val permVar = LocalVar(Identifier("perm"), permType)
         if (assertReadPermOnly || !p.isInstanceOf[sil.WildcardPerm]) {
-          val prmTranslated = if (p.isInstanceOf[sil.WildcardPerm]) fullPerm else translatePerm(p)
+          val prmTranslated = if (p.isInstanceOf[sil.WildcardPerm]) {
+            // We are in a context where permission amounts do not matter, so we can safely translate a wildcard to
+            // a full permission.
+            fullPerm
+          } else {
+            translatePerm(p)
+          }
           if (assertReadPermOnly) {
             (permVar := prmTranslated) ++
               Assert(permissionPositiveInternal(permVar, Some(p), true), error.dueTo(reasons.NegativePermission(p))) ++
@@ -834,8 +842,7 @@ class QuantifiedPermModule(val verifier: Verifier)
             val injectiveAssertion = Assert(Forall((translatedLocals ++ translatedLocals2), injectTrigger,injectiveCond ==> ineqExpr), err)
 
             val maskUpdateStmts = if (assertReadPermOnly) Nil else
-              CommentBlock("assume permission updates", permissionsMap ++
-              independentResource) ++
+              CommentBlock("assume permission updates", permissionsMap ++ independentResource) ++
               CommentBlock("assume permission updates for independent locations ", independentLocations) ++
               (mask := qpMask)
 

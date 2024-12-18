@@ -191,7 +191,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     env = Environment(verifier, f)
     ErrorMemberMapping.currentMember = f
 
-    val oldPermOnlyState = permModule.setCheckReadPermissionOnlyState(!verifier.respectFunctionPrecPermAmounts)
+    val oldCheckReadPermOnly = permModule.setCheckReadPermissionOnly(!verifier.respectFunctionPrecPermAmounts)
     val res = MaybeCommentedDecl(s"Translation of function ${f.name}",
       MaybeCommentedDecl("Uninterpreted function definitions", functionDefinitions(f), size = 1) ++
         (if (f.isAbstract) Nil else
@@ -209,7 +209,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       names.get ++= usedNames
     }
 
-    permModule.setCheckReadPermissionOnlyState(oldPermOnlyState)
+    permModule.setCheckReadPermissionOnly(oldCheckReadPermOnly)
     env = null
     ErrorMemberMapping.currentMember = null
     res
@@ -645,7 +645,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     val args = f.formalArgs map translateLocalVarDecl
     val res = sil.Result(f.typ)()
     val init : Stmt = MaybeCommentBlock("Initializing the state",
-      stateModule.initBoogieState ++ (f.formalArgs map (a => allAssumptionsAboutValue(a.typ,mainModule.translateLocalVarDecl(a),true))) ++ assumeFunctionsAt(heights(f.name)))
+      stateModule.initBoogieState ++ (if (verifier.respectFunctionPrecPermAmounts) Nil else permModule.assumePermUpperBounds(false)) ++
+        (f.formalArgs map (a => allAssumptionsAboutValue(a.typ,mainModule.translateLocalVarDecl(a),true))) ++ assumeFunctionsAt(heights(f.name)))
     val checkPre : Stmt = checkFunctionPreconditionDefinedness(f)
     val checkExp : Stmt = if (f.isAbstract) MaybeCommentBlock("(no definition for abstract function)",Nil) else
       MaybeCommentBlock("Check definedness of function body",
@@ -668,7 +669,9 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
     val args = p.formalArgs map translateLocalVarDecl
     val init : Stmt = MaybeCommentBlock("Initializing the state",
-      stateModule.initBoogieState ++ assumeAllFunctionDefinitions ++ permModule.assumePermUpperBounds ++ (p.formalArgs map (a => allAssumptionsAboutValue(a.typ,mainModule.translateLocalVarDecl(a),true)))
+      stateModule.initBoogieState ++ assumeAllFunctionDefinitions ++
+        (if (verifier.respectFunctionPrecPermAmounts) Nil else permModule.assumePermUpperBounds(true)) ++
+        (p.formalArgs map (a => allAssumptionsAboutValue(a.typ,mainModule.translateLocalVarDecl(a),true)))
     )
 
     val predicateBody = p.body.get
@@ -874,16 +877,16 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
                     * contain permission introspection.
                     */
                   val curState = stateModule.state
-                  val oldReadState = permModule.setCheckReadPermissionOnlyState(true)
+                  val oldCheckReadPermOnly = permModule.setCheckReadPermissionOnly(!verifier.respectFunctionPrecPermAmounts)
                   defState.setDefState()
                   val res = executeExhale()
-                  permModule.setCheckReadPermissionOnlyState(oldReadState)
+                  permModule.setCheckReadPermissionOnly(oldCheckReadPermOnly)
                   stateModule.replaceState(curState)
                   res
                 case None =>
-                  val oldReadState = permModule.setCheckReadPermissionOnlyState(true)
+                  val oldCheckReadPermOnly = permModule.setCheckReadPermissionOnly(!verifier.respectFunctionPrecPermAmounts)
                   val res = executeExhale()
-                  permModule.setCheckReadPermissionOnlyState(oldReadState)
+                  permModule.setCheckReadPermissionOnly(oldCheckReadPermOnly)
                   res
               }
             }
@@ -969,6 +972,9 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
             wandModule.translatingStmtsInWandInit()
           }
           (checkDefinedness(acc, errors.FoldFailed(fold), insidePackageStmt = insidePackageStmt) ++
+            // If no permission amount is supplied explicitly, we always use the default FullPerm; this is
+            // okay even if we are inside a function and only want to check for some positive amount, because permission
+            // amounts do not matter in this context.
             checkDefinedness(perm.getOrElse(sil.FullPerm()()), errors.FoldFailed(fold), insidePackageStmt = insidePackageStmt) ++
             foldFirst, foldLast)
         }
@@ -1006,6 +1012,9 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     unfold match {
       case sil.Unfold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(_, _), perm)) =>
         checkDefinedness(acc, errors.UnfoldFailed(unfold), insidePackageStmt = insidePackageStmt) ++
+          // If no permission amount is supplied explicitly, we always use the default FullPerm; this is
+          // okay even if we are inside a function and only want to check for some positive amount, because permission
+          // amounts do not matter in this context.
           checkDefinedness(perm.getOrElse(sil.FullPerm()()), errors.UnfoldFailed(unfold)) ++
           unfoldPredicate(acc, errors.UnfoldFailed(unfold), false, statesStackForPackageStmt, insidePackageStmt)
     }
