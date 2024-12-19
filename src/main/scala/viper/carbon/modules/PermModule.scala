@@ -8,7 +8,6 @@ package viper.carbon.modules
 
 import viper.carbon.boogie._
 import viper.carbon.modules.components.CarbonStateComponent
-import viper.carbon.utility.PolyMapRep
 import viper.silver.{ast => sil}
 
 case class PMaskDesugaredRep(selectId: Identifier, storeId: Identifier)
@@ -158,5 +157,9 @@ trait PermModule extends Module with CarbonStateComponent {
 
   // removes permission to w#ft (footprint of the magic wand) (See Heap module for w#ft description)
   def exhaleWandFt(w: sil.MagicWand): Stmt
+
+  def setCheckReadPermissionOnly(readOnly: Boolean): Boolean
+
+  def assumePermUpperBounds(doAssume: Boolean): Stmt
 
 }
