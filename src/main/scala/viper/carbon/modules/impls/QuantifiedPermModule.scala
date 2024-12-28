@@ -624,7 +624,7 @@ class QuantifiedPermModule(val verifier: Verifier)
             //injectivity assertion
             val v2s = translatedLocals.map(translatedLocal => LocalVarDecl(Identifier(translatedLocal.name.name), translatedLocal.typ))
             var triggerFunApp2 : FuncApp = triggerFunApp
-            var notEquals : Exp = TrueLit()
+            var notEquals : Exp = FalseLit()
             var translatedPerms2 = translatedPerms
             var translatedCond2 = translatedCond
             var translatedRecv2 = translatedRecv
@@ -633,7 +633,7 @@ class QuantifiedPermModule(val verifier: Verifier)
               translatedPerms2 = translatedPerms2.replace(translatedLocals(i).l, v2s(i).l)
               translatedCond2 = translatedCond2.replace(translatedLocals(i).l, v2s(i).l)
               translatedRecv2 = translatedRecv2.replace(translatedLocals(i).l, v2s(i).l)
-              notEquals = notEquals && (translatedLocals(i).l !== v2s(i).l)
+              notEquals = notEquals || (translatedLocals(i).l !== v2s(i).l)
             }
             val is_injective = Forall( translatedLocals++v2s,validateTriggers(translatedLocals++v2s, Seq(Trigger(Seq(triggerFunApp, triggerFunApp2)))),(  notEquals &&  translatedCond && translatedCond2 && permGt(translatedPerms, noPerm) && permGt(translatedPerms2, noPerm)) ==> (translatedRecv !== translatedRecv2))
             val reas = reasons.QPAssertionNotInjective(fieldAccess)
@@ -811,13 +811,13 @@ class QuantifiedPermModule(val verifier: Verifier)
             //assert injectivity of inverse function:
             val translatedLocals2 = translatedLocals.map(translatedLocal => LocalVarDecl(Identifier(translatedLocal.name.name), translatedLocal.typ)) //new varible
 
-            var unequalities : Exp = TrueLit()
+            var unequalities : Exp = FalseLit()
             var translatedCond2 = translatedCond
             var translatedPerms2 = translatedPerms
             var translatedArgs2 = translatedArgs
             var triggerFunApp2 = triggerFunApp
             for (i <- 0 until translatedLocals.length) {
-              unequalities = unequalities && (translatedLocals(i).l.!==(translatedLocals2(i).l))
+              unequalities = unequalities || (translatedLocals(i).l.!==(translatedLocals2(i).l))
               translatedCond2 = translatedCond2.replace(translatedLocals(i).l, translatedLocals2(i).l)
               translatedPerms2 = translatedPerms2.replace(translatedLocals(i).l, translatedLocals2(i).l)
               translatedArgs2 = translatedArgs2.map(a => a.replace(translatedLocals(i).l, translatedLocals2(i).l))
@@ -1190,7 +1190,7 @@ class QuantifiedPermModule(val verifier: Verifier)
            //injectivity assertion
            val v2s = translatedLocals.map(translatedLocal => LocalVarDecl(Identifier(translatedLocal.name.name), translatedLocal.typ))
            var triggerFunApp2 = FuncApp(triggerFun.name, translatedLocals.map(v => LocalVar(v.name, v.typ)), triggerFun.typ)
-           var notEquals: Exp = TrueLit()
+           var notEquals: Exp = FalseLit()
            var translatedPerms2 = translatedPerms
            var translatedCond2 = translatedCond
            var translatedRecv2 = translatedRecv
@@ -1199,7 +1199,7 @@ class QuantifiedPermModule(val verifier: Verifier)
              translatedPerms2 = translatedPerms2.replace(translatedLocals(i).l, v2s(i).l)
              translatedCond2 = translatedCond2.replace(translatedLocals(i).l, v2s(i).l)
              translatedRecv2 = translatedRecv2.replace(translatedLocals(i).l, v2s(i).l)
-             notEquals = notEquals && (translatedLocals(i).l !== v2s(i).l)
+             notEquals = notEquals || (translatedLocals(i).l !== v2s(i).l)
            }
            val is_injective = Forall(translatedLocals ++ v2s, validateTriggers(translatedLocals ++ v2s, Seq(Trigger(Seq(triggerFunApp2)))), (notEquals && translatedCond && translatedCond2 && permGt(translatedPerms, noPerm) && permGt(translatedPerms2, noPerm)) ==> (translatedRecv !== translatedRecv2))
 
@@ -1367,13 +1367,13 @@ class QuantifiedPermModule(val verifier: Verifier)
 
            val triggerFunApp = FuncApp(triggerFun.name, translatedLocals.map(translatedLocal => LocalVar(translatedLocal.name, translatedLocal.typ)), triggerFun.typ)
 
-           var unequalities : Exp = TrueLit()
+           var unequalities : Exp = FalseLit()
            var translatedCond2 = translatedCond
            var translatedPerms2 = translatedPerms
            var translatedArgs2 = translatedArgs
            var triggerFunApp2 = triggerFunApp
            for (i <- 0 until translatedLocals.length) {
-             unequalities = unequalities && (translatedLocals(i).l.!==(translatedLocals2(i).l))
+             unequalities = unequalities || (translatedLocals(i).l.!==(translatedLocals2(i).l))
              translatedCond2 = translatedCond2.replace(translatedLocals(i).l, translatedLocals2(i).l)
              translatedPerms2 = translatedPerms2.replace(translatedLocals(i).l, translatedLocals2(i).l)
              translatedArgs2 = translatedArgs2.map(a => a.replace(translatedLocals(i).l, translatedLocals2(i).l))
