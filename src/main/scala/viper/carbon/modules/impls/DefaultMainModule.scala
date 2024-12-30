@@ -22,7 +22,9 @@ import viper.silver.verifier.{TypecheckerWarning, errors}
 import viper.carbon.verifier.Verifier
 import viper.silver.ast.Quasihavoc
 import viper.silver.ast.utility.rewriter.Traverse
-import viper.silver.reporter.{Reporter, WarningsDuringTypechecking, QuantifierChosenTriggersMessage}
+import viper.silver.reporter.{QuantifierChosenTriggersMessage, Reporter, WarningsDuringTypechecking}
+import viper.silver.verifier.errors.{ExhaleFailed, HavocallFailed, InhaleFailed}
+import viper.silver.verifier.reasons.{QPAssertionNotInjective, QuasihavocallNotInjective}
 
 import scala.collection.mutable
 
@@ -53,6 +55,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
 
   override def translate(p: sil.Program, reporter: Reporter): (Program, Map[String, Map[String, String]]) = {
 
+    val usedIdentifiers: mutable.HashSet[String] = mutable.HashSet.from(p.transitiveScopedDeclNames)
     verifier.replaceProgram(
       p.transform(
         {
@@ -72,7 +75,8 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
             reporter report QuantifierChosenTriggersMessage(res, res.triggers, e.triggers)
             res
           }
-          case q: Quasihavoc => desugarQuasihavoc(q)
+          case q: sil.Quasihavoc => desugarQuasihavoc(q, usedIdentifiers)
+          case q: sil.Quasihavocall => desugarQuasihavocall(q, usedIdentifiers)
         },
         Traverse.TopDown)
     )
@@ -259,13 +263,26 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
     res
   }
 
+  private def uniqueName(name: String, usedNames: mutable.HashSet[String]): String = {
+    var i = 1
+    var newName = name
+    while (usedNames.contains(newName)) {
+      newName = name + i
+      i += 1
+    }
+    usedNames.add(newName)
+    newName
+  }
+
   /***
     * Desugar a quasihavoc into an exhale followed by an inhale statement
     * @param q should be a field or pedicate quasihavoc
+    * @param usedNames a set of all names used in the program
     * @return
     */
-  private def desugarQuasihavoc(q: sil.Quasihavoc) = {
-    val curPermVarDecl = sil.LocalVarDecl("perm_temp_quasihavoc_", sil.Perm)()
+  private def desugarQuasihavoc(q: sil.Quasihavoc, usedNames: mutable.HashSet[String]) = {
+    val permVarName = uniqueName("perm_temp_quasihavoc_", usedNames)
+    val curPermVarDecl = sil.LocalVarDecl(permVarName, sil.Perm)()
     val curPermVar = curPermVarDecl.localVar
     val resourceCurPerm =
       q.exp match {
@@ -273,7 +290,10 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
           sil.FieldAccessPredicate(r, Some(curPermVar))()
         case r: sil.PredicateAccess =>
           sil.PredicateAccessPredicate(r, Some(curPermVar))()
-        case _ => sys.error("Not supported resource in quasihavoc")
+        case _ =>
+          // Currently no way to desugar magic wands in quasihavoc, since they do not allow exhaling/inhaling specific
+          // permission amounts, so we cannot exhale the correct amount in case a wand is held more than once.
+          sys.error("Not supported resource in quasihavoc")
       }
 
     val curPermInhExPermission =
@@ -282,8 +302,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
           Seq(
             sil.Exhale(resourceCurPerm)(),
             sil.Inhale(resourceCurPerm)()
-          )
-        ,
+          ),
         Seq(curPermVarDecl)
       )()
 
@@ -296,5 +315,43 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
       case None =>
         sil.Seqn(curPermInhExPermission, Seq())()
     }
+  }
+
+  /** *
+    * Desugar a quasihavocall into an exhale followed by an inhale statement
+    *
+    * @param q should be a field or pedicate quasihavocall
+    * @param usedNames a set of all names used in the program
+    * @return
+    */
+  private def desugarQuasihavocall(q: sil.Quasihavocall, usedNames: mutable.HashSet[String]) = {
+    val labelName = uniqueName("perm_temp_quasihavoc_", usedNames)
+    val beforeHavocLabelDecl = sil.Label(labelName, Seq())()
+    val curPermExpr = sil.LabelledOld(sil.CurrentPerm(q.exp)(), labelName)()
+    val triggers = Seq(sil.Trigger(Seq(q.exp))())
+    val resourceCurPerm =
+      q.exp match {
+        case r: sil.FieldAccess =>
+          sil.Forall(q.vars, triggers, sil.Implies(q.lhs.getOrElse(sil.TrueLit()()), sil.FieldAccessPredicate(r, Some(curPermExpr))())())()
+        case r: sil.PredicateAccess =>
+          sil.Forall(q.vars, triggers, sil.Implies(q.lhs.getOrElse(sil.TrueLit()()), sil.PredicateAccessPredicate(r, Some(curPermExpr))())())()
+        case _ =>
+          // Currently no way to desugar magic wands in quasihavocall, since they do not allow exhaling/inhaling
+          // specific permission amounts, so we cannot exhale the correct amount in case a wand is held more than once.
+          sys.error("Not supported resource in quasihavocall")
+      }
+
+    val errTrafo = sil.ErrTrafo({
+      case ExhaleFailed(_, QPAssertionNotInjective(_), cached) => HavocallFailed(q, QuasihavocallNotInjective(q), cached)
+      case InhaleFailed(_, QPAssertionNotInjective(_), cached) => HavocallFailed(q, QuasihavocallNotInjective(q), cached)
+    })
+    sil.Seqn(
+      beforeHavocLabelDecl +:
+        Seq(
+          sil.Exhale(resourceCurPerm)(errT=errTrafo),
+          sil.Inhale(resourceCurPerm)(errT=errTrafo)
+        ),
+      Seq(beforeHavocLabelDecl)
+    )()
   }
 }
