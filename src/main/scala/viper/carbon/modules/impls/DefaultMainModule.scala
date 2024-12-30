@@ -55,6 +55,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
 
   override def translate(p: sil.Program, reporter: Reporter): (Program, Map[String, Map[String, String]]) = {
 
+    val usedIdentifiers: mutable.HashSet[String] = mutable.HashSet.from(p.transitiveScopedDeclNames)
     verifier.replaceProgram(
       p.transform(
         {
@@ -74,8 +75,8 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
             reporter report QuantifierChosenTriggersMessage(res, res.triggers, e.triggers)
             res
           }
-          case q: sil.Quasihavoc => desugarQuasihavoc(q)
-          case q: sil.Quasihavocall => desugarQuasihavocall(q)
+          case q: sil.Quasihavoc => desugarQuasihavoc(q, usedIdentifiers)
+          case q: sil.Quasihavocall => desugarQuasihavocall(q, usedIdentifiers)
         },
         Traverse.TopDown)
     )
@@ -262,13 +263,26 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
     res
   }
 
+  private def uniqueName(name: String, usedNames: mutable.HashSet[String]): String = {
+    var i = 1
+    var newName = name
+    while (usedNames.contains(newName)) {
+      newName = name + i
+      i += 1
+    }
+    usedNames.add(newName)
+    newName
+  }
+
   /***
     * Desugar a quasihavoc into an exhale followed by an inhale statement
     * @param q should be a field or pedicate quasihavoc
+    * @param usedNames a set of all names used in the program
     * @return
     */
-  private def desugarQuasihavoc(q: sil.Quasihavoc) = {
-    val curPermVarDecl = sil.LocalVarDecl("perm_temp_quasihavoc_", sil.Perm)()
+  private def desugarQuasihavoc(q: sil.Quasihavoc, usedNames: mutable.HashSet[String]) = {
+    val permVarName = uniqueName("perm_temp_quasihavoc_", usedNames)
+    val curPermVarDecl = sil.LocalVarDecl(permVarName, sil.Perm)()
     val curPermVar = curPermVarDecl.localVar
     val resourceCurPerm =
       q.exp match {
@@ -307,10 +321,11 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
     * Desugar a quasihavocall into an exhale followed by an inhale statement
     *
     * @param q should be a field or pedicate quasihavocall
+    * @param usedNames a set of all names used in the program
     * @return
     */
-  private def desugarQuasihavocall(q: sil.Quasihavocall) = {
-    val labelName = "perm_temp_quasihavoc_"
+  private def desugarQuasihavocall(q: sil.Quasihavocall, usedNames: mutable.HashSet[String]) = {
+    val labelName = uniqueName("perm_temp_quasihavoc_", usedNames)
     val beforeHavocLabelDecl = sil.Label(labelName, Seq())()
     val curPermExpr = sil.LabelledOld(sil.CurrentPerm(q.exp)(), labelName)()
     val triggers = Seq(sil.Trigger(Seq(q.exp))())
