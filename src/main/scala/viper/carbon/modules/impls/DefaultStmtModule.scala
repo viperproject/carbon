@@ -43,6 +43,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
 
   private val lblNamespace = verifier.freshNamespace("stmt.lbl")
   var lblVarsNamespace = verifier.freshNamespace("var.lbl")
+  private val tmpVarsNamespace = verifier.freshNamespace("stmt.tmpvar")
   override def labelNamespace = lblNamespace
 
   def name = "Statement module"
@@ -209,8 +210,12 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
         Nil
       case i@sil.If(cond, thn, els) =>
         val condTr = if(allStateAssms == TrueLit()) { translateExpInWand(cond) } else { allStateAssms ==> translateExpInWand(cond) }
+        val condTempVar = LocalVar(Identifier("condition")(tmpVarsNamespace), Bool)
         checkDefinedness(cond, errors.IfFailed(cond), insidePackageStmt = insidePackageStmt) ++
-        If(condTr,
+        // Assign the condition to a temp var s.t. it's safe to optimize away the following if it's empty without
+        // losing triggering expressions in the if-condition (see Carbon issue #420).
+        Assign(condTempVar, condTr) ++
+        If(condTempVar,
           translateStmt(thn, statesStack, allStateAssms, insidePackageStmt),
           translateStmt(els, statesStack, allStateAssms, insidePackageStmt))
       case sil.Label(name, _) => {
