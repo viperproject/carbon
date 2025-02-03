@@ -31,5 +31,14 @@ class AllTests extends SilSuite {
     fe
   }
 
-  lazy val verifiers = List(CarbonVerifier(StdIOReporter()))
+  lazy val verifier: CarbonVerifier = {
+    val carbon = CarbonVerifier(StdIOReporter())
+    carbon.parseCommandLine(commandLineArguments ++ Seq("dummy.vpr"))
+    carbon
+  }
+
+  lazy val verifiers = List(verifier)
+
+  val commandLineArguments: Seq[String] =
+    Seq()
 }
