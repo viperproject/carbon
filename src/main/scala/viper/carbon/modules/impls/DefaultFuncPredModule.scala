@@ -69,7 +69,10 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private val emptyFrameName = Identifier("EmptyFrame")
   private val emptyFrame = Const(emptyFrameName)
   private val combineFramesName = Identifier("CombineFrames")
+  private val frameFirstName = Identifier("FrameFirst")
+  private val frameSecondName = Identifier("FrameSecond")
   private val frameFragmentName = Identifier("FrameFragment")
+  private val frameContentName = Identifier("FrameContent")
   private val condFrameName = Identifier("ConditionalFrame")
   private val dummyTriggerName = Identifier("dummyFunction")
   private val resultName = Identifier("Result")
@@ -101,8 +104,11 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         TypeDecl(frameType) ++
           ConstDecl(emptyFrameName, frameType) ++
           Func(frameFragmentName, Seq(LocalVarDecl(Identifier("t"), TypeVar("T"))), frameType) ++
+          Func(frameContentName, Seq(LocalVarDecl(Identifier("f"), frameType)), TypeVar("T")) ++
           Func(condFrameName, Seq(LocalVarDecl(Identifier("p"), permType), LocalVarDecl(Identifier("f"), frameType)), frameType) ++
           Func(dummyTriggerName, Seq(LocalVarDecl(Identifier("t"), TypeVar("T"))), Bool) ++
+          Func(frameFirstName, Seq(LocalVarDecl(Identifier("f"), frameType)), frameType) ++
+          Func(frameSecondName, Seq(LocalVarDecl(Identifier("f"), frameType)), frameType) ++
           Func(combineFramesName,
             Seq(LocalVarDecl(Identifier("a"), frameType), LocalVarDecl(Identifier("b"), frameType)),
             frameType), size = 1) ++
@@ -113,6 +119,20 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           condFrameApp === CondExp(LocalVar(Identifier("p"), permType) > RealLit(0),LocalVar(Identifier("f"), frameType), emptyFrame)
         ))
       }
+      ) ++
+      CommentedDecl("Inverse function definitions for frame functions",
+        {
+          val t = LocalVarDecl(Identifier("t"), TypeVar("T"))
+          val frameContentInverseAxiom = Axiom(Forall(Seq(t), Trigger(FuncApp(frameFragmentName, Seq(t.l), frameType)),
+            FuncApp(frameContentName, Seq(FuncApp(frameFragmentName, Seq(t.l), frameType)), frameType) === t.l))
+          val f1 = LocalVarDecl(Identifier("f1"), frameType)
+          val f2 = LocalVarDecl(Identifier("f2"), frameType)
+          val combined = FuncApp(combineFramesName, Seq(f1.l, f2.l), frameType)
+          val frameCombineInverseAxiom = Axiom(Forall(Seq(f1, f2), Trigger(combined),
+            FuncApp(frameFirstName, Seq(combined), frameType) === f1.l &&
+              FuncApp(frameSecondName, Seq(combined), frameType) === f2.l))
+          Seq(frameContentInverseAxiom, frameCombineInverseAxiom)
+        }
       ) ++
       CommentedDecl("Function for recording enclosure of one predicate instance in another",
         Func(insidePredicateName,
