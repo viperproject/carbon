@@ -17,7 +17,7 @@ jobs:
       LINUX_BOOGIE_URL: "https://github.com/viperproject/boogie-builder/releases/download/7449a7a899c02c95/boogie-linux.zip"
     steps:
     - name: Checkout Carbon
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
       with:
         submodules: true
     - name: Java Version
@@ -40,7 +40,7 @@ jobs:
       # note that the cache path is relative to the directory in which sbt is invoked.
 
     - name: Cache SBT
-      uses: actions/cache@v2
+      uses: actions/cache@v4
       with:
         path: |
           sbt-cache/.sbtboot
