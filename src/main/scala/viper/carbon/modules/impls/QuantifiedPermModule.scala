@@ -111,6 +111,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   private val summandMask2 = LocalVarDecl(Identifier("SummandMask2"),maskType)
   private val sumMasks = Identifier("sumMask")
   private val tempMask = LocalVar(Identifier("TempMask"),maskType)
+  private val minMasks = Identifier("minMask")
 
   private val qpMaskName = Identifier("QPMask")
   private val qpMask = LocalVar(qpMaskName, maskType)
@@ -230,6 +231,20 @@ class QuantifiedPermModule(val verifier: Verifier)
           Trigger(Seq(funcApp,permResult)) ++ Trigger(Seq(funcApp,permSummand1)) ++
             Trigger(Seq(funcApp,permSummand2)),
           funcApp ==> (permResult === (permSummand1 + permSummand2))
+        ))
+    } ++ {
+      val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
+      val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
+      val args = Seq(summandMask1, summandMask2)
+      val funcApp = FuncApp(minMasks, args map (_.l), maskType)
+      val permResult = currentPermission(funcApp, obj.l, field.l)
+      val permSummand1 = currentPermission(summandMask1.l, obj.l, field.l)
+      val permSummand2 = currentPermission(summandMask2.l, obj.l, field.l)
+      Func(minMasks, args, maskType) ++
+        Axiom(Forall(
+          args ++ Seq(obj, field),
+          Trigger(Seq(funcApp, permResult)),
+          (permResult === CondExp(permSummand1 < permSummand2, permSummand1, permSummand2))
         ))
     } ++ {
       MaybeCommentedDecl("Function for trigger used in checks which are never triggered",
@@ -366,6 +381,9 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   override def sumMask(resultMask: Seq[Exp], summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp =
     FuncApp(sumMasks, resultMask++summandMask1++summandMask2,Bool)
+
+  override def minMask(summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp =
+    FuncApp(minMasks, summandMask1 ++ summandMask2, Bool)
 
   override def containsWildCard(e: sil.Exp): Boolean = {
     e match {
@@ -882,6 +900,25 @@ class QuantifiedPermModule(val verifier: Verifier)
     val permVar = LocalVar(Identifier("perm"), permType)
     val curPerm = currentPermission(e.rcv,e.loc)
     currentMaskAssignUpdate(e.rcv, e.loc, permSub(curPerm,e.transferAmount))
+  }
+
+  override def transferRemoveQuant(toRemoveMask: Exp, cond: Exp): Stmt = {
+    // qpMask := mask
+    // mask := qpMask - toRemoveMask
+    Seq(
+      qpMask := mask,
+      subtractMask(qpMask, toRemoveMask, mask)
+    )
+  }
+
+  override def subtractMask(op1: Exp, op2: Exp, target: Var): Stmt = {
+    // // target := op1 - op2
+    // havoc target
+    // assume sumMask(op1, target, op2)
+    Seq(
+      Havoc(target),
+      Assume(sumMask(op1, target, op2))
+    )
   }
 
   override def transferValid(e:TransferableEntity):Seq[(Stmt,Exp)] = {
@@ -1455,6 +1492,27 @@ class QuantifiedPermModule(val verifier: Verifier)
       }
     } ++ */
     if (!usingOldState) currentMaskAssignUpdate(e.rcv, e.loc, permAdd(curPerm, e.transferAmount)) else Nil
+  }
+
+  override def transferAddQuant(toAddMask: Exp, cond: Exp): Stmt = {
+    if (!usingOldState) {
+      // qpMask := mask
+      // // mask := qpMask + toAddMask
+      // havoc mask
+      // assume sumMask(mask, qpMask, toAddMask)
+      Seq(
+        qpMask := mask,
+        Havoc(mask),
+        Assume(sumMask(mask, qpMask, toAddMask))
+      )
+    } else Nil
+  }
+
+  override def hasSomePerm(mask: Exp): Exp = {
+    val obj = LocalVarDecl(Identifier("o"), refType) // ref-typed variable, representing arbitrary receiver
+    val field = LocalVarDecl(Identifier("f"), fieldType)
+    val perm = currentPermission(mask, obj.l, field.l)
+    Exists(Seq(obj, field), Trigger(perm), perm > noPerm)
   }
 
   override def tempInitMask(rcv: Exp, loc:Exp):(Seq[Exp], Stmt) = {

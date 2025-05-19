@@ -33,15 +33,21 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
 
   /* denotes amount of permission to add/remove during a specific transfer */
   val transferAmountLocal: LocalVar = LocalVar(Identifier("takeTransfer")(transferNamespace), permType)
+  val transferAmountLocalQuant: LocalVar = LocalVar(Identifier("takeTransferQuant")(transferNamespace), maskType)
+
+  val tempAmountQuant: LocalVar = LocalVar(Identifier("tempAmountQuant")(transferNamespace), maskType)
 
   /*stores amount of permission still needed during transfer*/
   val neededLocal: LocalVar = LocalVar(Identifier("neededTransfer")(transferNamespace),permType)
+  val neededLocalQuant: LocalVar = LocalVar(Identifier("neededTransferQuant")(transferNamespace),maskType)
 
   /*stores initial amount of permission needed during transfer*/
   val initNeededLocal = LocalVar(Identifier("initNeededTransfer")(transferNamespace), permType)
+  val initNeededLocalQuant = LocalVar(Identifier("initNeededTransferQuant")(transferNamespace), maskType)
 
   /*used to store the current permission of the top state of the stack during transfer*/
   val curpermLocal = LocalVar(Identifier("maskTransfer")(transferNamespace), permType)
+  val curpermLocalQuant = LocalVar(Identifier("maskTransferQuant")(transferNamespace), maskType)
 
   /*denotes the receiver evaluated in the Used state, this is inserted as receiver to FieldAccessPredicates such that
   * existing interfaces can be reused and the transfer can be kept general */
@@ -395,6 +401,42 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
 
 }
 
+
+  def transferMainQuant(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssms: Exp, mainError: PartialVerificationError, havocHeap: Boolean = true):Stmt = {
+    //store the permission to be transferred into a separate variable
+    val permAmount =
+      e   match {
+        case sil.MagicWand(left, right) => boogieFullPerm
+        case p@sil.AccessPredicate(loc, perm) => permModule.translatePerm(perm)
+        case _ => sys.error("only transfer of access predicates and magic wands supported")
+      }
+
+    // check injective, copy paste
+
+    // check positive, copy paste
+
+    val (transferEntity, initStmt)  = setupTransferableEntity(e, transferAmountLocalQuant)
+
+    // helper func: create mask for resource that is noperm everywhere else
+    val initPermVars = (neededLocalQuant := permAmount) ++
+      (initNeededLocal := permModule.currentPermission(transferEntity.rcv, transferEntity.loc)+neededLocal)
+
+
+    val positivePerm = Assert(neededLocal >= RealLit(0), mainError.dueTo(reasons.NegativePermission(e)))
+
+    val definedness =
+      MaybeCommentBlock("checking if access predicate defined in used state",
+        If(allStateAssms&&used.boolVar,expModule.checkDefinedness(e, mainError, insidePackageStmt = true),Statements.EmptyStmt))
+
+    val transferRest = transferAccQuant(states,used, transferEntity,allStateAssms, mainError, havocHeap)
+    val stmt = definedness++ initStmt /*++ nullCheck*/ ++ initPermVars ++  positivePerm ++ transferRest
+
+    val unionStmt = updateUnion()
+
+    MaybeCommentBlock("Transfer of " + e.toString, stmt ++ unionStmt)
+
+  }
+
 /*
  * Precondition: current state is set to the used state
   */
@@ -487,6 +529,98 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
      * */
   }
 }
+
+  private def transferAccQuant(states: List[StateRep], used:StateRep, e: TransferableEntity, allStateAssms: Exp, mainError: PartialVerificationError, havocHeap: Boolean = true):Stmt = {
+    states match {
+      case (top :: xs) =>
+        //Compute all values needed from top state
+        stateModule.replaceState(top.state)
+        val isOriginalState: Boolean = xs.isEmpty
+
+        val topHeap = heapModule.currentHeap
+        val equateLHS:Option[Exp] = e match {
+          case TransferableAccessPred(rcv,loc,_,_) => Some(heapModule.translateLocationAccess(rcv,loc))
+          case _ => None
+        }
+
+        val definednessTop:Stmt = (boolTransferTop := TrueLit()) ++
+          (generateStmtCheck(components flatMap (_.transferValid(e)), boolTransferTop))
+        val minStmt = transferAmountLocalQuant := minMask(neededLocalQuant, curpermLocalQuant)
+
+
+        val curPermTopQuant: Exp =  ??? // permModule.currentPermission(e.rcv, e.loc)
+        val removeFromTop = heapModule.beginExhale ++
+          (components flatMap (_.transferRemoveQuant(transferAmountLocalQuant,used.boolVar))) ++
+          {if(top != OPS){ // Sets the transferred field in secondary mask of the wand to true ,eg., Heap[null, w#sm][x, f] := true
+            heapModule.addPermissionToWMask(getWandFtSmRepresentation(currentWand, 1), e.originalSILExp)
+          }else{
+            Statements.EmptyStmt
+          }
+          }
+        ( //if original state then don't need to guard assumptions
+          if(isOriginalState) {
+            heapModule.endExhale ++
+              stateModule.assumeGoodState
+          } else if(top != OPS || havocHeap){
+            // We only havoc the heap from which we remove the permission only if:
+            //      The translated statement requires havocing the heap (fold)
+            //      OR if the state from which the permission is removed is not OPS state
+            exchangeAssumesWithBoolean(heapModule.endExhale, top.boolVar) ++
+              (top.boolVar := top.boolVar && stateModule.currentGoodState)
+          }else
+            top.boolVar := top.boolVar && stateModule.currentGoodState)
+
+        /*GP: need to formally prove that these two last statements are sound (since they are not
+         *explicitily accumulated in the boolean variable */
+
+        //computed all values needed from used state
+        stateModule.replaceState(used.state)
+
+        val addToUsed = (components flatMap (_.transferAddQuant(transferAmountLocalQuant,used.boolVar))) ++
+          (used.boolVar := used.boolVar&&stateModule.currentGoodState)
+
+        val equateStmt:Stmt = e match {
+          case TransferableFieldAccessPred(rcv,loc,_,_) =>
+            val (tempMask, initTMaskStmt) = permModule.tempInitMask(rcv, loc)
+            initTMaskStmt ++
+              (used.boolVar := used.boolVar && heapModule.identicalOnKnownLocations(topHeap, tempMask))
+          case TransferablePredAccessPred(rcv,loc,_,_) =>
+            val (tempMask, initTMaskStmt) = permModule.tempInitMask(rcv,loc)
+            initTMaskStmt ++
+              (used.boolVar := used.boolVar&&heapModule.identicalOnKnownLocations(topHeap,tempMask))
+          case _ => Nil
+        }
+
+
+        //transfer from top to used state
+        MaybeCommentBlock("transfer code for top state of stack",
+          Comment("accumulate constraints which need to be satisfied for transfer to occur") ++ definednessTop ++
+            Comment("actual code for the transfer from current state on stack") ++
+            If( (allStateAssms&&used.boolVar) && boolTransferTop && hasSomePerm(neededLocalQuant),
+              (curpermLocalQuant := curPermTopQuant) ++
+                minStmt ++
+                If(hasSomePerm(transferAmountLocal),
+                  Seq(tempAmountQuant := neededLocalQuant, subtractMask(tempAmountQuant, neededLocalQuant, transferAmountLocalQuant)) ++
+                    addToUsed ++
+                    equateStmt ++
+                    removeFromTop,
+
+                  Nil),
+
+              Nil
+            )
+        ) ++ transferAccQuant(xs,used,e,allStateAssms, mainError, havocHeap) //recurse over rest of states
+      case Nil =>
+        val curPermUsed = permModule.currentPermission(e.rcv,e.loc)
+        Assert((allStateAssms&&used.boolVar) ==> (neededLocal === boogieNoPerm && curPermUsed === initNeededLocal),
+          e.transferError(mainError))
+      /**
+        * actually only curPermUsed === permLocal would be sufficient if the transfer is written correctly, since
+        * the two conjuncts should be equivalent in theory, but to be safe we ask for the conjunction to hold
+        * in case of bugs
+        * */
+    }
+  }
 
 
   override def createAndSetState(initBool:Option[Exp],usedString:String = "Used",setToNew:Boolean=true,

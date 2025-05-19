@@ -137,6 +137,8 @@ trait PermModule extends Module with CarbonStateComponent {
     */
   def sumMask(resultMask: Seq[Exp], summandMask1: Seq[Exp], summandMask2: Seq[Exp]) : Exp
 
+  def minMask(mask1: Seq[Exp], mask2: Seq[Exp]): Exp
+
     /** returns a mask and the returned statement ensures that the mask  has non-zero permission at rcv.loc and zero
       * permission at all other location
       * this should only be used temporarily, i.e. if there are two calls to this then the previous tempMask returned
@@ -161,5 +163,9 @@ trait PermModule extends Module with CarbonStateComponent {
   def setCheckReadPermissionOnly(readOnly: Boolean): Boolean
 
   def assumePermUpperBounds(doAssume: Boolean): Stmt
+
+  def hasSomePerm(mask: Exp): Exp
+
+  def subtractMask(op1: Exp, op2: Exp, target: Var): Stmt
 
 }
