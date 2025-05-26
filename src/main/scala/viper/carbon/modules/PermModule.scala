@@ -107,6 +107,8 @@ trait PermModule extends Module with CarbonStateComponent {
 
   def currentPermission(rcv:Exp, loc:Exp):Exp
 
+  def currentPermission(mask: Exp, rcv: Exp, location: Exp): Exp
+
   /**these methods are for experimental purposes, not yet finalized **/
   /*def beginSumMask : Stmt
 
@@ -164,8 +166,12 @@ trait PermModule extends Module with CarbonStateComponent {
 
   def assumePermUpperBounds(doAssume: Boolean): Stmt
 
-  def hasSomePerm(mask: Exp): Exp
+  def hasSomePerm(mask: Exp, resource: Exp): Exp
 
   def subtractMask(op1: Exp, op2: Exp, target: Var): Stmt
+
+  def addQPFunctions(qvars: Seq[LocalVarDecl], argumentDecls: Seq[LocalVarDecl]):(Seq[Func],Func,Func)
+
+  def validateTriggers(vars:Seq[LocalVarDecl], triggers:Seq[Trigger]):Seq[Trigger]
 
 }

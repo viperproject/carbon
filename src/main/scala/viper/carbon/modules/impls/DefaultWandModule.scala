@@ -13,7 +13,9 @@ import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
 import viper.carbon.modules.components.{DefinednessComponent, DefinednessState, StmtComponent}
 import viper.silver.ast.utility.Expressions
+import viper.silver.ast.utility.QuantifiedPermissions.QuantifiedPermissionAssertion
 import viper.silver.ast.{MagicWand, MagicWandStructure}
+import viper.silver.verifier.errors.{ContractNotWellformed, PostconditionViolated}
 import viper.silver.verifier.{PartialVerificationError, reasons}
 import viper.silver.{ast => sil}
 
@@ -345,6 +347,7 @@ override def exhaleExt(statesObj: List[Any], usedObj:Any, e: sil.Exp, allStateAs
   val used = usedObj.asInstanceOf[StateRep]
   e match {
     case _: sil.AccessPredicate => transferMain(states, used, e, allStateAssms, error, havocHeap)
+    case QuantifiedPermissionAssertion(f, _, _) => transferMainQuant(states, used, f, allStateAssms, error, havocHeap)
     case sil.And(e1,e2) =>
       exhaleExt(states, used, e1,allStateAssms, RHS, error, havocHeap) :: exhaleExt(states,used,e2,allStateAssms, RHS, error, havocHeap) :: Nil
     case sil.Implies(e1,e2) =>
@@ -402,36 +405,235 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
 }
 
 
-  def transferMainQuant(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssms: Exp, mainError: PartialVerificationError, havocHeap: Boolean = true):Stmt = {
+  def transferMainQuant(states: List[StateRep], used:StateRep, e: sil.Forall, allStateAssms: Exp, mainError: PartialVerificationError, havocHeap: Boolean = true):Stmt = {
     //store the permission to be transferred into a separate variable
-    val permAmount =
-      e   match {
-        case sil.MagicWand(left, right) => boogieFullPerm
-        case p@sil.AccessPredicate(loc, perm) => permModule.translatePerm(perm)
+
+
+    val (cond, accPred) = e match {
+      case QuantifiedPermissionAssertion(_, cond, accPred) => (cond, accPred)
+    }
+
+    val (permAmount, args, resource, resAcc, formals) =
+      accPred match {
+        case w@sil.MagicWand(_, _) =>
+          val subExps = w.subexpressionsToEvaluate(mainModule.verifier.program)
+          val formals = subExps.zipWithIndex.map { case (arg, i) => sil.LocalVarDecl(s"arg_$i", arg.typ)() }
+          (sil.FullPerm()(), subExps, w.structure(mainModule.verifier.program), w, formals)
+        case p@sil.AccessPredicate(loc, perm) => loc match {
+          case sil.FieldAccess(rcv, field) =>
+            (perm, Seq(rcv), field, loc, Seq(sil.LocalVarDecl("rcv", sil.Ref)()))
+          case pa@sil.PredicateAccess(args, predName) =>
+            val predicate = program.findPredicate(predName)
+            (perm, args, predicate, loc, predicate.formalArgs)
+        }
         case _ => sys.error("only transfer of access predicates and magic wands supported")
       }
 
-    // check injective, copy paste
+    val vs = e.variables
+    // alpha renaming, to avoid clashes in context, use vFresh instead of v
+    val vsFresh = vs.map(v => {
+      val vFresh = mainModule.env.makeUniquelyNamed(v)
+      mainModule.env.define(vFresh.localVar)
+      vFresh
+    })
 
-    // check positive, copy paste
+    val freshFormalDecls: Seq[sil.LocalVarDecl] = formals.map(mainModule.env.makeUniquelyNamed)
+    val freshFormalVars: Seq[sil.LocalVar] = freshFormalDecls.map(d => d.localVar)
+    val freshFormalBoogieVars = freshFormalVars.map(x => mainModule.env.define(x))
+    val freshFormalBoogieDecls = freshFormalVars.map(x => LocalVarDecl(mainModule.env.get(x).name, typeModule.translateType(x.typ)))
 
-    val (transferEntity, initStmt)  = setupTransferableEntity(e, transferAmountLocalQuant)
+    def renaming[E <: sil.Exp] = (e: E) => Expressions.renameVariables(e, vs.map(v => v.localVar), vsFresh.map(v => v.localVar))
+
+    val (renamingCond, renamingArgs, renamingPerms, renamingResAcc) = (renaming(cond), args.map(renaming), renaming(permAmount), renaming(resAcc))
+    val renamedTriggers: Seq[sil.Trigger] = e.triggers.map(trigger => sil.Trigger(trigger.exps.map(x => renaming(x)))(trigger.pos, trigger.info))
+
+    //translate components
+    val (translatedCond, translatedArgs) = (expModule.translateExp(renamingCond), renamingArgs.map(expModule.translateExp))
+    val translatedLocals = vsFresh.map(v => mainModule.translateLocalVarDecl(v))
+    val (translatedPerms, stmts, wildcard) = {
+      if (false /* conservativeIsWildcardPermission(perms) */) {
+        //isWildcard = true
+        //val w = LocalVar(Identifier("wildcard"), Real)
+        //(w, LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil, w)
+        (???, ???, ???)
+      } else {
+        (expModule.translateExp(renamingPerms), Nil, null)
+      }
+    }
+
+    val translatedReceiver = resource match {
+      case _: sil.Field => translatedArgs.head
+      case _ => heapModule.translateNull
+    }
+    val translatedResource = heapModule.translateResource(renamingResAcc)
+    val translatedTriggers: Seq[Trigger] = renamedTriggers.map(trigger => (Trigger(trigger.exps.map(x => expModule.translateExp(x)))))
+
+    val (invFuns, rangeFun, triggerFun) = addQPFunctions(translatedLocals, freshFormalBoogieDecls)
+    val funApps = invFuns.map(invFun => FuncApp(invFun.name, translatedArgs, invFun.typ))
+    val invFunApps = invFuns.map(invFun => FuncApp(invFun.name, freshFormalBoogieVars, invFun.typ))
+
+    val rangeFunApp = FuncApp(rangeFun.name, freshFormalBoogieVars, rangeFun.typ) // range(o,...): used to test whether an element of the mapped-to type is in the image of the QP's domain, projected by the receiver expression
+    val rangeFunRecvApp = FuncApp(rangeFun.name, translatedArgs, rangeFun.typ) // range(e(v),...)
+
+    //define new function, for expressions which do not need to be triggered (injectivity assertion)
+    val triggerFunApp = FuncApp(triggerFun.name, translatedLocals.map(v => LocalVar(v.name, v.typ)), triggerFun.typ)
+
+    //replace all occurrences of the originally-bound variable with occurrences of the inverse function application
+    var condInv = translatedCond
+    var argsInv = translatedArgs
+    var permInv = translatedPerms
+    for (i <- 0 until (invFuns.length)) {
+      condInv = condInv.replace(translatedLocals(i).l, invFunApps(i))
+      argsInv = argsInv.map(a => a.replace(translatedLocals(i).l, invFunApps(i)))
+      permInv = permInv.replace(translatedLocals(i).l, invFunApps(i))
+    }
+    val translatedResourceAccess = heapModule.translateResourceAccess(accPred.loc)
+
+    //define inverse functions
+    lazy val candidateTriggers: Seq[Trigger] = validateTriggers(translatedLocals, Seq(Trigger(translatedResourceAccess), Trigger(currentPermission(translatedReceiver, translatedResource))))
+
+    val providedTriggers: Seq[Trigger] = validateTriggers(translatedLocals, translatedTriggers)
+
+    val tr1: Seq[Trigger] = funcPredModule.rewriteTriggersToExpressionsUsedInTriggers(candidateTriggers ++ providedTriggers)
+
+    var equalities: Exp = TrueLit()
+    for (i <- 0 until funApps.length) {
+      equalities = equalities && (funApps(i) === translatedLocals(i).l)
+    }
+
+    val invAssm1 = Forall(translatedLocals, tr1, (translatedCond && permissionPositive(translatedPerms)) ==> (equalities && rangeFunRecvApp))
+    //for each argument, define the second inverse function
+    val eqExpr = (argsInv zip freshFormalBoogieVars).map(x => x._1 === x._2)
+    val conjoinedInverseAssumptions = eqExpr.foldLeft(TrueLit(): Exp)((soFar, exp) => BinExp(soFar, And, exp))
+    val invAssm2 = MaybeForall(freshFormalBoogieDecls, Trigger(invFunApps), ((condInv && permissionPositive(permInv)) && rangeFunApp) ==> conjoinedInverseAssumptions)
+
+    //check that the permission expression is non-negative for all predicates/wands satisfying the condition
+    val permPositive = Assert(MaybeForall(freshFormalBoogieDecls, Trigger(invFunApps), (condInv && rangeFunApp) ==> permissionPositive(permInv, true)),
+      mainError.dueTo(reasons.NegativePermission(permAmount)))
+
+    //if we exhale a wildcard permission, assert that we hold some permission to all affected locations and restrict the wildcard value
+    val wildcardAssms: Stmt =
+      if (false /* isWildcard */) {
+        //Assert(Forall(translatedLocals, Seq(), translatedCond ==> (permissionPositive(currentPermission(translatedReceiver, translatedResource)))), mainError.dueTo(reason)) ++
+          //Assume(Forall(translatedLocals, Seq(), translatedCond ==> (wildcard < currentPermission(translatedReceiver, translatedResource))))
+        Nil
+      } else {
+        Nil
+      }
+
+    //Assume map update for affected locations
+    val (generalReceiver, generalLocation) = accPred match {
+      case fap@sil.FieldAccessPredicate(fa@sil.FieldAccess(_, _), _) =>
+        val formalFieldAccess = fa.copy(rcv = freshFormalVars.head)(fa.pos, fa.info, fa.errT)
+        (expModule.translateExp(freshFormalVars.head), heapModule.translateResource(formalFieldAccess))
+      case pa: sil.PredicateAccessPredicate =>
+        val formalPredicate = new sil.PredicateAccess(freshFormalVars, pa.loc.predicateName)(pa.loc.pos, pa.loc.info, pa.loc.errT)
+        val general_location = heapModule.translateResource(formalPredicate)
+        (heapModule.translateNull, general_location)
+      case w: sil.MagicWand =>
+        val general_location = wandModule.getWandRepresentationWithArgs(w, freshFormalVars)
+        (heapModule.translateNull, general_location)
+    }
+
+    //trigger:
+    val triggerForPermissionUpdateAxioms = Seq(Trigger(currentPermission(transferAmountLocalQuant, generalReceiver, generalLocation)) /*,Trigger(currentPermission(mask, translateNull, general_location)),Trigger(invFunApp)*/)
+    val permissionsMap = Assume(MaybeForall(freshFormalBoogieDecls, triggerForPermissionUpdateAxioms, ((condInv && (permModule.permissionPositive(permInv)) && rangeFunApp) ==> (conjoinedInverseAssumptions && (currentPermission(transferAmountLocalQuant, generalReceiver, generalLocation) === permInv)))))
+
+    //Assume no change for independent locations: different predicate/wand or different resource type
+    val obj = LocalVarDecl(Identifier("o")(transferNamespace), heapModule.refType)
+    val field = LocalVarDecl(Identifier("f")(transferNamespace), heapModule.fieldType)
+    val fieldVar = LocalVar(Identifier("f")(transferNamespace), heapModule.fieldType)
+    val isRightFieldType = accPred match {
+      case sil.FieldAccessPredicate(sil.FieldAccess(rcv, fld), _) =>
+        (field.l === translatedResource)
+      case sil.PredicateAccessPredicate(sil.PredicateAccess(_, predname), _) =>
+        (heapModule.isPredicateField(fieldVar) && (heapModule.getPredicateOrWandId(fieldVar) === IntLit(heapModule.getPredicateOrWandId(predname))))
+      case w: sil.MagicWand =>
+        (heapModule.isWandField(fieldVar) && (heapModule.getPredicateOrWandId(fieldVar) === IntLit(heapModule.getPredicateOrWandId(wandModule.getWandName(w)))))
+    }
+    val independentLocations = Assume(Forall(Seq(obj, field), Seq(Trigger(currentPermission(obj.l, field.l)), Trigger(currentPermission(transferAmountLocalQuant, obj.l, field.l))),
+      ((obj.l !== translatedReceiver) || isRightFieldType.not) ==>
+        (permModule.permissionPositive(currentPermission(transferAmountLocalQuant, obj.l, field.l)).not)))
+    //same resource, but not satisfying the condition
+    val independentResource = Assume(MaybeForall(freshFormalBoogieDecls, triggerForPermissionUpdateAxioms, ((condInv && (permModule.permissionPositive(permInv)) && rangeFunApp).not) ==> (permModule.permissionPositive(currentPermission(transferAmountLocalQuant, generalReceiver, generalLocation)).not)))
+
+
+    //AS: TODO: it would be better to use the Boogie representation of a predicate/wand instance as the canonical representation here (i.e. the function mapping to a field in the Boogie heap); this would avoid the disjunction of arguments used below. In addition, this could be used as a candidate trigger in tr1 code above. See issue 242
+    //assert injectivity of inverse function:
+    val translatedLocals2 = translatedLocals.map(translatedLocal => LocalVarDecl(Identifier(translatedLocal.name.name)(transferNamespace), translatedLocal.typ)) //new varible
+
+    var unequalities: Exp = FalseLit()
+    var translatedCond2 = translatedCond
+    var translatedPerms2 = translatedPerms
+    var translatedArgs2 = translatedArgs
+    var triggerFunApp2 = triggerFunApp
+    for (i <- 0 until translatedLocals.length) {
+      unequalities = unequalities || (translatedLocals(i).l.!==(translatedLocals2(i).l))
+      translatedCond2 = translatedCond2.replace(translatedLocals(i).l, translatedLocals2(i).l)
+      translatedPerms2 = translatedPerms2.replace(translatedLocals(i).l, translatedLocals2(i).l)
+      translatedArgs2 = translatedArgs2.map(a => a.replace(translatedLocals(i).l, translatedLocals2(i).l))
+      triggerFunApp2 = triggerFunApp2.replace(translatedLocals(i).l, translatedLocals2(i).l)
+    }
+
+    val injectiveCond = unequalities && translatedCond && translatedCond2 && permModule.permissionPositive(translatedPerms) && permModule.permissionPositive(translatedPerms2);
+    //val translatedArgs2= translatedArgs.map(x => x.replace(translatedLocal.l, translatedLocal2.l))
+    val ineqs = (translatedArgs zip translatedArgs2).map(x => x._1 !== x._2)
+    val ineqExpr = {
+      if (ineqs.isEmpty) FalseLit()
+      else ineqs.reduce((expr1, expr2) => (expr1) || (expr2))
+    }
+    val injectTrigger = Seq(Trigger(Seq(triggerFunApp, triggerFunApp2)))
+
+    val reas = reasons.QPAssertionNotInjective(accPred.loc)
+    var err = mainError.dueTo(reas)
+    err = err match {
+      case PostconditionViolated(_, _, _, _) => ContractNotWellformed(e, reas)
+      case _ => err
+    }
+    val injectiveAssertion = Assert(Forall((translatedLocals ++ translatedLocals2), injectTrigger, injectiveCond ==> ineqExpr), err)
+
+    val res1 = Havoc(transferAmountLocalQuant) ++
+      MaybeComment("wildcard assumptions", stmts ++ wildcardAssms) ++
+      CommentBlock("check that the permission amount is positive", permPositive) ++
+      CommentBlock("check if receiver " + accPred.toString + " is injective", injectiveAssertion) ++
+      CommentBlock("assumptions for inverse of receiver " + accPred.toString, Assume(invAssm1) ++ Assume(invAssm2)) ++
+      CommentBlock("assume permission for relevant locations", permissionsMap ++ independentResource) ++
+      CommentBlock("assume permission for independent locations ", independentLocations)
+
+
+    val transferEntity = e match {
+      case QuantifiedPermissionAssertion(_, cond, ap) =>
+        ap match {
+          case fa@sil.FieldAccessPredicate(loc, _) =>
+            val rcv = expModule.translateExpInWand(loc.rcv)
+            QuantifiedTransferableFieldAccessPred(freshFormalBoogieVars, translatedCond, translatedReceiver, translatedResource, translatedPerms, fa)
+
+          case p@sil.PredicateAccessPredicate(loc, _) =>
+            QuantifiedTransferablePredAccessPred(freshFormalBoogieVars, translatedCond, translatedReceiver, translatedResource, translatedPerms, p)
+
+          case w: sil.MagicWand =>
+            val wandRep = getWandRepresentation(w)
+            //GP: maybe should store holes of wand first in local variables
+            QuantifiedTransferableWand(freshFormalBoogieVars, translatedCond, translatedReceiver, translatedResource, translatedPerms, w)
+        }
+    }
 
     // helper func: create mask for resource that is noperm everywhere else
-    val initPermVars = (neededLocalQuant := permAmount) ++
-      (initNeededLocal := permModule.currentPermission(transferEntity.rcv, transferEntity.loc)+neededLocal)
+    val initPermVars = (neededLocalQuant := transferAmountLocalQuant)
 
 
-    val positivePerm = Assert(neededLocal >= RealLit(0), mainError.dueTo(reasons.NegativePermission(e)))
 
     val definedness =
       MaybeCommentBlock("checking if access predicate defined in used state",
         If(allStateAssms&&used.boolVar,expModule.checkDefinedness(e, mainError, insidePackageStmt = true),Statements.EmptyStmt))
 
     val transferRest = transferAccQuant(states,used, transferEntity,allStateAssms, mainError, havocHeap)
-    val stmt = definedness++ initStmt /*++ nullCheck*/ ++ initPermVars ++  positivePerm ++ transferRest
+    val stmt = definedness++ res1 /*++ nullCheck*/ ++ initPermVars ++ transferRest
 
     val unionStmt = updateUnion()
+
+    vsFresh.foreach(vFresh => mainModule.env.undefine(vFresh.localVar))
+    freshFormalDecls.foreach(x => mainModule.env.undefine(x.localVar))
 
     MaybeCommentBlock("Transfer of " + e.toString, stmt ++ unionStmt)
 
@@ -538,17 +740,13 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
         val isOriginalState: Boolean = xs.isEmpty
 
         val topHeap = heapModule.currentHeap
-        val equateLHS:Option[Exp] = e match {
-          case TransferableAccessPred(rcv,loc,_,_) => Some(heapModule.translateLocationAccess(rcv,loc))
-          case _ => None
-        }
 
         val definednessTop:Stmt = (boolTransferTop := TrueLit()) ++
           (generateStmtCheck(components flatMap (_.transferValid(e)), boolTransferTop))
         val minStmt = transferAmountLocalQuant := minMask(neededLocalQuant, curpermLocalQuant)
 
 
-        val curPermTopQuant: Exp =  ??? // permModule.currentPermission(e.rcv, e.loc)
+        val curPermTopQuant: Exp =  permModule.currentMask.head // permModule.currentPermission(e.rcv, e.loc)
         val removeFromTop = heapModule.beginExhale ++
           (components flatMap (_.transferRemoveQuant(transferAmountLocalQuant,used.boolVar))) ++
           {if(top != OPS){ // Sets the transferred field in secondary mask of the wand to true ,eg., Heap[null, w#sm][x, f] := true
@@ -591,17 +789,19 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
           case _ => Nil
         }
 
+        val translatedResource = e.loc
+
 
         //transfer from top to used state
         MaybeCommentBlock("transfer code for top state of stack",
           Comment("accumulate constraints which need to be satisfied for transfer to occur") ++ definednessTop ++
             Comment("actual code for the transfer from current state on stack") ++
-            If( (allStateAssms&&used.boolVar) && boolTransferTop && hasSomePerm(neededLocalQuant),
+            If( (allStateAssms&&used.boolVar) && boolTransferTop && hasSomePerm(neededLocalQuant, translatedResource),
               (curpermLocalQuant := curPermTopQuant) ++
                 minStmt ++
-                If(hasSomePerm(transferAmountLocal),
-                  Seq(tempAmountQuant := neededLocalQuant, subtractMask(tempAmountQuant, neededLocalQuant, transferAmountLocalQuant)) ++
-                    addToUsed ++
+                If(hasSomePerm(transferAmountLocalQuant, translatedResource),
+                  Seq(tempAmountQuant := neededLocalQuant, subtractMask(tempAmountQuant, transferAmountLocalQuant, neededLocalQuant)) ++
+                    //addToUsed ++
                     equateStmt ++
                     removeFromTop,
 
@@ -611,8 +811,7 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
             )
         ) ++ transferAccQuant(xs,used,e,allStateAssms, mainError, havocHeap) //recurse over rest of states
       case Nil =>
-        val curPermUsed = permModule.currentPermission(e.rcv,e.loc)
-        Assert((allStateAssms&&used.boolVar) ==> (neededLocal === boogieNoPerm && curPermUsed === initNeededLocal),
+        Assert((allStateAssms&&used.boolVar) ==> (hasSomePerm(neededLocalQuant, e.loc).not),
           e.transferError(mainError))
       /**
         * actually only curPermUsed === permLocal would be sufficient if the transfer is written correctly, since

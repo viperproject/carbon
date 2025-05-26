@@ -1508,9 +1508,12 @@ class QuantifiedPermModule(val verifier: Verifier)
     } else Nil
   }
 
-  override def hasSomePerm(mask: Exp): Exp = {
+  override def hasSomePerm(mask: Exp, resource: Exp): Exp = {
     val obj = LocalVarDecl(Identifier("o"), refType) // ref-typed variable, representing arbitrary receiver
-    val field = LocalVarDecl(Identifier("f"), fieldType)
+    val typ = resource match {
+      case FuncApp(_, _, t) => fieldTypeOf(t)
+    }
+    val field = LocalVarDecl(Identifier("f"), typ)
     val perm = currentPermission(mask, obj.l, field.l)
     Exists(Seq(obj, field), Trigger(perm), perm > noPerm)
   }
@@ -1540,7 +1543,12 @@ class QuantifiedPermModule(val verifier: Verifier)
   def currentPermission(rcv: Exp, location: Exp): Exp = {
     currentPermission(maskExp, rcv, location)
   }
-  def currentPermission(mask: Exp, rcv: Exp, location: Exp, isPMask: Boolean = false): Exp = {
+
+  def currentPermission(mask: Exp, rcv: Exp, location: Exp): Exp = {
+    currentPermission(mask, rcv, location, false)
+  }
+
+  def currentPermission(mask: Exp, rcv: Exp, location: Exp, isPMask: Boolean): Exp = {
     if(verifier.usePolyMapsInEncoding) {
       MapSelect(mask, Seq(rcv, location))
     } else {
@@ -1726,7 +1734,7 @@ class QuantifiedPermModule(val verifier: Verifier)
    argumentDecls gives the names and types of the formal parameters (recv:Ref by default, but different for e.g. predicates under qps)
    The second function is a boolean function to represent the image of e(x) for all instances x to which permission is denoted
    */
-  private def addQPFunctions(qvars: Seq[LocalVarDecl], argumentDecls : Seq[LocalVarDecl] = LocalVarDecl(Identifier("recv"), refType)):(Seq[Func],Func,Func) = {
+  def addQPFunctions(qvars: Seq[LocalVarDecl], argumentDecls : Seq[LocalVarDecl] = LocalVarDecl(Identifier("recv"), refType)):(Seq[Func],Func,Func) = {
     val invFuns = new ListBuffer[Func]
     for (qvar <- qvars) {
       qpId = qpId+1;
