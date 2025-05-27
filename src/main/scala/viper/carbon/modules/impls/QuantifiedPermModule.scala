@@ -243,7 +243,7 @@ class QuantifiedPermModule(val verifier: Verifier)
       Func(minMasks, args, maskType) ++
         Axiom(Forall(
           args ++ Seq(obj, field),
-          Trigger(Seq(funcApp, permResult)),
+          Seq(Trigger(permResult), Trigger(Seq(funcApp, permSummand1)), Trigger(Seq(funcApp, permSummand2))),
           (permResult === CondExp(permSummand1 < permSummand2, permSummand1, permSummand2))
         ))
     } ++ {
@@ -308,6 +308,8 @@ class QuantifiedPermModule(val verifier: Verifier)
   }
 
   def staticGoodMask = FuncApp(goodMaskName, LocalVar(maskName, maskType), Bool)
+
+  def goodMask(msk: Exp): Exp = FuncApp(goodMaskName, msk, Bool)
 
   private def permAdd(a: Exp, b: Exp): Exp = a + b
   private def permSub(a: Exp, b: Exp): Exp = a - b
@@ -1508,12 +1510,9 @@ class QuantifiedPermModule(val verifier: Verifier)
     } else Nil
   }
 
-  override def hasSomePerm(mask: Exp, resource: Exp): Exp = {
+  override def hasSomePerm(mask: Exp, fieldType: Type): Exp = {
     val obj = LocalVarDecl(Identifier("o"), refType) // ref-typed variable, representing arbitrary receiver
-    val typ = resource match {
-      case FuncApp(_, _, t) => fieldTypeOf(t)
-    }
-    val field = LocalVarDecl(Identifier("f"), typ)
+    val field = LocalVarDecl(Identifier("f"), fieldType)
     val perm = currentPermission(mask, obj.l, field.l)
     Exists(Seq(obj, field), Trigger(perm), perm > noPerm)
   }

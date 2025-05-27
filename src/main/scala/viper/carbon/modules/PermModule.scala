@@ -166,9 +166,11 @@ trait PermModule extends Module with CarbonStateComponent {
 
   def assumePermUpperBounds(doAssume: Boolean): Stmt
 
-  def hasSomePerm(mask: Exp, resource: Exp): Exp
+  def hasSomePerm(mask: Exp, fieldType: Type): Exp
 
   def subtractMask(op1: Exp, op2: Exp, target: Var): Stmt
+
+  def goodMask(msk: Exp): Exp
 
   def addQPFunctions(qvars: Seq[LocalVarDecl], argumentDecls: Seq[LocalVarDecl]):(Seq[Func],Func,Func)
 

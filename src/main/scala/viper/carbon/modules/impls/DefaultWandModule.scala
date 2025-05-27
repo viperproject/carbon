@@ -487,7 +487,8 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
       argsInv = argsInv.map(a => a.replace(translatedLocals(i).l, invFunApps(i)))
       permInv = permInv.replace(translatedLocals(i).l, invFunApps(i))
     }
-    val translatedResourceAccess = heapModule.translateResourceAccess(accPred.loc)
+
+    val translatedResourceAccess = permModule.currentPermission(transferAmountLocalQuant, translatedReceiver, translatedResource)
 
     //define inverse functions
     lazy val candidateTriggers: Seq[Trigger] = validateTriggers(translatedLocals, Seq(Trigger(translatedResourceAccess), Trigger(currentPermission(translatedReceiver, translatedResource))))
@@ -547,7 +548,8 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
       case sil.FieldAccessPredicate(sil.FieldAccess(rcv, fld), _) =>
         (field.l === translatedResource)
       case sil.PredicateAccessPredicate(sil.PredicateAccess(_, predname), _) =>
-        (heapModule.isPredicateField(fieldVar) && (heapModule.getPredicateOrWandId(fieldVar) === IntLit(heapModule.getPredicateOrWandId(predname))))
+        //(heapModule.isPredicateField(fieldVar) && (heapModule.getPredicateOrWandId(fieldVar) === IntLit(heapModule.getPredicateOrWandId(predname))))
+        (MaybeExists(freshFormalBoogieDecls, Seq(Trigger(generalLocation)), generalLocation === field.l))
       case w: sil.MagicWand =>
         (heapModule.isWandField(fieldVar) && (heapModule.getPredicateOrWandId(fieldVar) === IntLit(heapModule.getPredicateOrWandId(wandModule.getWandName(w)))))
     }
@@ -592,7 +594,7 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
     }
     val injectiveAssertion = Assert(Forall((translatedLocals ++ translatedLocals2), injectTrigger, injectiveCond ==> ineqExpr), err)
 
-    val res1 = Havoc(transferAmountLocalQuant) ++
+    val res1 = Havoc(transferAmountLocalQuant) ++ Assume(permModule.goodMask(transferAmountLocalQuant)) ++
       MaybeComment("wildcard assumptions", stmts ++ wildcardAssms) ++
       CommentBlock("check that the permission amount is positive", permPositive) ++
       CommentBlock("check if receiver " + accPred.toString + " is injective", injectiveAssertion) ++
@@ -733,6 +735,17 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
 }
 
   private def transferAccQuant(states: List[StateRep], used:StateRep, e: TransferableEntity, allStateAssms: Exp, mainError: PartialVerificationError, havocHeap: Boolean = true):Stmt = {
+    val resFieldType = e match {
+      case qf: QuantifiedTransferableFieldAccessPred =>
+        val t = typeModule.translateType(qf.originalSILExp.asInstanceOf[sil.FieldAccessPredicate].loc.field.typ)
+        heapModule.fieldTypeOf(t)
+      case qp: QuantifiedTransferablePredAccessPred =>
+        heapModule.predicateVersionFieldTypeOf(qp.originalSILExp.asInstanceOf[sil.PredicateAccessPredicate].loc.loc(verifier.program))
+      case qw: QuantifiedTransferableWand =>
+        val wand = qw.originalSILExp.asInstanceOf[sil.MagicWand].structure(verifier.program)
+        lazyWandToShapes.get(wand).typ
+    }
+
     states match {
       case (top :: xs) =>
         //Compute all values needed from top state
@@ -778,7 +791,7 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
           (used.boolVar := used.boolVar&&stateModule.currentGoodState)
 
         val equateStmt:Stmt = e match {
-          case TransferableFieldAccessPred(rcv,loc,_,_) =>
+          case QuantifiedTransferableFieldAccessPred(vrs, cnd, rcv,loc,_,_) =>
             val (tempMask, initTMaskStmt) = permModule.tempInitMask(rcv, loc)
             initTMaskStmt ++
               (used.boolVar := used.boolVar && heapModule.identicalOnKnownLocations(topHeap, tempMask))
@@ -786,7 +799,7 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
             val (tempMask, initTMaskStmt) = permModule.tempInitMask(rcv,loc)
             initTMaskStmt ++
               (used.boolVar := used.boolVar&&heapModule.identicalOnKnownLocations(topHeap,tempMask))
-          case _ => Nil
+          //case _ => Nil
         }
 
         val translatedResource = e.loc
@@ -796,12 +809,12 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
         MaybeCommentBlock("transfer code for top state of stack",
           Comment("accumulate constraints which need to be satisfied for transfer to occur") ++ definednessTop ++
             Comment("actual code for the transfer from current state on stack") ++
-            If( (allStateAssms&&used.boolVar) && boolTransferTop && hasSomePerm(neededLocalQuant, translatedResource),
+            If( (allStateAssms&&used.boolVar) && boolTransferTop && hasSomePerm(neededLocalQuant, resFieldType),
               (curpermLocalQuant := curPermTopQuant) ++
                 minStmt ++
-                If(hasSomePerm(transferAmountLocalQuant, translatedResource),
+                If(hasSomePerm(transferAmountLocalQuant, resFieldType),
                   Seq(tempAmountQuant := neededLocalQuant, subtractMask(tempAmountQuant, transferAmountLocalQuant, neededLocalQuant)) ++
-                    //addToUsed ++
+                    addToUsed ++
                     equateStmt ++
                     removeFromTop,
 
@@ -811,7 +824,7 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
             )
         ) ++ transferAccQuant(xs,used,e,allStateAssms, mainError, havocHeap) //recurse over rest of states
       case Nil =>
-        Assert((allStateAssms&&used.boolVar) ==> (hasSomePerm(neededLocalQuant, e.loc).not),
+        Assert((allStateAssms&&used.boolVar) ==> (hasSomePerm(neededLocalQuant, resFieldType).not),
           e.transferError(mainError))
       /**
         * actually only curPermUsed === permLocal would be sufficient if the transfer is written correctly, since
