@@ -8,7 +8,6 @@ package viper.carbon.modules
 
 import viper.carbon.boogie._
 import viper.carbon.modules.components.CarbonStateComponent
-import viper.carbon.utility.PolyMapRep
 import viper.silver.{ast => sil}
 
 case class PMaskDesugaredRep(selectId: Identifier, storeId: Identifier)
@@ -44,6 +43,16 @@ trait PermModule extends Module with CarbonStateComponent {
   def permissionPositive(permission: Exp, zeroOK : Boolean = false): Exp
 
   def conservativeIsPositivePerm(e: sil.Exp): Boolean
+
+  /**
+    * Returns an expression representing that a permission amount is positive.
+    * Similar to [[permissionPositive]], but works directly on Viper expressions, *including* ones containing
+    * wildcards, and performs more aggressive simplifications.
+    *
+    * @param e the permission amount to be checked
+    * @return the expression representing the fact that the permission is positive
+    */
+  def isStrictlyPositivePerm(e: sil.Exp): Exp
 
   /**
    * The current mask.
@@ -89,15 +98,12 @@ trait PermModule extends Module with CarbonStateComponent {
 
   def zeroPMask: Exp
 
-  def hasDirectPerm(la: sil.LocationAccess): Exp
-
-  def permissionLookup(la: sil.LocationAccess) : Exp
-/** FIXME: duplicate method, here */
+  def hasDirectPerm(ra: sil.ResourceAccess): Exp
 
   /**
    * The expression for the current permission at a location.
    */
-  def currentPermission(loc: sil.LocationAccess): Exp
+  def currentPermission(loc: sil.ResourceAccess): Exp
 
   def currentPermission(rcv:Exp, loc:Exp):Exp
 
@@ -151,5 +157,9 @@ trait PermModule extends Module with CarbonStateComponent {
 
   // removes permission to w#ft (footprint of the magic wand) (See Heap module for w#ft description)
   def exhaleWandFt(w: sil.MagicWand): Stmt
+
+  def setCheckReadPermissionOnly(readOnly: Boolean): Boolean
+
+  def assumePermUpperBounds(doAssume: Boolean): Stmt
 
 }

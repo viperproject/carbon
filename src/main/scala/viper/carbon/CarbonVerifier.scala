@@ -94,6 +94,12 @@ case class CarbonVerifier(override val reporter: Reporter,
   }
   else false
 
+  def respectFunctionPrecPermAmounts: Boolean = if (config != null) config.respectFunctionPrePermAmounts.toOption match {
+    case Some(b) => b
+    case None => false
+  }
+  else false
+
   override def usePolyMapsInEncoding =
     if (config != null) {
       config.desugarPolymorphicMaps.toOption match {
@@ -211,6 +217,8 @@ case class CarbonVerifier(override val reporter: Reporter,
       }
     }
 
+    var timeout: Option[Int] = None
+
     if(config != null)
     {
       config.boogieOut.toOption match {
@@ -222,9 +230,10 @@ case class CarbonVerifier(override val reporter: Reporter,
           stream.close()
         case None =>
       }
+      timeout = config.timeout.toOption
     }
 
-    invokeBoogie(_translated, options) match {
+    invokeBoogie(_translated, options, timeout) match {
       case (version,result) =>
         if (version!=null) { dependencies.foreach(_ match {
           case b:BoogieDependency => b.version = version

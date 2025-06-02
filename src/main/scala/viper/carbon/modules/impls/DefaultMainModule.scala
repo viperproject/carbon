@@ -22,7 +22,7 @@ import viper.silver.verifier.{TypecheckerWarning, errors}
 import viper.carbon.verifier.Verifier
 import viper.silver.ast.Quasihavoc
 import viper.silver.ast.utility.rewriter.Traverse
-import viper.silver.reporter.{Reporter, WarningsDuringTypechecking}
+import viper.silver.reporter.{Reporter, WarningsDuringTypechecking, QuantifierChosenTriggersMessage}
 
 import scala.collection.mutable
 
@@ -61,6 +61,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
             if (res.triggers.isEmpty) {
               reporter.report(WarningsDuringTypechecking(Seq(TypecheckerWarning("No triggers provided or inferred for quantifier.", res.pos))))
             }
+            reporter report QuantifierChosenTriggersMessage(res, res.triggers, f.triggers)
             res
           }
           case e: sil.Exists => {
@@ -68,6 +69,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
             if (res.triggers.isEmpty) {
               reporter.report(WarningsDuringTypechecking(Seq(TypecheckerWarning("No triggers provided or inferred for quantifier.", res.pos))))
             }
+            reporter report QuantifierChosenTriggersMessage(res, res.triggers, e.triggers)
             res
           }
           case q: Quasihavoc => desugarQuasihavoc(q)
@@ -122,7 +124,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
         Program(header, preambles ++ members)
     }
 
-    (output.optimize.asInstanceOf[Program], nameMaps.map(e => e._1 -> e._2.toMap))
+    (output.optimized.asInstanceOf[Program], nameMaps.map(e => e._1 -> e._2.toMap))
   }
 
   def translateMethodDecl(m: sil.Method, names: Option[mutable.Map[String, String]]): Seq[Decl] = {
@@ -135,7 +137,8 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
             val initOldStateComment = "Initializing of old state"
             val ins: Seq[LocalVarDecl] = formalArgs map translateLocalVarDecl
             val outs: Seq[LocalVarDecl] = formalReturns map translateLocalVarDecl
-            val init = MaybeCommentBlock("Initializing the state", stateModule.initBoogieState ++ assumeAllFunctionDefinitions ++ stmtModule.initStmt(method.bodyOrAssumeFalse))
+            val init = MaybeCommentBlock("Initializing the state", stateModule.initBoogieState ++ assumeAllFunctionDefinitions ++
+              (if (verifier.respectFunctionPrecPermAmounts) Nil else permModule.assumePermUpperBounds(true)) ++ stmtModule.initStmt(method.bodyOrAssumeFalse))
             val initOld = MaybeCommentBlock("Initializing the old state", stateModule.initOldState)
             val paramAssumptions = mWithLoopInfo.formalArgs map (a => allAssumptionsAboutValue(a.typ, translateLocalVarDecl(a), true))
             val inhalePre = translateMethodDeclPre(pres)
@@ -168,9 +171,8 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
   }
 
   private def translateMethodDeclCheckPosts(posts: Seq[sil.Exp]): Stmt = {
-    val (stmt, state) = stateModule.freshTempState("Post")
-
-    val reset = stateModule.resetBoogieState
+    val (freshStateStmtAux, state) = stateModule.freshTempState("Post", discardCurrent = true, initialise = true)
+    val freshStateStmt = freshStateStmtAux ++ stateModule.assumeGoodState
 
     // note that the order here matters - onlyExhalePosts should be computed with respect to the reset state
     val onlyExhalePosts: Seq[Stmt] = inhaleModule.inhaleExhaleSpecWithDefinednessCheck(
@@ -178,31 +180,33 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
       errors.ContractNotWellformed(_)
     })
 
-    val stmts = stmt ++ reset ++ (
-    if (Expressions.contains[sil.InhaleExhaleExp](posts)) {
-      // Postcondition contains InhaleExhale expression.
-      // Need to check inhale and exhale parts separately.
-      val onlyInhalePosts: Seq[Stmt] = inhaleModule.inhaleInhaleSpecWithDefinednessCheck(
-      posts, {
-        errors.ContractNotWellformed(_)
-      })
+    val stmts = (
+      if (Expressions.contains[sil.InhaleExhaleExp](posts)) {
+        // Postcondition contains InhaleExhale expression.
+        // Need to check inhale and exhale parts separately.
+        val onlyInhalePosts: Seq[Stmt] = inhaleModule.inhaleInhaleSpecWithDefinednessCheck(
+        posts, {
+          errors.ContractNotWellformed(_)
+        })
 
-          NondetIf(
+        NondetIf(
+          freshStateStmt ++
           MaybeComment("Checked inhaling of postcondition to check definedness",
             MaybeCommentBlock("Do welldefinedness check of the inhale part.",
               NondetIf(onlyInhalePosts ++ Assume(FalseLit()))) ++
               MaybeCommentBlock("Normally inhale the exhale part.",
                 onlyExhalePosts)
           ) ++
-            MaybeComment("Stop execution", Assume(FalseLit()))
-      )
-    }
-    else {
-      NondetIf(
-        MaybeComment("Checked inhaling of postcondition to check definedness", onlyExhalePosts) ++
           MaybeComment("Stop execution", Assume(FalseLit()))
-      )
-    })
+        )
+      }
+      else {
+        NondetIf(
+          freshStateStmt ++
+          MaybeComment("Checked inhaling of postcondition to check definedness", onlyExhalePosts) ++
+            MaybeComment("Stop execution", Assume(FalseLit()))
+        )
+      })
 
     stateModule.replaceState(state)
 
@@ -266,9 +270,9 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
     val resourceCurPerm =
       q.exp match {
         case r : sil.FieldAccess =>
-          sil.FieldAccessPredicate(r, curPermVar)()
+          sil.FieldAccessPredicate(r, Some(curPermVar))()
         case r: sil.PredicateAccess =>
-          sil.PredicateAccessPredicate(r, curPermVar)()
+          sil.PredicateAccessPredicate(r, Some(curPermVar))()
         case _ => sys.error("Not supported resource in quasihavoc")
       }
 

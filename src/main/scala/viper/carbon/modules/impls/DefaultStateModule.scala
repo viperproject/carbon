@@ -63,7 +63,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
 
     // initialize the state of all components and assume that afterwards the
     // whole state is good
-  val firstStmt =  components map (_.initBoogieState)
+    val firstStmt =  components map (_.initBoogieState)
     // note: this code should come afterwards, to allow the components to reset their state variables
     for (c <- components) {
       curState.put(c, c.currentStateVars)
@@ -85,12 +85,9 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   }
 
   def initOldState: Stmt = {
-    curOldState = new StateComponentMapping()
-    for (c <- components) yield {
-      val exps = curState.get(c)
-      curOldState.put(c, exps) // Logic: whenever we *get* on the old state, we should wrap in "Old"
-      exps map (e => Assume(e === Old(e))): Stmt
-    }
+    val freshSnapshot = freshTempStateKeepCurrentAux("old", true)
+    curOldState = freshSnapshot._1
+    initToCurrentStmt(freshSnapshot)
   }
 
 
@@ -104,7 +101,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
         res ++= hashMap.get(c)
       }
     }
-    if(usingOldState) (res map (v => Old(v))) else res // ALEX: I think this conditional should be on the element of the StateSnapshot
+    res
   }
 
 
@@ -130,6 +127,8 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   override def stateRepositoryGet(name:String) : Option[StateSnapshot] = stateRepository.get(name)
 
   override def freshTempState(name: String, discardCurrent: Boolean = false, initialise: Boolean = false): (Stmt, StateSnapshot) = {
+    assert(name != "old")
+
     val previousState = new StateSnapshot(new StateComponentMapping(), usingOldState, usingPureState)
 
     curState = new StateComponentMapping() // essentially, the code below "clones" what curState should represent anyway. But, if we omit this line, we inadvertently alias the previous hash map.
@@ -149,6 +148,12 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   }
 
   override def freshTempStateKeepCurrent(name: String) : StateSnapshot = {
+    freshTempStateKeepCurrentAux(name, false)
+  }
+
+  private def freshTempStateKeepCurrentAux(name: String, usedForOldState: Boolean) : StateSnapshot = {
+    assert(usedForOldState || name != "old")
+
     val freshState = new StateComponentMapping()
 
     for (c <- components) yield {

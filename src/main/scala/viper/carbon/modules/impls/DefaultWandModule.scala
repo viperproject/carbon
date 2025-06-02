@@ -111,10 +111,18 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
   override def preamble = wandToShapes.values.collect({
     case fun@Func(name,args,typ,_) =>
       val vars = args.map(decl => decl.l)
-      val f0 = FuncApp(name,vars,typ)
+      val args2 = args map (
+        v => LocalVarDecl(Identifier(v.name.name + "_2")(v.name.namespace), v.typ))
+      val vars2 = args2 map (_.l)
+      val varsEqual = All((vars zip vars2) map {
+        case (v1, v2) => v1 === v2
+      })
+      val f0 = FuncApp(name, vars, typ)
+      val f0_2 = FuncApp(name, vars2, typ)
       val f1 = FuncApp(heapModule.wandMaskIdentifier(name), vars, heapModule.predicateMaskFieldTypeOfWand(name.name)) // w#sm (wands secondary mask)
       val f2 = FuncApp(heapModule.wandFtIdentifier(name), vars, heapModule.predicateVersionFieldTypeOfWand(name.name)) // w#ft (permission to w#fm is added when at the begining of a package statement)
       val f3 = wandMaskField(f2) // wandMaskField (wandMaskField(w) == w#sm)
+      val wandId = heapModule.getPredicateOrWandId(name.name)
       val typeDecl: Seq[TypeDecl] = heapModule.wandBasicType(name.preferredName) match {
         case named: NamedType => TypeDecl(named)
         case _ => Nil
@@ -127,7 +135,10 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
         Axiom(MaybeForall(args, Trigger(f2),heapModule.isWandField(f2))) ++
         Axiom(MaybeForall(args, Trigger(f0),heapModule.isPredicateField(f0).not)) ++
         Axiom(MaybeForall(args, Trigger(f2),heapModule.isPredicateField(f2).not)) ++
-        Axiom(MaybeForall(args, Trigger(f3), f1 === f3))
+        Axiom(MaybeForall(args, Trigger(f3), f1 === f3)) ++
+        Axiom(MaybeForall(args, Trigger(f0), heapModule.getPredicateOrWandId(f0) === IntLit(wandId))) ++
+        Axiom(Forall(args ++ args2, Trigger(Seq(f0, f0_2)),
+          (f0 === f0_2) ==> varsEqual))
     }).flatten[Decl].toSeq
 
   /*
@@ -135,17 +146,29 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
    * if the shape hasn't yet been recorded yet then it will be stored
    */
   def getWandRepresentation(wand: sil.MagicWand):Exp = {
-
-    //need to compute shape of wand
-    val ghostFreeWand = wand
-
     //get all the expressions which form the "holes" of the shape,
-    val arguments = ghostFreeWand.subexpressionsToEvaluate(mainModule.verifier.program)
+    val arguments = wand.subexpressionsToEvaluate(mainModule.verifier.program)
+    val translatedArgs = arguments.map(arg => expModule.translateExp(arg))
 
-    val shape:WandShape = wandToShapes(wand.structure(mainModule.verifier.program))
+    getWandExpression(wand, translatedArgs)
+  }
+
+  def getWandRepresentationWithArgs(wand: sil.MagicWand, args: Seq[sil.Exp]): Exp = {
+    getWandExpression(wand, args.map(arg => expModule.translateExp(arg)))
+  }
+
+  private def getWandExpression(wand: sil.MagicWand, arguments: Seq[Exp]): Exp = {
+    val shape: WandShape = wandToShapes(wand.structure(mainModule.verifier.program))
 
     shape match {
-      case Func(name, _, typ,_) => FuncApp(name, arguments.map(arg => expModule.translateExp(arg)), typ)
+      case Func(name, _, typ, _) => FuncApp(name, arguments, typ)
+    }
+  }
+
+  override def getWandName(w: MagicWand): String = {
+    val shape = wandToShapes(w.structure(mainModule.verifier.program))
+    shape match {
+      case Func(name, _, _, _) => name.name
     }
   }
 
@@ -305,13 +328,13 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
         UNIONState = OPS
         val StateSetup(usedState, initStmt) = createAndSetState(None)
         tempCurState = usedState
-        Comment("Translating exec of non-ghost operation" + e.toString()) ++
+        Comment("Translating exec of non-ghost operation" + e.toString) ++
         initStmt ++  exhaleExt(ops :: states, usedState,e,ops.boolVar&&allStateAssms, RHS = true, mainError)
     }
   }
 
 override def exhaleExt(statesObj: List[Any], usedObj:Any, e: sil.Exp, allStateAssms: Exp, RHS: Boolean = false, error: PartialVerificationError, havocHeap: Boolean):Stmt = {
-  Comment("exhale_ext of " + e.toString())
+  Comment("exhale_ext of " + e.toString)
   val states = statesObj.asInstanceOf[List[StateRep]]
   val used = usedObj.asInstanceOf[StateRep]
   e match {
@@ -368,7 +391,7 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
 
   val unionStmt = updateUnion()
 
-  MaybeCommentBlock("Transfer of " + e.toString(), stmt ++ unionStmt)
+  MaybeCommentBlock("Transfer of " + e.toString, stmt ++ unionStmt)
 
 }
 
@@ -559,7 +582,7 @@ private def setupTransferableEntity(e: sil.Exp, permTransfer: Exp):(Transferable
   e match {
     case fa@sil.FieldAccessPredicate(loc, _) =>
       val assignStmt = rcvLocal := expModule.translateExpInWand(loc.rcv)
-      val evalLoc = heapModule.translateLocation(loc)
+      val evalLoc = heapModule.translateResource(loc)
       (TransferableFieldAccessPred(rcvLocal, evalLoc, permTransfer,fa), assignStmt)
 
     case p@sil.PredicateAccessPredicate(loc, _) =>
