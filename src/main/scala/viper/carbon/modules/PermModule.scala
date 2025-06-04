@@ -42,6 +42,8 @@ trait PermModule extends Module with CarbonStateComponent {
    */
   def permissionPositive(permission: Exp, zeroOK : Boolean = false): Exp
 
+  def permissionZero(permission: Exp): Exp
+
   def conservativeIsPositivePerm(e: sil.Exp): Boolean
 
   /**
@@ -166,7 +168,7 @@ trait PermModule extends Module with CarbonStateComponent {
 
   def assumePermUpperBounds(doAssume: Boolean): Stmt
 
-  def hasSomePerm(mask: Exp, fieldType: Type): Exp
+  def hasSomePerm(mask: Exp, vars: Seq[LocalVarDecl], rcv: Exp, fld: Exp): Exp
 
   def subtractMask(op1: Exp, op2: Exp, target: Var): Stmt
 

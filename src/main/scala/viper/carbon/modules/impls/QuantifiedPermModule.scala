@@ -368,6 +368,8 @@ class QuantifiedPermModule(val verifier: Verifier)
    */
   override def permissionPositive(permission: Exp, zeroOK : Boolean = false): Exp = permissionPositiveInternal(permission, None, zeroOK)
 
+  override def permissionZero(permission: Exp): Exp = permission === noPerm
+
   private def permissionPositiveInternal(permission: Exp, silPerm: Option[sil.Exp] = None, zeroOK : Boolean = false): Exp = {
     (permission, silPerm) match {
       case (x, _) if permission == fullPerm => TrueLit()
@@ -1510,11 +1512,11 @@ class QuantifiedPermModule(val verifier: Verifier)
     } else Nil
   }
 
-  override def hasSomePerm(mask: Exp, fieldType: Type): Exp = {
-    val obj = LocalVarDecl(Identifier("o"), refType) // ref-typed variable, representing arbitrary receiver
-    val field = LocalVarDecl(Identifier("f"), fieldType)
-    val perm = currentPermission(mask, obj.l, field.l)
-    Exists(Seq(obj, field), Trigger(perm), perm > noPerm)
+  override def hasSomePerm(mask: Exp, vars: Seq[LocalVarDecl], rcv: Exp, fld: Exp): Exp = {
+    //val obj = LocalVarDecl(Identifier("o"), refType) // ref-typed variable, representing arbitrary receiver
+    //val field = LocalVarDecl(Identifier("f"), fieldType)
+    val perm = currentPermission(mask, rcv, fld)
+    Exists(vars, Trigger(perm), perm > noPerm)
   }
 
   override def tempInitMask(rcv: Exp, loc:Exp):(Seq[Exp], Stmt) = {

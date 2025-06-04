@@ -540,24 +540,30 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
     val triggerForPermissionUpdateAxioms = Seq(Trigger(currentPermission(transferAmountLocalQuant, generalReceiver, generalLocation)) /*,Trigger(currentPermission(mask, translateNull, general_location)),Trigger(invFunApp)*/)
     val permissionsMap = Assume(MaybeForall(freshFormalBoogieDecls, triggerForPermissionUpdateAxioms, ((condInv && (permModule.permissionPositive(permInv)) && rangeFunApp) ==> (conjoinedInverseAssumptions && (currentPermission(transferAmountLocalQuant, generalReceiver, generalLocation) === permInv)))))
 
+    val hasSomePerm = (msk: Exp) => MaybeExists(
+      freshFormalBoogieDecls,
+      Seq(Trigger(currentPermission(msk, generalReceiver, generalLocation))),
+      permModule.permissionPositive(currentPermission(msk, generalReceiver, generalLocation)))
+
     //Assume no change for independent locations: different predicate/wand or different resource type
     val obj = LocalVarDecl(Identifier("o")(transferNamespace), heapModule.refType)
     val field = LocalVarDecl(Identifier("f")(transferNamespace), heapModule.fieldType)
     val fieldVar = LocalVar(Identifier("f")(transferNamespace), heapModule.fieldType)
-    val isRightFieldType = accPred match {
+    val isRightFieldType = ((fldp: Exp) => accPred match {
       case sil.FieldAccessPredicate(sil.FieldAccess(rcv, fld), _) =>
-        (field.l === translatedResource)
+        (fldp === translatedResource)
       case sil.PredicateAccessPredicate(sil.PredicateAccess(_, predname), _) =>
-        //(heapModule.isPredicateField(fieldVar) && (heapModule.getPredicateOrWandId(fieldVar) === IntLit(heapModule.getPredicateOrWandId(predname))))
-        (MaybeExists(freshFormalBoogieDecls, Seq(Trigger(generalLocation)), generalLocation === field.l))
+        (heapModule.isPredicateField(fldp) && (heapModule.getPredicateOrWandId(fldp) === IntLit(heapModule.getPredicateOrWandId(predname))))
+        //(MaybeExists(freshFormalBoogieDecls, Seq(Trigger(generalLocation)), generalLocation === field.l))
       case w: sil.MagicWand =>
-        (heapModule.isWandField(fieldVar) && (heapModule.getPredicateOrWandId(fieldVar) === IntLit(heapModule.getPredicateOrWandId(wandModule.getWandName(w)))))
-    }
+        (heapModule.isWandField(fldp) && (heapModule.getPredicateOrWandId(fldp) === IntLit(heapModule.getPredicateOrWandId(wandModule.getWandName(w)))))
+    })
     val independentLocations = Assume(Forall(Seq(obj, field), Seq(Trigger(currentPermission(obj.l, field.l)), Trigger(currentPermission(transferAmountLocalQuant, obj.l, field.l))),
-      ((obj.l !== translatedReceiver) || isRightFieldType.not) ==>
-        (permModule.permissionPositive(currentPermission(transferAmountLocalQuant, obj.l, field.l)).not)))
+      ((obj.l !== translatedReceiver) || isRightFieldType(field.l).not) ==>
+        (permModule.permissionZero(currentPermission(transferAmountLocalQuant, obj.l, field.l)))))
+    val validMask = Assume(permModule.goodMask(transferAmountLocalQuant))
     //same resource, but not satisfying the condition
-    val independentResource = Assume(MaybeForall(freshFormalBoogieDecls, triggerForPermissionUpdateAxioms, ((condInv && (permModule.permissionPositive(permInv)) && rangeFunApp).not) ==> (permModule.permissionPositive(currentPermission(transferAmountLocalQuant, generalReceiver, generalLocation)).not)))
+    val independentResource = Assume(MaybeForall(freshFormalBoogieDecls, triggerForPermissionUpdateAxioms, ((condInv && (permModule.permissionPositive(permInv)) && rangeFunApp).not) ==> (permModule.permissionZero(currentPermission(transferAmountLocalQuant, generalReceiver, generalLocation)))))
 
 
     //AS: TODO: it would be better to use the Boogie representation of a predicate/wand instance as the canonical representation here (i.e. the function mapping to a field in the Boogie heap); this would avoid the disjunction of arguments used below. In addition, this could be used as a candidate trigger in tr1 code above. See issue 242
@@ -600,7 +606,7 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
       CommentBlock("check if receiver " + accPred.toString + " is injective", injectiveAssertion) ++
       CommentBlock("assumptions for inverse of receiver " + accPred.toString, Assume(invAssm1) ++ Assume(invAssm2)) ++
       CommentBlock("assume permission for relevant locations", permissionsMap ++ independentResource) ++
-      CommentBlock("assume permission for independent locations ", independentLocations)
+      CommentBlock("assume permission for independent locations ", independentLocations ++ validMask)
 
 
     val transferEntity = e match {
@@ -629,7 +635,7 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
       MaybeCommentBlock("checking if access predicate defined in used state",
         If(allStateAssms&&used.boolVar,expModule.checkDefinedness(e, mainError, insidePackageStmt = true),Statements.EmptyStmt))
 
-    val transferRest = transferAccQuant(states,used, transferEntity,allStateAssms, mainError, havocHeap)
+    val transferRest = transferAccQuant(states,used, transferEntity, hasSomePerm, allStateAssms, mainError, havocHeap)
     val stmt = definedness++ res1 /*++ nullCheck*/ ++ initPermVars ++ transferRest
 
     val unionStmt = updateUnion()
@@ -734,7 +740,7 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
   }
 }
 
-  private def transferAccQuant(states: List[StateRep], used:StateRep, e: TransferableEntity, allStateAssms: Exp, mainError: PartialVerificationError, havocHeap: Boolean = true):Stmt = {
+  private def transferAccQuant(states: List[StateRep], used:StateRep, e: TransferableEntity, hasSomePerm: Exp => Exp, allStateAssms: Exp, mainError: PartialVerificationError, havocHeap: Boolean = true):Stmt = {
     val resFieldType = e match {
       case qf: QuantifiedTransferableFieldAccessPred =>
         val t = typeModule.translateType(qf.originalSILExp.asInstanceOf[sil.FieldAccessPredicate].loc.field.typ)
@@ -799,7 +805,7 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
             val (tempMask, initTMaskStmt) = permModule.tempInitMask(rcv,loc)
             initTMaskStmt ++
               (used.boolVar := used.boolVar&&heapModule.identicalOnKnownLocations(topHeap,tempMask))
-          //case _ => Nil
+          case _ => Nil
         }
 
         val translatedResource = e.loc
@@ -809,10 +815,10 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
         MaybeCommentBlock("transfer code for top state of stack",
           Comment("accumulate constraints which need to be satisfied for transfer to occur") ++ definednessTop ++
             Comment("actual code for the transfer from current state on stack") ++
-            If( (allStateAssms&&used.boolVar) && boolTransferTop && hasSomePerm(neededLocalQuant, resFieldType),
+            If( (allStateAssms&&used.boolVar) && boolTransferTop && hasSomePerm(neededLocalQuant),
               (curpermLocalQuant := curPermTopQuant) ++
                 minStmt ++
-                If(hasSomePerm(transferAmountLocalQuant, resFieldType),
+                If(hasSomePerm(transferAmountLocalQuant),
                   Seq(tempAmountQuant := neededLocalQuant, subtractMask(tempAmountQuant, transferAmountLocalQuant, neededLocalQuant)) ++
                     addToUsed ++
                     equateStmt ++
@@ -822,9 +828,9 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
 
               Nil
             )
-        ) ++ transferAccQuant(xs,used,e,allStateAssms, mainError, havocHeap) //recurse over rest of states
+        ) ++ transferAccQuant(xs,used,e, hasSomePerm, allStateAssms, mainError, havocHeap) //recurse over rest of states
       case Nil =>
-        Assert((allStateAssms&&used.boolVar) ==> (hasSomePerm(neededLocalQuant, resFieldType).not),
+        Assert((allStateAssms&&used.boolVar) ==> (hasSomePerm(neededLocalQuant).not),
           e.transferError(mainError))
       /**
         * actually only curPermUsed === permLocal would be sufficient if the transfer is written correctly, since
