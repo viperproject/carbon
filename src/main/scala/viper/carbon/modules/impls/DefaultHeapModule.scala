@@ -638,7 +638,6 @@ class DefaultHeapModule(val verifier: Verifier)
                 Havoc(newVersion) ++
                 currentHeapAssignUpdate(loc, newVersion)
 
-              If(UnExp(Not,hasDirectPerm(loc)), resetPredicateInfo, Nil) ++
                 addPermissionToPMask(loc) ++ stateModule.assumeGoodState}  )
           case sil.FieldAssign(lhs, rhs) =>
             if(usingOldState) sys.error("heap module: field is assigned while using old state")
