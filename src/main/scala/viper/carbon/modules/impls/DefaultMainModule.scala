@@ -137,7 +137,8 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
             val initOldStateComment = "Initializing of old state"
             val ins: Seq[LocalVarDecl] = formalArgs map translateLocalVarDecl
             val outs: Seq[LocalVarDecl] = formalReturns map translateLocalVarDecl
-            val init = MaybeCommentBlock("Initializing the state", stateModule.initBoogieState ++ assumeAllFunctionDefinitions ++ stmtModule.initStmt(method.bodyOrAssumeFalse))
+            val init = MaybeCommentBlock("Initializing the state", stateModule.initBoogieState ++ assumeAllFunctionDefinitions ++
+              (if (verifier.respectFunctionPrecPermAmounts) Nil else permModule.assumePermUpperBounds(true)) ++ stmtModule.initStmt(method.bodyOrAssumeFalse))
             val initOld = MaybeCommentBlock("Initializing the old state", stateModule.initOldState)
             val paramAssumptions = mWithLoopInfo.formalArgs map (a => allAssumptionsAboutValue(a.typ, translateLocalVarDecl(a), true))
             val inhalePre = translateMethodDeclPre(pres)
@@ -269,9 +270,9 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
     val resourceCurPerm =
       q.exp match {
         case r : sil.FieldAccess =>
-          sil.FieldAccessPredicate(r, curPermVar)()
+          sil.FieldAccessPredicate(r, Some(curPermVar))()
         case r: sil.PredicateAccess =>
-          sil.PredicateAccessPredicate(r, curPermVar)()
+          sil.PredicateAccessPredicate(r, Some(curPermVar))()
         case _ => sys.error("Not supported resource in quasihavoc")
       }
 

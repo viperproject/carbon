@@ -94,6 +94,12 @@ case class CarbonVerifier(override val reporter: Reporter,
   }
   else false
 
+  def respectFunctionPrecPermAmounts: Boolean = if (config != null) config.respectFunctionPrePermAmounts.toOption match {
+    case Some(b) => b
+    case None => false
+  }
+  else false
+
   override def usePolyMapsInEncoding =
     if (config != null) {
       config.desugarPolymorphicMaps.toOption match {
