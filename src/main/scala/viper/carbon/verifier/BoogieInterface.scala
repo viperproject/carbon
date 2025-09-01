@@ -62,6 +62,7 @@ trait BoogieInterface {
     "/proverOpt:O:smt.QI.EAGER_THRESHOLD=100",
     "/proverOpt:O:smt.BV.REFLECT=true",
     "/proverOpt:O:smt.qi.max_multi_patterns=1000",
+    "/proverOpt:O:MODEL.PARTIAL=true",
     s"/proverOpt:PROVER_PATH=$z3Path")
 
   /** The (resolved) path where Boogie is supposed to be located. */
@@ -82,6 +83,7 @@ trait BoogieInterface {
   def invokeBoogie(program: Program, options: Seq[String], timeout: Option[Int]): (String,VerificationResult) = {
     // find all errors and assign everyone a unique id
     errormap = Map()
+    models.clear()
     program.visit {
       case a@Assert(exp, error) =>
         errormap += (a.id -> error)

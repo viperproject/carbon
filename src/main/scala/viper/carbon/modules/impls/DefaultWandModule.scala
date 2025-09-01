@@ -28,7 +28,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
   //wands stored
   type WandShape = Func
   //This needs to be resettable, which is why "lazy val" is not used. See also: wandToShapes method
-  private var lazyWandToShapes: Option[Map[MagicWandStructure.MagicWandStructure, WandShape]] = None
+  /* private */ var lazyWandToShapes: Option[Map[MagicWandStructure.MagicWandStructure, WandShape]] = None
   /** CONSTANTS FOR TRANSFER START**/
 
   /* denotes amount of permission to add/remove during a specific transfer */
