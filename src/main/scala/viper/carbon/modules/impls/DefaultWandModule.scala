@@ -328,13 +328,13 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
         UNIONState = OPS
         val StateSetup(usedState, initStmt) = createAndSetState(None)
         tempCurState = usedState
-        Comment("Translating exec of non-ghost operation" + e.toString()) ++
+        Comment("Translating exec of non-ghost operation" + e.toString) ++
         initStmt ++  exhaleExt(ops :: states, usedState,e,ops.boolVar&&allStateAssms, RHS = true, mainError)
     }
   }
 
 override def exhaleExt(statesObj: List[Any], usedObj:Any, e: sil.Exp, allStateAssms: Exp, RHS: Boolean = false, error: PartialVerificationError, havocHeap: Boolean):Stmt = {
-  Comment("exhale_ext of " + e.toString())
+  Comment("exhale_ext of " + e.toString)
   val states = statesObj.asInstanceOf[List[StateRep]]
   val used = usedObj.asInstanceOf[StateRep]
   e match {
@@ -391,7 +391,7 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
 
   val unionStmt = updateUnion()
 
-  MaybeCommentBlock("Transfer of " + e.toString(), stmt ++ unionStmt)
+  MaybeCommentBlock("Transfer of " + e.toString, stmt ++ unionStmt)
 
 }
 

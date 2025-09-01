@@ -1,7 +1,7 @@
 package viper.carbon.boogie
 
 import viper.carbon.verifier.FailureContextImpl
-import viper.silver.verifier.{AbstractError, Counterexample, FailureContext, Model, ModelEntry, SimpleCounterexample, VerificationError}
+import viper.silver.verifier.{AbstractError, Model, ModelEntry, SimpleCounterexample, VerificationError}
 
 import scala.collection.mutable
 

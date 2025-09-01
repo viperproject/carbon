@@ -6,7 +6,7 @@
 
 package viper.carbon
 
-import boogie.{BoogieModelTransformer, CounterexampleGenerator, Namespace}
+import boogie.{BoogieModelTransformer, CarbonExtendedCounterexample, Namespace}
 import modules.impls._
 import viper.silver.ast.{MagicWand, Program, Quasihavoc, Quasihavocall}
 import viper.silver.utility.Paths
@@ -89,6 +89,12 @@ case class CarbonVerifier(override val reporter: Reporter,
   } else z3Default
 
   def assumeInjectivityOnInhale = if (config != null) config.assumeInjectivityOnInhale.toOption match {
+    case Some(b) => b
+    case None => false
+  }
+  else false
+
+  def respectFunctionPrecPermAmounts: Boolean = if (config != null) config.respectFunctionPrePermAmounts.toOption match {
     case Some(b) => b
     case None => false
   }
@@ -242,10 +248,10 @@ case class CarbonVerifier(override val reporter: Reporter,
             errors.foreach(e =>  BoogieModelTransformer.transformCounterexample(e, translatedNames))
           }
           case Failure(errors) if intermediateCounterexample => {
-            errors.foreach(e => CounterexampleGenerator.transformInteremdiateCounterexample(e, translatedNames, program, wandModule.lazyWandToShapes))
+            errors.foreach(e => CarbonExtendedCounterexample.transformInteremdiateCounterexample(e, translatedNames, program, wandModule.lazyWandToShapes))
           }
           case Failure(errors) if extendedCounterexample => {
-            errors.foreach(e => CounterexampleGenerator.transformExtendedCounterexample(e, translatedNames, program, wandModule.lazyWandToShapes))
+            errors.foreach(e => CarbonExtendedCounterexample.transformExtendedCounterexample(e, translatedNames, program, wandModule.lazyWandToShapes))
           }
           case _ => result
         }

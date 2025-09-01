@@ -5,8 +5,8 @@ import scala.collection.immutable._
 import viper.carbon.verifier.FailureContextImpl
 import viper.silver.verifier._
 import viper.silver.ast
-import viper.silver.ast.{Field, MagicWand, Member, Predicate, Resource}
-import viper.silver.verifier.{AbstractError, ApplicationEntry, ConstantEntry, MapEntry, Model, ModelEntry, SimpleCounterexample, UnspecifiedEntry, ValueEntry, VerificationError}
+import viper.silver.ast.{Field, Member, Predicate, Resource}
+import viper.silver.verifier.{AbstractError, ApplicationEntry, ConstantEntry, MapEntry, Model, ModelEntry, UnspecifiedEntry, ValueEntry, VerificationError}
 import viper.silver.ast.{Declaration, MagicWandStructure, Program, Type}
 
 /**
@@ -17,18 +17,21 @@ import viper.silver.ast.{Declaration, MagicWandStructure, Program, Type}
 /**
   * CounterexampleGenerator class used for generating an "extended" CE.
   */
-case class CounterexampleGenerator(e: AbstractError, names: Map[String, Map[String, String]], program: Program, wandNames: Option[Map[MagicWandStructure.MagicWandStructure, Func]]) extends Counterexample {
+case class CarbonExtendedCounterexample(e: AbstractError,
+                                        names: Map[String, Map[String, String]],
+                                        program: Program,
+                                        wandNames: Option[Map[MagicWandStructure.MagicWandStructure, Func]]) extends Counterexample with ExtendedCounterexample {
   val ve = e.asInstanceOf[VerificationError]
-  val errorMethod = ErrorMemberMapping.mapping.get(ve.readableMessage(true, true)).get
-  val imCE = IntermediateCounterexampleModel(ve, errorMethod, names, program, wandNames)
+  val errorMethod = ErrorMemberMapping.mapping(ve.readableMessage(true, true))
+  val imCE = CarbonIntermediateCounterexample(ve, errorMethod, names, program, wandNames)
   val model = imCE.originalEntries
-  //println(model)
 
-  val (ceStore, refOcc) = CounterexampleGenerator.detStore(program.methodsByName.get(errorMethod.name).get.transitiveScopedDecls, imCE.basicVariables, imCE.allCollections)
-  val nameTranslationMap = CounterexampleGenerator.detTranslationMap(ceStore, refOcc)
-  var ceHeaps = imCE.allBasicHeaps.map(bh => (bh._1, CounterexampleGenerator.detHeap(imCE.workingModel, bh._2, program, imCE.allCollections, nameTranslationMap, imCE.originalEntries))).reverse
+  val (ceStore, refOcc) = CarbonExtendedCounterexample.detStore(program.methodsByName(errorMethod.name).transitiveScopedDecls, imCE.basicVariables, imCE.allCollections)
+  val nameTranslationMap = CarbonExtendedCounterexample.detTranslationMap(ceStore, refOcc)
+  val ceHeaps = imCE.allBasicHeaps.map(bh => (bh._1, CarbonExtendedCounterexample.detHeap(imCE.workingModel, bh._2, program, imCE.allCollections, nameTranslationMap, imCE.originalEntries))).reverse
 
-  val domainsAndFunctions = CounterexampleGenerator.detTranslatedDomains(imCE.DomainEntries, nameTranslationMap) ++ CounterexampleGenerator.detTranslatedFunctions(imCE.nonDomainFunctions, nameTranslationMap)
+  override val domainEntries: Seq[BasicDomainEntry] = CarbonExtendedCounterexample.detTranslatedDomains(imCE.domainEntries, nameTranslationMap)
+  override val functionEntries: Seq[BasicFunctionEntry] = CarbonExtendedCounterexample.detTranslatedFunctions(imCE.nonDomainFunctions, nameTranslationMap)
 
   override def toString: String = {
     var finalString = "      Extended Counterexample: \n"
@@ -46,26 +49,29 @@ case class CounterexampleGenerator(e: AbstractError, names: Map[String, Map[Stri
 }
 
 /**
-  * CounterexampleGenerator class used for generating an "interemediate" CE.
+  * CounterexampleGenerator class used for generating an "intermediate" CE.
   */
-case class IntermediateCounterexampleModel(ve: VerificationError, errorMethod: Member, names: Map[String, Map[String, String]], program: Program, wandNames: Option[Map[MagicWandStructure.MagicWandStructure, Func]]) extends Counterexample {
+case class CarbonIntermediateCounterexample(ve: VerificationError,
+                                            errorMethod: Member,
+                                            names: Map[String, Map[String, String]],
+                                            program: Program,
+                                            wandNames: Option[Map[MagicWandStructure.MagicWandStructure, Func]]) extends Counterexample with IntermediateCounterexample {
   val originalEntries = ve.failureContexts(0).counterExample.get.model
   val model = originalEntries
   val typenamesInMethod = names.get(errorMethod.name).get.map(e => e._2 -> e._1)
   val methodVarDecl = program.methodsByName.get(errorMethod.name).get.transitiveScopedDecls
 
-  val (basicVariables, otherDeclarations) = IntermediateCounterexampleModel.detCEvariables(originalEntries.entries, typenamesInMethod, methodVarDecl)
-  val allSequences = IntermediateCounterexampleModel.detSequences(originalEntries)
-  val allSets = IntermediateCounterexampleModel.detSets(originalEntries)
-  val allMultisets = IntermediateCounterexampleModel.detMultisets(originalEntries)
-  val allCollections = allSequences ++ allSets ++ allMultisets
+  val (basicVariables, otherDeclarations) = CarbonIntermediateCounterexample.detCEvariables(originalEntries.entries, typenamesInMethod, methodVarDecl)
+  val allSequences = CarbonIntermediateCounterexample.detSequences(originalEntries)
+  val allSets = CarbonIntermediateCounterexample.detSets(originalEntries)
+  val allMultisets = CarbonIntermediateCounterexample.detMultisets(originalEntries)
 
-  val workingModel = IntermediateCounterexampleModel.buildNewModel(originalEntries.entries)
-  val (hmLabels, hmStates) = IntermediateCounterexampleModel.oldAndReturnHeapMask(workingModel, otherDeclarations)
-  val allBasicHeaps = IntermediateCounterexampleModel.detHeaps(workingModel, hmStates, originalEntries, hmLabels, program).map{case (n, bh) => if (n == "return") ("current", bh) else (n, bh)}
+  val workingModel = CarbonIntermediateCounterexample.buildNewModel(originalEntries.entries)
+  val (hmLabels, hmStates) = CarbonIntermediateCounterexample.oldAndReturnHeapMask(workingModel, otherDeclarations)
+  val allBasicHeaps = CarbonIntermediateCounterexample.detHeaps(workingModel, hmStates, originalEntries, hmLabels, program).map{case (n, bh) => if (n == "return") ("current", bh) else (n, bh)}
 
-  val DomainEntries = IntermediateCounterexampleModel.getAllDomains(originalEntries, program)
-  val nonDomainFunctions = IntermediateCounterexampleModel.getAllFunctions(originalEntries, program, hmStates)
+  val domainEntries = CarbonIntermediateCounterexample.getAllDomains(originalEntries, program)
+  val nonDomainFunctions = CarbonIntermediateCounterexample.getAllFunctions(originalEntries, program, hmStates)
 
   override def toString: String = {
     var finalString = "      Intermediate Counterexample: \n"
@@ -76,17 +82,17 @@ case class IntermediateCounterexampleModel(ve: VerificationError, errorMethod: M
       finalString += allCollections.map(x => x.toString).mkString("", "\n", "\n")
     if (!allBasicHeaps.filter(y => !y._2.basicHeapEntries.isEmpty).isEmpty)
       finalString += allBasicHeaps.reverse.filter(y => !y._2.basicHeapEntries.isEmpty).map(x => "   " + x._1 + " Heap: \n" + x._2.toString).mkString("", "\n", "\n")
-    if (!DomainEntries.isEmpty || !nonDomainFunctions.isEmpty)
+    if (!domainEntries.isEmpty || !nonDomainFunctions.isEmpty)
       finalString ++= "   Domains:\n"
-    if (!DomainEntries.isEmpty)
-      finalString += DomainEntries.map(x => x.toString).mkString("", "\n", "\n")
+    if (!domainEntries.isEmpty)
+      finalString += domainEntries.map(x => x.toString).mkString("", "\n", "\n")
     if (!nonDomainFunctions.isEmpty)
       finalString += nonDomainFunctions.map(x => x.toString).mkString("", "\n", "\n")
     finalString
   }
 }
 
-object IntermediateCounterexampleModel {
+object CarbonIntermediateCounterexample {
   /**
     * Determines the local variables and their value.
     */
@@ -164,7 +170,7 @@ object IntermediateCounterexampleModel {
   /**
     * Generates the sequences of the CE.
     */
-  def detSequences(model: Model): Set[CEValue] = {
+  def detSequences(model: Model): Seq[CEValue] = {
     var res = Map[String, Seq[String]]()
     var tempMap = Map[(String, Seq[String]), String]()
     for ((opName, opValues) <- model.entries) {
@@ -247,7 +253,7 @@ object IntermediateCounterexampleModel {
         }
       }
     }
-    var ans = Set[CEValue]()
+    var ans = Seq[CEValue]()
     res.foreach {
       case (n, s) =>
         val typ: Option[Type] = detASTTypeFromString(n.replaceAll(".*?<(.*)>.*", "$1")) match {
@@ -262,7 +268,7 @@ object IntermediateCounterexampleModel {
           }
           counter += 1
         }
-        ans += CESequence(n, BigInt(s.length), entries, s, typ)
+        ans +:= CESequence(n, BigInt(s.length), entries, s, typ)
     }
     ans
   }
@@ -270,7 +276,7 @@ object IntermediateCounterexampleModel {
   /**
     * Generates the sets of the CE.
     */
-  def detSets(model: Model): Set[CEValue] = {
+  def detSets(model: Model): Seq[CEValue] = {
     var res = Map[String, Set[String]]()
     for ((opName, opValues) <- model.entries) {
       if (opName == "Set#Empty") {
@@ -380,7 +386,7 @@ object IntermediateCounterexampleModel {
         }
       }
     }
-    var ans = Set[CEValue]()
+    var ans = Seq[CEValue]()
     res.foreach {
       case (n, s) =>
         val typ: Option[Type] = detASTTypeFromString(n.replaceAll(".*?<(.*)>.*", "$1")) match {
@@ -393,7 +399,7 @@ object IntermediateCounterexampleModel {
             containment += (e -> true)
           }
         }
-        ans += CESet(n, BigInt(s.size), containment, s, typ)
+        ans +:= CESet(n, BigInt(s.size), containment, s, typ)
     }
     ans
   }
@@ -401,7 +407,7 @@ object IntermediateCounterexampleModel {
   /**
     * Generates the multisets of the CE.
     */
-  def detMultisets(model: Model): Set[CEValue] = {
+  def detMultisets(model: Model): Seq[CEValue] = {
     var res = Map[String, Map[String, Int]]()
     for ((opName, opValues) <- model.entries) {
       if (opName == "MultiSet#Empty") {
@@ -494,7 +500,7 @@ object IntermediateCounterexampleModel {
         }
       }
     }
-    var ans = Set[CEValue]()
+    var ans = Seq[CEValue]()
     res.foreach {
       case (n, s) =>
         val typ: Option[Type] = detASTTypeFromString(n.replaceAll(".*?<(.*)>.*", "$1")) match {
@@ -502,7 +508,7 @@ object IntermediateCounterexampleModel {
           case None => None
         }
         val size = s.values.sum
-        ans += CEMultiset(n, BigInt(size), s, typ)
+        ans +:= CEMultiset(n, BigInt(size), s, typ)
     }
     ans
   }
@@ -603,19 +609,24 @@ object IntermediateCounterexampleModel {
     }
 
     var labelsHeapMask = Map[String, (String, String)]()
-    labelsHeapMask += ("old" -> (filteredList(0)._3, filteredList(0)._4))
-    for (l <- labels) {
-      l match {
-        case ast.Label(n, _) =>
-          val lhi = "Label" + n + "Heap"
-          val lmi = "Label" + n + "Mask"
-          if (workingModel.contains(Seq(lhi)) && workingModel.contains(Seq(lmi))) {
-            labelsHeapMask += (n -> (workingModel.get(Seq(lhi)).get, workingModel.get(Seq(lmi)).get))
-          }
-        case _ => //
+
+    if (filteredList.nonEmpty) {
+      if (filteredList.size > 1) {
+        labelsHeapMask += ("old" -> (filteredList(0)._3, filteredList(0)._4))
       }
+      for (l <- labels) {
+        l match {
+          case ast.Label(n, _) =>
+            val lhi = "Label" + n + "Heap"
+            val lmi = "Label" + n + "Mask"
+            if (workingModel.contains(Seq(lhi)) && workingModel.contains(Seq(lmi))) {
+              labelsHeapMask += (n -> (workingModel.get(Seq(lhi)).get, workingModel.get(Seq(lmi)).get))
+            }
+          case _ => //
+        }
+      }
+      labelsHeapMask += ("return" -> (filteredList(filteredList.length - 1)._3, filteredList(filteredList.length - 1)._4))
     }
-    labelsHeapMask += ("return" -> (filteredList(filteredList.length-1)._3, filteredList(filteredList.length-1)._4))
 
     (labelsHeapMask, filteredList)
   }
@@ -822,19 +833,19 @@ object IntermediateCounterexampleModel {
   }
 
   def evalExp(exp: ast.Exp, lookup: scala.collection.immutable.Map[ast.Exp, ModelEntry]): Boolean = exp match {
-    case ast.NeCmp(left, right) => !lookup.getOrElse(left, left.toString()).toString.equalsIgnoreCase(lookup.getOrElse(right, right.toString()).toString)
-    case ast.EqCmp(left, right) => (lookup.getOrElse(left, ConstantEntry(left.toString())).toString.equalsIgnoreCase(lookup.getOrElse(right, ConstantEntry(right.toString())).toString))
+    case ast.NeCmp(left, right) => !lookup.getOrElse(left, left.toString).toString.equalsIgnoreCase(lookup.getOrElse(right, right.toString).toString)
+    case ast.EqCmp(left, right) => (lookup.getOrElse(left, ConstantEntry(left.toString)).toString.equalsIgnoreCase(lookup.getOrElse(right, ConstantEntry(right.toString)).toString))
     case _ => false
   }
 
   def insPredToBody(body: ast.Exp, insPred: Seq[String]): Seq[(ast.Exp, String)] = {
-    if (insPred.length == 0) {
+    if (insPred.isEmpty) {
       Seq()
     } else if (insPred.length == 1) {
-      Seq((body, insPred(0)))
+      Seq((body, insPred.head))
     } else {
       if (body.subExps.length == 2) {
-        Seq((body.subExps(0), insPred(0))) ++ insPredToBody(body.subExps(1), insPred.tail)
+        Seq((body.subExps.head, insPred.head)) ++ insPredToBody(body.subExps(1), insPred.tail)
       } else {
         Seq()
       }
@@ -961,7 +972,7 @@ object IntermediateCounterexampleModel {
   /**
     * Extract all the functions occuring inside of a domain.
     */
-  def getAllFunctions(model: Model, program: ast.Program, heapInstances: Seq[(String, String, String, String)]): Seq[BasicFunction] = {
+  def getAllFunctions(model: Model, program: ast.Program, heapInstances: Seq[(String, String, String, String)]): Seq[BasicFunctionEntry] = {
     val funcs = program.collect {
       case f: ast.Function => f
     }
@@ -971,7 +982,7 @@ object IntermediateCounterexampleModel {
   /**
     * Determine all the inputs and outputs combinations of a function occruing the counterexample model.
     */
-  def detFunction(model: Model, func: ast.FuncLike, genmap: scala.collection.immutable.Map[ast.TypeVar, ast.Type], heapInst: Seq[(String, String, String, String)], program: ast.Program, hd: Boolean): BasicFunction = {
+  def detFunction(model: Model, func: ast.FuncLike, genmap: scala.collection.immutable.Map[ast.TypeVar, ast.Type], heapInst: Seq[(String, String, String, String)], program: ast.Program, hd: Boolean): BasicFunctionEntry = {
     val fname = func.name
     val resTyp: ast.Type = func.typ
     val argTyp: Seq[ast.Type] = func.formalArgs.map(x => x.typ)
@@ -993,21 +1004,21 @@ object IntermediateCounterexampleModel {
             options += (k.map(x => x.toString) -> v.toString)
           }
         }
-        BasicFunction(fname, argTyp, resTyp, options, els.toString)
-      case Some(ConstantEntry(t)) => BasicFunction(fname, argTyp, resTyp, Map.empty, t)
-      case Some(ApplicationEntry(n, args)) => BasicFunction(fname, argTyp, resTyp, Map.empty, ApplicationEntry(n, args).toString)
-      case Some(x) => BasicFunction(fname, argTyp, resTyp, Map.empty, x.toString)
-      case None => BasicFunction(fname, argTyp, resTyp, Map.empty, "#undefined")
+        BasicFunctionEntry(fname, argTyp, resTyp, options, els.toString)
+      case Some(ConstantEntry(t)) => BasicFunctionEntry(fname, argTyp, resTyp, Map.empty, t)
+      case Some(ApplicationEntry(n, args)) => BasicFunctionEntry(fname, argTyp, resTyp, Map.empty, ApplicationEntry(n, args).toString)
+      case Some(x) => BasicFunctionEntry(fname, argTyp, resTyp, Map.empty, x.toString)
+      case None => BasicFunctionEntry(fname, argTyp, resTyp, Map.empty, "#undefined")
     }
   }
 
 }
 
-object CounterexampleGenerator {
+object CarbonExtendedCounterexample {
   /**
     * Combine a local variable with its ast node.
     */
-  def detStore(store: Seq[Declaration], variables: Seq[CEVariable], collections: Set[CEValue]): (StoreCounterexample, Map[String, (String, Int)]) = {
+  def detStore(store: Seq[Declaration], variables: Seq[CEVariable], collections: Seq[CEValue]): (StoreCounterexample, Map[String, (String, Int)]) = {
     var refOccurences = Map[String, (String, Int)]()
     var ans = Seq[StoreEntry]()
     for (k <- store) {
@@ -1066,7 +1077,7 @@ object CounterexampleGenerator {
   /**
     * Match heap resources to their ast node and translate all identifiers (for fields and references)
     */
-  def detHeap(opMapping: Map[Seq[String], String], basicHeap: BasicHeap, program: Program, collections: Set[CEValue], translNames: Map[String, String], model: Model): HeapCounterexample = {
+  def detHeap(opMapping: Map[Seq[String], String], basicHeap: BasicHeap, program: Program, collections: Seq[CEValue], translNames: Map[String, String], model: Model): HeapCounterexample = {
     // choosing all the needed values from the Boogie Model
     var usedIdent = Map[String, Member]()
     for ((key, value) <- opMapping) {
@@ -1093,7 +1104,7 @@ object CounterexampleGenerator {
                 var found = false
                 for (coll <- collections) {
                   if (bhe.valueID == coll.id) {
-                    if (translNames.get(bhe.reference.head).isDefined) {
+                    if (false && translNames.get(bhe.reference.head).isDefined) {
                       ans +:= (fi, FieldFinalEntry(translNames.get(bhe.reference.head).get, fi.name, coll, bhe.perm, fi.typ, bhe.het))
                     } else {
                       ans +:= (fi, FieldFinalEntry(bhe.reference.head, fi.name, coll, bhe.perm, fi.typ, bhe.het))
@@ -1102,13 +1113,14 @@ object CounterexampleGenerator {
                   }
                 }
                 if (!found) {
-                  if (translNames.get(bhe.reference.head).isDefined) {
+                  if (false && translNames.get(bhe.reference.head).isDefined) {
                     ans +:= (fi, FieldFinalEntry(translNames.get(bhe.reference.head).get, fi.name, CEVariable("#undefined", ConstantEntry(bhe.valueID), Some(fi.typ)), bhe.perm, fi.typ, bhe.het))
                   } else {
                     ans +:= (fi, FieldFinalEntry(bhe.reference.head, fi.name, CEVariable("#undefined", ConstantEntry(bhe.valueID), Some(fi.typ)), bhe.perm, fi.typ, bhe.het))
                   }
                 }
-              case None => println(s"Could not find a field node for: ${bhe.toString}")
+              case None =>
+                println(s"Could not find a field node for: ${bhe.toString}")
             }
           }
         case PredicateType | QPPredicateType =>
@@ -1116,16 +1128,17 @@ object CounterexampleGenerator {
             case Some(p) =>
               val pr = p.asInstanceOf[Predicate]
               val refNames = bhe.field.map(x =>
-                if (translNames.get(x).isDefined) {
+                if (false && translNames.get(x).isDefined) {
                   translNames.get(x).get
                 } else {
                   x
                 })
               ans +:= (pr, PredFinalEntry(pr.name, refNames, bhe.perm, bhe.insidePredicate, bhe.het))
-            case None => println(s"Could not find a predicate node for: ${bhe.toString}")
+            case None =>
+              println(s"Could not find a predicate node for: ${bhe.toString}")
           }
         case MagicWandType | QPMagicWandType =>
-          val translatedArgs = bhe.field.map(x => translNames.getOrElse(x, x))
+          val translatedArgs = bhe.field // .map(x => translNames.getOrElse(x, x)) TODO translNames
           for ((mw, idx) <- program.magicWandStructures.zipWithIndex) {
             val mwStructure = mw.structure(program, true)
             val replacements: Iterable[(ast.Node, ast.Node)] = mwStructure.subexpressionsToEvaluate(program).zip(translatedArgs).map(e => e._1 -> ast.LocalVar(e._2, e._1.typ)())
@@ -1160,11 +1173,11 @@ object CounterexampleGenerator {
     domEntries.map(de => BasicDomainEntry(de.name, de.types, detTranslatedFunctions(de.functions, namesMap)))
   }
 
-  def detTranslatedFunctions(funEntries: Seq[BasicFunction], namesMap: Map[String, String]) : Seq[BasicFunction] = {
+  def detTranslatedFunctions(funEntries: Seq[BasicFunctionEntry], namesMap: Map[String, String]) : Seq[BasicFunctionEntry] = {
     funEntries.map(bf => detNameTranslationOfFunction(bf, namesMap))
   }
 
-  def detNameTranslationOfFunction(fun: BasicFunction, namesMap: Map[String, String]) : BasicFunction = {
+  def detNameTranslationOfFunction(fun: BasicFunctionEntry, namesMap: Map[String, String]) : BasicFunctionEntry = {
     var tempMap = Map[String, String]()
     for ((k,v) <- namesMap) {
       if (k.startsWith("T@U!val!")) {
@@ -1175,18 +1188,18 @@ object CounterexampleGenerator {
       (in.map(intName => tempMap.getOrElse(intName, intName)), tempMap.getOrElse(out, out))
     }
     val translatedEls = tempMap.getOrElse(fun.default, fun.default)
-    BasicFunction(fun.fname, fun.argtypes, fun.returnType, translatedFun, translatedEls)
+    BasicFunctionEntry(fun.fname, fun.argtypes, fun.returnType, translatedFun, translatedEls)
   }
 
   def transformInteremdiateCounterexample(e: AbstractError, names: Map[String, Map[String, String]], program: Program, wandNames: Option[Map[MagicWandStructure.MagicWandStructure, Func]]): Unit = {
     if (e.isInstanceOf[VerificationError] && ErrorMemberMapping.mapping.contains(e.asInstanceOf[VerificationError].readableMessage(true, true))) {
-      e.asInstanceOf[VerificationError].failureContexts = scala.collection.immutable.Seq(FailureContextImpl(Some(CounterexampleGenerator(e, names, program, wandNames).imCE)))
+      e.asInstanceOf[VerificationError].failureContexts = scala.collection.immutable.Seq(FailureContextImpl(Some(CarbonExtendedCounterexample(e, names, program, wandNames).imCE)))
     }
   }
 
   def transformExtendedCounterexample(e: AbstractError, names: Map[String, Map[String, String]], program: Program, wandNames: Option[Map[MagicWandStructure.MagicWandStructure, Func]]): Unit = {
     if (e.isInstanceOf[VerificationError] && ErrorMemberMapping.mapping.contains(e.asInstanceOf[VerificationError].readableMessage(true, true))) {
-      e.asInstanceOf[VerificationError].failureContexts = scala.collection.immutable.Seq(FailureContextImpl(Some(CounterexampleGenerator(e, names, program, wandNames))))
+      e.asInstanceOf[VerificationError].failureContexts = scala.collection.immutable.Seq(FailureContextImpl(Some(CarbonExtendedCounterexample(e, names, program, wandNames))))
     }
   }
 }

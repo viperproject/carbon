@@ -83,6 +83,7 @@ trait BoogieInterface {
   def invokeBoogie(program: Program, options: Seq[String], timeout: Option[Int]): (String,VerificationResult) = {
     // find all errors and assign everyone a unique id
     errormap = Map()
+    models.clear()
     program.visit {
       case a@Assert(exp, error) =>
         errormap += (a.id -> error)
