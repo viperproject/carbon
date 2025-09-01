@@ -12,7 +12,7 @@ import java.nio.file.Path
 
 
 class GeneralCounterexampleTests extends AllTests {
-  override val testDirectories: Seq[String] = Seq("counterexamples")
+  override val testDirectories: Seq[String] = Seq("counterexample_mapped", "counterexample_general")
 
   override val commandLineArguments: Seq[String] =
     Seq("--counterexample=extended")
