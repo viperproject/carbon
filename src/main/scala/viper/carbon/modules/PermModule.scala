@@ -155,6 +155,12 @@ trait PermModule extends Module with CarbonStateComponent {
   def pushOuterMask(m: LocalVar): Unit
   def popOuterMask(): LocalVar
 
+  def pushReadPermVar(m: LocalVar): Unit
+
+  def popReadPermVar(): LocalVar
+
+  def currentKInductedLoops(): Int
+
   def havocMask() : Stmt
 
 }

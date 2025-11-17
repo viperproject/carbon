@@ -125,6 +125,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   private var triggerFuncs: ListBuffer[Func] = new ListBuffer[Func](); //list of inverse functions used for inhale/exhale qp
 
   private var outerMaskStack: mutable.Stack[LocalVar] = new mutable.Stack[LocalVar]()
+  private var outerReadPermVarStack: mutable.Stack[LocalVar] = new mutable.Stack[LocalVar]()
   var enableKInduction = false;
 
   override def pushOuterMask(m: LocalVar) = {
@@ -134,6 +135,16 @@ class QuantifiedPermModule(val verifier: Verifier)
   override def popOuterMask(): LocalVar = {
     outerMaskStack.pop()
   }
+
+  override def pushReadPermVar(m: LocalVar) = {
+    outerReadPermVarStack.push(m)
+  }
+
+  override def popReadPermVar(): LocalVar = {
+    outerReadPermVarStack.pop()
+  }
+
+  override def currentKInductedLoops(): Int = outerMaskStack.size
 
   private val readMaskName = Identifier("readMask")
   private val updateMaskName = Identifier("updMask")
@@ -1560,12 +1571,28 @@ class QuantifiedPermModule(val verifier: Verifier)
   }
 
   private def assertSomePerm(fa: sil.LocationAccess, ve: VerificationError, definednessStateOpt: Option[DefinednessState]): Stmt = {
-    if (!enableKInduction) {
+    if (!enableKInduction || outerReadPermVarStack.isEmpty) {
       val hasDirectPermExp = definednessStateOpt.fold(hasDirectPerm(fa))(defState => hasDirectPerm(fa, defState.setDefState))
       Assert(hasDirectPermExp, ve)
+    } else if (enableKInduction && (outerReadPermVarStack.size > outerMaskStack.size)) {
+      // we're in the assuming phase of the loop
+      val readVar = outerReadPermVarStack.head
+      assertCurrentPermGe(fa, readVar, false, ve)
     } else {
-      // TODO: adapt?
-      assertCurrentPermGe(fa, RealLit(0.001), false, ve)
+      val readVar = outerReadPermVarStack.head
+      val innerMask = mask
+      var checkAndAssert = Assert(FalseLit(), ve)
+      for (curOuterMask <- outerMaskStack.toSeq.reverse) {
+        mask = curOuterMask
+        val permInThisMask = currentPermission(fa)
+        val hasPermInThisMask = permGt(permInThisMask, noPerm)
+        val constrainReadForThisMask = Assume(permGt(permInThisMask, readVar))
+        checkAndAssert = If(hasPermInThisMask, constrainReadForThisMask, checkAndAssert)
+      }
+      mask = innerMask
+      val assertReadPerm = assertCurrentPermGe(fa, readVar, false, ve)
+      val hasDirectPermExp = definednessStateOpt.fold(hasDirectPerm(fa))(defState => hasDirectPerm(fa, defState.setDefState))
+      If(hasDirectPermExp, Statements.EmptyStmt, checkAndAssert ++ assertReadPerm)
     }
   }
 

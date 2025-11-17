@@ -521,7 +521,10 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
         )
       })
 
+    val newReadVar = LocalVar(Identifier(s"LoopReadPermVar${permModule.currentKInductedLoops()}"), permType)
+    val assumeReadPositive = Assume(permModule.permissionPositive(newReadVar, false))
     permModule.pushOuterMask(maskWithFramedPerms(0).asInstanceOf[LocalVar])
+    permModule.pushReadPermVar(newReadVar)
 
     val inhaleInvInitial = MaybeCommentBlock("Inhale loop invariant before loop",
       (invs map (inv => inhale(Seq((inv, errors.ContractNotWellformed(inv))), true)))
@@ -562,10 +565,14 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
             (invs map (inv => inhale(Seq((inv, errors.ContractNotWellformed(inv))), true)))
           ).transform{
             case Assert(e, _) => Assume(e)
-          }() ++
-          MaybeCommentBlock("Loop body, assuming all asserts", stmtModule.translateStmt(body).transform{
-            case Assert(e, _) => Assume(e)
-          }()) ++{
+          }() ++ {
+            val block = MaybeCommentBlock("Loop body, assuming all asserts", stmtModule.translateStmt(body).transform {
+              case Assert(e, _) => Assume(e)
+            }())
+            permModule.popReadPermVar()
+            block
+          }
+           ++{
           val (backup, snapshot) = stateModule.freshTempState("Assert")
           val assumeStmt = MaybeComment("Assume invariant on heap copy", executeUnfoldings(w.invs, (inv => errors.LoopInvariantNotPreserved(inv))) ++ exhale(w.invs map (e => (e, errors.LoopInvariantNotPreserved(e), None)), false, true)).transform{
             case Assert(e, _) => Assume(e)
@@ -592,7 +599,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
 
 
 
-    exhaleInvInitial ++ storePreLoopState ++ setMaskToZero ++ inhaleInvInitial ++ outerIf
+    assumeReadPositive ++ exhaleInvInitial ++ storePreLoopState ++ setMaskToZero ++ inhaleInvInitial ++ outerIf
 
     /*
     val initialExhaleInv = MaybeCommentBlock("Exhale loop invariant before loop",
