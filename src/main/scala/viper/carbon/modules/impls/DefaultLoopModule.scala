@@ -496,7 +496,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
     } )
      */
 
-    val (storePreLoopState, prevState) = stateModule.freshTempState("preLoop")
+    val (storePreLoopState, prevState) = stateModule.freshTempState(s"preLoop${permModule.currentKInductedLoops()}")
 
     val preLoopState = stateModule.state.asInstanceOf[(java.util.Map[CarbonStateComponent, Seq[Var]], Boolean, Boolean)]
     val maskWithFramedPerms = preLoopState._1.get(permModule)

@@ -1542,31 +1542,44 @@ class QuantifiedPermModule(val verifier: Verifier)
       /*
       if not mask >= amount:
           diff := amount - mask
-          assert outer >= diff
+          <if mask is last mask>
+            assert outer >= diff
+          < else >
+            diff = min(diff, outer)
           outer -= diff
           mask += diff
           <if mask is not originalMask, e.t. it's a temporary AssertMask>
           originalMask += diff
        */
-      val innerMask = mask
-      val currentPermMask = currentPermission(fa)
-      mask = outerMaskStack.head
-      val currentPermOuter = currentPermission(fa)
-      val currentPermOriginal = if (innerMask != originalMask) {
-        mask = originalMask
-        Some(currentPermission(fa))
-      }else{
-        None
-      }
-      mask = innerMask
       val diffVar = LocalVar(Identifier("diff"), permType)
-      val diffAssign = diffVar := (amount- currentPermMask)
-      val assertEnough = Assert(permGe(currentPermOuter, diffVar), ve)
-      val deductFromOuter = currentPermOuter := currentPermOuter - diffVar
-      val addToInner = currentPermMask := currentPermMask + diffVar
-      val addToOriginal = if (currentPermOriginal.isDefined) Some(currentPermOriginal.get := currentPermOriginal.get + diffVar) else None
-      val cond = permGt(amount, currentPermMask)
-      If(cond, diffAssign ++ assertEnough ++ deductFromOuter ++ addToInner ++ addToOriginal, Nil)
+      val diffAssignInit = diffVar := amount
+      var result: Stmt = diffAssignInit
+      for (outerMask <- outerMaskStack) {
+        val innerMask = mask
+        val currentPermMask = currentPermission(fa)
+        mask = outerMask
+        val currentPermOuter = currentPermission(fa)
+        val currentPermOriginal = if (innerMask != originalMask) {
+          mask = originalMask
+          Some(currentPermission(fa))
+        } else {
+          None
+        }
+        mask = innerMask
+
+        val diffAssign = diffVar := (diffVar - currentPermMask)
+        val assertEnough = if (outerMask == outerMaskStack.last)
+          Assert(permGe(currentPermOuter, diffVar), ve)
+        else
+          diffVar := CondExp(permGe(currentPermOuter, diffVar), diffVar, currentPermOuter)
+        val deductFromOuter = currentPermOuter := currentPermOuter - diffVar
+        val addToInner = currentPermMask := currentPermMask + diffVar
+        val addToOriginal = if (currentPermOriginal.isDefined) Some(currentPermOriginal.get := currentPermOriginal.get + diffVar) else None
+        val cond = permGt(amount, currentPermMask)
+        val res = If(cond, diffAssign ++ assertEnough ++ deductFromOuter ++ addToInner ++ addToOriginal, Nil)
+        result = result ++ res
+      }
+      result
     }
   }
 
