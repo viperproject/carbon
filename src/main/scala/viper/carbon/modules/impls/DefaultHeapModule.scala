@@ -642,7 +642,7 @@ class DefaultHeapModule(val verifier: Verifier)
                 addPermissionToPMask(loc) ++ stateModule.assumeGoodState}  )
           case sil.Unfold(sil.PredicateAccessPredicate(loc@sil.PredicateAccess(_, _), _)) =>
             val knownfolded_update: Stmt = curHeapAssignUpdatePredWandMask(predicateMask(loc).maskField, zeroPMask)
-            stmt ++ If(UnExp(Not,hasDirectPerm(loc)), knownfolded_update, Nil)
+            stmt ++ knownfolded_update
           case sil.FieldAssign(lhs, rhs) =>
             if(usingOldState) sys.error("heap module: field is assigned while using old state")
             stmt ++ (currentHeapAssignUpdate(lhs, translateExp(rhs))) // after all checks
