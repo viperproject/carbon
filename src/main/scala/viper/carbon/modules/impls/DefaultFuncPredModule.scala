@@ -193,7 +193,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   }
 
   def reset() = {
-    heights = Functions.heights(verifier.program).map{case (f, h) => f.name -> h}
+    heights = Functions.heights(verifier.program)
     tmpStateId = -1
     duringFold = false
     foldInfo = null
