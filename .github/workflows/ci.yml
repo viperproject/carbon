@@ -17,7 +17,7 @@ jobs:
       LINUX_BOOGIE_URL: "https://github.com/viperproject/boogie-builder/releases/download/7449a7a899c02c95/boogie-linux.zip"
     steps:
     - name: Checkout Carbon
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         submodules: true
     - name: Java Version
@@ -30,7 +30,7 @@ jobs:
         echo "Silver: commit $(git -C silver rev-parse HEAD)" >> versions.txt
       # first line overwrites versions.txt in case it already exists, all other append to the file
     - name: Upload version file
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: versions-${{ matrix.name }}.txt
         path: versions.txt
@@ -40,7 +40,7 @@ jobs:
       # note that the cache path is relative to the directory in which sbt is invoked.
 
     - name: Cache SBT
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: |
           sbt-cache/.sbtboot
@@ -67,7 +67,7 @@ jobs:
       run: sbt "set test in assembly := {}" clean assembly
 
     - name: Upload Carbon fat JAR
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: carbon-jar
         path: target/scala-2.13/carbon.jar
