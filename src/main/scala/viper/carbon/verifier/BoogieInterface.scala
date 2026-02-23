@@ -13,6 +13,7 @@ import viper.silver.verifier.errors.Internal
 import viper.silver.verifier.reasons.InternalReason
 import viper.silver.verifier._
 
+import java.io
 import java.io._
 import scala.jdk.CollectionConverters._
 
@@ -197,8 +198,12 @@ trait BoogieInterface {
     inputStreamThread.start()
 
     // Send the program to Boogie
-    proc.getOutputStream.write(input.getBytes);
-    proc.getOutputStream.close()
+    try {
+      proc.getOutputStream.write(input.getBytes)
+      proc.getOutputStream.close()
+    } catch {
+      case e: IOException => sys.error(s"Couldn't pass input to Boogie process: $e")
+    }
 
     var boogieTimeout = false
 
