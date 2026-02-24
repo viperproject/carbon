@@ -13,7 +13,9 @@ import viper.silver.verifier.errors.Internal
 import viper.silver.verifier.reasons.InternalReason
 import viper.silver.verifier._
 
+import java.io
 import java.io._
+import java.nio.charset.StandardCharsets
 import scala.jdk.CollectionConverters._
 
 class BoogieDependency(_location: String) extends Dependency {
@@ -24,16 +26,28 @@ class BoogieDependency(_location: String) extends Dependency {
 
 class InputStreamConsumer(val is: InputStream, actionBeforeConsumption: () => Unit) extends Runnable {
   var result : Option[String] = None
-
-  private def convertStreamToString(is: InputStream) = {
-    val s = new java.util.Scanner(is).useDelimiter("\\A")
-    if (s.hasNext) s.next() else ""
-  }
+  private val buffer = new StringBuilder
 
   def run(): Unit = {
     actionBeforeConsumption()
-    result = Some(convertStreamToString(is))
-    is.close()
+    val reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))
+    try {
+      var line = reader.readLine()
+      while (line != null) {
+        buffer.synchronized {
+          buffer.append(line).append('\n')
+        }
+        line = reader.readLine()
+      }
+      result = Some(snapshot)
+    } finally {
+      reader.close()
+      is.close()
+    }
+  }
+
+  def snapshot: String = buffer.synchronized {
+    buffer.toString()
   }
 }
 
@@ -163,7 +177,7 @@ trait BoogieInterface {
 
   /**
     * Invoke Boogie.
-    * Returns None if there was a timeout, otherwise the Boogie output.
+    * Returns None if there was a timeout or error, otherwise the Boogie output.
     */
   private def run(input: String, options: Seq[String], timeout: Option[Int]) = {
     reporter report BackendSubProcessReport("carbon", boogiePath, BeforeInputSent, _boogieProcessPid)
@@ -171,7 +185,12 @@ trait BoogieInterface {
     // When the filename is "stdin.bpl" Boogie reads the program from standard input.
     val cmd: Seq[String] = Seq(boogiePath) ++ options ++ Seq("stdin.bpl")
     val pb: ProcessBuilder = new ProcessBuilder(cmd.asJava)
-    val proc: Process = pb.start()
+    val proc: Process = try {
+      pb.start()
+    } catch {
+      case e: IOException =>
+        sys.error(s"Couldn't start Boogie process. Command: ${cmd.mkString(" ")}. Error: $e")
+    }
     _boogieProcess = Some(proc)
     _boogieProcessPid = Some(proc.pid)
 
@@ -196,9 +215,32 @@ trait BoogieInterface {
     errorStreamThread.start()
     inputStreamThread.start()
 
+    def captureEarlyContext(): String = {
+      errorStreamThread.join(200)
+      inputStreamThread.join(200)
+      val processState =
+        if (proc.isAlive) "alive"
+        else s"exited(${proc.exitValue()})"
+      val earlyStderr = errorConsumer.snapshot.trim
+      val earlyStdout = inputConsumer.snapshot.trim
+      val stderrSuffix =
+        if (earlyStderr.nonEmpty) s"\nBoogie stderr (early):\n$earlyStderr"
+        else ""
+      val stdoutSuffix =
+        if (earlyStdout.nonEmpty) s"\nBoogie stdout (early):\n$earlyStdout"
+        else ""
+      s"\nProcess state: $processState$stderrSuffix$stdoutSuffix"
+    }
+
     // Send the program to Boogie
-    proc.getOutputStream.write(input.getBytes);
-    proc.getOutputStream.close()
+    try {
+      proc.getOutputStream.write(input.getBytes)
+      proc.getOutputStream.close()
+    } catch {
+      case e: IOException =>
+        // The write usually fails because Boogie already terminated.
+        sys.error(s"Couldn't pass input to Boogie process: $e${captureEarlyContext()}")
+    }
 
     var boogieTimeout = false
 
@@ -231,7 +273,8 @@ trait BoogieInterface {
       else
         Some(errorOutput + normalOutput)
     } catch {
-      case _: NoSuchElementException => sys.error("Could not retrieve output from Boogie")
+      case e: NoSuchElementException =>
+        sys.error(s"Could not retrieve output from Boogie: $e${captureEarlyContext()}")
     }
   }
 
