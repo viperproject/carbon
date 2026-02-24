@@ -216,11 +216,11 @@ trait BoogieInterface {
     inputStreamThread.start()
 
     def captureEarlyContext(): String = {
+      errorStreamThread.join(200)
+      inputStreamThread.join(200)
       val processState =
         if (proc.isAlive) "alive"
         else s"exited(${proc.exitValue()})"
-      errorStreamThread.join(200)
-      inputStreamThread.join(200)
       val earlyStderr = errorConsumer.snapshot.trim
       val earlyStdout = inputConsumer.snapshot.trim
       val stderrSuffix =
