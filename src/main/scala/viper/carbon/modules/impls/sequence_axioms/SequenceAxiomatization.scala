@@ -207,7 +207,7 @@ object SequenceAxiomatization {
                 |
                 |axiom (forall<T> s: Seq T, t: Seq T, n:int ::
                 |  { Seq#Drop(Seq#Append(s,t),n) }
-                | n > 0 && n > Seq#Length(s) ==> Seq#Add(Seq#Sub(n,Seq#Length(s)),Seq#Length(s)) == n && Seq#Drop(Seq#Append(s,t),n) == Seq#Drop(t,Seq#Sub(n,Seq#Length(s))));
+                | n > 0 && n > Seq#Length(s) && n < Seq#Length(Seq#Append(s,t)) ==> Seq#Add(Seq#Sub(n,Seq#Length(s)),Seq#Length(s)) == n && Seq#Drop(Seq#Append(s,t),n) == Seq#Drop(t,Seq#Sub(n,Seq#Length(s))));
                 |
                 |// diff 16: temporarily dropped general case of these
                 |//axiom (forall<T> s: Seq T, t: Seq T, m:int ::
