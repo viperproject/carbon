@@ -596,8 +596,8 @@ class QuantifiedPermModule(val verifier: Verifier)
             //if the permission is a wildcard, we check that we have some permission > 0 for all locations and assume that the permission substracted is smaller than the permission held.
             val wildcardAssms:Stmt =
               if(isWildcard) {
-                (Assert(Forall(vsFresh.map(v => translateLocalVarDecl(v)), Seq(), translatedCond ==> (currentPermission(translatedRecv, translatedLocation) > noPerm)), error.dueTo(reasons.InsufficientPermission(fieldAccess))))++
-                  (Assume(Forall(vsFresh.map(v => translateLocalVarDecl(v)), Seq(), translatedCond ==> (wildcard < currentPermission(translatedRecv, translatedLocation)))))
+                Locally(Assert(Forall(vsFresh.map(v => translateLocalVarDecl(v)), Seq(), translatedCond ==> (currentPermission(translatedRecv, translatedLocation) > noPerm)), error.dueTo(reasons.InsufficientPermission(fieldAccess))))++
+                  (Assume(Forall(vsFresh.map(v => translateLocalVarDecl(v)), Seq(Trigger(currentPermission(translatedRecv, translatedLocation))), translatedCond ==> (wildcard < currentPermission(translatedRecv, translatedLocation)))))
               } else {
                 Nil
               }
@@ -649,13 +649,18 @@ class QuantifiedPermModule(val verifier: Verifier)
               CommentBlock("assume permission updates for independent locations", independentLocations) ++
               (mask := qpMask)
 
+            val inverseAssumptions: Stmt = if (assertReadPermOnly) Nil else
+              CommentBlock("assumptions for inverse of receiver " + recv.toString, Assume(invAssm1)++ Assume(invAssm2))
+
+            val checks = CommentBlock("check that the permission amount is positive", Locally(permPositive)) ++
+              CommentBlock("check if receiver " + recv.toString + " is injective", Locally(injectiveAssertion)) ++
+              CommentBlock("check if sufficient permission is held", Locally(enoughPerm))
+
             val res1 = Havoc(qpMask) ++
               MaybeComment("wild card assumptions", stmts ++
               wildcardAssms) ++
-              CommentBlock("check that the permission amount is positive", permPositive) ++
-              CommentBlock("check if receiver " + recv.toString + " is injective",injectiveAssertion) ++
-              CommentBlock("check if sufficient permission is held", enoughPerm) ++
-              CommentBlock("assumptions for inverse of receiver " + recv.toString, Assume(invAssm1)++ Assume(invAssm2)) ++
+              checks ++
+              inverseAssumptions ++
               maskUpdateStmt
 
             vsFresh.foreach(v => env.undefine(v.localVar))
@@ -769,8 +774,8 @@ class QuantifiedPermModule(val verifier: Verifier)
             //if we exhale a wildcard permission, assert that we hold some permission to all affected locations and restrict the wildcard value
             val wildcardAssms:Stmt =
               if(isWildcard) {
-                Assert(Forall(translatedLocals, Seq(), translatedCond ==> (currentPermission(translateNull, translatedResource) > noPerm)), error.dueTo(reason)) ++
-                  Assume(Forall(translatedLocals, Seq(), translatedCond ==> (wildcard < currentPermission(translateNull, translatedResource))))
+                Locally(Assert(Forall(translatedLocals, Seq(), translatedCond ==> (currentPermission(translateNull, translatedResource) > noPerm)), error.dueTo(reason))) ++
+                  Assume(Forall(translatedLocals, Seq(Trigger(currentPermission(translateNull, translatedResource))), translatedCond ==> (wildcard < currentPermission(translateNull, translatedResource))))
               } else {
                 Nil
               }
@@ -846,13 +851,18 @@ class QuantifiedPermModule(val verifier: Verifier)
               CommentBlock("assume permission updates for independent locations ", independentLocations) ++
               (mask := qpMask)
 
+            val inverseAssumptions: Stmt = if (assertReadPermOnly) Nil else
+              CommentBlock("assumptions for inverse of receiver " + accPred.toString, Assume(invAssm1)++ Assume(invAssm2))
+
+            val checks = CommentBlock("check that the permission amount is positive", Locally(permPositive)) ++
+              CommentBlock("check if receiver " + accPred.toString + " is injective", Locally(injectiveAssertion)) ++
+              CommentBlock("check if sufficient permission is held", Locally(enoughPerm))
+
             val res1 = Havoc(qpMask) ++
               MaybeComment("wildcard assumptions", stmts ++
               wildcardAssms) ++
-              CommentBlock("check that the permission amount is positive", permPositive) ++
-              CommentBlock("check if receiver " + accPred.toString + " is injective",injectiveAssertion) ++
-              CommentBlock("check if sufficient permission is held", enoughPerm) ++
-              CommentBlock("assumptions for inverse of receiver " + accPred.toString, Assume(invAssm1)++ Assume(invAssm2)) ++
+              checks ++
+              inverseAssumptions ++
               maskUpdateStmts
 
             vsFresh.foreach(vFresh => env.undefine(vFresh.localVar))
@@ -1048,6 +1058,10 @@ class QuantifiedPermModule(val verifier: Verifier)
     }
   }
 
+  def Locally(s: Stmt): Stmt = {
+    NondetIf(s ++ Assume(FalseLit()))
+  }
+
   /*
       translate inhaling a forall expressions
    */
@@ -1205,7 +1219,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
            val reas = reasons.QPAssertionNotInjective(fieldAccess)
            var err = error.dueTo(reas)
-           val injectiveAssertion = Assert(is_injective, err)
+           val injectiveAssertion = Locally(Assert(is_injective, err))
 
            val res1 = Havoc(qpMask) ++
              stmts ++
@@ -1213,7 +1227,7 @@ class QuantifiedPermModule(val verifier: Verifier)
              else Nil) ++
              CommentBlock("Define Inverse Function", Assume(invAssm1) ++
                Assume(invAssm2)) ++
-             (if (!isWildcard) MaybeComment("Check that permission expression is non-negative for all fields", permPositive) else Nil) ++
+             (if (!isWildcard) MaybeComment("Check that permission expression is non-negative for all fields", Locally(permPositive)) else Nil) ++
              CommentBlock("Assume set of fields is nonNull", nonNullAssumptions) ++
             // CommentBlock("Assume injectivity", injectiveAssumption) ++
              CommentBlock("Define permissions", Assume(Forall(obj, triggerForPermissionUpdateAxiom, condTrueLocations && condFalseLocations)) ++
@@ -1383,7 +1397,7 @@ class QuantifiedPermModule(val verifier: Verifier)
            }
            val injectTrigger = Seq(Trigger(Seq(triggerFunApp, triggerFunApp2)))
            val err = error.dueTo(reasons.QPAssertionNotInjective(accPred.loc))
-           val injectiveAssertion = Assert(Forall((translatedLocals ++ translatedLocals2), injectTrigger,injectiveCond ==> ineqExpr), err)
+           val injectiveAssertion = Locally(Assert(Forall((translatedLocals ++ translatedLocals2), injectTrigger,injectiveCond ==> ineqExpr), err))
 
 
            val res1 = Havoc(qpMask) ++
@@ -1392,7 +1406,7 @@ class QuantifiedPermModule(val verifier: Verifier)
              else Nil) ++
              CommentBlock("Define Inverse Function", Assume(invAssm1) ++
                Assume(invAssm2)) ++
-             (if (!isWildcard) (MaybeComment("Check that permission expression is non-negative for all fields", permPositive)) else Nil) ++
+             (if (!isWildcard) (MaybeComment("Check that permission expression is non-negative for all fields", Locally(permPositive))) else Nil) ++
              CommentBlock("Define updated permissions", permissionsMap) ++
              CommentBlock("Define independent locations", (independentLocations ++
              independentResource)) ++
