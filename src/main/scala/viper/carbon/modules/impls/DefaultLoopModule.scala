@@ -9,7 +9,8 @@ import viper.carbon.modules.components.StmtComponent
 import viper.carbon.utility._
 import viper.silver.ast.utility.ViperStrategy
 import viper.silver.cfg.utility.{IdInfo, LoopDetector, LoopInfo}
-import viper.silver.verifier.{PartialVerificationError, errors}
+import viper.silver.reporter.WarningsDuringVerification
+import viper.silver.verifier.{PartialVerificationError, VerifierWarning, errors}
 
 import scala.collection.mutable
 import scala.collection.mutable.Map
@@ -83,7 +84,24 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
       initializeMethodWithGotos(m)
     } else {
       useLoopDetector = false
+      // Without gotos there are no loops formed by jumps to labels, so no label can be a loop head and all label
+      // invariants are ignored.
+      reportIgnoredLabelInvariants(m.body.fold(Seq.empty[sil.Label])(_.deepCollect {
+        case label@sil.Label(_, invs) if invs.nonEmpty => label
+      }))
       m
+    }
+  }
+
+  /**
+    * Reports a warning for each of the given labels, which declare invariants but are not loop heads, such that
+    * their invariants are ignored.
+    */
+  private def reportIgnoredLabelInvariants(labels: Seq[sil.Label]): Unit = {
+    if (labels.nonEmpty) {
+      val warnings = labels.map(label =>
+        VerifierWarning(s"Label ${label.name} declares an invariant, but is not the head of a loop. The invariant will be ignored.", label.pos))
+      verifier.reporter report WarningsDuringVerification(warnings)
     }
   }
 
@@ -271,7 +289,8 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
               rewriteDummyStatements, sil.utility.rewriter.Traverse.BottomUp
             ).asInstanceOf[sil.Seqn]
 
-          val (loopInfoBody, loopToWrittenVarsResult) = LoopDetector.detect(normalizedBody, true, true)
+          val (loopInfoBody, loopToWrittenVarsResult, labelsWithIgnoredInvariants) = LoopDetector.detect(normalizedBody, true, true)
+          reportIgnoredLabelInvariants(labelsWithIgnoredInvariants)
           loopToWrittenVars = loopToWrittenVarsResult.get
           initializeMappings(loopInfoBody)
           captureRelevantNextStmts(loopInfoBody, Seq())

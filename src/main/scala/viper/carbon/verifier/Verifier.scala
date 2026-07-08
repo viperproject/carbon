@@ -9,6 +9,7 @@ package viper.carbon.verifier
 import viper.silver.{ast => sil}
 import viper.carbon.modules._
 import viper.carbon.boogie.Namespace
+import viper.silver.reporter.Reporter
 
 /**
  * A verifier for Viper in Carbon (defines what modules need to be available).
@@ -65,6 +66,11 @@ trait Verifier {
    * Create a new namespace with a unique ID.
    */
   def freshNamespace(name: String): Namespace
+
+  /**
+   * The reporter used to emit messages (e.g., warnings) during the translation and verification.
+   */
+  def reporter: Reporter
 
   /**
    * The program currently being verified.
