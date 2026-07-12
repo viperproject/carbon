@@ -387,7 +387,7 @@ class QuantifiedPermModule(val verifier: Verifier)
     FuncApp(sumMasks, resultMask++summandMask1++summandMask2,Bool)
 
   override def minMask(summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp =
-    FuncApp(minMasks, summandMask1 ++ summandMask2, Bool)
+    FuncApp(minMasks, summandMask1 ++ summandMask2, maskType)
 
   override def containsWildCard(e: sil.Exp): Boolean = {
     e match {

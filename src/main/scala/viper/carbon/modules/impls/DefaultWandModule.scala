@@ -558,8 +558,15 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
       case w: sil.MagicWand =>
         (heapModule.isWandField(fldp) && (heapModule.getPredicateOrWandId(fldp) === IntLit(heapModule.getPredicateOrWandId(wandModule.getWandName(w)))))
     })
+    // The receiver may only be constrained here for predicates and wands, where it is the constant null.
+    // For fields, the receiver expression mentions the quantified variable (not in scope here); receivers
+    // of the right field that are not in the QP's range are already handled by independentResource.
+    val independentCond: Exp = accPred match {
+      case _: sil.FieldAccessPredicate => isRightFieldType(field.l).not
+      case _ => (obj.l !== heapModule.translateNull) || isRightFieldType(field.l).not
+    }
     val independentLocations = Assume(Forall(Seq(obj, field), Seq(Trigger(currentPermission(obj.l, field.l)), Trigger(currentPermission(transferAmountLocalQuant, obj.l, field.l))),
-      ((obj.l !== translatedReceiver) || isRightFieldType(field.l).not) ==>
+      independentCond ==>
         (permModule.permissionZero(currentPermission(transferAmountLocalQuant, obj.l, field.l)))))
     val validMask = Assume(permModule.goodMask(transferAmountLocalQuant))
     //same resource, but not satisfying the condition
@@ -768,8 +775,9 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
         val curPermTopQuant: Exp =  permModule.currentMask.head // permModule.currentPermission(e.rcv, e.loc)
         val removeFromTop = heapModule.beginExhale ++
           (components flatMap (_.transferRemoveQuant(transferAmountLocalQuant,used.boolVar))) ++
-          {if(top != OPS){ // Sets the transferred field in secondary mask of the wand to true ,eg., Heap[null, w#sm][x, f] := true
-            heapModule.addPermissionToWMask(getWandFtSmRepresentation(currentWand, 1), e.originalSILExp)
+          {if(top != OPS){ // Sets all locations transferred in this round (positive perm in the transferred mask)
+            // to true in the secondary mask of the wand
+            heapModule.addPermissionToWMaskQuant(getWandFtSmRepresentation(currentWand, 1), transferAmountLocalQuant)
           }else{
             Statements.EmptyStmt
           }
@@ -796,15 +804,12 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
         val addToUsed = (components flatMap (_.transferAddQuant(transferAmountLocalQuant,used.boolVar))) ++
           (used.boolVar := used.boolVar&&stateModule.currentGoodState)
 
+        // equate the values of the used state's heap with the top state's heap on all locations
+        // that were transferred in this round (the mask of transferred permissions guards the
+        // equality pointwise, so this is a no-op if nothing was transferred)
         val equateStmt:Stmt = e match {
-          case QuantifiedTransferableFieldAccessPred(vrs, cnd, rcv,loc,_,_) =>
-            val (tempMask, initTMaskStmt) = permModule.tempInitMask(rcv, loc)
-            initTMaskStmt ++
-              (used.boolVar := used.boolVar && heapModule.identicalOnKnownLocations(topHeap, tempMask))
-          case TransferablePredAccessPred(rcv,loc,_,_) =>
-            val (tempMask, initTMaskStmt) = permModule.tempInitMask(rcv,loc)
-            initTMaskStmt ++
-              (used.boolVar := used.boolVar&&heapModule.identicalOnKnownLocations(topHeap,tempMask))
+          case _: QuantifiedTransferableFieldAccessPred | _: QuantifiedTransferablePredAccessPred =>
+            used.boolVar := used.boolVar && heapModule.identicalOnKnownLocations(topHeap, Seq(transferAmountLocalQuant))
           case _ => Nil
         }
 
@@ -812,19 +817,24 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
 
 
         //transfer from top to used state
+        //Note: in contrast to the non-quantified case, the transfer is not guarded by checks that
+        //some permission is actually needed resp. transferred. Such guards would be existential
+        //quantifiers over the needed resp. transferred mask, and the resulting case splits are
+        //poison for the SMT solver (to rule a branch out, it has to refute an existential by
+        //re-deriving the pointwise contents of all masks involved, along every path).
+        //Instead, the transfer is executed unconditionally: since the transferred amount is the
+        //pointwise minimum of the needed mask and the top state's mask, all updates below are
+        //no-ops when there is nothing to transfer.
         MaybeCommentBlock("transfer code for top state of stack",
           Comment("accumulate constraints which need to be satisfied for transfer to occur") ++ definednessTop ++
             Comment("actual code for the transfer from current state on stack") ++
-            If( (allStateAssms&&used.boolVar) && boolTransferTop && hasSomePerm(neededLocalQuant),
+            If( (allStateAssms&&used.boolVar) && boolTransferTop,
               (curpermLocalQuant := curPermTopQuant) ++
                 minStmt ++
-                If(hasSomePerm(transferAmountLocalQuant),
-                  Seq(tempAmountQuant := neededLocalQuant, subtractMask(tempAmountQuant, transferAmountLocalQuant, neededLocalQuant)) ++
-                    addToUsed ++
-                    equateStmt ++
-                    removeFromTop,
-
-                  Nil),
+                Seq(tempAmountQuant := neededLocalQuant, subtractMask(tempAmountQuant, transferAmountLocalQuant, neededLocalQuant)) ++
+                addToUsed ++
+                equateStmt ++
+                removeFromTop,
 
               Nil
             )
