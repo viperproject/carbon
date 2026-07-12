@@ -16,3 +16,4 @@ tmp/
 results.txt
 *.bpl
 *.bpl.*
+z3.log
