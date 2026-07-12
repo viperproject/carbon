@@ -32,6 +32,8 @@ trait TransferComponent extends Component {
    */
   def transferAdd(e:TransferableEntity, cond: Exp): Stmt
 
+  def transferAddQuant(toAddMask: Exp, cond: Exp): Stmt
+
   /**
    *
    * @param e
@@ -39,4 +41,6 @@ trait TransferComponent extends Component {
    * @return  statement which removes the expression e to the current state (for example permissions, wand)
    */
   def transferRemove(e:TransferableEntity, cond:Exp): Stmt
+
+  def transferRemoveQuant(toRemoveMask: Exp, cond: Exp): Stmt
 }
