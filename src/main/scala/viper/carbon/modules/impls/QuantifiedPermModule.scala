@@ -41,7 +41,7 @@ import viper.silver.ast.utility.rewriter.Traverse
 import viper.silver.ast.Implies
 
 import scala.collection.mutable.ListBuffer
-import viper.silver.ast.utility.QuantifiedPermissions.SourceQuantifiedPermissionAssertion
+import viper.silver.ast.utility.QuantifiedPermissions.{QuantifiedPermissionAssertion, SourceQuantifiedPermissionAssertion}
 import viper.silver.verifier.errors.{ContractNotWellformed, PostconditionViolated}
 
 /**
@@ -394,6 +394,8 @@ class QuantifiedPermModule(val verifier: Verifier)
       case sil.AccessPredicate(loc, prm) =>
         val p = PermissionHelper.normalizePerm(prm)
         p.isInstanceOf[sil.WildcardPerm]
+      case QuantifiedPermissionAssertion(_, _, acc: sil.AccessPredicate) =>
+        conservativeIsWildcardPermission(acc.perm)
       case _ => false
     }
   }

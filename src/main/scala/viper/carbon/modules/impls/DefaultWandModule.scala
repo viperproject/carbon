@@ -450,16 +450,9 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
     //translate components
     val (translatedCond, translatedArgs) = (expModule.translateExp(renamingCond), renamingArgs.map(expModule.translateExp))
     val translatedLocals = vsFresh.map(v => mainModule.translateLocalVarDecl(v))
-    val (translatedPerms, stmts, wildcard) = {
-      if (false /* conservativeIsWildcardPermission(perms) */) {
-        //isWildcard = true
-        //val w = LocalVar(Identifier("wildcard"), Real)
-        //(w, LocalVarWhereDecl(w.name, w > RealLit(0)) :: Havoc(w) :: Nil, w)
-        (???, ???, ???)
-      } else {
-        (expModule.translateExp(renamingPerms), Nil, null)
-      }
-    }
+    // wildcard permissions are not supported inside package statements and are rejected
+    // upfront via permModule.containsWildCard (see DefaultExhaleModule.exhaleConnective)
+    val translatedPerms = expModule.translateExp(renamingPerms)
 
     val translatedReceiver = resource match {
       case _: sil.Field => translatedArgs.head
@@ -511,16 +504,6 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
     //check that the permission expression is non-negative for all predicates/wands satisfying the condition
     val permPositive = Assert(MaybeForall(freshFormalBoogieDecls, Trigger(invFunApps), (condInv && rangeFunApp) ==> permissionPositive(permInv, true)),
       mainError.dueTo(reasons.NegativePermission(permAmount)))
-
-    //if we exhale a wildcard permission, assert that we hold some permission to all affected locations and restrict the wildcard value
-    val wildcardAssms: Stmt =
-      if (false /* isWildcard */) {
-        //Assert(Forall(translatedLocals, Seq(), translatedCond ==> (permissionPositive(currentPermission(translatedReceiver, translatedResource)))), mainError.dueTo(reason)) ++
-          //Assume(Forall(translatedLocals, Seq(), translatedCond ==> (wildcard < currentPermission(translatedReceiver, translatedResource))))
-        Nil
-      } else {
-        Nil
-      }
 
     //Assume map update for affected locations
     val (generalReceiver, generalLocation) = accPred match {
@@ -608,7 +591,6 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
     val injectiveAssertion = Assert(Forall((translatedLocals ++ translatedLocals2), injectTrigger, injectiveCond ==> ineqExpr), err)
 
     val res1 = Havoc(transferAmountLocalQuant) ++ Assume(permModule.goodMask(transferAmountLocalQuant)) ++
-      MaybeComment("wildcard assumptions", stmts ++ wildcardAssms) ++
       CommentBlock("check that the permission amount is positive", permPositive) ++
       CommentBlock("check if receiver " + accPred.toString + " is injective", injectiveAssertion) ++
       CommentBlock("assumptions for inverse of receiver " + accPred.toString, Assume(invAssm1) ++ Assume(invAssm2)) ++
