@@ -895,15 +895,29 @@ object CarbonRawCounterexample {
   def detHeapEntryPermission(permMap: Map[scala.collection.immutable.Seq[ValueEntry], ValueEntry], perm: String): Option[Rational] = {
     for ((s, ve) <- permMap) {
       if (s(0).toString == perm) {
-        if (ve.isInstanceOf[ConstantEntry]) {
-          return Some(Rational.apply(BigInt(ve.asInstanceOf[ConstantEntry].value.toFloat.toInt), BigInt(1)))
-        } else if (ve.isInstanceOf[ApplicationEntry]) {
-          val ae = ve.asInstanceOf[ApplicationEntry]
-          return Some(Rational.apply(BigInt(ae.arguments(0).asInstanceOf[ConstantEntry].value.toFloat.toInt), BigInt(ae.arguments(1).asInstanceOf[ConstantEntry].value.toFloat.toInt)))
-        }
+        return Some(realToRational(ve))
       }
     }
     None
+  }
+
+  /** Converts a Boogie real value (as it appears in the U_2_real map) to an exact rational. */
+  def realToRational(ve: ValueEntry): Rational = ve match {
+    case ConstantEntry(v) => parseDecimal(v)
+    case ApplicationEntry("/", Seq(num, den)) => realToRational(num) / realToRational(den)
+    case ApplicationEntry("-", Seq(arg)) => -realToRational(arg)
+    case _ => Rational.zero
+  }
+
+  /** Parses a decimal literal ("1.0", "0.5", "3") to an exact rational without truncating. */
+  def parseDecimal(v: String): Rational = {
+    try {
+      val bd = BigDecimal(v.trim)
+      if (bd.scale <= 0) Rational.apply(bd.toBigInt, BigInt(1))
+      else Rational.apply(bd.bigDecimal.unscaledValue(), BigInt(10).pow(bd.scale))
+    } catch {
+      case _: Throwable => Rational.zero
+    }
   }
 
   def recursiveBuildHeapMask(inputMap: Map[scala.collection.immutable.Seq[ValueEntry], ValueEntry], s: String, resultMap: Map[Seq[String], (String, String)]): Map[Seq[String], (String, String)] = {
