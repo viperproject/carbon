@@ -28,7 +28,7 @@ case class CarbonResolvedCounterexample(e: AbstractError,
 
   val (ceStore, refOcc) = CarbonResolvedCounterexample.detStore(program.methodsByName(errorMethod.name).transitiveScopedDecls, rawCE.basicVariables, rawCE.allCollections)
   val nameTranslationMap = CarbonResolvedCounterexample.detTranslationMap(rawCE.basicVariables, rawCE.allCollections, refOcc)
-  val ceHeaps = rawCE.allBasicHeaps.map(bh => (bh._1, CarbonResolvedCounterexample.detHeap(rawCE.workingModel, bh._2, program, rawCE.allCollections, nameTranslationMap, rawCE.originalEntries))).reverse
+  val ceHeaps = rawCE.allRawHeaps.map(bh => (bh._1, CarbonResolvedCounterexample.detHeap(rawCE.workingModel, bh._2, program, rawCE.allCollections, nameTranslationMap, rawCE.originalEntries))).reverse
 
   override val domainEntries: Seq[BasicDomainEntry] = CarbonResolvedCounterexample.detTranslatedDomains(rawCE.domainEntries, nameTranslationMap)
   override val functionEntries: Seq[BasicFunctionEntry] = CarbonResolvedCounterexample.detTranslatedFunctions(rawCE.nonDomainFunctions, nameTranslationMap)
@@ -68,7 +68,7 @@ case class CarbonRawCounterexample(ve: VerificationError,
 
   val workingModel = CarbonRawCounterexample.buildNewModel(originalEntries.entries)
   val (hmLabels, hmStates) = CarbonRawCounterexample.oldAndReturnHeapMask(workingModel, otherDeclarations)
-  val allBasicHeaps = CarbonRawCounterexample.detHeaps(workingModel, hmStates, originalEntries, hmLabels, program).map{case (n, bh) => if (n == "return") ("current", bh) else (n, bh)}
+  val allRawHeaps = CarbonRawCounterexample.detHeaps(workingModel, hmStates, originalEntries, hmLabels, program).map{case (n, bh) => if (n == "return") ("current", bh) else (n, bh)}
 
   val domainEntries = CarbonRawCounterexample.getAllDomains(originalEntries, program)
   val nonDomainFunctions = CarbonRawCounterexample.getAllFunctions(originalEntries, program, hmStates)
@@ -80,8 +80,8 @@ case class CarbonRawCounterexample(ve: VerificationError,
       finalString += basicVariables.map(x => x.toString).mkString("", "\n", "\n")
     if (!allCollections.isEmpty)
       finalString += allCollections.map(x => x.toString).mkString("", "\n", "\n")
-    if (!allBasicHeaps.filter(y => !y._2.basicHeapEntries.isEmpty).isEmpty)
-      finalString += allBasicHeaps.reverse.filter(y => !y._2.basicHeapEntries.isEmpty).map(x => "   " + x._1 + " Heap: \n" + x._2.toString).mkString("", "\n", "\n")
+    if (!allRawHeaps.filter(y => !y._2.rawHeapEntries.isEmpty).isEmpty)
+      finalString += allRawHeaps.reverse.filter(y => !y._2.rawHeapEntries.isEmpty).map(x => "   " + x._1 + " Heap: \n" + x._2.toString).mkString("", "\n", "\n")
     if (!domainEntries.isEmpty || !nonDomainFunctions.isEmpty)
       finalString ++= "   Domains:\n"
     if (!domainEntries.isEmpty)
@@ -621,7 +621,7 @@ object CarbonRawCounterexample {
     * @param MapType0Select Mappings from a mask state, a reference and a field to a permission.
     * The fields in these mappings can also be identifiers for a predicate or a magic wand.
     */
-  def detHeaps(opMapping: Map[Seq[String], String], hmStates: List[(String, String, String, String)], model: Model, hmLabels: Map[String, (String, String)], program: Program): Seq[(String, BasicHeap)] = {
+  def detHeaps(opMapping: Map[Seq[String], String], hmStates: List[(String, String, String, String)], model: Model, hmLabels: Map[String, (String, String)], program: Program): Seq[(String, RawHeap)] = {
     val predByName = program.predicatesByName
     var heapOp = Map[Seq[String], String]()
     var maskOp = Map[Seq[String], String]()
@@ -657,9 +657,9 @@ object CarbonRawCounterexample {
       }
     }
     val permMap = model.entries.get("U_2_real").get.asInstanceOf[MapEntry].options
-    var res = Seq[(String, BasicHeap)]()
+    var res = Seq[(String, RawHeap)]()
     for ((labelName, (labelHeap, labelMask)) <- hmLabels) {
-      var heapEntrySet = Set[BasicHeapEntry]()
+      var heapEntrySet = Set[RawHeapEntry]()
       val heapStore = model.entries.get("MapType0Store").get.asInstanceOf[MapEntry].options
       val maskStore = model.entries.get("MapType1Store").get.asInstanceOf[MapEntry].options
       val heapMap = recursiveBuildHeapMask(heapStore, labelHeap, Map.empty)
@@ -671,11 +671,11 @@ object CarbonRawCounterexample {
         val tempPerm: Option[Rational] = detHeapEntryPermission(permMap, perm._1)
         val typ: HeapEntryType = detHeapType(model, qpMaskSet, ck(1), perm._2)
         if (typ == FieldType || typ == QPFieldType) {
-          heapEntrySet += BasicHeapEntry(Seq(ck(0)), Seq(ck(1)), value._1, tempPerm, typ, None)
+          heapEntrySet += RawHeapEntry(Seq(ck(0)), Seq(ck(1)), value._1, tempPerm, typ, None)
         } else if (typ == PredicateType || typ == QPPredicateType) {
-          heapEntrySet += BasicHeapEntry(Seq(ck(0), ck(1)), predContentMap.get(ck(1)).getOrElse(Seq()), value._1, tempPerm, typ, Some(evalInsidePredicate(value._1, ck(1), predicateFinder, predByName, model)))
+          heapEntrySet += RawHeapEntry(Seq(ck(0), ck(1)), predContentMap.get(ck(1)).getOrElse(Seq()), value._1, tempPerm, typ, Some(evalInsidePredicate(value._1, ck(1), predicateFinder, predByName, model)))
         } else if (typ == MagicWandType || typ == QPMagicWandType) {
-          heapEntrySet += BasicHeapEntry(Seq(ck(0), ck(1)), predContentMap.get(ck(1)).getOrElse(Seq()), value._1, tempPerm, typ, None)
+          heapEntrySet += RawHeapEntry(Seq(ck(0), ck(1)), predContentMap.get(ck(1)).getOrElse(Seq()), value._1, tempPerm, typ, None)
         }
       }
       var startNow = false
@@ -698,18 +698,18 @@ object CarbonRawCounterexample {
                 val typ: HeapEntryType = detHeapType(model, qpMaskSet, field, maskId)
                 if (typ == FieldType || typ == QPFieldType) {
                   heapOp.get(Seq("MapType0Select", heapIdentifier, reference, field)) match {
-                    case Some(v) => heapEntrySet += BasicHeapEntry(Seq(reference), Seq(field), v, tempPerm, typ, None)
-                    case None => heapEntrySet += BasicHeapEntry(Seq(reference), Seq(field), "#undefined", tempPerm, typ, None)
+                    case Some(v) => heapEntrySet += RawHeapEntry(Seq(reference), Seq(field), v, tempPerm, typ, None)
+                    case None => heapEntrySet += RawHeapEntry(Seq(reference), Seq(field), "#undefined", tempPerm, typ, None)
                   }
                 } else if (typ == PredicateType || typ == QPPredicateType) {
                   heapOp.get(Seq("MapType0Select", heapIdentifier, reference, field)) match {
-                    case Some(v) => heapEntrySet += BasicHeapEntry(Seq(reference, field), predContentMap.get(field).getOrElse(Seq()), v, tempPerm, typ, Some(evalInsidePredicate(v, field, predicateFinder, predByName, model)))
-                    case None => heapEntrySet += BasicHeapEntry(Seq(reference, field), predContentMap.get(field).getOrElse(Seq()), "#undefined", tempPerm, typ, Some(Map[ast.Exp, ModelEntry]()))
+                    case Some(v) => heapEntrySet += RawHeapEntry(Seq(reference, field), predContentMap.get(field).getOrElse(Seq()), v, tempPerm, typ, Some(evalInsidePredicate(v, field, predicateFinder, predByName, model)))
+                    case None => heapEntrySet += RawHeapEntry(Seq(reference, field), predContentMap.get(field).getOrElse(Seq()), "#undefined", tempPerm, typ, Some(Map[ast.Exp, ModelEntry]()))
                   }
                 } else if (typ == MagicWandType || typ == QPMagicWandType) {
                   heapOp.get(Seq("MapType0Select", heapIdentifier, reference, field)) match {
-                    case Some(v) => heapEntrySet += BasicHeapEntry(Seq(reference, field), mwContentMap.get(field).getOrElse(Seq()), v, tempPerm, typ, None)
-                    case None => heapEntrySet += BasicHeapEntry(Seq(reference, field), mwContentMap.get(field).getOrElse(Seq()), "#undefined", tempPerm, typ, None)
+                    case Some(v) => heapEntrySet += RawHeapEntry(Seq(reference, field), mwContentMap.get(field).getOrElse(Seq()), v, tempPerm, typ, None)
+                    case None => heapEntrySet += RawHeapEntry(Seq(reference, field), mwContentMap.get(field).getOrElse(Seq()), "#undefined", tempPerm, typ, None)
                   }
                 }
               } else {
@@ -719,8 +719,8 @@ object CarbonRawCounterexample {
                   case Some(v) =>
                     heapOp.get(Seq("MapType0Select", heapIdentifier, reference, field)) match {
                       case Some(x) =>
-                        heapEntrySet += BasicHeapEntry(Seq(reference), Seq(field), x, v.perm, v.het, None)
-                        heapEntrySet -= BasicHeapEntry(Seq(reference), Seq(field), "#undefined", v.perm, v.het, None)
+                        heapEntrySet += RawHeapEntry(Seq(reference), Seq(field), x, v.perm, v.het, None)
+                        heapEntrySet -= RawHeapEntry(Seq(reference), Seq(field), "#undefined", v.perm, v.het, None)
                       case None => //
                     }
                   case None => //
@@ -731,8 +731,8 @@ object CarbonRawCounterexample {
                   case Some(v) =>
                     heapOp.get(Seq("MapType0Select", heapIdentifier, reference, field)) match {
                       case Some(x) =>
-                        heapEntrySet += BasicHeapEntry(Seq(reference, field), predContentMap.get(field).getOrElse(Seq()), x, v.perm, v.het, v.insidePredicate)
-                        heapEntrySet -= BasicHeapEntry(Seq(reference, field), predContentMap.get(field).getOrElse(Seq()), "#undefined", v.perm, v.het, v.insidePredicate)
+                        heapEntrySet += RawHeapEntry(Seq(reference, field), predContentMap.get(field).getOrElse(Seq()), x, v.perm, v.het, v.insidePredicate)
+                        heapEntrySet -= RawHeapEntry(Seq(reference, field), predContentMap.get(field).getOrElse(Seq()), "#undefined", v.perm, v.het, v.insidePredicate)
                       case None => //
                     }
                   case None => //
@@ -743,8 +743,8 @@ object CarbonRawCounterexample {
                   case Some(v) =>
                     heapOp.get(Seq("MapType0Select", heapIdentifier, reference, field)) match {
                       case Some(x) =>
-                        heapEntrySet += BasicHeapEntry(Seq(reference, field), mwContentMap.get(field).getOrElse(Seq()), x, v.perm, v.het, None)
-                        heapEntrySet -= BasicHeapEntry(Seq(reference, field), mwContentMap.get(field).getOrElse(Seq()), "#undefined", v.perm, v.het, None)
+                        heapEntrySet += RawHeapEntry(Seq(reference, field), mwContentMap.get(field).getOrElse(Seq()), x, v.perm, v.het, None)
+                        heapEntrySet -= RawHeapEntry(Seq(reference, field), mwContentMap.get(field).getOrElse(Seq()), "#undefined", v.perm, v.het, None)
                       case None => //
                     }
                   case None => //
@@ -754,7 +754,7 @@ object CarbonRawCounterexample {
           }
         }
       }
-      res +:= (labelName, BasicHeap(heapEntrySet))
+      res +:= (labelName, RawHeap(heapEntrySet))
     }
     res
   }
@@ -1065,7 +1065,7 @@ object CarbonResolvedCounterexample {
   /**
     * Match heap resources to their ast node and translate all identifiers (for fields and references)
     */
-  def detHeap(opMapping: Map[Seq[String], String], basicHeap: BasicHeap, program: Program, collections: Seq[CECollection], translNames: Map[String, String], model: Model): HeapCounterexample = {
+  def detHeap(opMapping: Map[Seq[String], String], basicHeap: RawHeap, program: Program, collections: Seq[CECollection], translNames: Map[String, String], model: Model): HeapCounterexample = {
     // choosing all the needed values from the Boogie Model
     var usedIdent = Map[String, Member]()
     for ((key, value) <- opMapping) {
@@ -1081,8 +1081,8 @@ object CarbonResolvedCounterexample {
       }
     }
 
-    var ans = Seq[(Resource, FinalHeapEntry)]()
-    for (bhe <- basicHeap.basicHeapEntries) {
+    var ans = Seq[(Resource, ResolvedHeapEntry)]()
+    for (bhe <- basicHeap.rawHeapEntries) {
       bhe.het match {
         case FieldType | QPFieldType=>
           if (!bhe.perm.isDefined || !(bhe.perm.get == Rational.zero)) {
@@ -1091,9 +1091,9 @@ object CarbonResolvedCounterexample {
                 val fi = f.asInstanceOf[Field]
                 collections.find(_.id == bhe.valueID) match {
                   case Some(coll) =>
-                    ans +:= (fi, FieldFinalEntry(bhe.reference.head, fi.name, coll.value, bhe.perm, fi.typ, bhe.het))
+                    ans +:= (fi, FieldResolvedEntry(bhe.reference.head, fi.name, coll.value, bhe.perm, fi.typ, bhe.het))
                   case None =>
-                    ans +:= (fi, FieldFinalEntry(bhe.reference.head, fi.name, CounterexampleValue.literal(bhe.valueID, Some(fi.typ)), bhe.perm, fi.typ, bhe.het))
+                    ans +:= (fi, FieldResolvedEntry(bhe.reference.head, fi.name, CounterexampleValue.literal(bhe.valueID, Some(fi.typ)), bhe.perm, fi.typ, bhe.het))
                 }
               case None =>
                 println(s"Could not find a field node for: ${bhe.toString}")
@@ -1103,8 +1103,8 @@ object CarbonResolvedCounterexample {
           usedIdent.get(bhe.reference(1)) match {
             case Some(p) =>
               val pr = p.asInstanceOf[Predicate]
-              val refNames = bhe.field
-              ans +:= (pr, PredFinalEntry(pr.name, refNames, bhe.perm, bhe.insidePredicate, bhe.het))
+              val argExps = bhe.field.zip(pr.formalArgs).map { case (v, fa) => CounterexampleValue.literal(v, Some(fa.typ)) }
+              ans +:= (pr, PredResolvedEntry(pr.name, argExps, bhe.perm, bhe.insidePredicate, bhe.het))
             case None =>
               println(s"Could not find a predicate node for: ${bhe.toString}")
           }
@@ -1114,7 +1114,7 @@ object CarbonResolvedCounterexample {
             val (wandName, resource): (String, Resource) = if (idx == 0) ("wand", mw.res(program)) else ("wand_" ++ idx.toString, mw)
             val instances = model.entries.get(wandName).collect { case MapEntry(opts, _) => opts }.getOrElse(scala.collection.immutable.Map.empty)
             if (instances.exists(_._2.toString == bhe.reference(1))) {
-              ans +:= (resource, WandFinalEntry.fromStructure(wandName, mw, argValues, bhe.perm, bhe.het, program))
+              ans +:= (resource, WandResolvedEntry.fromStructure(wandName, mw, argValues, bhe.perm, bhe.het, program))
             }
           }
         case _ => println("This type of heap entry could not be matched correctly!")
