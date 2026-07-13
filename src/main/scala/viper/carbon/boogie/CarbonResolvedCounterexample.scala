@@ -1109,29 +1109,12 @@ object CarbonResolvedCounterexample {
               println(s"Could not find a predicate node for: ${bhe.toString}")
           }
         case MagicWandType | QPMagicWandType =>
-          val translatedArgs = bhe.field // .map(x => translNames.getOrElse(x, x)) TODO translNames
+          val argValues = bhe.field // TODO translNames: .map(x => translNames.getOrElse(x, x))
           for ((mw, idx) <- program.magicWandStructures.zipWithIndex) {
-            val mwStructure = mw.structure(program, true)
-            val replacements: Iterable[(ast.Node, ast.Node)] = mwStructure.subexpressionsToEvaluate(program).zip(translatedArgs).map(e => e._1 -> ast.LocalVar(e._2, e._1.typ)())
-            val repl: scala.collection.immutable.Map[ast.Node, ast.Node] = scala.collection.immutable.Map.from(replacements)
-            val transformed = mwStructure.replace(repl)
-            if (idx == 0) {
-              if (model.entries.get("wand").isDefined && model.entries.get("wand").get.isInstanceOf[MapEntry]) {
-                for (s <-  model.entries.get("wand").get.asInstanceOf[MapEntry].options) {
-                  if (s._2.toString == bhe.reference(1)) {
-                    ans +:= (mw.res(program), WandFinalEntry("wand", transformed.left, transformed.right, scala.collection.immutable.Map[String, String](), bhe.perm, bhe.het))
-                  }
-                }
-              }
-            } else {
-              val wandName = "wand_" ++ idx.toString
-              if (model.entries.get(wandName).isDefined && model.entries.get(wandName).get.isInstanceOf[MapEntry]) {
-                for (s <- model.entries.get(wandName).get.asInstanceOf[MapEntry].options) {
-                  if (s._2.toString == bhe.reference(1)) {
-                    ans +:= (mw, WandFinalEntry(wandName, transformed.left, transformed.right, scala.collection.immutable.Map[String, String](), bhe.perm, bhe.het))
-                  }
-                }
-              }
+            val (wandName, resource): (String, Resource) = if (idx == 0) ("wand", mw.res(program)) else ("wand_" ++ idx.toString, mw)
+            val instances = model.entries.get(wandName).collect { case MapEntry(opts, _) => opts }.getOrElse(scala.collection.immutable.Map.empty)
+            if (instances.exists(_._2.toString == bhe.reference(1))) {
+              ans +:= (resource, WandFinalEntry.fromStructure(wandName, mw, argValues, bhe.perm, bhe.het, program))
             }
           }
         case _ => println("This type of heap entry could not be matched correctly!")
