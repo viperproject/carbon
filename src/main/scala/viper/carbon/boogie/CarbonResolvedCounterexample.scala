@@ -17,24 +17,24 @@ import viper.silver.ast.{Declaration, MagicWandStructure, Program, Type}
 /**
   * CounterexampleGenerator class used for generating an "extended" CE.
   */
-case class CarbonExtendedCounterexample(e: AbstractError,
+case class CarbonResolvedCounterexample(e: AbstractError,
                                         names: Map[String, Map[String, String]],
                                         program: Program,
-                                        wandNames: Option[Map[MagicWandStructure.MagicWandStructure, Func]]) extends Counterexample with ExtendedCounterexample {
+                                        wandNames: Option[Map[MagicWandStructure.MagicWandStructure, Func]]) extends Counterexample with ResolvedCounterexample {
   val ve = e.asInstanceOf[VerificationError]
   val errorMethod = ErrorMemberMapping.mapping(ve.readableMessage(true, true))
-  val imCE = CarbonIntermediateCounterexample(ve, errorMethod, names, program, wandNames)
-  val model = imCE.originalEntries
+  val rawCE = CarbonRawCounterexample(ve, errorMethod, names, program, wandNames)
+  val model = rawCE.originalEntries
 
-  val (ceStore, refOcc) = CarbonExtendedCounterexample.detStore(program.methodsByName(errorMethod.name).transitiveScopedDecls, imCE.basicVariables, imCE.allCollections)
-  val nameTranslationMap = CarbonExtendedCounterexample.detTranslationMap(ceStore, refOcc)
-  val ceHeaps = imCE.allBasicHeaps.map(bh => (bh._1, CarbonExtendedCounterexample.detHeap(imCE.workingModel, bh._2, program, imCE.allCollections, nameTranslationMap, imCE.originalEntries))).reverse
+  val (ceStore, refOcc) = CarbonResolvedCounterexample.detStore(program.methodsByName(errorMethod.name).transitiveScopedDecls, rawCE.basicVariables, rawCE.allCollections)
+  val nameTranslationMap = CarbonResolvedCounterexample.detTranslationMap(rawCE.basicVariables, rawCE.allCollections, refOcc)
+  val ceHeaps = rawCE.allBasicHeaps.map(bh => (bh._1, CarbonResolvedCounterexample.detHeap(rawCE.workingModel, bh._2, program, rawCE.allCollections, nameTranslationMap, rawCE.originalEntries))).reverse
 
-  override val domainEntries: Seq[BasicDomainEntry] = CarbonExtendedCounterexample.detTranslatedDomains(imCE.domainEntries, nameTranslationMap)
-  override val functionEntries: Seq[BasicFunctionEntry] = CarbonExtendedCounterexample.detTranslatedFunctions(imCE.nonDomainFunctions, nameTranslationMap)
+  override val domainEntries: Seq[BasicDomainEntry] = CarbonResolvedCounterexample.detTranslatedDomains(rawCE.domainEntries, nameTranslationMap)
+  override val functionEntries: Seq[BasicFunctionEntry] = CarbonResolvedCounterexample.detTranslatedFunctions(rawCE.nonDomainFunctions, nameTranslationMap)
 
   override def toString: String = {
-    var finalString = "      Extended Counterexample: \n"
+    var finalString = "      Resolved Counterexample: \n"
     finalString += "   Store: \n"
     if (!ceStore.storeEntries.isEmpty)
       finalString += ceStore.storeEntries.map(x => x.toString).mkString("", "\n", "\n")
@@ -51,30 +51,30 @@ case class CarbonExtendedCounterexample(e: AbstractError,
 /**
   * CounterexampleGenerator class used for generating an "intermediate" CE.
   */
-case class CarbonIntermediateCounterexample(ve: VerificationError,
+case class CarbonRawCounterexample(ve: VerificationError,
                                             errorMethod: Member,
                                             names: Map[String, Map[String, String]],
                                             program: Program,
-                                            wandNames: Option[Map[MagicWandStructure.MagicWandStructure, Func]]) extends Counterexample with IntermediateCounterexample {
+                                            wandNames: Option[Map[MagicWandStructure.MagicWandStructure, Func]]) extends Counterexample with RawCounterexample {
   val originalEntries = ve.failureContexts(0).counterExample.get.model
   val model = originalEntries
   val typenamesInMethod = names.get(errorMethod.name).get.map(e => e._2 -> e._1)
   val methodVarDecl = program.methodsByName.get(errorMethod.name).get.transitiveScopedDecls
 
-  val (basicVariables, otherDeclarations) = CarbonIntermediateCounterexample.detCEvariables(originalEntries.entries, typenamesInMethod, methodVarDecl)
-  val allSequences = CarbonIntermediateCounterexample.detSequences(originalEntries)
-  val allSets = CarbonIntermediateCounterexample.detSets(originalEntries)
-  val allMultisets = CarbonIntermediateCounterexample.detMultisets(originalEntries)
+  val (basicVariables, otherDeclarations) = CarbonRawCounterexample.detCEvariables(originalEntries.entries, typenamesInMethod, methodVarDecl)
+  val allSequences = CarbonRawCounterexample.detSequences(originalEntries)
+  val allSets = CarbonRawCounterexample.detSets(originalEntries)
+  val allMultisets = CarbonRawCounterexample.detMultisets(originalEntries)
 
-  val workingModel = CarbonIntermediateCounterexample.buildNewModel(originalEntries.entries)
-  val (hmLabels, hmStates) = CarbonIntermediateCounterexample.oldAndReturnHeapMask(workingModel, otherDeclarations)
-  val allBasicHeaps = CarbonIntermediateCounterexample.detHeaps(workingModel, hmStates, originalEntries, hmLabels, program).map{case (n, bh) => if (n == "return") ("current", bh) else (n, bh)}
+  val workingModel = CarbonRawCounterexample.buildNewModel(originalEntries.entries)
+  val (hmLabels, hmStates) = CarbonRawCounterexample.oldAndReturnHeapMask(workingModel, otherDeclarations)
+  val allBasicHeaps = CarbonRawCounterexample.detHeaps(workingModel, hmStates, originalEntries, hmLabels, program).map{case (n, bh) => if (n == "return") ("current", bh) else (n, bh)}
 
-  val domainEntries = CarbonIntermediateCounterexample.getAllDomains(originalEntries, program)
-  val nonDomainFunctions = CarbonIntermediateCounterexample.getAllFunctions(originalEntries, program, hmStates)
+  val domainEntries = CarbonRawCounterexample.getAllDomains(originalEntries, program)
+  val nonDomainFunctions = CarbonRawCounterexample.getAllFunctions(originalEntries, program, hmStates)
 
   override def toString: String = {
-    var finalString = "      Intermediate Counterexample: \n"
+    var finalString = "      Raw Counterexample: \n"
     finalString ++= "   Local Information:\n"
     if (!basicVariables.isEmpty)
       finalString += basicVariables.map(x => x.toString).mkString("", "\n", "\n")
@@ -92,7 +92,7 @@ case class CarbonIntermediateCounterexample(ve: VerificationError,
   }
 }
 
-object CarbonIntermediateCounterexample {
+object CarbonRawCounterexample {
   /**
     * Determines the local variables and their value.
     */
@@ -109,7 +109,7 @@ object CarbonIntermediateCounterexample {
             if (entry.isInstanceOf[MapEntry]) {
               ent = entry.asInstanceOf[MapEntry].options.head._1(0)
             }
-            res +:= CEVariable(v.name, ent, Some(v.typ))
+            res +:= CEVariable(v.name, CounterexampleValue.literal(ent.toString, Some(v.typ)), Some(v.typ))
           }
         } else {
           otherDeclarations +:= temp
@@ -119,7 +119,7 @@ object CarbonIntermediateCounterexample {
     if (originalEntries.contains("null")) {
       val nullRef = originalEntries.get("null").get
       if (nullRef.isInstanceOf[ConstantEntry]) {
-        res +:= CEVariable("null", nullRef, Some(ast.Ref))
+        res +:= CEVariable("null", CounterexampleValue.literal(nullRef.toString, Some(ast.Ref)), Some(ast.Ref))
       }
     }
     (res, otherDeclarations)
@@ -170,7 +170,7 @@ object CarbonIntermediateCounterexample {
   /**
     * Generates the sequences of the CE.
     */
-  def detSequences(model: Model): Seq[CEValue] = {
+  def detSequences(model: Model): Seq[CECollection] = {
     var res = Map[String, Seq[String]]()
     var tempMap = Map[(String, Seq[String]), String]()
     for ((opName, opValues) <- model.entries) {
@@ -253,22 +253,13 @@ object CarbonIntermediateCounterexample {
         }
       }
     }
-    var ans = Seq[CEValue]()
+    var ans = Seq[CECollection]()
     res.foreach {
       case (n, s) =>
-        val typ: Option[Type] = detASTTypeFromString(n.replaceAll(".*?<(.*)>.*", "$1")) match {
-          case Some(x) => Some(ast.SeqType(x))
-          case None => None
-        }
-        var entries = Map[BigInt, String]()
-        var counter = 0
-        for (e <- s) {
-          if (e != "#undefined") {
-            entries += (BigInt(counter) -> e)
-          }
-          counter += 1
-        }
-        ans +:= CESequence(n, BigInt(s.length), entries, s, typ)
+        val elemTyp: Option[Type] = detASTTypeFromString(n.replaceAll(".*?<(.*)>.*", "$1"))
+        val elems = s.map(e => CounterexampleValue.literal(e, elemTyp))
+        val value = if (elems.isEmpty) ast.EmptySeq(elemTyp.getOrElse(ast.InternalType))() else ast.ExplicitSeq(elems)()
+        ans +:= CECollection(n, value)
     }
     ans
   }
@@ -276,7 +267,7 @@ object CarbonIntermediateCounterexample {
   /**
     * Generates the sets of the CE.
     */
-  def detSets(model: Model): Seq[CEValue] = {
+  def detSets(model: Model): Seq[CECollection] = {
     var res = Map[String, Set[String]]()
     for ((opName, opValues) <- model.entries) {
       if (opName == "Set#Empty") {
@@ -386,20 +377,13 @@ object CarbonIntermediateCounterexample {
         }
       }
     }
-    var ans = Seq[CEValue]()
+    var ans = Seq[CECollection]()
     res.foreach {
       case (n, s) =>
-        val typ: Option[Type] = detASTTypeFromString(n.replaceAll(".*?<(.*)>.*", "$1")) match {
-          case Some(x) => Some(ast.SetType(x))
-          case None => None
-        }
-        var containment = Map[String, Boolean]()
-        for (e <- s) {
-          if (e != "#undefined") {
-            containment += (e -> true)
-          }
-        }
-        ans +:= CESet(n, BigInt(s.size), containment, s, typ)
+        val elemTyp: Option[Type] = detASTTypeFromString(n.replaceAll(".*?<(.*)>.*", "$1"))
+        val elems = s.filter(_ != "#undefined").toSeq.map(e => CounterexampleValue.literal(e, elemTyp))
+        val value = if (elems.isEmpty) ast.EmptySet(elemTyp.getOrElse(ast.InternalType))() else ast.ExplicitSet(elems)()
+        ans +:= CECollection(n, value)
     }
     ans
   }
@@ -407,7 +391,7 @@ object CarbonIntermediateCounterexample {
   /**
     * Generates the multisets of the CE.
     */
-  def detMultisets(model: Model): Seq[CEValue] = {
+  def detMultisets(model: Model): Seq[CECollection] = {
     var res = Map[String, Map[String, Int]]()
     for ((opName, opValues) <- model.entries) {
       if (opName == "MultiSet#Empty") {
@@ -500,15 +484,13 @@ object CarbonIntermediateCounterexample {
         }
       }
     }
-    var ans = Seq[CEValue]()
+    var ans = Seq[CECollection]()
     res.foreach {
       case (n, s) =>
-        val typ: Option[Type] = detASTTypeFromString(n.replaceAll(".*?<(.*)>.*", "$1")) match {
-          case Some(x) => Some(ast.SetType(x))
-          case None => None
-        }
-        val size = s.values.sum
-        ans +:= CEMultiset(n, BigInt(size), s, typ)
+        val elemTyp: Option[Type] = detASTTypeFromString(n.replaceAll(".*?<(.*)>.*", "$1"))
+        val elems = s.toSeq.flatMap { case (e, count) => Seq.fill(count)(CounterexampleValue.literal(e, elemTyp)) }
+        val value = if (elems.isEmpty) ast.EmptyMultiset(elemTyp.getOrElse(ast.InternalType))() else ast.ExplicitMultiset(elems)()
+        ans +:= CECollection(n, value)
     }
     ans
   }
@@ -1014,11 +996,11 @@ object CarbonIntermediateCounterexample {
 
 }
 
-object CarbonExtendedCounterexample {
+object CarbonResolvedCounterexample {
   /**
     * Combine a local variable with its ast node.
     */
-  def detStore(store: Seq[Declaration], variables: Seq[CEVariable], collections: Seq[CEValue]): (StoreCounterexample, Map[String, (String, Int)]) = {
+  def detStore(store: Seq[Declaration], variables: Seq[CEVariable], collections: Seq[CECollection]): (StoreCounterexample, Map[String, (String, Int)]) = {
     var refOccurences = Map[String, (String, Int)]()
     var ans = Seq[StoreEntry]()
     for (k <- store) {
@@ -1027,24 +1009,24 @@ object CarbonExtendedCounterexample {
         for (vari <- variables) {
           if (v.name == vari.name) {
             if (v.typ == ast.Ref) {
-              if (refOccurences.get(vari.entryValue.toString).isDefined) {
-                val (n, i) = refOccurences.get(vari.entryValue.toString).get
+              if (refOccurences.get(vari.value.toString).isDefined) {
+                val (n, i) = refOccurences.get(vari.value.toString).get
                 if (n != v.name) {
-                  refOccurences += (vari.entryValue.toString -> (v.name, i + 1))
+                  refOccurences += (vari.value.toString -> (v.name, i + 1))
                 }
               } else {
-                refOccurences += (vari.entryValue.toString -> (v.name, 1))
+                refOccurences += (vari.value.toString -> (v.name, 1))
               }
             }
             var found = false
             for (coll <- collections) {
-              if (vari.entryValue.toString == coll.id) {
-                ans +:= StoreEntry(ast.LocalVar(v.name, v.typ)(), coll)
+              if (vari.value.toString == coll.id) {
+                ans +:= StoreEntry(ast.LocalVar(v.name, v.typ)(), coll.value)
                 found = true
               }
             }
             if (!found) {
-              ans +:= StoreEntry(ast.LocalVar(v.name, v.typ)(), vari)
+              ans +:= StoreEntry(ast.LocalVar(v.name, v.typ)(), vari.value)
             }
           }
         }
@@ -1056,14 +1038,20 @@ object CarbonExtendedCounterexample {
   /**
     * Match the collection type for the "extended" CE.
     */
-  def detTranslationMap(store: StoreCounterexample, fields: Map[String, (String, Int)]): Map[String, String] = {
+  def detTranslationMap(variables: Seq[CEVariable], collections: Seq[CECollection], fields: Map[String, (String, Int)]): Map[String, String] = {
     var namesTranslation = Map[String, String]()
-    for (ent <- store.storeEntries) {
-      ent.entry match {
-        case CEVariable(internalName, entryValue, _) => namesTranslation += (entryValue.toString -> ent.id.name)
-        case CESequence(internalName, _, _, _, _) => namesTranslation += (internalName -> (ent.id.name + " (Seq)"))
-        case CESet(internalName, _, _, _, _) => namesTranslation += (internalName -> (ent.id.name + " (Set)"))
-        case CEMultiset(internalName, _, _, _) => namesTranslation += (internalName -> (ent.id.name + " (MultiSet)"))
+    for (vari <- variables) {
+      collections.find(_.id == vari.value.toString) match {
+        case Some(coll) =>
+          val suffix = vari.typ match {
+            case Some(_: ast.SeqType) => " (Seq)"
+            case Some(_: ast.SetType) => " (Set)"
+            case Some(_: ast.MultisetType) => " (MultiSet)"
+            case _ => ""
+          }
+          namesTranslation += (coll.id -> (vari.name + suffix))
+        case None =>
+          namesTranslation += (vari.value.toString -> vari.name)
       }
     }
     for ((k, v) <- fields) {
@@ -1077,7 +1065,7 @@ object CarbonExtendedCounterexample {
   /**
     * Match heap resources to their ast node and translate all identifiers (for fields and references)
     */
-  def detHeap(opMapping: Map[Seq[String], String], basicHeap: BasicHeap, program: Program, collections: Seq[CEValue], translNames: Map[String, String], model: Model): HeapCounterexample = {
+  def detHeap(opMapping: Map[Seq[String], String], basicHeap: BasicHeap, program: Program, collections: Seq[CECollection], translNames: Map[String, String], model: Model): HeapCounterexample = {
     // choosing all the needed values from the Boogie Model
     var usedIdent = Map[String, Member]()
     for ((key, value) <- opMapping) {
@@ -1101,23 +1089,11 @@ object CarbonExtendedCounterexample {
             usedIdent.get(bhe.field(0)) match {
               case Some(f) =>
                 val fi = f.asInstanceOf[Field]
-                var found = false
-                for (coll <- collections) {
-                  if (bhe.valueID == coll.id) {
-                    if (false && translNames.get(bhe.reference.head).isDefined) {
-                      ans +:= (fi, FieldFinalEntry(translNames.get(bhe.reference.head).get, fi.name, coll, bhe.perm, fi.typ, bhe.het))
-                    } else {
-                      ans +:= (fi, FieldFinalEntry(bhe.reference.head, fi.name, coll, bhe.perm, fi.typ, bhe.het))
-                    }
-                    found = true
-                  }
-                }
-                if (!found) {
-                  if (false && translNames.get(bhe.reference.head).isDefined) {
-                    ans +:= (fi, FieldFinalEntry(translNames.get(bhe.reference.head).get, fi.name, CEVariable("#undefined", ConstantEntry(bhe.valueID), Some(fi.typ)), bhe.perm, fi.typ, bhe.het))
-                  } else {
-                    ans +:= (fi, FieldFinalEntry(bhe.reference.head, fi.name, CEVariable("#undefined", ConstantEntry(bhe.valueID), Some(fi.typ)), bhe.perm, fi.typ, bhe.het))
-                  }
+                collections.find(_.id == bhe.valueID) match {
+                  case Some(coll) =>
+                    ans +:= (fi, FieldFinalEntry(bhe.reference.head, fi.name, coll.value, bhe.perm, fi.typ, bhe.het))
+                  case None =>
+                    ans +:= (fi, FieldFinalEntry(bhe.reference.head, fi.name, CounterexampleValue.literal(bhe.valueID, Some(fi.typ)), bhe.perm, fi.typ, bhe.het))
                 }
               case None =>
                 println(s"Could not find a field node for: ${bhe.toString}")
@@ -1127,12 +1103,7 @@ object CarbonExtendedCounterexample {
           usedIdent.get(bhe.reference(1)) match {
             case Some(p) =>
               val pr = p.asInstanceOf[Predicate]
-              val refNames = bhe.field.map(x =>
-                if (false && translNames.get(x).isDefined) {
-                  translNames.get(x).get
-                } else {
-                  x
-                })
+              val refNames = bhe.field
               ans +:= (pr, PredFinalEntry(pr.name, refNames, bhe.perm, bhe.insidePredicate, bhe.het))
             case None =>
               println(s"Could not find a predicate node for: ${bhe.toString}")
@@ -1191,15 +1162,15 @@ object CarbonExtendedCounterexample {
     BasicFunctionEntry(fun.fname, fun.argtypes, fun.returnType, translatedFun, translatedEls)
   }
 
-  def transformInteremdiateCounterexample(e: AbstractError, names: Map[String, Map[String, String]], program: Program, wandNames: Option[Map[MagicWandStructure.MagicWandStructure, Func]]): Unit = {
+  def transformRawCounterexample(e: AbstractError, names: Map[String, Map[String, String]], program: Program, wandNames: Option[Map[MagicWandStructure.MagicWandStructure, Func]]): Unit = {
     if (e.isInstanceOf[VerificationError] && ErrorMemberMapping.mapping.contains(e.asInstanceOf[VerificationError].readableMessage(true, true))) {
-      e.asInstanceOf[VerificationError].failureContexts = scala.collection.immutable.Seq(FailureContextImpl(Some(CarbonExtendedCounterexample(e, names, program, wandNames).imCE)))
+      e.asInstanceOf[VerificationError].failureContexts = scala.collection.immutable.Seq(FailureContextImpl(Some(CarbonResolvedCounterexample(e, names, program, wandNames).rawCE)))
     }
   }
 
-  def transformExtendedCounterexample(e: AbstractError, names: Map[String, Map[String, String]], program: Program, wandNames: Option[Map[MagicWandStructure.MagicWandStructure, Func]]): Unit = {
+  def transformResolvedCounterexample(e: AbstractError, names: Map[String, Map[String, String]], program: Program, wandNames: Option[Map[MagicWandStructure.MagicWandStructure, Func]]): Unit = {
     if (e.isInstanceOf[VerificationError] && ErrorMemberMapping.mapping.contains(e.asInstanceOf[VerificationError].readableMessage(true, true))) {
-      e.asInstanceOf[VerificationError].failureContexts = scala.collection.immutable.Seq(FailureContextImpl(Some(CarbonExtendedCounterexample(e, names, program, wandNames))))
+      e.asInstanceOf[VerificationError].failureContexts = scala.collection.immutable.Seq(FailureContextImpl(Some(CarbonResolvedCounterexample(e, names, program, wandNames))))
     }
   }
 }

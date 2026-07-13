@@ -15,7 +15,7 @@ class GeneralCounterexampleTests extends AllTests {
   override val testDirectories: Seq[String] = Seq("counterexample_mapped", "counterexample_general")
 
   override val commandLineArguments: Seq[String] =
-    Seq("--counterexample=extended")
+    Seq("--counterexample=resolved")
 
   override def buildTestInput(file: Path, prefix: String): DefaultAnnotatedTestInput = {
     CounterexampleTestInput(file, prefix)
