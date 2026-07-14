@@ -889,7 +889,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   }
 
   override def inhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
-    inhaleAux(e, Assume, error)
+    inhaleAux(e, Assume(_), error)
   }
 
   override def inhaleWandFt(w: sil.MagicWand): Stmt = {

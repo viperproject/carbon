@@ -48,7 +48,7 @@ object Transformer {
           ss match {
             case Assign(lhs, rhs) => Assign(go(lhs), go(rhs))
             case Assert(e, error) => Assert(go(e), error)
-            case Assume(e) => Assume(go(e))
+            case Assume(e, atts) => Assume(go(e), atts)
             case HavocImpl(es) => HavocImpl(es map go)
             case Comment(_) => parent
             case CommentBlock(s, stmt) => CommentBlock(s, go(stmt))
@@ -149,7 +149,7 @@ object DuplicatingTransformer {
           ss match {
             case Assign(lhs, rhs) => for {lhsResult <- go(lhs); rhsResult <- go(rhs)} yield Assign(lhsResult, rhsResult)
             case Assert(e, error) => go(e) map (Assert(_, error))
-            case Assume(e) => go(e) map (Assume(_))
+            case Assume(e, atts) => go(e) map (Assume(_, atts))
             case HavocImpl(es) => goSeq(es) map (HavocImpl(_))
             case Comment(_) => Seq(parent)
             case CommentBlock(s, stmt) => go(stmt) map (CommentBlock(s, _))

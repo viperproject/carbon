@@ -307,7 +307,7 @@ sealed trait Stmt extends Node {
 case class Lbl(name: Identifier)
 case class Goto(dests: Seq[Lbl]) extends Stmt
 case class Label(lbl: Lbl) extends Stmt
-case class Assume(exp: Exp) extends Stmt
+case class Assume(exp: Exp, attributes: Map[String, String] = Map.empty) extends Stmt
 case class AssertImpl(exp: Exp, error: VerificationError) extends Stmt {
   var id = AssertIds.next // Used for mapping errors in the output back to VerificationErrors
 }

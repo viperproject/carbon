@@ -551,8 +551,6 @@ object CarbonRawCounterexample {
         heapInstances += ((k(0), v))
       } else if (k(0).startsWith("Mask@")) {
         maskInstances += ((k(0), v))
-      } else if (k(0).startsWith("QPMask@")) {
-        maskInstances += ((k(0).stripPrefix("QP").trim, v))
       } else if ((k(0) == "state") && (v == "true")) {
         states += ((k(1), k(2)))
       }
@@ -610,7 +608,19 @@ object CarbonRawCounterexample {
       labelsHeapMask += ("return" -> (filteredList(filteredList.length - 1)._3, filteredList(filteredList.length - 1)._4))
     }
 
-    (labelsHeapMask, filteredList)
+    // If Boogie's model view captured the state at the failing assertion (via {:captureState},
+    // injected by BoogieInterface as `__captureState__current__Heap/Mask`), use its Heap and Mask
+    // directly as the current ("return") state. This is reliable regardless of QP masks / SSA
+    // naming, unlike the heuristic above. We append the captured (heap, mask) to the state list so
+    // detHeaps picks it up, and override the "return" label to point at it.
+    (workingModel.get(Seq("__captureState__current__Heap")), workingModel.get(Seq("__captureState__current__Mask"))) match {
+      case (Some(capturedHeap), Some(capturedMask)) =>
+        val capturedEntry = ("Heap@captured", "Mask@captured", capturedHeap, capturedMask)
+        labelsHeapMask += ("return" -> (capturedHeap, capturedMask))
+        (labelsHeapMask, filteredList :+ capturedEntry)
+      case _ =>
+        (labelsHeapMask, filteredList)
+    }
   }
 
   /**

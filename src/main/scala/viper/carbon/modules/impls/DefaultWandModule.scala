@@ -604,7 +604,7 @@ private def setupTransferableEntity(e: sil.Exp, permTransfer: Exp):(Transferable
 
 override def exchangeAssumesWithBoolean(stmt: Stmt,boolVar: LocalVar):Stmt = {
   stmt match {
-    case Assume(exp) =>
+    case Assume(exp, _) =>
       boolVar := (boolVar && viper.carbon.boogie.PrettyPrinter.quantifyOverFreeTypeVars(exp))
     case Seqn(statements) =>
       Seqn(statements.map(s => exchangeAssumesWithBoolean(s, boolVar)))

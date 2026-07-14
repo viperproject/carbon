@@ -27,8 +27,16 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
 
   implicit val stateNamespace = verifier.freshNamespace("state")
 
+  private var captureStateCounter = 0
+
   override def assumeGoodState = {
-    Assume(currentGoodState)
+    // Attach a {:captureState} attribute to the good-state assumption. With Boogie's model view
+    // (/mv, enabled when a counterexample is requested) this makes Boogie report the values of all
+    // variables (in particular Heap and Mask) at this exact program point, which the counterexample
+    // extractor reads directly instead of guessing the current state from SSA variable names. The
+    // attribute is inert when /mv is off. The value is only for uniqueness (Boogie also freshens it).
+    captureStateCounter += 1
+    Assume(currentGoodState, Map("captureState" -> ("cs_" + captureStateCounter)))
   }
 
   override def preamble: Seq[Decl] = {
