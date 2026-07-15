@@ -159,6 +159,12 @@ trait BoogieInterface {
             for ((_, vars) <- capturedStates; (v, value) <- vars if value.trim.nonEmpty) current(v) = value.trim
             for (v <- Seq("Heap", "Mask"); value <- current.get(v))
               parsingModel.get.append(s"__captureState__current__$v -> $value\n")
+            // The pre-state ("old") is captured under a label starting with "old" (Boogie may
+            // freshen it to old$0 etc.; only the failing method's block is emitted, so there is at
+            // most one). Inject its Heap/Mask so the extractor can report the "old" heap directly.
+            for ((_, vars) <- capturedStates.find(_._1.startsWith("old"));
+                 v <- Seq("Heap", "Mask"); value <- vars.get(v) if value.trim.nonEmpty)
+              parsingModel.get.append(s"__captureState__old__$v -> ${value.trim}\n")
           }
           models.append(parsingModel.get.toString())
           parsingModel = None

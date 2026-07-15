@@ -95,7 +95,10 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
   def initOldState: Stmt = {
     val freshSnapshot = freshTempStateKeepCurrentAux("old", true)
     curOldState = freshSnapshot._1
-    initToCurrentStmt(freshSnapshot)
+    // At this point the current state (Heap, Mask) still holds the pre-state values that "old"
+    // refers to, so capture it under the label "old" (see assumeGoodState for how captureState is
+    // used). The counterexample extractor reads the pre-state heap/mask from this block.
+    initToCurrentStmt(freshSnapshot) ++ Assume(currentGoodState, Map("captureState" -> "old"))
   }
 
 

@@ -67,11 +67,11 @@ case class CarbonRawCounterexample(ve: VerificationError,
   val allMultisets = CarbonRawCounterexample.detMultisets(originalEntries)
 
   val workingModel = CarbonRawCounterexample.buildNewModel(originalEntries.entries)
-  val (hmLabels, hmStates) = CarbonRawCounterexample.oldAndReturnHeapMask(workingModel, otherDeclarations)
-  val allRawHeaps = CarbonRawCounterexample.detHeaps(workingModel, hmStates, originalEntries, hmLabels, program).map{case (n, bh) => if (n == "return") ("current", bh) else (n, bh)}
+  val (hmLabels, heapInstances) = CarbonRawCounterexample.oldAndReturnHeapMask(workingModel, otherDeclarations)
+  val allRawHeaps = CarbonRawCounterexample.detHeaps(workingModel, originalEntries, hmLabels, program).map{case (n, bh) => if (n == "return") ("current", bh) else (n, bh)}
 
   val domainEntries = CarbonRawCounterexample.getAllDomains(originalEntries, program)
-  val nonDomainFunctions = CarbonRawCounterexample.getAllFunctions(originalEntries, program, hmStates)
+  val nonDomainFunctions = CarbonRawCounterexample.getAllFunctions(originalEntries, program, heapInstances)
 
   override def toString: String = {
     var finalString = "      Raw Counterexample: \n"
@@ -538,89 +538,35 @@ object CarbonRawCounterexample {
     * Gather all the heap and mask states from the model. Then, combine them into heap instances (=> mask state + heap state)
     * and order them.
     */
-  def oldAndReturnHeapMask(workingModel: Map[Seq[String], String], labels: Seq[Declaration]): (Map[String, (String, String)], List[(String, String, String, String)]) = {
-    var heapInstances = Set[(String, String)]()
-    var maskInstances = Set[(String, String)]()
-    var states = Set[(String, String)]()
-    for ((k, v) <- workingModel) {
-      if (k(0).startsWith("Heap@@")) {
-        heapInstances += ((k(0), v))
-      } else if (k(0).startsWith("Mask@@")) {
-        maskInstances += ((k(0), v))
-      } else if (k(0).startsWith("Heap@")) {
-        heapInstances += ((k(0), v))
-      } else if (k(0).startsWith("Mask@")) {
-        maskInstances += ((k(0), v))
-      } else if ((k(0) == "state") && (v == "true")) {
-        states += ((k(1), k(2)))
-      }
-    }
-
-    // determine all the heap and mask states (first all, then sorted and then filtered)
-    val hmStates = for {
-      (heapId, maskId) <- states
-      hName <- heapInstances.collect { case (name, id) if id == heapId => name }
-      mName <- maskInstances.collect { case (name, id) if id == maskId => name }
-    } yield (hName, mName, heapId, maskId)
-
-    val sortedHMStates = hmStates.toList.sortBy {
-      case (heapName, maskName, _, _) =>
-        if (heapName.startsWith("Heap@@") && maskName.startsWith("Mask@@")) {
-          0
-        } else if (heapName.startsWith("Heap@@")) {
-          val maskValue = maskName.stripPrefix("Mask@").trim.toInt
-          maskValue + 1
-        } else if (maskName.startsWith("Mask@@")) {
-          val heapValue = heapName.stripPrefix("Heap@").trim.toInt
-          heapValue + 1
-        } else {
-          val heapValue = heapName.stripPrefix("Heap@").trim.toInt
-          val maskValue = maskName.stripPrefix("Mask@").trim.toInt
-          heapValue + maskValue + 2
-        }
-    }
-
-    val filteredList = sortedHMStates.foldLeft(List.empty[(String, String, String, String)]) {
-      case (acc, curr@(h, m, _, _))
-        if h.contains("@@") || m.contains("@@") || acc.isEmpty || acc.last._1.contains("@@") || acc.last._2.contains("@@") || (h.stripPrefix("Heap@").trim.toInt >= acc.last._1.stripPrefix("Heap@").trim.toInt && m.stripPrefix("Mask@").trim.toInt >= acc.last._2.stripPrefix("Mask@").trim.toInt) =>
-        acc :+ curr
-      case (acc, _) =>
-        acc
-    }
+  def oldAndReturnHeapMask(workingModel: Map[Seq[String], String], labels: Seq[Declaration]): (Map[String, (String, String)], Seq[(String, String)]) = {
+    // Collect the Heap@ instances (name -> value id) so that getAllFunctions can display heap-typed
+    // function arguments by their Boogie name instead of the raw model value id.
+    val heapInstances = workingModel.collect { case (k, v) if k(0).startsWith("Heap@") => (k(0), v) }.toSeq
 
     var labelsHeapMask = Map[String, (String, String)]()
 
-    if (filteredList.nonEmpty) {
-      if (filteredList.size > 1) {
-        labelsHeapMask += ("old" -> (filteredList(0)._3, filteredList(0)._4))
+    // The (heap, mask) for each label state is read directly from Boogie's model view, captured via
+    // {:captureState} attributes: the pre-state under "old" (initOldState) and the state at the
+    // failing point under "current" (assumeGoodState). BoogieInterface injects these as flat
+    // `__captureState__old/current__Heap/Mask` model entries. Explicit label statements store their
+    // heap/mask in LabelNHeap/LabelNMask.
+    for (h <- workingModel.get(Seq("__captureState__old__Heap")); m <- workingModel.get(Seq("__captureState__old__Mask")))
+      labelsHeapMask += ("old" -> (h, m))
+    for (l <- labels) {
+      l match {
+        case ast.Label(n, _) =>
+          val lhi = "Label" + n + "Heap"
+          val lmi = "Label" + n + "Mask"
+          if (workingModel.contains(Seq(lhi)) && workingModel.contains(Seq(lmi))) {
+            labelsHeapMask += (n -> (workingModel.get(Seq(lhi)).get, workingModel.get(Seq(lmi)).get))
+          }
+        case _ => //
       }
-      for (l <- labels) {
-        l match {
-          case ast.Label(n, _) =>
-            val lhi = "Label" + n + "Heap"
-            val lmi = "Label" + n + "Mask"
-            if (workingModel.contains(Seq(lhi)) && workingModel.contains(Seq(lmi))) {
-              labelsHeapMask += (n -> (workingModel.get(Seq(lhi)).get, workingModel.get(Seq(lmi)).get))
-            }
-          case _ => //
-        }
-      }
-      labelsHeapMask += ("return" -> (filteredList(filteredList.length - 1)._3, filteredList(filteredList.length - 1)._4))
     }
+    for (h <- workingModel.get(Seq("__captureState__current__Heap")); m <- workingModel.get(Seq("__captureState__current__Mask")))
+      labelsHeapMask += ("return" -> (h, m))
 
-    // If Boogie's model view captured the state at the failing assertion (via {:captureState},
-    // injected by BoogieInterface as `__captureState__current__Heap/Mask`), use its Heap and Mask
-    // directly as the current ("return") state. This is reliable regardless of QP masks / SSA
-    // naming, unlike the heuristic above. We append the captured (heap, mask) to the state list so
-    // detHeaps picks it up, and override the "return" label to point at it.
-    (workingModel.get(Seq("__captureState__current__Heap")), workingModel.get(Seq("__captureState__current__Mask"))) match {
-      case (Some(capturedHeap), Some(capturedMask)) =>
-        val capturedEntry = ("Heap@captured", "Mask@captured", capturedHeap, capturedMask)
-        labelsHeapMask += ("return" -> (capturedHeap, capturedMask))
-        (labelsHeapMask, filteredList :+ capturedEntry)
-      case _ =>
-        (labelsHeapMask, filteredList)
-    }
+    (labelsHeapMask, heapInstances)
   }
 
   /**
@@ -631,7 +577,7 @@ object CarbonRawCounterexample {
     * @param MapType0Select Mappings from a mask state, a reference and a field to a permission.
     * The fields in these mappings can also be identifiers for a predicate or a magic wand.
     */
-  def detHeaps(opMapping: Map[Seq[String], String], hmStates: List[(String, String, String, String)], model: Model, hmLabels: Map[String, (String, String)], program: Program): Seq[(String, RawHeap)] = {
+  def detHeaps(opMapping: Map[Seq[String], String], model: Model, hmLabels: Map[String, (String, String)], program: Program): Seq[(String, RawHeap)] = {
     val predByName = program.predicatesByName
     var heapOp = Map[Seq[String], String]()
     var maskOp = Map[Seq[String], String]()
@@ -688,79 +634,25 @@ object CarbonRawCounterexample {
           heapEntrySet += RawHeapEntry(Seq(ck(0), ck(1)), predContentMap.get(ck(1)).getOrElse(Seq()), value._1, tempPerm, typ, None)
         }
       }
-      var startNow = false
-      for ((_, _, heapIdentifier, maskIdentifier) <- hmStates.reverse) {
-        if (heapIdentifier == labelHeap && maskIdentifier == labelMask) {
-          startNow = true
-        }
-        if (startNow) {
-          for ((maskKey, perm) <- maskOp) {
-            val maskId = maskKey(1)
-            val reference = maskKey(2)
-            val field = maskKey(3)
-            if (maskId == maskIdentifier) {
-              if (!heapEntrySet.exists({
-                case bhe =>
-                  ((bhe.reference.length > 0) && (bhe.field.length > 0) && (bhe.reference(0) == reference) && (bhe.field(0) == field)) ||
-                    ((bhe.reference.length > 1) && (bhe.reference(0) == reference) && (bhe.reference(1) == field))
-              })) {
-                val tempPerm: Option[Rational] = detHeapEntryPermission(permMap, perm)
-                val typ: HeapEntryType = detHeapType(model, qpMaskSet, field, maskId)
-                if (typ == FieldType || typ == QPFieldType) {
-                  heapOp.get(Seq("MapType0Select", heapIdentifier, reference, field)) match {
-                    case Some(v) => heapEntrySet += RawHeapEntry(Seq(reference), Seq(field), v, tempPerm, typ, None)
-                    case None => heapEntrySet += RawHeapEntry(Seq(reference), Seq(field), "#undefined", tempPerm, typ, None)
-                  }
-                } else if (typ == PredicateType || typ == QPPredicateType) {
-                  heapOp.get(Seq("MapType0Select", heapIdentifier, reference, field)) match {
-                    case Some(v) => heapEntrySet += RawHeapEntry(Seq(reference, field), predContentMap.get(field).getOrElse(Seq()), v, tempPerm, typ, Some(evalInsidePredicate(v, field, predicateFinder, predByName, model)))
-                    case None => heapEntrySet += RawHeapEntry(Seq(reference, field), predContentMap.get(field).getOrElse(Seq()), "#undefined", tempPerm, typ, Some(Map[ast.Exp, ModelEntry]()))
-                  }
-                } else if (typ == MagicWandType || typ == QPMagicWandType) {
-                  heapOp.get(Seq("MapType0Select", heapIdentifier, reference, field)) match {
-                    case Some(v) => heapEntrySet += RawHeapEntry(Seq(reference, field), mwContentMap.get(field).getOrElse(Seq()), v, tempPerm, typ, None)
-                    case None => heapEntrySet += RawHeapEntry(Seq(reference, field), mwContentMap.get(field).getOrElse(Seq()), "#undefined", tempPerm, typ, None)
-                  }
-                }
-              } else {
-                heapEntrySet.find(
-                  { case bhe => (bhe.het == FieldType || bhe.het == QPFieldType) && (bhe.reference(0) == reference) && (bhe.field(0) == field) && (bhe.valueID == "#undefined") }
-                ) match {
-                  case Some(v) =>
-                    heapOp.get(Seq("MapType0Select", heapIdentifier, reference, field)) match {
-                      case Some(x) =>
-                        heapEntrySet += RawHeapEntry(Seq(reference), Seq(field), x, v.perm, v.het, None)
-                        heapEntrySet -= RawHeapEntry(Seq(reference), Seq(field), "#undefined", v.perm, v.het, None)
-                      case None => //
-                    }
-                  case None => //
-                }
-                heapEntrySet.find(
-                  { case bhe => (bhe.het == PredicateType || bhe.het == QPPredicateType) && (bhe.reference(0) == reference) && (bhe.reference(1) == field) && (bhe.valueID == "#undefined") }
-                ) match {
-                  case Some(v) =>
-                    heapOp.get(Seq("MapType0Select", heapIdentifier, reference, field)) match {
-                      case Some(x) =>
-                        heapEntrySet += RawHeapEntry(Seq(reference, field), predContentMap.get(field).getOrElse(Seq()), x, v.perm, v.het, v.insidePredicate)
-                        heapEntrySet -= RawHeapEntry(Seq(reference, field), predContentMap.get(field).getOrElse(Seq()), "#undefined", v.perm, v.het, v.insidePredicate)
-                      case None => //
-                    }
-                  case None => //
-                }
-                heapEntrySet.find(
-                  { case bhe => (bhe.het == MagicWandType || bhe.het == QPMagicWandType) && (bhe.reference(0) == reference) && (bhe.reference(1) == field) && (bhe.valueID == "#undefined") }
-                ) match {
-                  case Some(v) =>
-                    heapOp.get(Seq("MapType0Select", heapIdentifier, reference, field)) match {
-                      case Some(x) =>
-                        heapEntrySet += RawHeapEntry(Seq(reference, field), mwContentMap.get(field).getOrElse(Seq()), x, v.perm, v.het, None)
-                        heapEntrySet -= RawHeapEntry(Seq(reference, field), mwContentMap.get(field).getOrElse(Seq()), "#undefined", v.perm, v.het, None)
-                      case None => //
-                    }
-                  case None => //
-                }
-              }
-            }
+      // Add every permission entry of this label's mask (from MapType1Select) that the store-based
+      // pass above didn't already cover, taking the value from this label's heap. Since the label's
+      // (heap, mask) is the exact captured state, there is no need to walk older mask versions.
+      for ((maskKey, perm) <- maskOp) {
+        val reference = maskKey(2)
+        val field = maskKey(3)
+        if (maskKey(1) == labelMask && !heapEntrySet.exists(bhe =>
+              (bhe.reference.nonEmpty && bhe.field.nonEmpty && bhe.reference(0) == reference && bhe.field(0) == field) ||
+                (bhe.reference.length > 1 && bhe.reference(0) == reference && bhe.reference(1) == field))) {
+          val tempPerm: Option[Rational] = detHeapEntryPermission(permMap, perm)
+          val typ: HeapEntryType = detHeapType(model, qpMaskSet, field, labelMask)
+          val value = heapOp.getOrElse(Seq("MapType0Select", labelHeap, reference, field), "#undefined")
+          if (typ == FieldType || typ == QPFieldType) {
+            heapEntrySet += RawHeapEntry(Seq(reference), Seq(field), value, tempPerm, typ, None)
+          } else if (typ == PredicateType || typ == QPPredicateType) {
+            val insidePred = if (value == "#undefined") Map[ast.Exp, ModelEntry]() else evalInsidePredicate(value, field, predicateFinder, predByName, model)
+            heapEntrySet += RawHeapEntry(Seq(reference, field), predContentMap.getOrElse(field, Seq()), value, tempPerm, typ, Some(insidePred))
+          } else if (typ == MagicWandType || typ == QPMagicWandType) {
+            heapEntrySet += RawHeapEntry(Seq(reference, field), mwContentMap.getOrElse(field, Seq()), value, tempPerm, typ, None)
           }
         }
       }
@@ -978,7 +870,7 @@ object CarbonRawCounterexample {
   /**
     * Extract all the functions occuring inside of a domain.
     */
-  def getAllFunctions(model: Model, program: ast.Program, heapInstances: Seq[(String, String, String, String)]): Seq[BasicFunctionEntry] = {
+  def getAllFunctions(model: Model, program: ast.Program, heapInstances: Seq[(String, String)]): Seq[BasicFunctionEntry] = {
     val funcs = program.collect {
       case f: ast.Function => f
     }
@@ -988,7 +880,7 @@ object CarbonRawCounterexample {
   /**
     * Determine all the inputs and outputs combinations of a function occruing the counterexample model.
     */
-  def detFunction(model: Model, func: ast.FuncLike, genmap: scala.collection.immutable.Map[ast.TypeVar, ast.Type], heapInst: Seq[(String, String, String, String)], program: ast.Program, hd: Boolean): BasicFunctionEntry = {
+  def detFunction(model: Model, func: ast.FuncLike, genmap: scala.collection.immutable.Map[ast.TypeVar, ast.Type], heapInst: Seq[(String, String)], program: ast.Program, hd: Boolean): BasicFunctionEntry = {
     val fname = func.name
     val resTyp: ast.Type = func.typ
     val argTyp: Seq[ast.Type] = func.formalArgs.map(x => x.typ)
@@ -998,7 +890,7 @@ object CarbonRawCounterexample {
         if (hd) {
           for ((k, v) <- m) {
             var hName = k.head.toString
-            for ((h, _, i, _) <- heapInst) {
+            for ((h, i) <- heapInst) {
               if (i == hName) {
                 hName = h
               }

@@ -178,7 +178,7 @@ case class CarbonVerifier(override val reporter: Reporter,
 
     var transformNames = false
     var rawCounterexample = false
-    var resolvedCounterexample = true
+    var resolvedCounterexample = false
     if (config == null) Seq() else config.counterexample.toOption match {
       case Some(NativeModel) =>
       case Some(VariablesModel) => transformNames = true
