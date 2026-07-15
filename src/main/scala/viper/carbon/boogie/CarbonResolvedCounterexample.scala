@@ -65,6 +65,7 @@ case class CarbonRawCounterexample(ve: VerificationError,
   val allSequences = CarbonRawCounterexample.detSequences(originalEntries)
   val allSets = CarbonRawCounterexample.detSets(originalEntries)
   val allMultisets = CarbonRawCounterexample.detMultisets(originalEntries)
+  val allMaps = CarbonRawCounterexample.detMaps(originalEntries)
 
   val workingModel = CarbonRawCounterexample.buildNewModel(originalEntries.entries)
   val (hmLabels, heapInstances) = CarbonRawCounterexample.oldAndReturnHeapMask(workingModel, otherDeclarations)
@@ -243,7 +244,10 @@ object CarbonRawCounterexample {
         } else if (opName == "Seq#Index") {
           res.get(k(0)) match {
             case Some(x) =>
-              if (!k(1).startsWith("(")) {
+              // Ignore indices outside the reconstructed sequence: the model can contain spurious
+              // Seq#Index facts (e.g. from unrelated maps sharing the encoding) whose index exceeds
+              // the sequence's length, which would make `updated` throw.
+              if (!k(1).startsWith("(") && k(1).toInt >= 0 && k(1).toInt < x.length) {
                 res += (k(0) -> x.updated(k(1).toInt, v))
                 found = true
               }
@@ -298,12 +302,13 @@ object CarbonRawCounterexample {
       if (opName == "MapType2Select") {
         if (opValues.isInstanceOf[MapEntry]) {
           for ((k, v) <- opValues.asInstanceOf[MapEntry].options) {
-            if (v.toString.toBoolean) {
-              if (k(1).toString.startsWith("T@U!val!")) {
-                res += (k(0).toString -> Set())
-              } else {
-                res += (k(0).toString -> Set())
-              }
+            // MapType2Select is the Boogie select used for set membership (Set = [T]Bool), but the
+            // same numbered map type can be shared with other maps whose selects return non-boolean
+            // (boxed) values. Only a value denoting `true` (possibly a boxed boolean) marks
+            // membership; anything else is ignored. Using isTrueValue instead of `.toBoolean` avoids
+            // throwing on e.g. "T@U!val!15" while still recognising a boxed true.
+            if (isTrueValue(v.toString, model)) {
+              res += (k(0).toString -> Set())
             }
           }
         }
@@ -331,11 +336,11 @@ object CarbonRawCounterexample {
         } else if (opName == "MapType2Select") {
           res.get(k(0)) match {
             case Some(x) =>
-              if (v.toBoolean && !k(1).startsWith("T@U!val!")) {
+              if (isTrueValue(v, model) && !k(1).startsWith("T@U!val!")) {
                 res += (k(0) -> x.union(Set(k(1))))
               }
             case None =>
-              if (v.toBoolean && !k(1).startsWith("T@U!val!")) {
+              if (isTrueValue(v, model) && !k(1).startsWith("T@U!val!")) {
                 res += (k(0) -> Set(k(1)))
               } else {
                 res += (k(0) -> Set())
@@ -494,6 +499,133 @@ object CarbonRawCounterexample {
     }
     ans
   }
+
+  /**
+    * Reconstructs map values from the Boogie model, analogously to [[detSets]]. A map is built up
+    * from the empty map `Map#Empty` by a chain of `Map#Build(m, k, v)` operations, each of which
+    * adds (or overwrites) the binding k -> v. Boogie map value ids carry no type information, so the
+    * key/value literals are inferred.
+    */
+  def detMaps(model: Model): Seq[CECollection] = {
+    var res = Map[String, scala.collection.immutable.Map[String, String]]()
+    // Seed empty maps: Map#Empty is the empty map for some key/value type (its arguments are the
+    // type parameters, which we ignore), and any map whose cardinality is zero is empty as well.
+    for ((opName, opValues) <- model.entries) {
+      if (opName == "Map#Empty") {
+        opValues match {
+          case me: MapEntry => for ((_, v) <- me.options) res += (v.toString -> scala.collection.immutable.Map.empty)
+          case ce: ConstantEntry if ce.value != "false" && ce.value != "true" => res += (ce.value -> scala.collection.immutable.Map.empty)
+          case _ =>
+        }
+      }
+      if (opName == "Map#Card") {
+        opValues match {
+          case me: MapEntry => for ((k, v) <- me.options) if (v.toString.startsWith("0")) res += (k(0).toString -> scala.collection.immutable.Map.empty)
+          case _ =>
+        }
+      }
+    }
+    // Collect the build facts Map#Build(base, key, value) = result.
+    var tempMap = Map[Seq[String], String]()
+    for ((opName, opValues) <- model.entries) {
+      if (opName == "Map#Build") {
+        opValues match {
+          case me: MapEntry => for ((k, v) <- me.options) tempMap += (k.map(x => x.toString) -> v.toString)
+          case _ =>
+        }
+      }
+    }
+    // Apply builds to a fixpoint: a result map becomes known as soon as its base map is known.
+    var progress = true
+    while (tempMap.nonEmpty && progress) {
+      progress = false
+      for ((k, v) <- tempMap) {
+        res.get(k(0)) match {
+          case Some(base) =>
+            res += (v -> base.updated(k(1), k(2)))
+            tempMap -= k
+            progress = true
+          case None => //
+        }
+      }
+    }
+    // Maps that are not built from a Map#Build chain (e.g. a bare parameter constrained only via
+    // `m[k] == v` / `k in domain(m)`) have no entry above. Reconstruct them from `Map#Domain(m)` (a
+    // set) and `Map#Elements(m)` (the underlying [K]V map): a two-argument `MapType*Select(setId, k)
+    // == true` marks k as a domain key, and `MapType*Select(elemsId, k)` gives its value. Only keys
+    // in the domain that also have a value are shown (analogous to a partial set listing known
+    // members). The Boogie map-type numbering is program-dependent, so all `MapType*Select`
+    // functions are scanned.
+    val mapDomain = model.entries.get("Map#Domain") match {
+      case Some(me: MapEntry) => me.options.collect { case (k, v) if k.nonEmpty => (k(0).toString, v.toString) }
+      case _ => Map.empty[String, String]
+    }
+    if (mapDomain.nonEmpty) {
+      val mapElements = model.entries.get("Map#Elements") match {
+        case Some(me: MapEntry) => me.options.collect { case (k, v) if k.nonEmpty => (k(0).toString, v.toString) }
+        case _ => Map.empty[String, String]
+      }
+      var setMembers = Map[String, Set[String]]()
+      var selectVals = Map[(String, String), String]()
+      for ((opName, opValues) <- model.entries if opName.startsWith("MapType") && opName.endsWith("Select")) {
+        opValues match {
+          case me: MapEntry => for ((k, v) <- me.options if k.length == 2) {
+            selectVals += ((k(0).toString, k(1).toString) -> v.toString)
+            if (isTrueValue(v.toString, model)) setMembers += (k(0).toString -> (setMembers.getOrElse(k(0).toString, Set.empty) + k(1).toString))
+          }
+          case _ =>
+        }
+      }
+      for ((mapId, domainSetId) <- mapDomain if !res.contains(mapId)) {
+        val elemsMapId = mapElements.getOrElse(mapId, "")
+        val entries = setMembers.getOrElse(domainSetId, Set.empty).flatMap(key =>
+          selectVals.get((elemsMapId, key)).map(value => key -> value)).toMap
+        res += (mapId -> entries)
+      }
+    }
+    var ans = Seq[CECollection]()
+    res.foreach {
+      case (n, m) =>
+        val maplets: Seq[ast.Exp] = m.toSeq.map { case (k, v) =>
+          ast.Maplet(CounterexampleValue.literal(decodeBoxedValue(k, model), None),
+                     CounterexampleValue.literal(decodeBoxedValue(v, model), None))()
+        }
+        val value = if (maplets.isEmpty) ast.EmptyMap(ast.InternalType, ast.InternalType)()
+                    else ast.ExplicitMap(maplets)()
+        ans +:= CECollection(n, value)
+    }
+    ans
+  }
+
+  /**
+    * Boogie boxes values of a generic type as opaque `T@U` constants. The model records the
+    * correspondence via `U_2_int`/`U_2_bool` (unboxing) and `int_2_U`/`bool_2_U` (boxing). This
+    * decodes a boxed value to its underlying literal string when the model records it, in either
+    * direction. Values that are already literals, or that cannot be decoded, are returned unchanged.
+    */
+  def decodeBoxedValue(v: String, model: Model): String = {
+    if (!v.startsWith("T@U!")) return v
+    for (fn <- Seq("U_2_int", "U_2_bool")) {
+      model.entries.get(fn) match {
+        case Some(me: MapEntry) =>
+          me.options.collectFirst { case (k, r) if k.length == 1 && k(0).toString == v => r.toString }
+            .foreach(decoded => return decoded)
+        case _ =>
+      }
+    }
+    for (fn <- Seq("int_2_U", "bool_2_U")) {
+      model.entries.get(fn) match {
+        case Some(me: MapEntry) =>
+          me.options.collectFirst { case (k, r) if k.length == 1 && r.toString == v => k(0).toString }
+            .foreach(decoded => return decoded)
+        case _ =>
+      }
+    }
+    v
+  }
+
+  /** Whether a set-membership select value denotes `true`, also decoding a boxed boolean. */
+  def isTrueValue(v: String, model: Model): Boolean = v == "true" || decodeBoxedValue(v, model) == "true"
 
   def detASTTypeFromString(typ: String): Option[Type] = {
     typ match {
