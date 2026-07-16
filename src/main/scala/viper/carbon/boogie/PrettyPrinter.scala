@@ -150,8 +150,8 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
       }
     }
     s match {
-      case Assume(e) =>
-        text("assume") <+> show(quantifyOverFreeTypeVars(e)) <> char (';')
+      case Assume(e, atts) =>
+        text("assume") <+> (if (atts.isEmpty) nil else showAttributes(atts) <> space) <> show(quantifyOverFreeTypeVars(e)) <> char (';')
       case a@Assert(e, error) =>
         text("assert") <+>
           "{:msg" <+> "\"  " <> showError(error, a.id) <> "\"}" <> line <>

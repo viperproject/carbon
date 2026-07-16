@@ -62,6 +62,7 @@ trait BoogieInterface {
     "/proverOpt:O:smt.QI.EAGER_THRESHOLD=100",
     "/proverOpt:O:smt.BV.REFLECT=true",
     "/proverOpt:O:smt.qi.max_multi_patterns=1000",
+    "/proverOpt:O:MODEL.PARTIAL=true",
     s"/proverOpt:PROVER_PATH=$z3Path")
 
   /** The (resolved) path where Boogie is supposed to be located. */
@@ -82,6 +83,7 @@ trait BoogieInterface {
   def invokeBoogie(program: Program, options: Seq[String], timeout: Option[Int]): (String,VerificationResult) = {
     // find all errors and assign everyone a unique id
     errormap = Map()
+    models.clear()
     program.visit {
       case a@Assert(exp, error) =>
         errormap += (a.id -> error)
@@ -132,21 +134,54 @@ trait BoogieInterface {
     }
 
     var parsingModel : Option[StringBuilder] = None
-    var stateInitialBlock = false
+    // Captured states of the current model (from Boogie's {:captureState} model view), in trace
+    // order: label -> (variable -> value). The last one is the state at the failing assertion. We
+    // inject its Heap/Mask into the model as flat `__captureState__current__<var>` entries so the
+    // counterexample extractor can read them directly instead of guessing the current state from
+    // SSA variable names. The `*** STATE` blocks must NOT leak into the model string (they are not
+    // valid model entries) — hence they are captured here rather than appended to `parsingModel`.
+    var capturedStates : collection.mutable.LinkedHashMap[String, collection.mutable.LinkedHashMap[String, String]] = null
+    var currentStateName : String = null
+    val StateStartPattern = "\\*\\*\\* STATE (.*)".r
+    val StateVarPattern = "\\s*(\\S+) -> (.*)".r
     for (l <- output.linesIterator) {
       l match {
-        case "*** END_STATE" =>
-          stateInitialBlock = false
-        case "*** STATE <initial>" =>
-          stateInitialBlock = true
-        case _ if stateInitialBlock => //ignore everything within state block
-        case "*** END_MODEL" if parsingModel.isDefined =>
-          models.append(parsingModel.get.toString())
-          parsingModel = None
-        case _ if parsingModel.isDefined =>
-          parsingModel.get.append(l).append("\n")
         case "*** MODEL" if parsingModel.isEmpty =>
           parsingModel = Some(new StringBuilder)
+          capturedStates = collection.mutable.LinkedHashMap.empty
+        case "*** END_MODEL" if parsingModel.isDefined =>
+          if (capturedStates != null && capturedStates.nonEmpty) {
+            // The captured states are sparse (each lists only the variables whose current
+            // incarnation has a value in the partial model), so accumulate the last non-empty
+            // value of each variable across the states in trace order to get the state at the
+            // failing assertion.
+            val current = collection.mutable.LinkedHashMap[String, String]()
+            for ((_, vars) <- capturedStates; (v, value) <- vars if value.trim.nonEmpty) current(v) = value.trim
+            for (v <- Seq("Heap", "Mask"); value <- current.get(v))
+              parsingModel.get.append(s"__captureState__current__$v -> $value\n")
+            // The pre-state ("old") is captured under a label starting with "old" (Boogie may
+            // freshen it to old$0 etc.; only the failing method's block is emitted, so there is at
+            // most one). Inject its Heap/Mask so the extractor can report the "old" heap directly.
+            for ((_, vars) <- capturedStates.find(_._1.startsWith("old"));
+                 v <- Seq("Heap", "Mask"); value <- vars.get(v) if value.trim.nonEmpty)
+              parsingModel.get.append(s"__captureState__old__$v -> ${value.trim}\n")
+          }
+          models.append(parsingModel.get.toString())
+          parsingModel = None
+          capturedStates = null
+          currentStateName = null
+        case StateStartPattern(name) if capturedStates != null =>
+          currentStateName = name
+          capturedStates(name) = collection.mutable.LinkedHashMap.empty
+        case "*** END_STATE" =>
+          currentStateName = null
+        case _ if currentStateName != null =>
+          l match {
+            case StateVarPattern(v, value) => capturedStates(currentStateName)(v) = value
+            case _ => // ignore non-variable lines within a state block
+          }
+        case _ if parsingModel.isDefined =>
+          parsingModel.get.append(l).append("\n")
         case LogoPattern(version) =>
           version_found = version
         case ErrorPattern(id) =>

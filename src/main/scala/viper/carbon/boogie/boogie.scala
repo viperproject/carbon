@@ -307,14 +307,14 @@ sealed trait Stmt extends Node {
 case class Lbl(name: Identifier)
 case class Goto(dests: Seq[Lbl]) extends Stmt
 case class Label(lbl: Lbl) extends Stmt
-case class Assume(exp: Exp) extends Stmt
+case class Assume(exp: Exp, attributes: Map[String, String] = Map.empty) extends Stmt
 case class AssertImpl(exp: Exp, error: VerificationError) extends Stmt {
   var id = AssertIds.next // Used for mapping errors in the output back to VerificationErrors
 }
 object ErrorMemberMapping {
   // The "weak" hash map is necessary to avoid leaking memory.
   // See issue https://github.com/viperproject/carbon/issues/444
-  val mapping = mutable.WeakHashMap[VerificationError, Member]()
+  val mapping = mutable.HashMap[String, Member]()
   var currentMember : Member = null
 }
 object Assert {
@@ -322,7 +322,7 @@ object Assert {
     if (error == null) Statements.EmptyStmt
     else {
       if (ErrorMemberMapping.currentMember != null) {
-        ErrorMemberMapping.mapping.update(error, ErrorMemberMapping.currentMember)
+        ErrorMemberMapping.mapping.update(error.readableMessage(true, true), ErrorMemberMapping.currentMember)
       }
       AssertImpl(exp, error)
     }

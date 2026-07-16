@@ -1,0 +1,1207 @@
+package viper.carbon.boogie
+
+import scala.collection.mutable
+import scala.collection.immutable._
+import viper.carbon.verifier.FailureContextImpl
+import viper.silver.verifier._
+import viper.silver.ast
+import viper.silver.ast.{Field, Member, Predicate, Resource}
+import viper.silver.verifier.{AbstractError, ApplicationEntry, ConstantEntry, MapEntry, Model, ModelEntry, UnspecifiedEntry, ValueEntry, VerificationError}
+import viper.silver.ast.{Declaration, MagicWandStructure, Program, Type}
+
+/**
+  * Transforms a counterexample returned by Boogie back to a Viper counterexample. The programmer can choose between an
+  * "intermediate" CE or an "extended" CE.
+  */
+
+/**
+  * CounterexampleGenerator class used for generating an "extended" CE.
+  */
+case class CarbonResolvedCounterexample(e: AbstractError,
+                                        names: Map[String, Map[String, String]],
+                                        program: Program,
+                                        wandNames: Option[Map[MagicWandStructure.MagicWandStructure, Func]]) extends Counterexample with ResolvedCounterexample {
+  val ve = e.asInstanceOf[VerificationError]
+  val errorMethod = ErrorMemberMapping.mapping(ve.readableMessage(true, true))
+  val rawCE = CarbonRawCounterexample(ve, errorMethod, names, program, wandNames)
+  val model = rawCE.originalEntries
+
+  val (ceStore, refOcc) = CarbonResolvedCounterexample.detStore(program.methodsByName(errorMethod.name).transitiveScopedDecls, rawCE.basicVariables, rawCE.allCollections)
+  val nameTranslationMap = CarbonResolvedCounterexample.detTranslationMap(rawCE.basicVariables, rawCE.allCollections, refOcc)
+  val ceHeaps = rawCE.allRawHeaps.map(bh => (bh._1, CarbonResolvedCounterexample.detHeap(rawCE.workingModel, bh._2, program, rawCE.allCollections, nameTranslationMap, rawCE.originalEntries))).reverse
+
+  override val domainEntries: Seq[BasicDomainEntry] = CarbonResolvedCounterexample.detTranslatedDomains(rawCE.domainEntries, nameTranslationMap)
+  override val functionEntries: Seq[BasicFunctionEntry] = CarbonResolvedCounterexample.detTranslatedFunctions(rawCE.nonDomainFunctions, nameTranslationMap)
+
+  override def toString: String = {
+    var finalString = "      Resolved Counterexample: \n"
+    finalString += "   Store: \n"
+    if (!ceStore.storeEntries.isEmpty)
+      finalString += ceStore.storeEntries.map(x => x.toString).mkString("", "\n", "\n")
+    if (!ceHeaps.filter(y => !y._2.heapEntries.isEmpty).isEmpty)
+      finalString += ceHeaps.filter(y => !y._2.heapEntries.isEmpty).map(x => "   " + x._1 + " Heap: \n" + x._2.toString).mkString("")
+    if (domainsAndFunctions.nonEmpty) {
+      finalString += "   Domains: \n"
+      finalString += domainsAndFunctions.map(x => x.toString).mkString("", "\n", "\n")
+    }
+    finalString
+  }
+}
+
+/**
+  * CounterexampleGenerator class used for generating an "intermediate" CE.
+  */
+case class CarbonRawCounterexample(ve: VerificationError,
+                                            errorMethod: Member,
+                                            names: Map[String, Map[String, String]],
+                                            program: Program,
+                                            wandNames: Option[Map[MagicWandStructure.MagicWandStructure, Func]]) extends Counterexample with RawCounterexample {
+  val originalEntries = ve.failureContexts(0).counterExample.get.model
+  val model = originalEntries
+  val typenamesInMethod = names.get(errorMethod.name).get.map(e => e._2 -> e._1)
+  val methodVarDecl = program.methodsByName.get(errorMethod.name).get.transitiveScopedDecls
+
+  val (basicVariables, otherDeclarations) = CarbonRawCounterexample.detCEvariables(originalEntries.entries, typenamesInMethod, methodVarDecl)
+  val allSequences = CarbonRawCounterexample.detSequences(originalEntries)
+  val allSets = CarbonRawCounterexample.detSets(originalEntries)
+  val allMultisets = CarbonRawCounterexample.detMultisets(originalEntries)
+  val allMaps = CarbonRawCounterexample.detMaps(originalEntries)
+
+  val workingModel = CarbonRawCounterexample.buildNewModel(originalEntries.entries)
+  val (hmLabels, heapInstances) = CarbonRawCounterexample.oldAndReturnHeapMask(workingModel, otherDeclarations)
+  val allRawHeaps = CarbonRawCounterexample.detHeaps(workingModel, originalEntries, hmLabels, program).map{case (n, bh) => if (n == "return") ("current", bh) else (n, bh)}
+
+  val domainEntries = CarbonRawCounterexample.getAllDomains(originalEntries, program)
+  val nonDomainFunctions = CarbonRawCounterexample.getAllFunctions(originalEntries, program, heapInstances)
+
+  override def toString: String = {
+    var finalString = "      Raw Counterexample: \n"
+    finalString ++= "   Local Information:\n"
+    if (!basicVariables.isEmpty)
+      finalString += basicVariables.map(x => x.toString).mkString("", "\n", "\n")
+    if (!allCollections.isEmpty)
+      finalString += allCollections.map(x => x.toString).mkString("", "\n", "\n")
+    if (!allRawHeaps.filter(y => !y._2.rawHeapEntries.isEmpty).isEmpty)
+      finalString += allRawHeaps.reverse.filter(y => !y._2.rawHeapEntries.isEmpty).map(x => "   " + x._1 + " Heap: \n" + x._2.toString).mkString("", "\n", "\n")
+    if (!domainEntries.isEmpty || !nonDomainFunctions.isEmpty)
+      finalString ++= "   Domains:\n"
+    if (!domainEntries.isEmpty)
+      finalString += domainEntries.map(x => x.toString).mkString("", "\n", "\n")
+    if (!nonDomainFunctions.isEmpty)
+      finalString += nonDomainFunctions.map(x => x.toString).mkString("", "\n", "\n")
+    finalString
+  }
+}
+
+object CarbonRawCounterexample {
+  /**
+    * Determines the local variables and their value.
+    */
+  def detCEvariables(originalEntries: Map[String, ModelEntry], namesInMember: Map[String, String], variables: Seq[Declaration]): (Seq[CEVariable], Seq[Declaration]) = {
+    var res = Seq[CEVariable]()
+    var otherDeclarations = Seq[Declaration]()
+    val modelVariables = transformModelEntries(originalEntries, namesInMember)
+    for ((name, entry) <- modelVariables) {
+      for (temp <- variables) {
+        if (temp.isInstanceOf[ast.LocalVarDecl]) {
+          val v = temp.asInstanceOf[ast.LocalVarDecl]
+          if (v.name == name) {
+            var ent = entry
+            if (entry.isInstanceOf[MapEntry]) {
+              ent = entry.asInstanceOf[MapEntry].options.head._1(0)
+            }
+            res +:= CEVariable(v.name, CounterexampleValue.literal(ent.toString, Some(v.typ)), Some(v.typ))
+          }
+        } else {
+          otherDeclarations +:= temp
+        }
+      }
+    }
+    if (originalEntries.contains("null")) {
+      val nullRef = originalEntries.get("null").get
+      if (nullRef.isInstanceOf[ConstantEntry]) {
+        res +:= CEVariable("null", CounterexampleValue.literal(nullRef.toString, Some(ast.Ref)), Some(ast.Ref))
+      }
+    }
+    (res, otherDeclarations)
+  }
+
+  /**
+    * Chooses the latest instance of a variable in the counterexample model received from the SMT solver.
+    */
+  def transformModelEntries(originalEntries: Map[String, ModelEntry], namesInMember: Map[String, String]): mutable.Map[String, ModelEntry] = {
+    val newEntries = mutable.HashMap[String, ModelEntry]()
+    val currentEntryForName = mutable.HashMap[String, String]()
+    for ((vname, e) <- originalEntries) {
+      var originalName = vname
+      if (originalName.startsWith("q@")) {
+        originalName = originalName.substring(2)
+      } else if (originalName.indexOf("@@") != -1) {
+        originalName = originalName.substring(0, originalName.indexOf("@@"))
+      } else if (originalName.indexOf("@") != -1) {
+        originalName = originalName.substring(0, originalName.indexOf("@"))
+      }
+      if (PrettyPrinter.backMap.contains(originalName)) {
+        val originalViperName = PrettyPrinter.backMap.get(originalName).get
+        if (namesInMember.contains(originalViperName)) {
+          val viperName = namesInMember.get(originalViperName).get
+          if (!currentEntryForName.contains(viperName) ||
+            isLaterVersion(vname, originalName, currentEntryForName.get(viperName).get)) {
+            newEntries.update(viperName, e)
+            currentEntryForName.update(viperName, vname)
+          }
+        }
+      }
+    }
+    newEntries
+  }
+
+  def isLaterVersion(firstName: String, originalName: String, secondName: String): Boolean = {
+    if ((secondName == originalName || secondName == "q@" + originalName || secondName.indexOf("@@") != -1) && !"@@.*!".r.findFirstIn(firstName).isDefined) {
+      true
+    } else if (secondName.indexOf("@") != -1 && firstName.indexOf("@@") == -1 && firstName.indexOf("@") != -1) {
+      val firstIndex = Integer.parseInt(firstName.substring(firstName.indexOf("@") + 1))
+      val secondIndex = Integer.parseInt(secondName.substring(secondName.indexOf("@") + 1))
+      firstIndex > secondIndex
+    } else {
+      false
+    }
+  }
+
+  /**
+    * Generates the sequences of the CE.
+    */
+  def detSequences(model: Model): Seq[CECollection] = {
+    var res = Map[String, Seq[String]]()
+    var tempMap = Map[(String, Seq[String]), String]()
+    for ((opName, opValues) <- model.entries) {
+      if (opName == "Seq#Length") {
+        if (opValues.isInstanceOf[MapEntry]) {
+          for ((k, v) <- opValues.asInstanceOf[MapEntry].options) {
+            res += (k(0).toString -> Seq.fill(v.toString.toInt)("#undefined"))
+          }
+        }
+      } else if (opName == "Seq#Empty") {
+        if (opValues.isInstanceOf[MapEntry]) {
+          for ((k, v) <- opValues.asInstanceOf[MapEntry].options) {
+            res += (v.toString -> Seq())
+          }
+        }
+      } else if (opName == "Seq#Append" || opName == "Seq#Take" || opName == "Seq#Drop" || opName == "Seq#Index") {
+        if (opValues.isInstanceOf[MapEntry]) {
+          for ((k, v) <- opValues.asInstanceOf[MapEntry].options) {
+            tempMap += ((opName, k.map(x => x.toString)) -> v.toString)
+          }
+        }
+      }
+    }
+    for ((opName, opValues) <- model.entries) {
+      if (opName == "Seq#Singleton") {
+        if (opValues.isInstanceOf[MapEntry]) {
+          for ((k, v) <- opValues.asInstanceOf[MapEntry].options) {
+            res += (v.toString -> Seq(k(0).toString))
+          }
+        }
+      }
+      if (opName == "Seq#Range") {
+        if (opValues.isInstanceOf[MapEntry]) {
+          for ((k, v) <- opValues.asInstanceOf[MapEntry].options) {
+            res += (v.toString -> Seq.range(k(0).toString.toInt, k(1).toString.toInt).map(x => x.toString))
+          }
+        }
+      }
+    }
+    var found = true
+    while (found) {
+      found = false
+      for (((opName, k), v) <- tempMap) {
+        if (opName == "Seq#Append") {
+          (res.get(k(0)), res.get(k(1))) match {
+            case (Some(x), Some(y)) =>
+              if (!res.contains(v)) {
+                res += (v -> (x ++ y))
+                tempMap -= ((opName, k))
+                found = true
+              }
+            case (_, _) => //
+          }
+        } else if (opName == "Seq#Take") {
+          res.get(k(0)) match {
+            case Some(x) =>
+              res += (v -> x.take(k(1).toInt))
+              tempMap -= ((opName, k))
+              found = true
+            case None => //
+          }
+        } else if (opName == "Seq#Drop") {
+          res.get(k(0)) match {
+            case Some(x) =>
+              res += (v -> x.drop(k(1).toInt))
+              tempMap -= ((opName, k))
+              found = true
+            case None => //
+          }
+        } else if (opName == "Seq#Index") {
+          res.get(k(0)) match {
+            case Some(x) =>
+              // Ignore indices outside the reconstructed sequence: the model can contain spurious
+              // Seq#Index facts (e.g. from unrelated maps sharing the encoding) whose index exceeds
+              // the sequence's length, which would make `updated` throw.
+              if (!k(1).startsWith("(") && k(1).toInt >= 0 && k(1).toInt < x.length) {
+                res += (k(0) -> x.updated(k(1).toInt, v))
+                found = true
+              }
+              tempMap -= ((opName, k))
+            case None => //
+          }
+        }
+      }
+    }
+    var ans = Seq[CECollection]()
+    res.foreach {
+      case (n, s) =>
+        val elemTyp: Option[Type] = detASTTypeFromString(n.replaceAll(".*?<(.*)>.*", "$1"))
+        val elems = s.map(e => CounterexampleValue.literal(e, elemTyp))
+        val value = if (elems.isEmpty) ast.EmptySeq(elemTyp.getOrElse(ast.InternalType))() else ast.ExplicitSeq(elems)()
+        ans +:= CECollection(n, value)
+    }
+    ans
+  }
+
+  /**
+    * Generates the sets of the CE.
+    */
+  def detSets(model: Model): Seq[CECollection] = {
+    var res = Map[String, Set[String]]()
+    for ((opName, opValues) <- model.entries) {
+      if (opName == "Set#Empty") {
+        if (opValues.isInstanceOf[MapEntry]) {
+          for ((k, v) <- opValues.asInstanceOf[MapEntry].options) {
+            res += (v.toString -> Set())
+          }
+        } else if (opValues.isInstanceOf[ConstantEntry] && opValues.asInstanceOf[ConstantEntry].value != "false" && opValues.asInstanceOf[ConstantEntry].value != "true") {
+          res += (opValues.asInstanceOf[ConstantEntry].value -> Set())
+        }
+      }
+      if (opName == "Set#Singleton") {
+        if (opValues.isInstanceOf[MapEntry]) {
+          for ((k, v) <- opValues.asInstanceOf[MapEntry].options) {
+            res += (v.toString -> Set(k(0).toString))
+          }
+        }
+      }
+      if (opName == "Set#Card") {
+        if (opValues.isInstanceOf[MapEntry]) {
+          for ((k, v) <- opValues.asInstanceOf[MapEntry].options) {
+            if (v.toString.startsWith("0")) {
+              res += (k(0).toString -> Set())
+            }
+          }
+        }
+      }
+      if (opName == "MapType2Select") {
+        if (opValues.isInstanceOf[MapEntry]) {
+          for ((k, v) <- opValues.asInstanceOf[MapEntry].options) {
+            // MapType2Select is the Boogie select used for set membership (Set = [T]Bool), but the
+            // same numbered map type can be shared with other maps whose selects return non-boolean
+            // (boxed) values. Only a value denoting `true` (possibly a boxed boolean) marks
+            // membership; anything else is ignored. Using isTrueValue instead of `.toBoolean` avoids
+            // throwing on e.g. "T@U!val!15" while still recognising a boxed true.
+            if (isTrueValue(v.toString, model)) {
+              res += (k(0).toString -> Set())
+            }
+          }
+        }
+      }
+    }
+    var tempMap = Map[(String, Seq[String]), String]()
+    for ((opName, opValues) <- model.entries) {
+      if (opName == "Set#UnionOne" || opName == "MapType2Select") {
+        if (opValues.isInstanceOf[MapEntry]) {
+          for ((k, v) <- opValues.asInstanceOf[MapEntry].options) {
+            tempMap += ((opName, k.map(x => x.toString)) -> v.toString)
+          }
+        }
+      }
+    }
+    while (!tempMap.isEmpty) {
+      for (((opName, k), v) <- tempMap) {
+        if (opName == "Set#UnionOne") {
+          res.get(k(0)) match {
+            case Some(x) =>
+              res += (v -> x.union(Set(k(1))))
+              tempMap -= ((opName, k))
+            case None => //
+          }
+        } else if (opName == "MapType2Select") {
+          res.get(k(0)) match {
+            case Some(x) =>
+              if (isTrueValue(v, model) && !k(1).startsWith("T@U!val!")) {
+                res += (k(0) -> x.union(Set(k(1))))
+              }
+            case None =>
+              if (isTrueValue(v, model) && !k(1).startsWith("T@U!val!")) {
+                res += (k(0) -> Set(k(1)))
+              } else {
+                res += (k(0) -> Set())
+              }
+          }
+          tempMap -= ((opName, k))
+        }
+      }
+    }
+    for ((opName, opValues) <- model.entries) {
+      if (opName == "Set#Union" || opName== "Set#Difference" || opName == "Set#Intersection") {
+        if (opValues.isInstanceOf[MapEntry]) {
+          for ((k, v) <- opValues.asInstanceOf[MapEntry].options) {
+            tempMap += ((opName, k.map(x => x.toString)) -> v.toString)
+          }
+        }
+      }
+    }
+    var found = true
+    while (!tempMap.isEmpty && found) {
+      found = false
+      for (((opName, k), v) <- tempMap) {
+        val firstSet = res.get(k(0))
+        val secondSet = res.get(k(1))
+        if ((firstSet != None) && (secondSet != None)) {
+          if (opName == "Set#Union") {
+            res += (v -> firstSet.get.union(secondSet.get))
+            tempMap -= ((opName, k))
+            found = true
+          } else if (opName == "Set#Intersection") {
+            res += (v -> firstSet.get.intersect(secondSet.get))
+            tempMap -= ((opName, k))
+            found = true
+          } else if (opName == "Set#Difference") {
+            res += (v -> firstSet.get.diff(secondSet.get))
+            tempMap -= ((opName, k))
+            found = true
+          }
+        }
+      }
+    }
+    var ans = Seq[CECollection]()
+    res.foreach {
+      case (n, s) =>
+        val elemTyp: Option[Type] = detASTTypeFromString(n.replaceAll(".*?<(.*)>.*", "$1"))
+        val elems = s.filter(_ != "#undefined").toSeq.map(e => CounterexampleValue.literal(e, elemTyp))
+        val value = if (elems.isEmpty) ast.EmptySet(elemTyp.getOrElse(ast.InternalType))() else ast.ExplicitSet(elems)()
+        ans +:= CECollection(n, value)
+    }
+    ans
+  }
+
+  /**
+    * Generates the multisets of the CE.
+    */
+  def detMultisets(model: Model): Seq[CECollection] = {
+    var res = Map[String, Map[String, Int]]()
+    for ((opName, opValues) <- model.entries) {
+      if (opName == "MultiSet#Empty") {
+        if (opValues.isInstanceOf[MapEntry]) {
+          for ((k, v) <- opValues.asInstanceOf[MapEntry].options) {
+            res += (v.toString -> Map[String, Int]())
+          }
+        } else if (opValues.isInstanceOf[ConstantEntry] && opValues.asInstanceOf[ConstantEntry].value != "false" && opValues.asInstanceOf[ConstantEntry].value != "true") {
+          res += (opValues.asInstanceOf[ConstantEntry].value -> Map[String, Int]())
+        }
+      }
+      if (opName == "MultiSet#Singleton") {
+        if (opValues.isInstanceOf[MapEntry]) {
+          for ((k, v) <- opValues.asInstanceOf[MapEntry].options) {
+            res += (v.toString -> Map(k(0).toString -> 1))
+          }
+        }
+      }
+      if (opName == "MultiSet#Select") {
+        if (opValues.isInstanceOf[MapEntry]) {
+          for ((k, v) <- opValues.asInstanceOf[MapEntry].options) {
+            if (!k(1).toString.startsWith("T@U!val!") && !v.toString.startsWith("0")) {
+              res += (k(0).toString -> res.getOrElse(k(0).toString, Map.empty).updated(k(1).toString, v.toString.toInt))
+            }
+          }
+        }
+      }
+      if (opName == "MultiSet#Card") {
+        if (opValues.isInstanceOf[MapEntry]) {
+          for ((k, v) <- opValues.asInstanceOf[MapEntry].options) {
+            if (v.toString.startsWith("0")) {
+              res += (k(0).toString -> Map[String, Int]())
+            }
+          }
+        }
+      }
+    }
+    var tempMap = Map[(String, Seq[String]), String]()
+    for ((opName, opValues) <- model.entries) {
+      if (opName == "MultiSet#UnionOne") {
+        if (opValues.isInstanceOf[MapEntry]) {
+          for ((k, v) <- opValues.asInstanceOf[MapEntry].options) {
+            tempMap += ((opName, k.map(x => x.toString)) -> v.toString)
+          }
+        }
+      }
+    }
+    while (!tempMap.isEmpty) {
+      for (((opName, k), v) <- tempMap) {
+        res.get(k(0)) match {
+          case Some(x) =>
+            res += (v -> x.updated(k(1), x.getOrElse(k(1), 0)+1))
+            tempMap -= ((opName, k))
+          case None => //
+        }
+      }
+    }
+    for ((opName, opValues) <- model.entries) {
+      if (opName == "MultiSet#Union" || opName == "MultiSet#Difference" || opName == "MultiSet#Intersection") {
+        if (opValues.isInstanceOf[MapEntry]) {
+          for ((k, v) <- opValues.asInstanceOf[MapEntry].options) {
+            tempMap += ((opName, k.map(x => x.toString)) -> v.toString)
+          }
+        }
+      }
+    }
+    while (!tempMap.isEmpty) {
+      for (((opName, k), v) <- tempMap) {
+        val firstMultiset = res.get(k(0))
+        val secondMultiset = res.get(k(1))
+        if ((firstMultiset != None) && (secondMultiset != None)) {
+          if (opName == "MultiSet#Union") {
+            res += (v -> (firstMultiset.get.keySet ++ secondMultiset.get.keySet).map { key =>
+              (key -> (firstMultiset.get.getOrElse(key, 0) + secondMultiset.get.getOrElse(key, 0)))
+            }.toMap)
+            tempMap -= ((opName, k))
+          } else if (opName == "MultiSet#Intersection") {
+            res += (v -> (firstMultiset.get.keySet & secondMultiset.get.keySet).map { key =>
+              key -> Math.min(firstMultiset.get.get(key).get, secondMultiset.get.get(key).get)
+            }.toMap)
+            tempMap -= ((opName, k))
+          } else if (opName == "MultiSet#Difference") {
+            res += (v -> (firstMultiset.get.map { case (key, count) =>
+              key -> (count - secondMultiset.get.getOrElse(key, 0))
+            }.filter(_._2 > 0) ++ secondMultiset.get.filter { case (key, _) =>
+              !firstMultiset.get.contains(key)
+            }))
+            tempMap -= ((opName, k))
+          }
+        }
+      }
+    }
+    var ans = Seq[CECollection]()
+    res.foreach {
+      case (n, s) =>
+        val elemTyp: Option[Type] = detASTTypeFromString(n.replaceAll(".*?<(.*)>.*", "$1"))
+        val elems = s.toSeq.flatMap { case (e, count) => Seq.fill(count)(CounterexampleValue.literal(e, elemTyp)) }
+        val value = if (elems.isEmpty) ast.EmptyMultiset(elemTyp.getOrElse(ast.InternalType))() else ast.ExplicitMultiset(elems)()
+        ans +:= CECollection(n, value)
+    }
+    ans
+  }
+
+  /**
+    * Reconstructs map values from the Boogie model, analogously to [[detSets]]. A map is built up
+    * from the empty map `Map#Empty` by a chain of `Map#Build(m, k, v)` operations, each of which
+    * adds (or overwrites) the binding k -> v. Boogie map value ids carry no type information, so the
+    * key/value literals are inferred.
+    */
+  def detMaps(model: Model): Seq[CECollection] = {
+    var res = Map[String, scala.collection.immutable.Map[String, String]]()
+    // Seed empty maps: Map#Empty is the empty map for some key/value type (its arguments are the
+    // type parameters, which we ignore), and any map whose cardinality is zero is empty as well.
+    for ((opName, opValues) <- model.entries) {
+      if (opName == "Map#Empty") {
+        opValues match {
+          case me: MapEntry => for ((_, v) <- me.options) res += (v.toString -> scala.collection.immutable.Map.empty)
+          case ce: ConstantEntry if ce.value != "false" && ce.value != "true" => res += (ce.value -> scala.collection.immutable.Map.empty)
+          case _ =>
+        }
+      }
+      if (opName == "Map#Card") {
+        opValues match {
+          case me: MapEntry => for ((k, v) <- me.options) if (v.toString.startsWith("0")) res += (k(0).toString -> scala.collection.immutable.Map.empty)
+          case _ =>
+        }
+      }
+    }
+    // Collect the build facts Map#Build(base, key, value) = result.
+    var tempMap = Map[Seq[String], String]()
+    for ((opName, opValues) <- model.entries) {
+      if (opName == "Map#Build") {
+        opValues match {
+          case me: MapEntry => for ((k, v) <- me.options) tempMap += (k.map(x => x.toString) -> v.toString)
+          case _ =>
+        }
+      }
+    }
+    // Apply builds to a fixpoint: a result map becomes known as soon as its base map is known.
+    var progress = true
+    while (tempMap.nonEmpty && progress) {
+      progress = false
+      for ((k, v) <- tempMap) {
+        res.get(k(0)) match {
+          case Some(base) =>
+            res += (v -> base.updated(k(1), k(2)))
+            tempMap -= k
+            progress = true
+          case None => //
+        }
+      }
+    }
+    // Maps that are not built from a Map#Build chain (e.g. a bare parameter constrained only via
+    // `m[k] == v` / `k in domain(m)`) have no entry above. Reconstruct them from `Map#Domain(m)` (a
+    // set) and `Map#Elements(m)` (the underlying [K]V map): a two-argument `MapType*Select(setId, k)
+    // == true` marks k as a domain key, and `MapType*Select(elemsId, k)` gives its value. Only keys
+    // in the domain that also have a value are shown (analogous to a partial set listing known
+    // members). The Boogie map-type numbering is program-dependent, so all `MapType*Select`
+    // functions are scanned.
+    val mapDomain = model.entries.get("Map#Domain") match {
+      case Some(me: MapEntry) => me.options.collect { case (k, v) if k.nonEmpty => (k(0).toString, v.toString) }
+      case _ => Map.empty[String, String]
+    }
+    if (mapDomain.nonEmpty) {
+      val mapElements = model.entries.get("Map#Elements") match {
+        case Some(me: MapEntry) => me.options.collect { case (k, v) if k.nonEmpty => (k(0).toString, v.toString) }
+        case _ => Map.empty[String, String]
+      }
+      var setMembers = Map[String, Set[String]]()
+      var selectVals = Map[(String, String), String]()
+      for ((opName, opValues) <- model.entries if opName.startsWith("MapType") && opName.endsWith("Select")) {
+        opValues match {
+          case me: MapEntry => for ((k, v) <- me.options if k.length == 2) {
+            selectVals += ((k(0).toString, k(1).toString) -> v.toString)
+            if (isTrueValue(v.toString, model)) setMembers += (k(0).toString -> (setMembers.getOrElse(k(0).toString, Set.empty) + k(1).toString))
+          }
+          case _ =>
+        }
+      }
+      for ((mapId, domainSetId) <- mapDomain if !res.contains(mapId)) {
+        val elemsMapId = mapElements.getOrElse(mapId, "")
+        val entries = setMembers.getOrElse(domainSetId, Set.empty).flatMap(key =>
+          selectVals.get((elemsMapId, key)).map(value => key -> value)).toMap
+        res += (mapId -> entries)
+      }
+    }
+    var ans = Seq[CECollection]()
+    res.foreach {
+      case (n, m) =>
+        val maplets: Seq[ast.Exp] = m.toSeq.map { case (k, v) =>
+          ast.Maplet(CounterexampleValue.literal(decodeBoxedValue(k, model), None),
+                     CounterexampleValue.literal(decodeBoxedValue(v, model), None))()
+        }
+        val value = if (maplets.isEmpty) ast.EmptyMap(ast.InternalType, ast.InternalType)()
+                    else ast.ExplicitMap(maplets)()
+        ans +:= CECollection(n, value)
+    }
+    ans
+  }
+
+  /**
+    * Boogie boxes values of a generic type as opaque `T@U` constants. The model records the
+    * correspondence via `U_2_int`/`U_2_bool` (unboxing) and `int_2_U`/`bool_2_U` (boxing). This
+    * decodes a boxed value to its underlying literal string when the model records it, in either
+    * direction. Values that are already literals, or that cannot be decoded, are returned unchanged.
+    */
+  def decodeBoxedValue(v: String, model: Model): String = {
+    if (!v.startsWith("T@U!")) return v
+    for (fn <- Seq("U_2_int", "U_2_bool")) {
+      model.entries.get(fn) match {
+        case Some(me: MapEntry) =>
+          me.options.collectFirst { case (k, r) if k.length == 1 && k(0).toString == v => r.toString }
+            .foreach(decoded => return decoded)
+        case _ =>
+      }
+    }
+    for (fn <- Seq("int_2_U", "bool_2_U")) {
+      model.entries.get(fn) match {
+        case Some(me: MapEntry) =>
+          me.options.collectFirst { case (k, r) if k.length == 1 && r.toString == v => k(0).toString }
+            .foreach(decoded => return decoded)
+        case _ =>
+      }
+    }
+    v
+  }
+
+  /** Whether a set-membership select value denotes `true`, also decoding a boxed boolean. */
+  def isTrueValue(v: String, model: Model): Boolean = v == "true" || decodeBoxedValue(v, model) == "true"
+
+  def detASTTypeFromString(typ: String): Option[Type] = {
+    typ match {
+      case "Int" => Some(ast.Int)
+      case "Bool" => Some(ast.Bool)
+      case "Perm" => Some(ast.Perm)
+      case "Ref" => Some(ast.Ref)
+      case _ => None
+    }
+  }
+
+  /**
+    * Takes the counterexample model received from the SMT solver and restructures it.
+    */
+  def buildNewModel(originalEntries: Map[String, ModelEntry]): Map[Seq[String], String] = {
+    var newEntriesMapping = Map[Seq[String], String]()
+    for ((key, value) <- originalEntries) {
+      if (value.isInstanceOf[ConstantEntry]) {
+        val valConstEntry = value.asInstanceOf[ConstantEntry]
+        newEntriesMapping += (Seq(key) -> valConstEntry.toString)
+      } else if (value.isInstanceOf[MapEntry]) {
+        val tempMapping = value.asInstanceOf[MapEntry].options
+        for ((keyTM, valueTM) <- tempMapping) {
+          val tempSeq = (keyTM.map(x => x.toString))
+          if (tempSeq.contains("else")) {
+            //
+          } else {
+            newEntriesMapping += (Seq(key) ++ tempSeq -> valueTM.toString)
+          }
+        }
+      } else if (value.isInstanceOf[ApplicationEntry]) {
+        val applEntry = value.asInstanceOf[ApplicationEntry]
+        newEntriesMapping += (Seq(key) -> applEntry.toString)
+      } else if (value.toString != UnspecifiedEntry.toString) {
+        println("error in buildNewModel")
+      }
+    }
+    newEntriesMapping
+  }
+
+  /**
+    * Gather all the heap and mask states from the model. Then, combine them into heap instances (=> mask state + heap state)
+    * and order them.
+    */
+  def oldAndReturnHeapMask(workingModel: Map[Seq[String], String], labels: Seq[Declaration]): (Map[String, (String, String)], Seq[(String, String)]) = {
+    // Collect the Heap@ instances (name -> value id) so that getAllFunctions can display heap-typed
+    // function arguments by their Boogie name instead of the raw model value id.
+    val heapInstances = workingModel.collect { case (k, v) if k(0).startsWith("Heap@") => (k(0), v) }.toSeq
+
+    var labelsHeapMask = Map[String, (String, String)]()
+
+    // The (heap, mask) for each label state is read directly from Boogie's model view, captured via
+    // {:captureState} attributes: the pre-state under "old" (initOldState) and the state at the
+    // failing point under "current" (assumeGoodState). BoogieInterface injects these as flat
+    // `__captureState__old/current__Heap/Mask` model entries. Explicit label statements store their
+    // heap/mask in LabelNHeap/LabelNMask.
+    for (h <- workingModel.get(Seq("__captureState__old__Heap")); m <- workingModel.get(Seq("__captureState__old__Mask")))
+      labelsHeapMask += ("old" -> (h, m))
+    for (l <- labels) {
+      l match {
+        case ast.Label(n, _) =>
+          val lhi = "Label" + n + "Heap"
+          val lmi = "Label" + n + "Mask"
+          if (workingModel.contains(Seq(lhi)) && workingModel.contains(Seq(lmi))) {
+            labelsHeapMask += (n -> (workingModel.get(Seq(lhi)).get, workingModel.get(Seq(lmi)).get))
+          }
+        case _ => //
+      }
+    }
+    for (h <- workingModel.get(Seq("__captureState__current__Heap")); m <- workingModel.get(Seq("__captureState__current__Mask")))
+      labelsHeapMask += ("return" -> (h, m))
+
+    (labelsHeapMask, heapInstances)
+  }
+
+  /**
+    * Determines all the heap resources by iterating through the heap instances: Check all the "MapType0Select" function
+    * for the heap state of the heap instance and check the "MapType0Select" function for the mask state of the heap
+    * instance. Then gather all the heap resources that occur in both functions for a specific heap instance.
+    * @param MapType0Select Mappings from a heap state, a reference and a field to a value.
+    * @param MapType0Select Mappings from a mask state, a reference and a field to a permission.
+    * The fields in these mappings can also be identifiers for a predicate or a magic wand.
+    */
+  def detHeaps(opMapping: Map[Seq[String], String], model: Model, hmLabels: Map[String, (String, String)], program: Program): Seq[(String, RawHeap)] = {
+    val predByName = program.predicatesByName
+    var heapOp = Map[Seq[String], String]()
+    var maskOp = Map[Seq[String], String]()
+    var qpMaskSet = Set[String]()
+    for ((key, value) <- opMapping) {
+      if (key(0).startsWith("MapType0Select")) {
+        heapOp += (key -> value)
+      } else if (key(0).startsWith("MapType1Select")) {
+        maskOp += (key -> value)
+      } else if (key(0).startsWith("QPMask@")) {
+        qpMaskSet += value
+      }
+    }
+    var predContentMap = Map[String, Seq[String]]()
+    var predicateFinder = Map[String, String]()
+    for (predName <- program.predicates.map(x => x.name)) {
+      val predEntry = model.entries.get(predName).getOrElse(model.entries.find{ case (x, _) => (x.startsWith(predName ++ "_") && !x.contains("@"))}.getOrElse(ConstantEntry("")))
+      if (predEntry.isInstanceOf[MapEntry] && !predEntry.asInstanceOf[MapEntry].options.isEmpty) {
+        for ((predContent, predId) <- predEntry.asInstanceOf[MapEntry].options) {
+          predContentMap += (predId.toString -> predContent.map(x => x.toString))
+          predicateFinder += (predId.toString -> predName)
+        }
+      }
+    }
+    var mwContentMap = Map[String, Seq[String]]()
+    for ((k,v) <- model.entries) {
+      if (k == "wand" || (k.startsWith("wand" ++ "_") && !k.contains("@"))) {
+        if (v.isInstanceOf[MapEntry] && !v.asInstanceOf[MapEntry].options.isEmpty) {
+          for ((mwContent, mwId) <- v.asInstanceOf[MapEntry].options) {
+            mwContentMap += (mwId.toString -> mwContent.map(x => x.toString))
+          }
+        }
+      }
+    }
+    val permMap = model.entries.get("U_2_real").get.asInstanceOf[MapEntry].options
+    var res = Seq[(String, RawHeap)]()
+    for ((labelName, (labelHeap, labelMask)) <- hmLabels) {
+      var heapEntrySet = Set[RawHeapEntry]()
+      val heapStore = model.entries.get("MapType0Store").get.asInstanceOf[MapEntry].options
+      val maskStore = model.entries.get("MapType1Store").get.asInstanceOf[MapEntry].options
+      val heapMap = recursiveBuildHeapMask(heapStore, labelHeap, Map.empty)
+      val maskMap = recursiveBuildHeapMask(maskStore, labelMask, Map.empty)
+      val commonKeys = heapMap.keys.toSet.intersect(maskMap.keys.toSet)
+      for (ck <- commonKeys) {
+        val value = heapMap.get(ck).get
+        val perm = maskMap.get(ck).get
+        val tempPerm: Option[Rational] = detHeapEntryPermission(permMap, perm._1)
+        val typ: HeapEntryType = detHeapType(model, qpMaskSet, ck(1), perm._2)
+        if (typ == FieldType || typ == QPFieldType) {
+          heapEntrySet += RawHeapEntry(Seq(ck(0)), Seq(ck(1)), value._1, tempPerm, typ, None)
+        } else if (typ == PredicateType || typ == QPPredicateType) {
+          heapEntrySet += RawHeapEntry(Seq(ck(0), ck(1)), predContentMap.get(ck(1)).getOrElse(Seq()), value._1, tempPerm, typ, Some(evalInsidePredicate(value._1, ck(1), predicateFinder, predByName, model)))
+        } else if (typ == MagicWandType || typ == QPMagicWandType) {
+          heapEntrySet += RawHeapEntry(Seq(ck(0), ck(1)), predContentMap.get(ck(1)).getOrElse(Seq()), value._1, tempPerm, typ, None)
+        }
+      }
+      // Add every permission entry of this label's mask (from MapType1Select) that the store-based
+      // pass above didn't already cover, taking the value from this label's heap. Since the label's
+      // (heap, mask) is the exact captured state, there is no need to walk older mask versions.
+      for ((maskKey, perm) <- maskOp) {
+        val reference = maskKey(2)
+        val field = maskKey(3)
+        if (maskKey(1) == labelMask && !heapEntrySet.exists(bhe =>
+              (bhe.reference.nonEmpty && bhe.field.nonEmpty && bhe.reference(0) == reference && bhe.field(0) == field) ||
+                (bhe.reference.length > 1 && bhe.reference(0) == reference && bhe.reference(1) == field))) {
+          val tempPerm: Option[Rational] = detHeapEntryPermission(permMap, perm)
+          val typ: HeapEntryType = detHeapType(model, qpMaskSet, field, labelMask)
+          val value = heapOp.getOrElse(Seq("MapType0Select", labelHeap, reference, field), "#undefined")
+          if (typ == FieldType || typ == QPFieldType) {
+            heapEntrySet += RawHeapEntry(Seq(reference), Seq(field), value, tempPerm, typ, None)
+          } else if (typ == PredicateType || typ == QPPredicateType) {
+            val insidePred = if (value == "#undefined") Map[ast.Exp, ModelEntry]() else evalInsidePredicate(value, field, predicateFinder, predByName, model)
+            heapEntrySet += RawHeapEntry(Seq(reference, field), predContentMap.getOrElse(field, Seq()), value, tempPerm, typ, Some(insidePred))
+          } else if (typ == MagicWandType || typ == QPMagicWandType) {
+            heapEntrySet += RawHeapEntry(Seq(reference, field), mwContentMap.getOrElse(field, Seq()), value, tempPerm, typ, None)
+          }
+        }
+      }
+      res +:= (labelName, RawHeap(heapEntrySet))
+    }
+    res
+  }
+
+  /**
+    * Evaluate the snapshot of a predicate.
+    */
+  def evalInsidePredicate(insId: String, predId: String, predicateFinder: Map[String, String], predByName: scala.collection.immutable.Map[String, Predicate], model: Model): Map[ast.Exp, ModelEntry] = {
+    val frameAssign = model.entries.get("FrameFragment")
+    val frameCombine = model.entries.get("CombineFrames")
+    var ans = scala.collection.immutable.Map[ast.Exp, ModelEntry]()
+    if (frameAssign.isDefined && frameAssign.get.isInstanceOf[MapEntry] && frameCombine.isDefined && frameCombine.get.isInstanceOf[MapEntry]) {
+      val insTerm: Seq[String] = detInsideTerm(frameCombine.get.asInstanceOf[MapEntry].options.map(_.swap), insId, Seq())
+      val evaluatedPredTerm = insTerm.map(ent => detInsideValue(frameAssign.get.asInstanceOf[MapEntry].options.map(_.swap), ent))
+      val predName = predicateFinder.get(predId)
+      if (predName.isDefined && predByName.get(predName.get).isDefined) {
+        val astPred = predByName.get(predName.get)
+        if (astPred.isDefined && !astPred.get.isAbstract) {
+          val predBody = astPred.get.body.get
+          val insPred = insPredToBody(predBody, evaluatedPredTerm)
+          if (insPred.length > 0 && !(insPred.length == 1 && insPred(0)._2.startsWith("T@U!val!"))) {
+            var assignedPredBody = scala.collection.immutable.Map[ast.Exp, ModelEntry]()
+            for ((exp, value) <- insPred) {
+              if (value.startsWith("T@U!val!") || value.startsWith("(T@U!val!")) {
+                assignedPredBody += evalBody(exp, UnspecifiedEntry, assignedPredBody)
+              } else {
+                assignedPredBody += evalBody(exp, ConstantEntry(value), assignedPredBody)
+              }
+            }
+            ans = assignedPredBody
+          }
+        }
+      }
+    }
+    ans
+  }
+
+  /**
+    * Compare the snapshot of a predicate to its actual body (accessed through its ast node).
+    */
+  def evalBody(exp: ast.Exp, value: ModelEntry, lookup: Map[ast.Exp, ModelEntry]): (ast.Exp, ModelEntry) = {
+    exp match {
+      case ast.FieldAccessPredicate(predAcc, _) => (predAcc, value)
+      case ast.CondExp(cond, thn, els) =>
+        if (evalExp(cond, lookup)) {
+          evalBody(thn, value, lookup)
+        } else {
+          evalBody(els, value, lookup)
+        }
+      case ast.Implies(left, right) =>
+        if (evalExp(left, lookup)) {
+          evalBody(right, value, lookup)
+        } else {
+          (left, ConstantEntry("False"))
+        }
+      case _ => (exp, value)
+    }
+  }
+
+  def evalExp(exp: ast.Exp, lookup: scala.collection.immutable.Map[ast.Exp, ModelEntry]): Boolean = exp match {
+    case ast.NeCmp(left, right) => !lookup.getOrElse(left, left.toString).toString.equalsIgnoreCase(lookup.getOrElse(right, right.toString).toString)
+    case ast.EqCmp(left, right) => (lookup.getOrElse(left, ConstantEntry(left.toString)).toString.equalsIgnoreCase(lookup.getOrElse(right, ConstantEntry(right.toString)).toString))
+    case _ => false
+  }
+
+  def insPredToBody(body: ast.Exp, insPred: Seq[String]): Seq[(ast.Exp, String)] = {
+    if (insPred.isEmpty) {
+      Seq()
+    } else if (insPred.length == 1) {
+      Seq((body, insPred.head))
+    } else {
+      if (body.subExps.length == 2) {
+        Seq((body.subExps.head, insPred.head)) ++ insPredToBody(body.subExps(1), insPred.tail)
+      } else {
+        Seq()
+      }
+    }
+  }
+
+  def detInsideValue(framesAssign: Map[ValueEntry, Seq[ValueEntry]], entry: String): String = {
+    if (framesAssign.contains(ConstantEntry(entry))) {
+      detInsideValue(framesAssign, framesAssign.get(ConstantEntry(entry)).get(0).toString)
+    } else {
+      entry
+    }
+  }
+
+  def detInsideTerm(framesCombine: Map[ValueEntry, Seq[ValueEntry]], insId: String, term: Seq[String]): Seq[String] = {
+    if (framesCombine.contains(ConstantEntry(insId))) {
+      val newterm = term ++ framesCombine.get(ConstantEntry(insId)).get.map(x => x.toString)
+      detInsideTerm(framesCombine, newterm(newterm.length-1), newterm)
+    } else {
+      term
+    }
+  }
+
+  /**
+    * Determine the type of a heap resource.
+    */
+  def detHeapType(model: Model, qpMaskSet: Set[String], id: String, maskId: String): HeapEntryType = {
+    var predIdSet = Set[String]()
+    if (model.entries.get("IsPredicateField").get.isInstanceOf[MapEntry]) {
+      for ((k, v) <- model.entries.get("IsPredicateField").get.asInstanceOf[MapEntry].options) {
+        if (v.toString == "true") {
+          predIdSet += k(0).toString
+        }
+      }
+    }
+    var mwIdSet = Set[String]()
+    if (model.entries.get("IsWandField").get.isInstanceOf[MapEntry]) {
+      for ((k, v) <- model.entries.get("IsWandField").get.asInstanceOf[MapEntry].options) {
+        if (v.toString == "true") {
+          mwIdSet += k(0).toString
+        }
+      }
+    }
+    var typ: HeapEntryType = FieldType
+    if (predIdSet.contains(id)) {
+      if (qpMaskSet.contains(maskId)) {
+        typ = QPPredicateType
+      } else {
+        typ = PredicateType
+      }
+    } else if (mwIdSet.contains(id)) {
+      if (qpMaskSet.contains(maskId)) {
+        typ = QPMagicWandType
+      } else {
+        typ = MagicWandType
+      }
+    } else {
+      if (qpMaskSet.contains(maskId)) {
+        typ = QPFieldType
+      }
+    }
+    typ
+  }
+
+  def detHeapEntryPermission(permMap: Map[scala.collection.immutable.Seq[ValueEntry], ValueEntry], perm: String): Option[Rational] = {
+    for ((s, ve) <- permMap) {
+      if (s(0).toString == perm) {
+        return Some(realToRational(ve))
+      }
+    }
+    None
+  }
+
+  /** Converts a Boogie real value (as it appears in the U_2_real map) to an exact rational. */
+  def realToRational(ve: ValueEntry): Rational = ve match {
+    case ConstantEntry(v) => parseDecimal(v)
+    case ApplicationEntry("/", Seq(num, den)) => realToRational(num) / realToRational(den)
+    case ApplicationEntry("-", Seq(arg)) => -realToRational(arg)
+    case _ => Rational.zero
+  }
+
+  /** Parses a decimal literal ("1.0", "0.5", "3") to an exact rational without truncating. */
+  def parseDecimal(v: String): Rational = {
+    try {
+      val bd = BigDecimal(v.trim)
+      if (bd.scale <= 0) Rational.apply(bd.toBigInt, BigInt(1))
+      else Rational.apply(bd.bigDecimal.unscaledValue(), BigInt(10).pow(bd.scale))
+    } catch {
+      case _: Throwable => Rational.zero
+    }
+  }
+
+  def recursiveBuildHeapMask(inputMap: Map[scala.collection.immutable.Seq[ValueEntry], ValueEntry], s: String, resultMap: Map[Seq[String], (String, String)]): Map[Seq[String], (String, String)] = {
+    val entries: Iterable[(Seq[ValueEntry], ValueEntry)] = inputMap.collect {
+      case (key, value) if value.toString == s && key.length >= 3 => (key, value)
+    }
+    if (entries.isEmpty) {
+      return resultMap
+    }
+    entries.foldLeft (resultMap) {
+      case (accMap, (entry, value)) =>
+        val newStartString = entry(0)
+        val newKey = entry.tail.init.map(x => x.toString)
+        var newResultMap = accMap
+        if (!accMap.contains(newKey)) {
+          newResultMap += (newKey -> (entry.last.toString, value.toString))
+        }
+        recursiveBuildHeapMask(inputMap, newStartString.toString, newResultMap)
+    }
+  }
+
+  /**
+    * Extracts domains from a program. Only the ones that are used in the program... no generics.
+    * It also extracts all instances (translates the generics to concrete values).
+    */
+  def getAllDomains(model: Model, program: ast.Program): Seq[BasicDomainEntry] = {
+    val domains = program.collect {
+      case a: ast.Domain => a
+    }
+    val concreteDoms = program.collect {
+      case ast.DomainType(n, map) => (n, map)
+      case d: ast.DomainFuncApp => (d.domainName, d.typVarMap)
+    }.filterNot(x => containsTypeVar(x._2.values.toSeq)).toSet
+    val doms = domains.flatMap(x => if (x.typVars == Nil) Seq((x, Map.empty[ast.TypeVar, ast.Type])) else concreteDoms.filter(_._1 == x.name).map(y => (x, y._2))) // changing the typevars to the actual ones
+    doms.map(x => {
+      val types = try {
+        x._1.typVars.map(x._2)
+      } catch {
+        case _: Throwable => Seq()
+      }
+      val translatedFunctions = x._1.functions.map(y => detFunction(model, y, x._2, Seq(), program, false))
+      BasicDomainEntry(x._1.name, types, translatedFunctions)
+    }).toSeq
+  }
+
+  def containsTypeVar(s: Seq[ast.Type]): Boolean = s.exists(x => x.isInstanceOf[ast.TypeVar])
+
+  /**
+    * Extract all the functions occuring inside of a domain.
+    */
+  def getAllFunctions(model: Model, program: ast.Program, heapInstances: Seq[(String, String)]): Seq[BasicFunctionEntry] = {
+    val funcs = program.collect {
+      case f: ast.Function => f
+    }
+    funcs.map(x => detFunction(model, x, Map.empty, heapInstances, program, true)).toSeq
+  }
+
+  /**
+    * Determine all the inputs and outputs combinations of a function occruing the counterexample model.
+    */
+  def detFunction(model: Model, func: ast.FuncLike, genmap: scala.collection.immutable.Map[ast.TypeVar, ast.Type], heapInst: Seq[(String, String)], program: ast.Program, hd: Boolean): BasicFunctionEntry = {
+    val fname = func.name
+    val resTyp: ast.Type = func.typ
+    val argTyp: Seq[ast.Type] = func.formalArgs.map(x => x.typ)
+    model.entries.get(fname) match {
+      case Some(MapEntry(m, els)) =>
+        var options = Map[Seq[String], String]()
+        if (hd) {
+          for ((k, v) <- m) {
+            var hName = k.head.toString
+            for ((h, i) <- heapInst) {
+              if (i == hName) {
+                hName = h
+              }
+            }
+            options += (Seq(hName) ++ k.tail.map(x => x.toString) -> v.toString)
+          }
+        } else {
+          for ((k, v) <- m) {
+            options += (k.map(x => x.toString) -> v.toString)
+          }
+        }
+        BasicFunctionEntry(fname, argTyp, resTyp, options, els.toString)
+      case Some(ConstantEntry(t)) => BasicFunctionEntry(fname, argTyp, resTyp, Map.empty, t)
+      case Some(ApplicationEntry(n, args)) => BasicFunctionEntry(fname, argTyp, resTyp, Map.empty, ApplicationEntry(n, args).toString)
+      case Some(x) => BasicFunctionEntry(fname, argTyp, resTyp, Map.empty, x.toString)
+      case None => BasicFunctionEntry(fname, argTyp, resTyp, Map.empty, "#undefined")
+    }
+  }
+
+}
+
+object CarbonResolvedCounterexample {
+  /**
+    * Combine a local variable with its ast node.
+    */
+  def detStore(store: Seq[Declaration], variables: Seq[CEVariable], collections: Seq[CECollection]): (StoreCounterexample, Map[String, (String, Int)]) = {
+    var refOccurences = Map[String, (String, Int)]()
+    var ans = Seq[StoreEntry]()
+    for (k <- store) {
+      if (k.isInstanceOf[ast.LocalVarDecl]) {
+        val v = k.asInstanceOf[ast.LocalVarDecl]
+        for (vari <- variables) {
+          if (v.name == vari.name) {
+            if (v.typ == ast.Ref) {
+              if (refOccurences.get(vari.value.toString).isDefined) {
+                val (n, i) = refOccurences.get(vari.value.toString).get
+                if (n != v.name) {
+                  refOccurences += (vari.value.toString -> (v.name, i + 1))
+                }
+              } else {
+                refOccurences += (vari.value.toString -> (v.name, 1))
+              }
+            }
+            var found = false
+            for (coll <- collections) {
+              if (vari.value.toString == coll.id) {
+                ans +:= StoreEntry(ast.LocalVar(v.name, v.typ)(), coll.value)
+                found = true
+              }
+            }
+            if (!found) {
+              ans +:= StoreEntry(ast.LocalVar(v.name, v.typ)(), vari.value)
+            }
+          }
+        }
+      }
+    }
+    (StoreCounterexample(ans), refOccurences)
+  }
+
+  /**
+    * Match the collection type for the "extended" CE.
+    */
+  def detTranslationMap(variables: Seq[CEVariable], collections: Seq[CECollection], fields: Map[String, (String, Int)]): Map[String, String] = {
+    var namesTranslation = Map[String, String]()
+    for (vari <- variables) {
+      collections.find(_.id == vari.value.toString) match {
+        case Some(coll) =>
+          val suffix = vari.typ match {
+            case Some(_: ast.SeqType) => " (Seq)"
+            case Some(_: ast.SetType) => " (Set)"
+            case Some(_: ast.MultisetType) => " (MultiSet)"
+            case _ => ""
+          }
+          namesTranslation += (coll.id -> (vari.name + suffix))
+        case None =>
+          namesTranslation += (vari.value.toString -> vari.name)
+      }
+    }
+    for ((k, v) <- fields) {
+      if (v._2 == 1) {
+        namesTranslation += (k -> v._1)
+      }
+    }
+    namesTranslation
+  }
+
+  /**
+    * Match heap resources to their ast node and translate all identifiers (for fields and references)
+    */
+  def detHeap(opMapping: Map[Seq[String], String], basicHeap: RawHeap, program: Program, collections: Seq[CECollection], translNames: Map[String, String], model: Model): HeapCounterexample = {
+    // choosing all the needed values from the Boogie Model
+    var usedIdent = Map[String, Member]()
+    for ((key, value) <- opMapping) {
+      for (fie <- program.fields) {
+        if (key(0) == fie.name || (key(0).startsWith(fie.name ++ "_") && !key.contains("@"))) {
+          usedIdent += (value -> fie)
+        }
+      }
+      for (pred <- program.predicates) {
+        if (key(0) == pred.name || (key(0).startsWith(pred.name ++ "_") && !key.contains("@"))) {
+          usedIdent += (value -> pred)
+        }
+      }
+    }
+
+    var ans = Seq[(Resource, ResolvedHeapEntry)]()
+    for (bhe <- basicHeap.rawHeapEntries) {
+      bhe.het match {
+        case FieldType | QPFieldType=>
+          if (!bhe.perm.isDefined || !(bhe.perm.get == Rational.zero)) {
+            usedIdent.get(bhe.field(0)) match {
+              case Some(f) =>
+                val fi = f.asInstanceOf[Field]
+                collections.find(_.id == bhe.valueID) match {
+                  case Some(coll) =>
+                    ans +:= (fi, FieldResolvedEntry(bhe.reference.head, fi.name, coll.value, bhe.perm, fi.typ, bhe.het))
+                  case None =>
+                    ans +:= (fi, FieldResolvedEntry(bhe.reference.head, fi.name, CounterexampleValue.literal(bhe.valueID, Some(fi.typ)), bhe.perm, fi.typ, bhe.het))
+                }
+              case None =>
+                println(s"Could not find a field node for: ${bhe.toString}")
+            }
+          }
+        case PredicateType | QPPredicateType =>
+          usedIdent.get(bhe.reference(1)) match {
+            case Some(p) =>
+              val pr = p.asInstanceOf[Predicate]
+              val argExps = bhe.field.zip(pr.formalArgs).map { case (v, fa) => CounterexampleValue.literal(v, Some(fa.typ)) }
+              ans +:= (pr, PredResolvedEntry(pr.name, argExps, bhe.perm, bhe.insidePredicate, bhe.het))
+            case None =>
+              println(s"Could not find a predicate node for: ${bhe.toString}")
+          }
+        case MagicWandType | QPMagicWandType =>
+          val argValues = bhe.field // TODO translNames: .map(x => translNames.getOrElse(x, x))
+          for ((mw, idx) <- program.magicWandStructures.zipWithIndex) {
+            val (wandName, resource): (String, Resource) = if (idx == 0) ("wand", mw.res(program)) else ("wand_" ++ idx.toString, mw)
+            val instances = model.entries.get(wandName).collect { case MapEntry(opts, _) => opts }.getOrElse(scala.collection.immutable.Map.empty)
+            if (instances.exists(_._2.toString == bhe.reference(1))) {
+              ans +:= (resource, WandResolvedEntry.fromStructure(wandName, mw, argValues, bhe.perm, bhe.het, program))
+            }
+          }
+        case _ => println("This type of heap entry could not be matched correctly!")
+      }
+    }
+    HeapCounterexample(ans)
+  }
+
+  def detTranslatedDomains(domEntries: Seq[BasicDomainEntry], namesMap: Map[String, String]) : Seq[BasicDomainEntry] = {
+    domEntries.map(de => BasicDomainEntry(de.name, de.types, detTranslatedFunctions(de.functions, namesMap)))
+  }
+
+  def detTranslatedFunctions(funEntries: Seq[BasicFunctionEntry], namesMap: Map[String, String]) : Seq[BasicFunctionEntry] = {
+    funEntries.map(bf => detNameTranslationOfFunction(bf, namesMap))
+  }
+
+  def detNameTranslationOfFunction(fun: BasicFunctionEntry, namesMap: Map[String, String]) : BasicFunctionEntry = {
+    var tempMap = Map[String, String]()
+    for ((k,v) <- namesMap) {
+      if (k.startsWith("T@U!val!")) {
+        tempMap += (k -> v)
+      }
+    }
+    val translatedFun = fun.options.map { case (in, out) =>
+      (in.map(intName => tempMap.getOrElse(intName, intName)), tempMap.getOrElse(out, out))
+    }
+    val translatedEls = tempMap.getOrElse(fun.default, fun.default)
+    BasicFunctionEntry(fun.fname, fun.argtypes, fun.returnType, translatedFun, translatedEls)
+  }
+
+  def transformRawCounterexample(e: AbstractError, names: Map[String, Map[String, String]], program: Program, wandNames: Option[Map[MagicWandStructure.MagicWandStructure, Func]]): Unit = {
+    if (e.isInstanceOf[VerificationError] && ErrorMemberMapping.mapping.contains(e.asInstanceOf[VerificationError].readableMessage(true, true))) {
+      e.asInstanceOf[VerificationError].failureContexts = scala.collection.immutable.Seq(FailureContextImpl(Some(CarbonResolvedCounterexample(e, names, program, wandNames).rawCE)))
+    }
+  }
+
+  def transformResolvedCounterexample(e: AbstractError, names: Map[String, Map[String, String]], program: Program, wandNames: Option[Map[MagicWandStructure.MagicWandStructure, Func]]): Unit = {
+    if (e.isInstanceOf[VerificationError] && ErrorMemberMapping.mapping.contains(e.asInstanceOf[VerificationError].readableMessage(true, true))) {
+      e.asInstanceOf[VerificationError].failureContexts = scala.collection.immutable.Seq(FailureContextImpl(Some(CarbonResolvedCounterexample(e, names, program, wandNames))))
+    }
+  }
+}
