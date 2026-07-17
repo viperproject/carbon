@@ -451,6 +451,8 @@ class DefaultHeapModule(val verifier: Verifier)
     val f0 = FuncApp(predicate, vars, t)
     val f1 = predicateMaskField(f0)
     val f2 = FuncApp(pmField, vars, pmT)
+    val inverseFunctionInfo = varDecls map (vd => (Identifier(s"${p.name}_inv_${vd.name.name}"), vd.typ))
+    val inversePMaskFunctionInfo = varDecls map (vd => (Identifier(s"${p.name}_pmask_inv_${vd.name.name}"), vd.typ))
     TypeDecl(predicateMetaTypeOf(p)) ++
       Func(predicate, varDecls, t) ++
       Func(pmField, varDecls, pmT) ++
@@ -459,23 +461,22 @@ class DefaultHeapModule(val verifier: Verifier)
       Axiom(MaybeForall(varDecls, Trigger(f0), getPredicateOrWandId(f0) === IntLit(predId))) ++
       Func(predicateTriggerIdentifier(p), Seq(LocalVarDecl(heapName, heapTyp), LocalVarDecl(Identifier("pred"), predicateVersionFieldType())), Bool) ++
       Func(predicateTriggerAnyStateIdentifier(p), Seq(LocalVarDecl(Identifier("pred"), predicateVersionFieldType())), Bool) ++
+      (inverseFunctionInfo map (ifi => {
+        Func(ifi._1, Seq(LocalVarDecl(Identifier("p"), t)),ifi._2)
+      })) ++
+      (inversePMaskFunctionInfo map (ifi => {
+        Func(ifi._1, Seq(LocalVarDecl(Identifier("pm"), pmT)), ifi._2)
+      })) ++
       {
         // axiom that two predicate identifiers can only be the same, if all arguments
-        // are the same (e.g., we immediatly know that valid(1) != valid(2))
-        if (vars.size == 0) Nil
+        // are the same (e.g., we immediately know that valid(1) != valid(2))
+        if (vars.isEmpty) Nil
         else {
-          val varDecls2 = varDecls map (
-            v => LocalVarDecl(Identifier(v.name.name + "2")(v.name.namespace), v.typ))
-          val vars2 = varDecls2 map (_.l)
-          var varsEqual = All((vars zip vars2) map {
-            case (v1, v2) => v1 === v2
-          })
-          val f0_2 = FuncApp(predicate, vars2, t)
-          val f2_2 = FuncApp(pmField, vars2, t)
-          Axiom(Forall(varDecls ++ varDecls2, Trigger(Seq(f0, f0_2)),
-            (f0 === f0_2) ==> varsEqual)) ++
-            Axiom(Forall(varDecls ++ varDecls2, Trigger(Seq(f2, f2_2)),
-              (f2 === f2_2) ==> varsEqual))
+          val inverseAppEqs = inverseFunctionInfo.zip(vars) map (ifiv => FuncApp(ifiv._1._1, Seq(f0), ifiv._1._2) === ifiv._2)
+          val injectiveAxiom = Axiom(Forall(varDecls, Trigger(f0), All(inverseAppEqs)))
+          val inversePMaskAppEqs = inversePMaskFunctionInfo.zip(vars) map (ifiv => FuncApp(ifiv._1._1, Seq(f2), ifiv._1._2) === ifiv._2)
+          val injectivePMaskAxiom = Axiom(Forall(varDecls, Trigger(f2), All(inversePMaskAppEqs)))
+          injectiveAxiom ++ injectivePMaskAxiom
         }
       }
   }
