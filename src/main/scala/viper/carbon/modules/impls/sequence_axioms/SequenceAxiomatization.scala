@@ -83,7 +83,7 @@ object SequenceAxiomatization {
                 |  s0 != Seq#Empty() && s1 != Seq#Empty() && Seq#Length(s0) <= n && n < Seq#Length(Seq#Append(s0,s1)) ==> Seq#Add(Seq#Sub(n,Seq#Length(s0)),Seq#Length(s0)) == n && Seq#Index(Seq#Append(s0,s1), n) == Seq#Index(s1, Seq#Sub(n,Seq#Length(s0))));
                 |// AS: added "reverse triggering" versions of the axioms
                 |axiom (forall<T> s0: Seq T, s1: Seq T, m: int :: { Seq#Index(s1, m), Seq#Append(s0,s1)}  // m == n-|s0|, n == m + |s0|
-                |  s0 != Seq#Empty() && s1 != Seq#Empty() && 0 <= m && m < Seq#Length(s1) ==> Seq#Sub(Seq#Add(m,Seq#Length(s0)),Seq#Length(s0)) == m && Seq#Index(Seq#Append(s0,s1), Seq#Add(m,Seq#Length(s0))) == Seq#Index(s1, m));
+                |  s0 != Seq#Empty() && s1 != Seq#Empty() && 0 <= m && m < Seq#Length(s1) && s1 != Seq#Append(s0,s1) ==> Seq#Sub(Seq#Add(m,Seq#Length(s0)),Seq#Length(s0)) == m && Seq#Index(Seq#Append(s0,s1), Seq#Add(m,Seq#Length(s0))) == Seq#Index(s1, m));
                 |
                 |function Seq#Update<T>(Seq T, int, T): Seq T;
                 |axiom (forall<T> s: Seq T, i: int, v: T :: { Seq#Length(Seq#Update(s,i,v)) } {Seq#Length(s),Seq#Update(s,i,v)} // (diff 4: added trigger)
@@ -207,7 +207,7 @@ object SequenceAxiomatization {
                 |
                 |axiom (forall<T> s: Seq T, t: Seq T, n:int ::
                 |  { Seq#Drop(Seq#Append(s,t),n) }
-                | n > 0 && n > Seq#Length(s) ==> Seq#Add(Seq#Sub(n,Seq#Length(s)),Seq#Length(s)) == n && Seq#Drop(Seq#Append(s,t),n) == Seq#Drop(t,Seq#Sub(n,Seq#Length(s))));
+                | n > 0 && n > Seq#Length(s) && n < Seq#Length(Seq#Append(s,t)) ==> Seq#Add(Seq#Sub(n,Seq#Length(s)),Seq#Length(s)) == n && Seq#Drop(Seq#Append(s,t),n) == Seq#Drop(t,Seq#Sub(n,Seq#Length(s))));
                 |
                 |// diff 16: temporarily dropped general case of these
                 |//axiom (forall<T> s: Seq T, t: Seq T, m:int ::
@@ -335,11 +335,6 @@ object SequenceAxiomatization {
                 |*/
                 |// diff 9: skolemise equals (new)
                 |// AS: split axiom
-                |axiom (forall<T> s0: Seq T, s1: Seq T :: { Seq#Equal(s0,s1) }
-                |  Seq#Equal(s0,s1) ==>
-                |    Seq#Length(s0) == Seq#Length(s1) &&
-                |    (forall j: int :: { Seq#Index(s0,j) } { Seq#Index(s1,j) }
-                |        0 <= j && j < Seq#Length(s0) ==> Seq#Index(s0,j) == Seq#Index(s1,j)));
                 |
                 |function Seq#SkolemDiff<T>(Seq T, Seq T) : int; // skolem function for Seq#Equals
                 |
