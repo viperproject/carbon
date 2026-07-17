@@ -17,6 +17,7 @@ object Optimizer {
    * - Constant folding for booleans, integers and reals.
    * - Removal of dead branches.
    * - Removal of assertions known to hold.
+   * - Experimental: all *remaining* A ==> B expressions / assertions become A ==> A && B
    *
    * Constant folding partly taken from  Transformer.simplify from SIL, but added more optimizations.
    */
@@ -41,6 +42,9 @@ object Optimizer {
       case BinExp(_, Implies, TrueLit()) => TrueLit()
       case BinExp(TrueLit(), Implies, FalseLit()) => FalseLit()
       case BinExp(TrueLit(), Implies, consequent) => consequent
+
+      // experiment: make all A ==> B into A ==> A && B
+      case BinExp(left, Implies, right) => BinExp(left, Implies, BinExp(left, And, right))
 
       case BinExp(BoolLit(left), EqCmp, BoolLit(right)) => BoolLit(left == right)
       case BinExp(FalseLit(), EqCmp, right) => UnExp(Not, right)
