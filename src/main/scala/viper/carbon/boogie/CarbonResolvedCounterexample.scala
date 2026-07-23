@@ -1,3 +1,9 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2026 ETH Zurich.
+
 package viper.carbon.boogie
 
 import scala.collection.mutable
@@ -10,12 +16,12 @@ import viper.silver.verifier.{AbstractError, ApplicationEntry, ConstantEntry, Ma
 import viper.silver.ast.{Declaration, MagicWandStructure, Program, Type}
 
 /**
-  * Transforms a counterexample returned by Boogie back to a Viper counterexample. The programmer can choose between an
-  * "intermediate" CE or an "extended" CE.
+  * Transforms a counterexample returned by Boogie back to a Viper counterexample. One can choose
+  * between a "raw" CE and a "resolved" CE (see [[viper.silver.verifier.Counterexample]]).
   */
 
 /**
-  * CounterexampleGenerator class used for generating an "extended" CE.
+  * CounterexampleGenerator class used for generating a "resolved" CE.
   */
 case class CarbonResolvedCounterexample(e: AbstractError,
                                         names: Map[String, Map[String, String]],
@@ -49,7 +55,7 @@ case class CarbonResolvedCounterexample(e: AbstractError,
 }
 
 /**
-  * CounterexampleGenerator class used for generating an "intermediate" CE.
+  * CounterexampleGenerator class used for generating a "raw" CE.
   */
 case class CarbonRawCounterexample(ve: VerificationError,
                                             errorMethod: Member,
@@ -99,24 +105,21 @@ object CarbonRawCounterexample {
     */
   def detCEvariables(originalEntries: Map[String, ModelEntry], namesInMember: Map[String, String], variables: Seq[Declaration]): (Seq[CEVariable], Seq[Declaration]) = {
     var res = Seq[CEVariable]()
-    var otherDeclarations = Seq[Declaration]()
-    val modelVariables = transformModelEntries(originalEntries, namesInMember)
-    for ((name, entry) <- modelVariables) {
-      for (temp <- variables) {
-        if (temp.isInstanceOf[ast.LocalVarDecl]) {
-          val v = temp.asInstanceOf[ast.LocalVarDecl]
-          if (v.name == name) {
+    val modelVariables = capturedStoreVariables(originalEntries, namesInMember)
+    for (temp <- variables) {
+      temp match {
+        case v: ast.LocalVarDecl =>
+          modelVariables.get(v.name).foreach { entry =>
             var ent = entry
             if (entry.isInstanceOf[MapEntry]) {
               ent = entry.asInstanceOf[MapEntry].options.head._1(0)
             }
             res +:= CEVariable(v.name, CounterexampleValue.literal(ent.toString, Some(v.typ)), Some(v.typ))
           }
-        } else {
-          otherDeclarations +:= temp
-        }
+        case _ =>
       }
     }
+    val otherDeclarations = variables.filterNot(_.isInstanceOf[ast.LocalVarDecl])
     if (originalEntries.contains("null")) {
       val nullRef = originalEntries.get("null").get
       if (nullRef.isInstanceOf[ConstantEntry]) {
@@ -127,45 +130,25 @@ object CarbonRawCounterexample {
   }
 
   /**
-    * Chooses the latest instance of a variable in the counterexample model received from the SMT solver.
+    * Determines each store variable's value at the failing assertion. The value is read directly
+    * from Boogie's captured model view (injected by BoogieInterface as `__captureState__local__<n>`
+    * entries, keyed by the Boogie variable name) and mapped back to the Viper name via `backMap` and
+    * `namesInMember`. This replaces the former heuristic that guessed the latest SSA incarnation of
+    * each variable from the raw model, which was unnecessary once the state at the error is captured.
     */
-  def transformModelEntries(originalEntries: Map[String, ModelEntry], namesInMember: Map[String, String]): mutable.Map[String, ModelEntry] = {
+  def capturedStoreVariables(originalEntries: Map[String, ModelEntry], namesInMember: Map[String, String]): mutable.Map[String, ModelEntry] = {
     val newEntries = mutable.HashMap[String, ModelEntry]()
-    val currentEntryForName = mutable.HashMap[String, String]()
-    for ((vname, e) <- originalEntries) {
-      var originalName = vname
-      if (originalName.startsWith("q@")) {
-        originalName = originalName.substring(2)
-      } else if (originalName.indexOf("@@") != -1) {
-        originalName = originalName.substring(0, originalName.indexOf("@@"))
-      } else if (originalName.indexOf("@") != -1) {
-        originalName = originalName.substring(0, originalName.indexOf("@"))
-      }
-      if (PrettyPrinter.backMap.contains(originalName)) {
-        val originalViperName = PrettyPrinter.backMap.get(originalName).get
+    val prefix = "__captureState__local__"
+    for ((vname, e) <- originalEntries if vname.startsWith(prefix)) {
+      val boogieName = vname.substring(prefix.length)
+      if (PrettyPrinter.backMap.contains(boogieName)) {
+        val originalViperName = PrettyPrinter.backMap.get(boogieName).get
         if (namesInMember.contains(originalViperName)) {
-          val viperName = namesInMember.get(originalViperName).get
-          if (!currentEntryForName.contains(viperName) ||
-            isLaterVersion(vname, originalName, currentEntryForName.get(viperName).get)) {
-            newEntries.update(viperName, e)
-            currentEntryForName.update(viperName, vname)
-          }
+          newEntries.update(namesInMember.get(originalViperName).get, e)
         }
       }
     }
     newEntries
-  }
-
-  def isLaterVersion(firstName: String, originalName: String, secondName: String): Boolean = {
-    if ((secondName == originalName || secondName == "q@" + originalName || secondName.indexOf("@@") != -1) && !"@@.*!".r.findFirstIn(firstName).isDefined) {
-      true
-    } else if (secondName.indexOf("@") != -1 && firstName.indexOf("@@") == -1 && firstName.indexOf("@") != -1) {
-      val firstIndex = Integer.parseInt(firstName.substring(firstName.indexOf("@") + 1))
-      val secondIndex = Integer.parseInt(secondName.substring(secondName.indexOf("@") + 1))
-      firstIndex > secondIndex
-    } else {
-      false
-    }
   }
 
   /**
@@ -599,13 +582,16 @@ object CarbonRawCounterexample {
 
   /**
     * Boogie boxes values of a generic type as opaque `T@U` constants. The model records the
-    * correspondence via `U_2_int`/`U_2_bool` (unboxing) and `int_2_U`/`bool_2_U` (boxing). This
-    * decodes a boxed value to its underlying literal string when the model records it, in either
-    * direction. Values that are already literals, or that cannot be decoded, are returned unchanged.
+    * correspondence for the primitive Viper types via the unboxing functions `U_2_int`/`U_2_bool`/
+    * `U_2_real` and the boxing functions `int_2_U`/`bool_2_U`. This decodes a boxed value to its
+    * underlying literal string when the model records it, in either direction. Only the primitive
+    * types are handled: references and domain values have no unboxing function (a reference's boxed
+    * constant is itself its identity), so they are intentionally left as their opaque id. Values
+    * that are already literals, or that cannot be decoded, are returned unchanged.
     */
   def decodeBoxedValue(v: String, model: Model): String = {
     if (!v.startsWith("T@U!")) return v
-    for (fn <- Seq("U_2_int", "U_2_bool")) {
+    for (fn <- Seq("U_2_int", "U_2_bool", "U_2_real")) {
       model.entries.get(fn) match {
         case Some(me: MapEntry) =>
           me.options.collectFirst { case (k, r) if k.length == 1 && k(0).toString == v => r.toString }
@@ -613,7 +599,7 @@ object CarbonRawCounterexample {
         case _ =>
       }
     }
-    for (fn <- Seq("int_2_U", "bool_2_U")) {
+    for (fn <- Seq("int_2_U", "bool_2_U", "real_2_U")) {
       model.entries.get(fn) match {
         case Some(me: MapEntry) =>
           me.options.collectFirst { case (k, r) if k.length == 1 && r.toString == v => k(0).toString }
@@ -1084,7 +1070,7 @@ object CarbonResolvedCounterexample {
   }
 
   /**
-    * Match the collection type for the "extended" CE.
+    * Match the collection type for the "resolved" CE.
     */
   def detTranslationMap(variables: Seq[CEVariable], collections: Seq[CECollection], fields: Map[String, (String, Int)]): Map[String, String] = {
     var namesTranslation = Map[String, String]()
@@ -1114,7 +1100,10 @@ object CarbonResolvedCounterexample {
     * Match heap resources to their ast node and translate all identifiers (for fields and references)
     */
   def detHeap(opMapping: Map[Seq[String], String], basicHeap: RawHeap, program: Program, collections: Seq[CECollection], translNames: Map[String, String], model: Model): HeapCounterexample = {
-    // choosing all the needed values from the Boogie Model
+    // Build a map from each Boogie model value-id to the Viper field or predicate it stands for, by
+    // matching the model's function names against the program's field and predicate names. This lets
+    // the heap entries below (which reference resources by their model value-id) be linked to their
+    // AST resource.
     var usedIdent = Map[String, Member]()
     for ((key, value) <- opMapping) {
       for (fie <- program.fields) {

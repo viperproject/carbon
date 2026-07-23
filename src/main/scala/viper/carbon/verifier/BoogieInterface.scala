@@ -159,6 +159,11 @@ trait BoogieInterface {
             for ((_, vars) <- capturedStates; (v, value) <- vars if value.trim.nonEmpty) current(v) = value.trim
             for (v <- Seq("Heap", "Mask"); value <- current.get(v))
               parsingModel.get.append(s"__captureState__current__$v -> $value\n")
+            // Also inject the value of every variable at the failing assertion (in particular the
+            // method's locals, by their Boogie name). The counterexample extractor reads local
+            // values from these instead of guessing the latest SSA incarnation from the raw model.
+            for ((v, value) <- current)
+              parsingModel.get.append(s"__captureState__local__$v -> $value\n")
             // The pre-state ("old") is captured under a label starting with "old" (Boogie may
             // freshen it to old$0 etc.; only the failing method's block is emitted, so there is at
             // most one). Inject its Heap/Mask so the extractor can report the "old" heap directly.

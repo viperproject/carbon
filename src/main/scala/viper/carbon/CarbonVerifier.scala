@@ -248,10 +248,10 @@ case class CarbonVerifier(override val reporter: Reporter,
             errors.foreach(e =>  BoogieModelTransformer.transformCounterexample(e, translatedNames))
           }
           case Failure(errors) if rawCounterexample => {
-            errors.foreach(e => CarbonResolvedCounterexample.transformRawCounterexample(e, translatedNames, program, wandModule.lazyWandToShapes))
+            errors.foreach(e => CarbonResolvedCounterexample.transformRawCounterexample(e, translatedNames, program, wandModule.currentWandShapes))
           }
           case Failure(errors) if resolvedCounterexample => {
-            errors.foreach(e => CarbonResolvedCounterexample.transformResolvedCounterexample(e, translatedNames, program, wandModule.lazyWandToShapes))
+            errors.foreach(e => CarbonResolvedCounterexample.transformResolvedCounterexample(e, translatedNames, program, wandModule.currentWandShapes))
           }
           case _ => result
         }
