@@ -731,6 +731,13 @@ object CarbonRawCounterexample {
       }
     }
     val permMap = model.entries.get("U_2_real").get.asInstanceOf[MapEntry].options
+    // Map each field's Boogie model value-id to its Viper name, so that (raw) heap entries can be
+    // reported by field name rather than by the opaque id (matching Silicon's raw output).
+    val fieldIdToName: Map[String, String] = (for {
+      (key, value) <- opMapping.toSeq
+      fie <- program.fields
+      if key(0) == fie.name || (key(0).startsWith(fie.name ++ "_") && !key.contains("@"))
+    } yield value -> fie.name).toMap
     var res = Seq[(String, RawHeap)]()
     for ((labelName, (labelHeap, labelMask)) <- hmLabels) {
       var heapEntrySet = Set[RawHeapEntry]()
@@ -774,7 +781,14 @@ object CarbonRawCounterexample {
           }
         }
       }
-      res +:= (labelName, RawHeap(heapEntrySet))
+      // Report field entries by field name instead of the opaque model value-id (the dedup above is
+      // done on ids, so this resolution happens afterwards).
+      val namedEntries = heapEntrySet.map {
+        case bhe if (bhe.het == FieldType || bhe.het == QPFieldType) && bhe.field.nonEmpty =>
+          bhe.copy(field = Seq(fieldIdToName.getOrElse(bhe.field(0), bhe.field(0))))
+        case bhe => bhe
+      }
+      res +:= (labelName, RawHeap(namedEntries))
     }
     res
   }
@@ -1104,13 +1118,10 @@ object CarbonResolvedCounterexample {
     // matching the model's function names against the program's field and predicate names. This lets
     // the heap entries below (which reference resources by their model value-id) be linked to their
     // AST resource.
+    // Maps a predicate's model value-id to its AST node (fields are resolved by name in detHeaps and
+    // looked up directly below, so only predicates need this).
     var usedIdent = Map[String, Member]()
     for ((key, value) <- opMapping) {
-      for (fie <- program.fields) {
-        if (key(0) == fie.name || (key(0).startsWith(fie.name ++ "_") && !key.contains("@"))) {
-          usedIdent += (value -> fie)
-        }
-      }
       for (pred <- program.predicates) {
         if (key(0) == pred.name || (key(0).startsWith(pred.name ++ "_") && !key.contains("@"))) {
           usedIdent += (value -> pred)
@@ -1123,9 +1134,9 @@ object CarbonResolvedCounterexample {
       bhe.het match {
         case FieldType | QPFieldType=>
           if (!bhe.perm.isDefined || !(bhe.perm.get == Rational.zero)) {
-            usedIdent.get(bhe.field(0)) match {
-              case Some(f) =>
-                val fi = f.asInstanceOf[Field]
+            // Field entries are keyed by field name (resolved in detHeaps), so look the field up by name.
+            program.fields.find(_.name == bhe.field(0)) match {
+              case Some(fi) =>
                 collections.find(_.id == bhe.valueID) match {
                   case Some(coll) =>
                     ans +:= (fi, FieldResolvedEntry(bhe.reference.head, fi.name, coll.value, bhe.perm, fi.typ, bhe.het))

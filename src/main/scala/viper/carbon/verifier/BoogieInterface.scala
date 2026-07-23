@@ -153,10 +153,15 @@ trait BoogieInterface {
           if (capturedStates != null && capturedStates.nonEmpty) {
             // The captured states are sparse (each lists only the variables whose current
             // incarnation has a value in the partial model), so accumulate the last non-empty
-            // value of each variable across the states in trace order to get the state at the
-            // failing assertion.
-            val current = collection.mutable.LinkedHashMap[String, String]()
-            for ((_, vars) <- capturedStates; (v, value) <- vars if value.trim.nonEmpty) current(v) = value.trim
+            // value of each variable across the states in trace order. Accumulating over all states
+            // yields the state at the failing assertion.
+            val states = capturedStates.toList
+            def accumulateThrough(upTo: Int): collection.mutable.LinkedHashMap[String, String] = {
+              val acc = collection.mutable.LinkedHashMap[String, String]()
+              for ((_, vars) <- states.take(upTo); (v, value) <- vars if value.trim.nonEmpty) acc(v) = value.trim
+              acc
+            }
+            val current = accumulateThrough(states.length)
             for (v <- Seq("Heap", "Mask"); value <- current.get(v))
               parsingModel.get.append(s"__captureState__current__$v -> $value\n")
             // Also inject the value of every variable at the failing assertion (in particular the
@@ -166,10 +171,15 @@ trait BoogieInterface {
               parsingModel.get.append(s"__captureState__local__$v -> $value\n")
             // The pre-state ("old") is captured under a label starting with "old" (Boogie may
             // freshen it to old$0 etc.; only the failing method's block is emitted, so there is at
-            // most one). Inject its Heap/Mask so the extractor can report the "old" heap directly.
-            for ((_, vars) <- capturedStates.find(_._1.startsWith("old"));
-                 v <- Seq("Heap", "Mask"); value <- vars.get(v) if value.trim.nonEmpty)
-              parsingModel.get.append(s"__captureState__old__$v -> ${value.trim}\n")
+            // most one). Accumulate up to and including that block — it, too, is sparse and need not
+            // list Heap/Mask itself — and inject its Heap/Mask so the extractor can report the "old"
+            // heap directly.
+            val oldIdx = states.indexWhere(_._1.startsWith("old"))
+            if (oldIdx >= 0) {
+              val old = accumulateThrough(oldIdx + 1)
+              for (v <- Seq("Heap", "Mask"); value <- old.get(v))
+                parsingModel.get.append(s"__captureState__old__$v -> $value\n")
+            }
           }
           models.append(parsingModel.get.toString())
           parsingModel = None
