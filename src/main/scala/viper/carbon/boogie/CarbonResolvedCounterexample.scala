@@ -1162,7 +1162,7 @@ object CarbonResolvedCounterexample {
             val (wandName, resource): (String, Resource) = if (idx == 0) ("wand", mw.res(program)) else ("wand_" ++ idx.toString, mw)
             val instances = model.entries.get(wandName).collect { case MapEntry(opts, _) => opts }.getOrElse(scala.collection.immutable.Map.empty)
             if (instances.exists(_._2.toString == bhe.reference(1))) {
-              ans +:= (resource, WandResolvedEntry.fromStructure(wandName, mw, argValues, bhe.perm, bhe.het, program))
+              ans +:= (resource, WandResolvedEntry.fromStructure(mw, argValues, bhe.perm, bhe.het, program))
             }
           }
         case _ => println("This type of heap entry could not be matched correctly!")
