@@ -13,7 +13,6 @@ import viper.silver.verifier.errors.Internal
 import viper.silver.verifier.reasons.InternalReason
 import viper.silver.verifier._
 
-import java.io
 import java.io._
 import java.nio.charset.StandardCharsets
 import scala.jdk.CollectionConverters._
