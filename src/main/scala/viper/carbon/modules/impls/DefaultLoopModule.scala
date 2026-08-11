@@ -322,7 +322,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
     def updateInvariantMap(info: sil.Info, invs: Seq[sil.Exp]): Unit = {
       info.getUniqueInfo[LoopInfo] match {
         case Some(LoopInfo(Some(headId), _)) =>
-          loopToInvs = loopToInvs.clone().addOne((headId, invs))
+          loopToInvs.update(headId, invs)
         case _ =>
       }
     }
@@ -330,7 +330,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
     def updateLabelMap(labelName: String, info: sil.Info) = {
       info.getUniqueInfo[LoopInfo] match {
         case Some(loopInfo: LoopInfo) =>
-          labelLoopInfoMap = labelLoopInfoMap.clone().addOne((labelName, loopInfo))
+          labelLoopInfoMap.update(labelName, loopInfo)
         case None =>
       }
     }

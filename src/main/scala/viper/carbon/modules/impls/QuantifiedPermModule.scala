@@ -40,7 +40,6 @@ import viper.carbon.verifier.Verifier
 import viper.silver.ast.utility.rewriter.Traverse
 import viper.silver.ast.Implies
 
-import scala.annotation.unused
 import scala.collection.mutable.ListBuffer
 import viper.silver.ast.utility.QuantifiedPermissions.SourceQuantifiedPermissionAssertion
 import viper.silver.verifier.errors.{ContractNotWellformed, PostconditionViolated}
@@ -307,8 +306,8 @@ class QuantifiedPermModule(val verifier: Verifier)
   /**
    * Can a location on a given receiver be read?
    */
-  private def hasDirectPerm(@unused mask: Exp, obj: Exp, loc: Exp): Exp =
-    FuncApp(hasDirectPermName, Seq(maskExp, obj, loc), Bool)
+  private def hasDirectPerm(mask: Exp, obj: Exp, loc: Exp): Exp =
+    FuncApp(hasDirectPermName, Seq(mask, obj, loc), Bool)
 
   private def hasDirectPerm(obj: Exp, loc: Exp): Exp = hasDirectPerm(maskExp, obj, loc)
 
