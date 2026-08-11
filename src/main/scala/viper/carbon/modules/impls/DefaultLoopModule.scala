@@ -55,7 +55,6 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
   private val sumHeapName : Identifier = Identifier("LoopSumHeap")(namespace)
   private val sumHeap = LocalVar(sumHeapName, heapType)
 
-  @unused private var currentMethodIsAbstract = false;
   private var usedLoopDetectorOnce = false;
   private var useLoopDetector = false;
 
@@ -283,7 +282,6 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
     val result =
       m.body match {
         case Some(s) =>
-          currentMethodIsAbstract = false
           val normalizedBody =
             s.transform(
               rewriteDummyStatements, sil.utility.rewriter.Traverse.BottomUp
@@ -296,7 +294,6 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
           captureRelevantNextStmts(loopInfoBody, Seq())
           m.copy(body = Some(loopInfoBody))(m.pos, m.info, m.errT)
         case None =>
-          currentMethodIsAbstract = true
           m
       }
 

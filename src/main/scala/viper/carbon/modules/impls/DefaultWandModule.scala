@@ -418,8 +418,6 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
       val minStmt = If(neededLocal <= curpermLocal,
         transferAmountLocal := neededLocal, transferAmountLocal := curpermLocal)
 
-      @unused val nofractionsStmt = (transferAmountLocal := RealLit(1.0))
-
       val curPermTop = permModule.currentPermission(e.rcv, e.loc)
       val removeFromTop = heapModule.beginExhale ++
         (components flatMap (_.transferRemove(e,used.boolVar))) ++

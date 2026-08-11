@@ -94,9 +94,6 @@ class QuantifiedPermModule(val verifier: Verifier)
   private val noPerm = Const(noPermName)
   private val fullPermName = Identifier("FullPerm")
   private val fullPerm = Const(fullPermName)
-  @unused private val permAddName = Identifier("PermAdd")
-  @unused private val permSubName = Identifier("PermSub")
-  @unused private val permDivName = Identifier("PermDiv")
   private val permConstructName = Identifier("Perm")
   private val goodMaskName = Identifier("GoodMask")
   private val hasDirectPermName = Identifier("HasDirectPerm")
@@ -475,7 +472,6 @@ class QuantifiedPermModule(val verifier: Verifier)
         def renaming[E <: sil.Exp] = (e:E) => Expressions.renameVariables(e, v.localVar, newV.localVar)
 
         //translate components
-        @unused val translatedLocal = translateLocalVarDecl(newV)
         val translatedCond = translateExp(renaming(cond))
         val translatedRcv = translateExp(renaming(fieldAccess.rcv))
         val translatedLocation = translateResource(renaming(fieldAccess))
@@ -666,7 +662,7 @@ class QuantifiedPermModule(val verifier: Verifier)
           case accPred: sil.AccessPredicate =>
             // alpha renaming, to avoid clashes in context, use vFresh instead of v
             val vsFresh = vs.map(v => env.makeUniquelyNamed(v))
-            @unused val vsFreshBoogie = vsFresh.map(vFresh => env.define(vFresh.localVar))
+            vsFresh.foreach(vFresh => env.define(vFresh.localVar))
             // create fresh variables for the formal arguments of the predicate/wand definition
             val (formals, args) = (accPred: @unchecked) match {
               case sil.PredicateAccessPredicate(sil.PredicateAccess(args, predname), _) =>
@@ -880,7 +876,6 @@ class QuantifiedPermModule(val verifier: Verifier)
 * I haven't yet found a nice way of avoiding the code duplication
 */
   override def transferRemove(e:TransferableEntity, cond:Exp): Stmt = {
-    @unused val permVar = LocalVar(Identifier("perm"), permType)
     val curPerm = currentPermission(e.rcv,e.loc)
     currentMaskAssignUpdate(e.rcv, e.loc, permSub(curPerm,e.transferAmount))
   }
@@ -1501,11 +1496,6 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   private def currentMaskAssignUpdate(rcv: Exp, field: Exp, newPerm: Exp) : Stmt = {
     mask := maskUpdate(mask, rcv, field, newPerm)
-  }
-
-  @unused private def maskUpdate(mask: Exp, loc: LocationAccess, newPerm: Exp) : Exp = {
-    val (rcv, field) = rcvAndFieldExp(loc)
-    maskUpdate(mask, rcv, field, newPerm)
   }
 
   private def maskUpdate(mask: Exp, rcv: Exp, field: Exp, newPerm: Exp) : Exp = {

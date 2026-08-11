@@ -79,8 +79,6 @@ class DefaultHeapModule(val verifier: Verifier)
   private val exhaleHeapName = Identifier("ExhaleHeap")
   private val exhaleHeap = LocalVar(exhaleHeapName, heapTyp)
   private val originalHeap = GlobalVar(heapName, heapTyp)
-  private val qpHeapName = Identifier("QPHeap")
-  @unused private val qpHeap = LocalVar(qpHeapName, heapTyp)
   private var heap: Var = originalHeap
   private def heapVar: Var = {assert (!usingOldState); heap}
   private def heapExp: Exp = if (usingPureState) dummyHeap else heap

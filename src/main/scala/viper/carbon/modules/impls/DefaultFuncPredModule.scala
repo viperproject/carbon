@@ -18,7 +18,6 @@ import viper.silver.ast.utility._
 import viper.carbon.modules.components.{DefinednessComponent, DefinednessState, ExhaleComponent, InhaleComponent}
 import viper.silver.verifier.{NullPartialVerificationError, PartialVerificationError, errors}
 
-import scala.annotation.unused
 import scala.collection.mutable.ListBuffer
 import viper.silver.ast.utility.QuantifiedPermissions.QuantifiedPermissionAssertion
 import viper.silver.verifier.reasons.NonPositivePermission
@@ -54,8 +53,6 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   private val assumeFunctionsAboveName = Identifier("AssumeFunctionsAbove")
   private val assumeFunctionsAbove: Const = Const(assumeFunctionsAboveName)
-  private val specialRefName = Identifier("special_ref")
-  @unused private val specialRef = Const(specialRefName)
 
   /* limitedPostfix is appended to the actual function name to get the name of the limited function.
    * It must be a string that cannot appear in Viper identifiers to ensure that we can easily check if a given identifier
@@ -601,7 +598,6 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
           val (_, curState) = stateModule.freshTempState("Heap2")
           val heap1 = heapModule.currentStateContributions
-          @unused val mask1 = permModule.currentStateContributions
 
 
 
@@ -617,7 +613,6 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           val (_, _) = stateModule.freshTempState("Heap1")
 
           val heap2 = heapModule.currentStateContributions
-          @unused val mask2 = permModule.currentStateContributions
 
           val locationAccess2 = translateResourceAccess(locationAccess)
           val translatedCond2 = translateExp(renamedCond)
@@ -1123,7 +1118,6 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           (before, after)
       }
       case sil.PredicateAccessPredicate(loc@sil.PredicateAccess(args, predicateName), _) if duringUnfold =>
-        @unused val oldVersion = LocalVar(Identifier("oldVersion"), predicateVersionType)
         val newVersion = LocalVar(Identifier("newVersion"), predicateVersionType)
         val stmt: Stmt = if (exhaleTmpStateId >= 0 || duringUnfolding) Nil else //(oldVersion := curVersion) ++
            Havoc(Seq(newVersion)) ++

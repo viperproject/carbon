@@ -12,7 +12,6 @@ import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
 import viper.carbon.modules.components.CarbonStateComponent
 
-import scala.annotation.unused
 import scala.collection.mutable
 import scala.jdk.CollectionConverters.CollectionHasAsScala
 
@@ -221,9 +220,9 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
 
   override def getCopyState:StateSnapshot = {
     val currentCopy = new StateComponentMapping()
-    @unused val s = for (c <- components) yield {
-                currentCopy.put(c, c.currentStateVars)
-            }
+    for (c <- components) {
+      currentCopy.put(c, c.currentStateVars)
+    }
     (currentCopy, usingOldState, usingPureState)
   }
 }
