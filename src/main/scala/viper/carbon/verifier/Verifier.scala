@@ -44,7 +44,7 @@ trait Verifier {
       exhaleModule, inhaleModule, funcPredModule, domainModule, seqModule, setModule,
       loopModule, mapModule, wandModule)
   } ensuring {
-    mods => true
+    _ => true
   }
 
   /**

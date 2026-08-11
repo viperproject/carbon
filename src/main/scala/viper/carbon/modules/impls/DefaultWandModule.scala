@@ -17,6 +17,8 @@ import viper.silver.ast.{MagicWand, MagicWandStructure}
 import viper.silver.verifier.{PartialVerificationError, reasons}
 import viper.silver.{ast => sil}
 
+import scala.annotation.unused
+
 class
 DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent with DefinednessComponent{
   import verifier._
@@ -210,7 +212,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
     val StateSetup(usedState, initStmt) = createAndSetState(boolVar, "Used", false).asInstanceOf[StateSetup]
 
     //inhale left hand side to initialize hypothetical state
-    val hypName = names.createUniqueIdentifier("Ops")
+    @unused val hypName = names.createUniqueIdentifier("Ops")
     val StateSetup(hypState,hypStmt) = createAndSetState(None,"Ops")
     OPS = hypState
     UNIONState = OPS
@@ -231,11 +233,11 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
   override def translatePackage(p: sil.Package, error: PartialVerificationError, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false):Stmt = {
     val proofScript = p.proofScript
     p match {
-      case pa@sil.Package(wand, proof) =>
+      case sil.Package(wand, _) =>
         wand match {
           case w@sil.MagicWand(left,right) =>
             // saving the old variables as they would be overwritten in the case of nested magic wands
-            var oldW = currentWand
+            val oldW = currentWand
             val oldOps = OPS
 
             currentWand = w
@@ -353,7 +355,7 @@ override def exhaleExt(statesObj: List[Any], usedObj:Any, e: sil.Exp, allStateAs
   }
 }
 
-def exhaleExtExp(states: List[StateRep], used:StateRep, e: sil.Exp,allStateAssms:Exp, RHS: Boolean = false, mainError: PartialVerificationError):Stmt = {
+def exhaleExtExp(@unused states: List[StateRep], used:StateRep, e: sil.Exp,allStateAssms:Exp, @unused RHS: Boolean = false, mainError: PartialVerificationError):Stmt = {
   if(e.isPure) {
     If(allStateAssms&&used.boolVar,expModule.checkDefinedness(e,mainError, insidePackageStmt = true),Statements.EmptyStmt) ++
       Assert((allStateAssms&&used.boolVar) ==> expModule.translateExpInWand(e), mainError.dueTo(reasons.AssertionFalse(e)))
@@ -371,7 +373,7 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
   val permAmount =
     e   match {
       case sil.MagicWand(left, right) => boogieFullPerm
-      case p@sil.AccessPredicate(loc, perm) => permModule.translatePerm(perm)
+      case sil.AccessPredicate(_, perm) => permModule.translatePerm(perm)
       case _ => sys.error("only transfer of access predicates and magic wands supported")
     }
 
@@ -398,7 +400,7 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
 /*
  * Precondition: current state is set to the used state
   */
-private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEntity, allStateAssms: Exp, mainError: PartialVerificationError, havocHeap: Boolean = true):Stmt = {
+private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEntity, allStateAssms: Exp, mainError: PartialVerificationError, havocHeap: Boolean):Stmt = {
   states match {
     case (top :: xs) =>
       //Compute all values needed from top state
@@ -416,7 +418,7 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
       val minStmt = If(neededLocal <= curpermLocal,
         transferAmountLocal := neededLocal, transferAmountLocal := curpermLocal)
 
-      val nofractionsStmt = (transferAmountLocal := RealLit(1.0))
+      @unused val nofractionsStmt = (transferAmountLocal := RealLit(1.0))
 
       val curPermTop = permModule.currentPermission(e.rcv, e.loc)
       val removeFromTop = heapModule.beginExhale ++
@@ -579,7 +581,7 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
  *         in the Boogie program before the any translation concerning the TransferableEntity can be used
  */
 private def setupTransferableEntity(e: sil.Exp, permTransfer: Exp):(TransferableEntity,Stmt) = {
-  e match {
+  (e: @unchecked) match {
     case fa@sil.FieldAccessPredicate(loc, _) =>
       val assignStmt = rcvLocal := expModule.translateExpInWand(loc.rcv)
       val evalLoc = heapModule.translateResource(loc)
@@ -703,12 +705,12 @@ case class PackageSetup(hypState: StateRep, usedState: StateRep, initStmt: Stmt)
     }
   }
 
-  def applyWand(w: sil.MagicWand, error: PartialVerificationError, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false):Stmt = {
+  def applyWand(w: sil.MagicWand, error: PartialVerificationError, statesStack: List[Any] = null, @unused allStateAssms: Exp = TrueLit(), inWand: Boolean = false):Stmt = {
     /** we first exhale without havocing heap locations to avoid the incompleteness issue which would otherwise
       * occur when the left and right hand side mention common heap locations.
       */
     val lhsID = wandModule.getNewLhsID() // identifier for the lhs of the wand to be referred to later when 'old(lhs)' is used
-    val defineLHS = stmtModule.translateStmt(sil.Label("lhs"+lhsID, Nil)(w.pos, w.info))
+    @unused val defineLHS = stmtModule.translateStmt(sil.Label("lhs"+lhsID, Nil)(w.pos, w.info))
     wandModule.pushToActiveWandsStack(lhsID)
 
     val ret = CommentBlock("check if wand is held and remove an instance",exhaleModule.exhaleSingleWithoutDefinedness(w, error, false, insidePackageStmt = inWand, statesStackForPackageStmt = statesStack)) ++
@@ -755,7 +757,7 @@ case class PackageSetup(hypState: StateRep, usedState: StateRep, initStmt: Stmt)
     */
   override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, definednessStateOpt: Option[DefinednessState]): (() => Stmt, () => Stmt) = {
     e match {
-      case a@sil.Applying(wand, exp) =>
+      case sil.Applying(wand, _) =>
         tmpStateId += 1
         val tmpStateName = if (tmpStateId == 0) "Applying" else s"Applying$tmpStateId"
         val (stmt, state) = stateModule.freshTempState(tmpStateName)

@@ -18,6 +18,7 @@ import viper.silver.ast.utility._
 import viper.carbon.modules.components.{DefinednessComponent, DefinednessState, ExhaleComponent, InhaleComponent}
 import viper.silver.verifier.{NullPartialVerificationError, PartialVerificationError, errors}
 
+import scala.annotation.unused
 import scala.collection.mutable.ListBuffer
 import viper.silver.ast.utility.QuantifiedPermissions.QuantifiedPermissionAssertion
 import viper.silver.verifier.reasons.NonPositivePermission
@@ -41,7 +42,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   import heapModule._
   import permModule._
 
-  implicit val fpNamespace = verifier.freshNamespace("funcpred")
+  implicit val fpNamespace: Namespace = verifier.freshNamespace("funcpred")
 
   /* Maps function names to their height.
    * Previously mapped Function AST nodes to their height, but this prevents looking up functions
@@ -54,7 +55,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private val assumeFunctionsAboveName = Identifier("AssumeFunctionsAbove")
   private val assumeFunctionsAbove: Const = Const(assumeFunctionsAboveName)
   private val specialRefName = Identifier("special_ref")
-  private val specialRef = Const(specialRefName)
+  @unused private val specialRef = Const(specialRefName)
 
   /* limitedPostfix is appended to the actual function name to get the name of the limited function.
    * It must be a string that cannot appear in Viper identifiers to ensure that we can easily check if a given identifier
@@ -321,7 +322,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
          pacc.args.forall(arg => !arg.existsDefined[Unit]({case v:sil.LocalVar if !silArgsLocalVar.contains(v) => }  ))
 
       outerUnfoldings.flatMap {
-        case Unfolding(PredicateAccessPredicate(predacc: PredicateAccess, perm), exp)
+        case Unfolding(PredicateAccessPredicate(predacc: PredicateAccess, _), _)
           if hasOnlyDefinedVars(predacc) => Some(predicateTrigger(heap map (_.l), predacc))
         case _ => None}.flatten
     }
@@ -345,7 +346,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
    * Transform all function applications to their limited form (or form used in triggers, if the "triggerForm" Boolean is passed as true.
    * If height is provided (i.e., non-negative), functions of above that height need not have their applications replaced with the limited form.
    */
-  private def transformFuncAppsToLimitedOrTriggerForm(exp: Exp, heightToSkip : Int = -1, triggerForm: Boolean = false): Exp = {
+  private def transformFuncAppsToLimitedOrTriggerForm(exp: Exp, heightToSkip : Int, triggerForm: Boolean): Exp = {
     def transformer: PartialFunction[Exp, Option[Exp]] = {
       case FuncApp(recf, recargs, t) if recf.namespace == fpNamespace &&
         // recf might refer to a limited function already if the function was marked as opaque.
@@ -447,7 +448,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
       pacc.args.forall(arg => !arg.existsDefined[Unit]({case v:sil.LocalVar if !silArgsLocalVar.contains(v) => }  ))
 
     val predicateTriggers : Seq[Exp] = outerUnfoldings.flatMap {
-      case Unfolding(PredicateAccessPredicate(predacc: PredicateAccess, perm), exp)
+      case Unfolding(PredicateAccessPredicate(predacc: PredicateAccess, _), _)
         if hasOnlyDefinedVars(predacc) => Some(predicateTrigger(heap map (_.l), predacc))
       case _ => None}.flatten
 
@@ -554,7 +555,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     def frameFragment(e: Exp) = {
       FuncApp(frameFragmentName, Seq(e), frameType)
     }
-    assertion match {
+    (assertion: @unchecked) match {
       case s@sil.AccessPredicate(la, perm) =>
         val fragmentBody = translateResourceAccess(renaming(la).asInstanceOf[sil.LocationAccess])
         val fragment = if (s.isInstanceOf[PredicateAccessPredicate]) fragmentBody else frameFragment(fragmentBody)
@@ -600,7 +601,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
           val (_, curState) = stateModule.freshTempState("Heap2")
           val heap1 = heapModule.currentStateContributions
-          val mask1 = permModule.currentStateContributions
+          @unused val mask1 = permModule.currentStateContributions
 
 
 
@@ -616,7 +617,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           val (_, _) = stateModule.freshTempState("Heap1")
 
           val heap2 = heapModule.currentStateContributions
-          val mask2 = permModule.currentStateContributions
+          @unused val mask2 = permModule.currentStateContributions
 
           val locationAccess2 = translateResourceAccess(locationAccess)
           val translatedCond2 = translateExp(renamedCond)
@@ -985,7 +986,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
   override def translateFold(fold: sil.Fold, statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): (Stmt,Stmt) = {
     fold match {
-      case sil.Fold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(_, _), perm)) => {
+      case sil.Fold(acc@sil.PredicateAccessPredicate(sil.PredicateAccess(_, _), perm)) => {
         {
           val (foldFirst, foldLast) = foldPredicate(acc, errors.FoldFailed(fold), statesStackForPackageStmt, insidePackageStmt)
           if(insidePackageStmt){
@@ -1005,7 +1006,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private var duringFold = false
   private var foldInfo: sil.PredicateAccessPredicate = null
   private def foldPredicate(acc: sil.PredicateAccessPredicate, error: PartialVerificationError
-                           , statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): (Stmt,Stmt) = {
+                           , statesStackForPackageStmt: List[Any], insidePackageStmt: Boolean): (Stmt,Stmt) = {
     duringFold = true
     foldInfo = acc
     val stmt = Assert(permModule.isStrictlyPositivePerm(acc.perm), error.dueTo(NonPositivePermission(acc.perm))) ++
@@ -1030,7 +1031,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private var unfoldInfo: sil.PredicateAccessPredicate = null
   override def translateUnfold(unfold: sil.Unfold, statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt = {
     unfold match {
-      case sil.Unfold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(_, _), perm)) =>
+      case sil.Unfold(acc@sil.PredicateAccessPredicate(sil.PredicateAccess(_, _), perm)) =>
         checkDefinedness(acc, errors.UnfoldFailed(unfold), insidePackageStmt = insidePackageStmt) ++
           // If no permission amount is supplied explicitly, we always use the default FullPerm; this is
           // okay even if we are inside a function and only want to check for some positive amount, because permission
@@ -1121,8 +1122,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
           (before, after)
       }
-      case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(args, predicateName), _) if duringUnfold =>
-        val oldVersion = LocalVar(Identifier("oldVersion"), predicateVersionType)
+      case sil.PredicateAccessPredicate(loc@sil.PredicateAccess(args, predicateName), _) if duringUnfold =>
+        @unused val oldVersion = LocalVar(Identifier("oldVersion"), predicateVersionType)
         val newVersion = LocalVar(Identifier("newVersion"), predicateVersionType)
         val stmt: Stmt = if (exhaleTmpStateId >= 0 || duringUnfolding) Nil else //(oldVersion := curVersion) ++
            Havoc(Seq(newVersion)) ++
@@ -1168,7 +1169,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         CommentBlock("Execute unfolding (for extra information)",stmts)
       }
 
-      case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(_, _), perm) =>
+      case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(_, _), _) =>
         val res: Stmt = if (extraUnfolding) {
           exhaleTmpStateId += 1
           extraUnfolding = false

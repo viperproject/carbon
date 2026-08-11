@@ -12,6 +12,7 @@ import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
 import viper.carbon.modules.components.CarbonStateComponent
 
+import scala.annotation.unused
 import scala.collection.mutable
 import scala.jdk.CollectionConverters.CollectionHasAsScala
 
@@ -25,7 +26,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
 
   private val isGoodState = "state"
 
-  implicit val stateNamespace = verifier.freshNamespace("state")
+  implicit val stateNamespace: Namespace = verifier.freshNamespace("state")
 
   override def assumeGoodState = {
     Assume(currentGoodState)
@@ -48,7 +49,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     }
   }
 
-  override def reset : Unit = {
+  override def reset(): Unit = {
     curOldState = null
     curState = null
     //usingOldState = false
@@ -220,7 +221,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
 
   override def getCopyState:StateSnapshot = {
     val currentCopy = new StateComponentMapping()
-    val s = for (c <- components) yield {
+    @unused val s = for (c <- components) yield {
                 currentCopy.put(c, c.currentStateVars)
             }
     (currentCopy, usingOldState, usingPureState)

@@ -31,7 +31,7 @@ case class Environment(verifier: Verifier, member: sil.Node) {
       for (v <- args ++ returns) {
         define(v.localVar)
       } 
-    case f@sil.Function(_, args, _, _, _, _) =>
+    case sil.Function(_, args, _, _, _, _) =>
       for (v <- args) {
         define(v.localVar)
       }
@@ -70,7 +70,7 @@ case class Environment(verifier: Verifier, member: sil.Node) {
    */
   def define(variable: sil.LocalVar): LocalVar = {
     currentMapping.get(variable) match {
-      case Some(t) =>
+      case Some(_) =>
         sys.error(s"Internal Error: variable $variable is already defined.")
       case None =>
         val name = uniqueName(variable.name)

@@ -7,11 +7,11 @@ import viper.carbon.verifier.Verifier
 import Implicits._
 import viper.carbon.modules.components.StmtComponent
 import viper.carbon.utility._
-import viper.silver.ast.utility.ViperStrategy
 import viper.silver.cfg.utility.{IdInfo, LoopDetector, LoopInfo}
 import viper.silver.reporter.WarningsDuringVerification
 import viper.silver.verifier.{PartialVerificationError, VerifierWarning, errors}
 
+import scala.annotation.unused
 import scala.collection.mutable
 import scala.collection.mutable.Map
 import scala.collection.immutable.{Map => ImmutableMap}
@@ -37,7 +37,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
   import permModule._
   import heapModule._
 
-  implicit val namespace = verifier.freshNamespace("loop")
+  implicit val namespace: Namespace = verifier.freshNamespace("loop")
 
   //separate masks for each loop to store the permissions which are framed away
   private var frames: Map[Int, (LocalVarDecl,LocalVarDecl)] = Map[Int, (LocalVarDecl, LocalVarDecl)]();
@@ -55,7 +55,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
   private val sumHeapName : Identifier = Identifier("LoopSumHeap")(namespace)
   private val sumHeap = LocalVar(sumHeapName, heapType)
 
-  private var currentMethodIsAbstract = false;
+  @unused private var currentMethodIsAbstract = false;
   private var usedLoopDetectorOnce = false;
   private var useLoopDetector = false;
 
@@ -306,11 +306,11 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
   override def isLoopDummyStmt(stmt: sil.Stmt): Boolean =
     stmt.info.getUniqueInfo[LoopDummyStmtInfo].nonEmpty
 
-  override def sumOfStatesAxiomRequired(): Boolean = usedLoopDetectorOnce
+  override def sumOfStatesAxiomRequired: Boolean = usedLoopDetectorOnce
 
   private def relevantForLoops(s: sil.Stmt) : Boolean = {
     s match {
-      case node@(_: sil.If | _: sil.Seqn) => false
+      case _: sil.If | _: sil.Seqn => false
       case _ => true
     }
   }
@@ -325,7 +325,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
     def updateInvariantMap(info: sil.Info, invs: Seq[sil.Exp]): Unit = {
       info.getUniqueInfo[LoopInfo] match {
         case Some(LoopInfo(Some(headId), _)) =>
-          loopToInvs = loopToInvs + (headId -> invs)
+          loopToInvs = loopToInvs.clone().addOne((headId, invs))
         case _ =>
       }
     }
@@ -333,7 +333,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
     def updateLabelMap(labelName: String, info: sil.Info) = {
       info.getUniqueInfo[LoopInfo] match {
         case Some(loopInfo: LoopInfo) =>
-          labelLoopInfoMap = labelLoopInfoMap + (labelName -> loopInfo)
+          labelLoopInfoMap = labelLoopInfoMap.clone().addOne((labelName, loopInfo))
         case None =>
       }
     }
@@ -488,7 +488,8 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
     }
   }
 
-  private def handleStmtLoopDetector(s: sil.Stmt, statesStackOfPackageStmt: List[Any] = null, allStateAssms: Exp = TrueLit(), insidePackageStmt: Boolean = false): (Seqn => Seqn) = {
+  private def handleStmtLoopDetector(s: sil.Stmt, @unused statesStackOfPackageStmt: List[Any], @unused allStateAssms: Exp,
+                                     @unused insidePackageStmt: Boolean): (Seqn => Seqn) = {
     inner => {
       if (relevantForLoops(s)) {
         val stmtId = s.info.getUniqueInfo[IdInfo]
