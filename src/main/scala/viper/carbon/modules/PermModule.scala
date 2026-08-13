@@ -42,6 +42,8 @@ trait PermModule extends Module with CarbonStateComponent {
    */
   def permissionPositive(permission: Exp, zeroOK : Boolean = false): Exp
 
+  def permissionZero(permission: Exp): Exp
+
   def conservativeIsPositivePerm(e: sil.Exp): Boolean
 
   /**
@@ -107,6 +109,8 @@ trait PermModule extends Module with CarbonStateComponent {
 
   def currentPermission(rcv:Exp, loc:Exp):Exp
 
+  def currentPermission(mask: Exp, rcv: Exp, location: Exp): Exp
+
   /**these methods are for experimental purposes, not yet finalized **/
   /*def beginSumMask : Stmt
 
@@ -137,6 +141,8 @@ trait PermModule extends Module with CarbonStateComponent {
     */
   def sumMask(resultMask: Seq[Exp], summandMask1: Seq[Exp], summandMask2: Seq[Exp]) : Exp
 
+  def minMask(mask1: Seq[Exp], mask2: Seq[Exp]): Exp
+
     /** returns a mask and the returned statement ensures that the mask  has non-zero permission at rcv.loc and zero
       * permission at all other location
       * this should only be used temporarily, i.e. if there are two calls to this then the previous tempMask returned
@@ -161,5 +167,15 @@ trait PermModule extends Module with CarbonStateComponent {
   def setCheckReadPermissionOnly(readOnly: Boolean): Boolean
 
   def assumePermUpperBounds(doAssume: Boolean): Stmt
+
+  def hasSomePerm(mask: Exp, vars: Seq[LocalVarDecl], rcv: Exp, fld: Exp): Exp
+
+  def subtractMask(op1: Exp, op2: Exp, target: Var): Stmt
+
+  def goodMask(msk: Exp): Exp
+
+  def addQPFunctions(qvars: Seq[LocalVarDecl], argumentDecls: Seq[LocalVarDecl]):(Seq[Func],Func,Func)
+
+  def validateTriggers(vars:Seq[LocalVarDecl], triggers:Seq[Trigger]):Seq[Trigger]
 
 }
