@@ -6,10 +6,9 @@
 
 package viper.carbon.modules
 
-import viper.carbon.boogie.Exp
+import viper.carbon.boogie.{Exp, LocalVar}
 import viper.silver.ast.LocationAccess
 import viper.silver.verifier.{PartialVerificationError, VerificationError, reasons}
-
 import viper.silver.{ast => sil}
 
 sealed trait TransferableEntity {
@@ -39,10 +38,18 @@ object TransferableAccessPred {
 }
 
 case class TransferableFieldAccessPred(rcv: Exp, loc:Exp, transferAmount: Exp,originalSILExp: sil.AccessPredicate) extends TransferableAccessPred
+case class QuantifiedTransferableFieldAccessPred(qvars: Seq[LocalVar], cond: Exp, rcv: Exp, loc:Exp, transferAmount: Exp, originalSILExp: sil.AccessPredicate) extends TransferableAccessPred
 
 case class TransferablePredAccessPred(rcv: Exp, loc:Exp, transferAmount: Exp,originalSILExp: sil.AccessPredicate) extends TransferableAccessPred
+case class QuantifiedTransferablePredAccessPred(qvars: Seq[LocalVar], cond: Exp, rcv: Exp, loc:Exp, transferAmount: Exp,originalSILExp: sil.AccessPredicate) extends TransferableAccessPred
 
 case class TransferableWand(rcv:Exp, loc: Exp, transferAmount: Exp,originalSILExp: sil.MagicWand) extends TransferableEntity {
+  override def transferError(error: PartialVerificationError): VerificationError = {
+    error.dueTo(reasons.MagicWandChunkNotFound(originalSILExp))
+  }
+}
+
+case class QuantifiedTransferableWand(qvars: Seq[LocalVar], cond: Exp, rcv:Exp, loc: Exp, transferAmount: Exp,originalSILExp: sil.MagicWand) extends TransferableEntity {
   override def transferError(error: PartialVerificationError): VerificationError = {
     error.dueTo(reasons.MagicWandChunkNotFound(originalSILExp))
   }

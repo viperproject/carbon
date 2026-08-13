@@ -694,6 +694,23 @@ class DefaultHeapModule(val verifier: Verifier)
         Statements.EmptyStmt
     }
   }
+
+  override def addPermissionToWMaskQuant(wMaskField: Exp, takeMask: Exp): Stmt = {
+    if(usingOldState) { sys.error("Updating wand mask while using old state") }
+    // TODO: for transferred predicate instances, the locations in the predicates' footprints
+    // (i.e., their secondary masks) are not propagated to the wand mask here, in contrast to
+    // the non-quantified case in addPermissionToWMask.
+    val newPMask = LocalVar(Identifier("newPMask"), pmaskType)
+    val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
+    val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
+    val pm1 = lookup(wandMask(wMaskField), obj.l, field.l, true)
+    val pm2 = lookup(newPMask, obj.l, field.l, true)
+    val transferredPerm = permModule.currentPermission(takeMask, obj.l, field.l)
+    Havoc(newPMask) ++
+      Assume(Forall(Seq(obj, field), Seq(Trigger(pm2)), (pm1 || permModule.permissionPositive(transferredPerm)) ==> pm2)) ++
+      curHeapAssignUpdatePredWandMask(wMaskField, newPMask)
+  }
+
   /**
    * Adds the permissions from the body of a predicate to its permission mask.
    */
