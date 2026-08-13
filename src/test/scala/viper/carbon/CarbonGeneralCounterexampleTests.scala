@@ -11,7 +11,7 @@ import viper.silver.testing.{CounterexampleTestInput, DefaultAnnotatedTestInput}
 import java.nio.file.Path
 
 
-class GeneralCounterexampleTests extends AllTests {
+class CarbonGeneralCounterexampleTests extends AllTests {
   override val testDirectories: Seq[String] = Seq("counterexample_mapped", "counterexample_general")
 
   override val commandLineArguments: Seq[String] =

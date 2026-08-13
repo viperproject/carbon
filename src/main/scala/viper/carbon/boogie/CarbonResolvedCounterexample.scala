@@ -32,7 +32,7 @@ case class CarbonResolvedCounterexample(e: AbstractError,
   val rawCE = CarbonRawCounterexample(ve, errorMethod, names, program, wandNames)
   val model = rawCE.originalEntries
 
-  val (ceStore, refOcc) = CarbonResolvedCounterexample.detStore(program.methodsByName(errorMethod.name).transitiveScopedDecls, rawCE.basicVariables, rawCE.allCollections)
+  val (ceStore, refOcc) = CarbonResolvedCounterexample.detStore(errorMethod.transitiveScopedDecls, rawCE.basicVariables, rawCE.allCollections)
   val nameTranslationMap = CarbonResolvedCounterexample.detTranslationMap(rawCE.basicVariables, rawCE.allCollections, refOcc)
   val ceHeaps = rawCE.allRawHeaps.map(bh => (bh._1, CarbonResolvedCounterexample.detHeap(rawCE.workingModel, bh._2, program, rawCE.allCollections, nameTranslationMap, rawCE.originalEntries))).reverse
 
@@ -64,8 +64,10 @@ case class CarbonRawCounterexample(ve: VerificationError,
                                             wandNames: Option[Map[MagicWandStructure.MagicWandStructure, Func]]) extends Counterexample with RawCounterexample {
   val originalEntries = ve.failureContexts(0).counterExample.get.model
   val model = originalEntries
-  val typenamesInMethod = names.get(errorMethod.name).get.map(e => e._2 -> e._1)
-  val methodVarDecl = program.methodsByName.get(errorMethod.name).get.transitiveScopedDecls
+  // The error member may be a method, function or predicate (not only a method), so obtain its
+  // scoped declarations generically and look up its name mapping defensively.
+  val typenamesInMethod = names.getOrElse(errorMethod.name, Map.empty[String, String]).map(e => e._2 -> e._1)
+  val methodVarDecl = errorMethod.transitiveScopedDecls
 
   val (basicVariables, otherDeclarations) = CarbonRawCounterexample.detCEvariables(originalEntries.entries, typenamesInMethod, methodVarDecl)
   val allSequences = CarbonRawCounterexample.detSequences(originalEntries)
@@ -151,6 +153,10 @@ object CarbonRawCounterexample {
     newEntries
   }
 
+  /** Parses a model string as an Int, returning None for non-numeric values (e.g. boxed ids like
+    * "T@U!val!15" or symbolic terms), so that reconstructing sequences/multisets cannot crash. */
+  private def asInt(s: String): Option[Int] = scala.util.Try(s.trim.toInt).toOption
+
   /**
     * Generates the sequences of the CE.
     */
@@ -160,8 +166,8 @@ object CarbonRawCounterexample {
     for ((opName, opValues) <- model.entries) {
       if (opName == "Seq#Length") {
         if (opValues.isInstanceOf[MapEntry]) {
-          for ((k, v) <- opValues.asInstanceOf[MapEntry].options) {
-            res += (k(0).toString -> Seq.fill(v.toString.toInt)("#undefined"))
+          for ((k, v) <- opValues.asInstanceOf[MapEntry].options; n <- asInt(v.toString)) {
+            res += (k(0).toString -> Seq.fill(n)("#undefined"))
           }
         }
       } else if (opName == "Seq#Empty") {
@@ -188,8 +194,8 @@ object CarbonRawCounterexample {
       }
       if (opName == "Seq#Range") {
         if (opValues.isInstanceOf[MapEntry]) {
-          for ((k, v) <- opValues.asInstanceOf[MapEntry].options) {
-            res += (v.toString -> Seq.range(k(0).toString.toInt, k(1).toString.toInt).map(x => x.toString))
+          for ((k, v) <- opValues.asInstanceOf[MapEntry].options; lo <- asInt(k(0).toString); hi <- asInt(k(1).toString)) {
+            res += (v.toString -> Seq.range(lo, hi).map(x => x.toString))
           }
         }
       }
@@ -211,7 +217,7 @@ object CarbonRawCounterexample {
         } else if (opName == "Seq#Take") {
           res.get(k(0)) match {
             case Some(x) =>
-              res += (v -> x.take(k(1).toInt))
+              asInt(k(1)).foreach(n => res += (v -> x.take(n)))
               tempMap -= ((opName, k))
               found = true
             case None => //
@@ -219,7 +225,7 @@ object CarbonRawCounterexample {
         } else if (opName == "Seq#Drop") {
           res.get(k(0)) match {
             case Some(x) =>
-              res += (v -> x.drop(k(1).toInt))
+              asInt(k(1)).foreach(n => res += (v -> x.drop(n)))
               tempMap -= ((opName, k))
               found = true
             case None => //
@@ -227,11 +233,11 @@ object CarbonRawCounterexample {
         } else if (opName == "Seq#Index") {
           res.get(k(0)) match {
             case Some(x) =>
-              // Ignore indices outside the reconstructed sequence: the model can contain spurious
-              // Seq#Index facts (e.g. from unrelated maps sharing the encoding) whose index exceeds
-              // the sequence's length, which would make `updated` throw.
-              if (!k(1).startsWith("(") && k(1).toInt >= 0 && k(1).toInt < x.length) {
-                res += (k(0) -> x.updated(k(1).toInt, v))
+              // Ignore non-numeric or out-of-range indices: the model can contain spurious Seq#Index
+              // facts (e.g. boxed ids, or from unrelated maps sharing the encoding) whose index is not
+              // a valid position in the sequence, which would make `toInt`/`updated` throw.
+              asInt(k(1)).filter(i => i >= 0 && i < x.length).foreach { i =>
+                res += (k(0) -> x.updated(i, v))
                 found = true
               }
               tempMap -= ((opName, k))
@@ -400,9 +406,9 @@ object CarbonRawCounterexample {
       }
       if (opName == "MultiSet#Select") {
         if (opValues.isInstanceOf[MapEntry]) {
-          for ((k, v) <- opValues.asInstanceOf[MapEntry].options) {
-            if (!k(1).toString.startsWith("T@U!val!") && !v.toString.startsWith("0")) {
-              res += (k(0).toString -> res.getOrElse(k(0).toString, Map.empty).updated(k(1).toString, v.toString.toInt))
+          for ((k, v) <- opValues.asInstanceOf[MapEntry].options; count <- asInt(v.toString)) {
+            if (!k(1).toString.startsWith("T@U!val!") && count != 0) {
+              res += (k(0).toString -> res.getOrElse(k(0).toString, Map.empty).updated(k(1).toString, count))
             }
           }
         }
@@ -709,10 +715,13 @@ object CarbonRawCounterexample {
         qpMaskSet += value
       }
     }
+    // Look predicates up under their Boogie name (Carbon's name counter may have suffixed the Viper
+    // name, e.g. "P" -> "P_1"); see viperToBoogieNames.
+    val boogieNames = viperToBoogieNames(model)
     var predContentMap = Map[String, Seq[String]]()
     var predicateFinder = Map[String, String]()
     for (predName <- program.predicates.map(x => x.name)) {
-      val predEntry = model.entries.get(predName).getOrElse(model.entries.find{ case (x, _) => (x.startsWith(predName ++ "_") && !x.contains("@"))}.getOrElse(ConstantEntry("")))
+      val predEntry = model.entries.getOrElse(boogieNames.getOrElse(predName, predName), ConstantEntry(""))
       if (predEntry.isInstanceOf[MapEntry] && !predEntry.asInstanceOf[MapEntry].options.isEmpty) {
         for ((predContent, predId) <- predEntry.asInstanceOf[MapEntry].options) {
           predContentMap += (predId.toString -> predContent.map(x => x.toString))
@@ -734,9 +743,9 @@ object CarbonRawCounterexample {
     // Map each field's Boogie model value-id to its Viper name, so that (raw) heap entries can be
     // reported by field name rather than by the opaque id (matching Silicon's raw output).
     val fieldIdToName: Map[String, String] = (for {
-      (key, value) <- opMapping.toSeq
       fie <- program.fields
-      if key(0) == fie.name || (key(0).startsWith(fie.name ++ "_") && !key.contains("@"))
+      (key, value) <- opMapping.toSeq
+      if key(0) == boogieNames.getOrElse(fie.name, fie.name)
     } yield value -> fie.name).toMap
     var res = Seq[(String, RawHeap)]()
     for ((labelName, (labelHeap, labelMask)) <- hmLabels) {
@@ -978,6 +987,7 @@ object CarbonRawCounterexample {
     * It also extracts all instances (translates the generics to concrete values).
     */
   def getAllDomains(model: Model, program: ast.Program): Seq[BasicDomainEntry] = {
+    val boogieNames = viperToBoogieNames(model)
     val domains = program.collect {
       case a: ast.Domain => a
     }
@@ -992,7 +1002,7 @@ object CarbonRawCounterexample {
       } catch {
         case _: Throwable => Seq()
       }
-      val translatedFunctions = x._1.functions.map(y => detFunction(model, y, x._2, Seq(), program, false))
+      val translatedFunctions = x._1.functions.map(y => detFunction(model, y, x._2, Seq(), program, false, boogieNames))
       BasicDomainEntry(x._1.name, types, translatedFunctions)
     }).toSeq
   }
@@ -1002,21 +1012,36 @@ object CarbonRawCounterexample {
   /**
     * Extract all the functions occuring inside of a domain.
     */
+  /**
+    * Inverts [[PrettyPrinter.backMap]] (Boogie name -> Viper name) over the names that actually
+    * occur in this model, giving each Viper name the Boogie name under which it appears here. This
+    * is needed because Carbon's global namespace counter may suffix a name differently across runs
+    * (e.g. the Viper function `foo` becomes the Boogie name `foo` or `foo_1`), so model entries must
+    * be looked up via this map rather than by the raw Viper name. Only one Boogie name per Viper
+    * name occurs in a given model, so the inversion is unambiguous.
+    */
+  def viperToBoogieNames(model: Model): Map[String, String] =
+    model.entries.keys.flatMap(k => PrettyPrinter.backMap.get(k).map(_ -> k)).toMap
+
   def getAllFunctions(model: Model, program: ast.Program, heapInstances: Seq[(String, String)]): Seq[BasicFunctionEntry] = {
     val funcs = program.collect {
       case f: ast.Function => f
     }
-    funcs.map(x => detFunction(model, x, Map.empty, heapInstances, program, true)).toSeq
+    val boogieNames = viperToBoogieNames(model)
+    funcs.map(x => detFunction(model, x, Map.empty, heapInstances, program, true, boogieNames)).toSeq
   }
 
   /**
     * Determine all the inputs and outputs combinations of a function occruing the counterexample model.
     */
-  def detFunction(model: Model, func: ast.FuncLike, genmap: scala.collection.immutable.Map[ast.TypeVar, ast.Type], heapInst: Seq[(String, String)], program: ast.Program, hd: Boolean): BasicFunctionEntry = {
+  def detFunction(model: Model, func: ast.FuncLike, genmap: scala.collection.immutable.Map[ast.TypeVar, ast.Type], heapInst: Seq[(String, String)], program: ast.Program, hd: Boolean, boogieNames: Map[String, String]): BasicFunctionEntry = {
     val fname = func.name
     val resTyp: ast.Type = func.typ
     val argTyp: Seq[ast.Type] = func.formalArgs.map(x => x.typ)
-    model.entries.get(fname) match {
+    // Look the function up in the model under its Boogie name (see viperToBoogieNames): Carbon's
+    // global name counter may have suffixed the Viper name (e.g. "foo" -> "foo_1"), so looking up
+    // the raw Viper name would miss the function's interpretation.
+    model.entries.get(boogieNames.getOrElse(fname, fname)) match {
       case Some(MapEntry(m, els)) =>
         var options = Map[Seq[String], String]()
         if (hd) {
@@ -1119,11 +1144,13 @@ object CarbonResolvedCounterexample {
     // the heap entries below (which reference resources by their model value-id) be linked to their
     // AST resource.
     // Maps a predicate's model value-id to its AST node (fields are resolved by name in detHeaps and
-    // looked up directly below, so only predicates need this).
+    // looked up directly below, so only predicates need this). Predicates are matched under their
+    // Boogie name (which the name counter may have suffixed, e.g. "P" -> "P_1"); see viperToBoogieNames.
+    val boogieNames = CarbonRawCounterexample.viperToBoogieNames(model)
     var usedIdent = Map[String, Member]()
     for ((key, value) <- opMapping) {
       for (pred <- program.predicates) {
-        if (key(0) == pred.name || (key(0).startsWith(pred.name ++ "_") && !key.contains("@"))) {
+        if (key(0) == boogieNames.getOrElse(pred.name, pred.name)) {
           usedIdent += (value -> pred)
         }
       }

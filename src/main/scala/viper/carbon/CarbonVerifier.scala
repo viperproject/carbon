@@ -174,6 +174,9 @@ case class CarbonVerifier(override val reporter: Reporter,
 
     // reset all modules
     allModules map (m => m.reset())
+    // Clear the error->member mapping so it does not grow unbounded across verify(...) calls in the
+    // same JVM; it is repopulated during translation below.
+    viper.carbon.boogie.ErrorMemberMapping.mapping.clear()
     heapModule.enableAllocationEncoding = config == null || !config.disableAllocEncoding.isSupplied // NOTE: config == null happens on the build server / via sbt test
 
     var transformNames = false
