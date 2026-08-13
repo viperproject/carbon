@@ -452,14 +452,14 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
     val translatedLocals = vsFresh.map(v => mainModule.translateLocalVarDecl(v))
     // wildcard permissions are not supported inside package statements and are rejected
     // upfront via permModule.containsWildCard (see DefaultExhaleModule.exhaleConnective)
-    val translatedPerms = expModule.translateExp(renamingPerms)
+    val translatedPerms = expModule.translateExpInWand(renamingPerms)
 
     val translatedReceiver = resource match {
       case _: sil.Field => translatedArgs.head
       case _ => heapModule.translateNull
     }
     val translatedResource = heapModule.translateResource(renamingResAcc)
-    val translatedTriggers: Seq[Trigger] = renamedTriggers.map(trigger => (Trigger(trigger.exps.map(x => expModule.translateExp(x)))))
+    val translatedTriggers: Seq[Trigger] = renamedTriggers.map(trigger => (Trigger(trigger.exps.map(x => expModule.translateExpInWand(x)))))
 
     val (invFuns, rangeFun, triggerFun) = addQPFunctions(translatedLocals, freshFormalBoogieDecls)
     val funApps = invFuns.map(invFun => FuncApp(invFun.name, translatedArgs, invFun.typ))
