@@ -448,7 +448,7 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
     val renamedTriggers: Seq[sil.Trigger] = e.triggers.map(trigger => sil.Trigger(trigger.exps.map(x => renaming(x)))(trigger.pos, trigger.info))
 
     //translate components
-    val (translatedCond, translatedArgs) = (expModule.translateExp(renamingCond), renamingArgs.map(expModule.translateExp))
+    val (translatedCond, translatedArgs) = (expModule.translateExpInWand(renamingCond), renamingArgs.map(expModule.translateExpInWand))
     val translatedLocals = vsFresh.map(v => mainModule.translateLocalVarDecl(v))
     // wildcard permissions are not supported inside package statements and are rejected
     // upfront via permModule.containsWildCard (see DefaultExhaleModule.exhaleConnective)
