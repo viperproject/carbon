@@ -551,7 +551,6 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
     val independentLocations = Assume(Forall(Seq(obj, field), Seq(Trigger(currentPermission(obj.l, field.l)), Trigger(currentPermission(transferAmountLocalQuant, obj.l, field.l))),
       independentCond ==>
         (permModule.permissionZero(currentPermission(transferAmountLocalQuant, obj.l, field.l)))))
-    val validMask = Assume(permModule.goodMask(transferAmountLocalQuant))
     //same resource, but not satisfying the condition
     val independentResource = Assume(MaybeForall(freshFormalBoogieDecls, triggerForPermissionUpdateAxioms, ((condInv && (permModule.permissionPositive(permInv)) && rangeFunApp).not) ==> (permModule.permissionZero(currentPermission(transferAmountLocalQuant, generalReceiver, generalLocation)))))
 
@@ -590,12 +589,12 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
     }
     val injectiveAssertion = Assert(Forall((translatedLocals ++ translatedLocals2), injectTrigger, injectiveCond ==> ineqExpr), err)
 
-    val res1 = Havoc(transferAmountLocalQuant) ++ Assume(permModule.goodMask(transferAmountLocalQuant)) ++
+    val res1 = Havoc(transferAmountLocalQuant) ++
       CommentBlock("check that the permission amount is positive", permPositive) ++
       CommentBlock("check if receiver " + accPred.toString + " is injective", injectiveAssertion) ++
       CommentBlock("assumptions for inverse of receiver " + accPred.toString, Assume(invAssm1) ++ Assume(invAssm2)) ++
       CommentBlock("assume permission for relevant locations", permissionsMap ++ independentResource) ++
-      CommentBlock("assume permission for independent locations ", independentLocations ++ validMask)
+      CommentBlock("assume permission for independent locations ", independentLocations)
 
 
     val transferEntity = e match {
