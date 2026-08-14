@@ -263,6 +263,13 @@ object MaybeForall {
     else Forall(vars, triggers, exp)
   }
 }
+
+object MaybeExists {
+  def apply(vars: Seq[LocalVarDecl], triggers: Seq[Trigger], exp: Exp) = {
+    if (vars.isEmpty) exp
+    else Exists(vars, triggers, exp)
+  }
+}
 case class Exists(vars: Seq[LocalVarDecl], triggers: Seq[Trigger], exp: Exp, weight: Option[Int] = None) extends QuantifiedExp
 case class Trigger(exps: Seq[Exp]) extends Node
 
