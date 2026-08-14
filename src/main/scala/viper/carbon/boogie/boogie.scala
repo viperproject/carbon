@@ -314,14 +314,18 @@ sealed trait Stmt extends Node {
 case class Lbl(name: Identifier)
 case class Goto(dests: Seq[Lbl]) extends Stmt
 case class Label(lbl: Lbl) extends Stmt
-case class Assume(exp: Exp) extends Stmt
+case class Assume(exp: Exp, attributes: Map[String, String] = Map.empty) extends Stmt
 case class AssertImpl(exp: Exp, error: VerificationError) extends Stmt {
   var id = AssertIds.next // Used for mapping errors in the output back to VerificationErrors
 }
 object ErrorMemberMapping {
-  // The "weak" hash map is necessary to avoid leaking memory.
-  // See issue https://github.com/viperproject/carbon/issues/444
-  val mapping = mutable.WeakHashMap[VerificationError, Member]()
+  // Maps a verification error to the member it originates from, so that counterexample generation
+  // can recover the member for an error. Keyed by the error's readable message rather than by the
+  // VerificationError instance, because the instance that reaches counterexample generation (after
+  // the error has been round-tripped through Boogie) is not the one recorded here. As a consequence
+  // entries are not evicted (unlike the former WeakHashMap keyed by the error object), but their
+  // number is bounded by the number of asserts. See https://github.com/viperproject/carbon/issues/444
+  val mapping = mutable.HashMap[String, Member]()
   var currentMember : Member = null
 }
 object Assert {
@@ -329,7 +333,7 @@ object Assert {
     if (error == null) Statements.EmptyStmt
     else {
       if (ErrorMemberMapping.currentMember != null) {
-        ErrorMemberMapping.mapping.update(error, ErrorMemberMapping.currentMember)
+        ErrorMemberMapping.mapping.update(error.readableMessage(true, true), ErrorMemberMapping.currentMember)
       }
       AssertImpl(exp, error)
     }
