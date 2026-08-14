@@ -34,7 +34,7 @@ case class CarbonResolvedCounterexample(e: AbstractError,
 
   val (ceStore, refOcc) = CarbonResolvedCounterexample.detStore(errorMethod.transitiveScopedDecls, rawCE.basicVariables, rawCE.allCollections)
   val nameTranslationMap = CarbonResolvedCounterexample.detTranslationMap(rawCE.basicVariables, rawCE.allCollections, refOcc)
-  val ceHeaps = rawCE.allRawHeaps.map(bh => (bh._1, CarbonResolvedCounterexample.detHeap(rawCE.workingModel, bh._2, program, rawCE.allCollections, nameTranslationMap, rawCE.originalEntries))).reverse
+  val ceHeaps = rawCE.allRawHeaps.map(bh => (bh._1, CarbonResolvedCounterexample.detHeap(rawCE.workingModel, bh._2, program, rawCE.allCollections, nameTranslationMap, rawCE.originalEntries, wandNames))).reverse
 
   override val domainEntries: Seq[BasicDomainEntry] = CarbonResolvedCounterexample.detTranslatedDomains(rawCE.domainEntries, nameTranslationMap)
   override val functionEntries: Seq[BasicFunctionEntry] = CarbonResolvedCounterexample.detTranslatedFunctions(rawCE.nonDomainFunctions, nameTranslationMap)
@@ -783,8 +783,13 @@ object CarbonRawCounterexample {
           if (typ == FieldType || typ == QPFieldType) {
             heapEntrySet += RawHeapEntry(Seq(reference), Seq(field), value, tempPerm, typ, None)
           } else if (typ == PredicateType || typ == QPPredicateType) {
-            val insidePred = if (value == "#undefined") Map[ast.Exp, ModelEntry]() else evalInsidePredicate(value, field, predicateFinder, predByName, model)
-            heapEntrySet += RawHeapEntry(Seq(reference, field), predContentMap.getOrElse(field, Seq()), value, tempPerm, typ, Some(insidePred))
+            // This label's heap version may not record the predicate's snapshot (e.g. it was folded
+            // in a different version). A folded predicate's snapshot frame is invariant, so fall back
+            // to any heap version that does record it, otherwise the inside-field values are lost.
+            val predSnap = if (value != "#undefined") value else
+              heapOp.collectFirst { case (Seq("MapType0Select", _, r, f), v) if r == reference && f == field && v != "#undefined" => v }.getOrElse("#undefined")
+            val insidePred = if (predSnap == "#undefined") Map[ast.Exp, ModelEntry]() else evalInsidePredicate(predSnap, field, predicateFinder, predByName, model)
+            heapEntrySet += RawHeapEntry(Seq(reference, field), predContentMap.getOrElse(field, Seq()), predSnap, tempPerm, typ, Some(insidePred))
           } else if (typ == MagicWandType || typ == QPMagicWandType) {
             heapEntrySet += RawHeapEntry(Seq(reference, field), mwContentMap.getOrElse(field, Seq()), value, tempPerm, typ, None)
           }
@@ -803,57 +808,68 @@ object CarbonRawCounterexample {
   }
 
   /**
-    * Evaluate the snapshot of a predicate.
+    * Recovers the values of the fields held *inside* a (non-abstract) predicate from its snapshot
+    * frame, mirroring Silicon's approach. Carbon frames only the resource (heap-dependent) conjuncts
+    * of the body, right-associatively combined via `CombineFrames`; pure conjuncts get no frame slot.
+    * A field access's value is its frame fragment resolved through `FrameFragment`; a nested predicate
+    * or quantified permission is not decomposed (but must not cause a crash).
     */
   def evalInsidePredicate(insId: String, predId: String, predicateFinder: Map[String, String], predByName: scala.collection.immutable.Map[String, Predicate], model: Model): Map[ast.Exp, ModelEntry] = {
-    val frameAssign = model.entries.get("FrameFragment")
-    val frameCombine = model.entries.get("CombineFrames")
-    var ans = scala.collection.immutable.Map[ast.Exp, ModelEntry]()
-    if (frameAssign.isDefined && frameAssign.get.isInstanceOf[MapEntry] && frameCombine.isDefined && frameCombine.get.isInstanceOf[MapEntry]) {
-      val insTerm: Seq[String] = detInsideTerm(frameCombine.get.asInstanceOf[MapEntry].options.map(_.swap), insId, Seq())
-      val evaluatedPredTerm = insTerm.map(ent => detInsideValue(frameAssign.get.asInstanceOf[MapEntry].options.map(_.swap), ent))
-      val predName = predicateFinder.get(predId)
-      if (predName.isDefined && predByName.get(predName.get).isDefined) {
-        val astPred = predByName.get(predName.get)
-        if (astPred.isDefined && !astPred.get.isAbstract) {
-          val predBody = astPred.get.body.get
-          val insPred = insPredToBody(predBody, evaluatedPredTerm)
-          if (insPred.length > 0 && !(insPred.length == 1 && insPred(0)._2.startsWith("T@U!val!"))) {
-            var assignedPredBody = scala.collection.immutable.Map[ast.Exp, ModelEntry]()
-            for ((exp, value) <- insPred) {
-              if (value.startsWith("T@U!val!") || value.startsWith("(T@U!val!")) {
-                assignedPredBody += evalBody(exp, UnspecifiedEntry, assignedPredBody)
-              } else {
-                assignedPredBody += evalBody(exp, ConstantEntry(value), assignedPredBody)
-              }
-            }
-            ans = assignedPredBody
-          }
+    (model.entries.get("FrameFragment"), model.entries.get("CombineFrames")) match {
+      case (Some(fa: MapEntry), Some(fc: MapEntry)) =>
+        predicateFinder.get(predId).flatMap(predByName.get).filterNot(_.isAbstract).flatMap(_.body) match {
+          case Some(body) => collectInsideValues(body, insId, fc.options.map(_.swap), fa.options.map(_.swap), scala.collection.immutable.Map.empty)
+          case None => scala.collection.immutable.Map.empty
         }
-      }
+      case _ => scala.collection.immutable.Map.empty
     }
-    ans
   }
 
   /**
-    * Compare the snapshot of a predicate to its actual body (accessed through its ast node).
+    * Walks a predicate body (or a sub-assertion of it) alongside the snapshot frame representing it,
+    * collecting the value of every accessible field. Only resource conjuncts occupy frame slots, so
+    * the body's resource conjuncts are matched, in order, against the leaves of the right-nested frame.
     */
-  def evalBody(exp: ast.Exp, value: ModelEntry, lookup: Map[ast.Exp, ModelEntry]): (ast.Exp, ModelEntry) = {
-    exp match {
-      case ast.FieldAccessPredicate(predAcc, _) => (predAcc, value)
-      case ast.CondExp(cond, thn, els) =>
-        if (evalExp(cond, lookup)) {
-          evalBody(thn, value, lookup)
-        } else {
-          evalBody(els, value, lookup)
+  def collectInsideValues(assertion: ast.Exp, frameId: String,
+                          combineMap: Map[ValueEntry, Seq[ValueEntry]],
+                          assignMap: Map[ValueEntry, Seq[ValueEntry]],
+                          acc: Map[ast.Exp, ModelEntry]): Map[ast.Exp, ModelEntry] = {
+    assertion.topLevelConjuncts.filter(containsResource) match {
+      case Seq() => acc
+      case Seq(single) => extractResource(single, frameId, combineMap, assignMap, acc)
+      case resConjuncts =>
+        resConjuncts.zip(frameLeaves(frameId, combineMap, resConjuncts.length)).foldLeft(acc) {
+          case (lookup, (conjunct, leaf)) => extractResource(conjunct, leaf, combineMap, assignMap, lookup)
         }
-      case ast.Implies(left, right) =>
-        if (evalExp(left, lookup)) {
-          evalBody(right, value, lookup)
-        } else {
-          (left, ConstantEntry("False"))
-        }
-      case _ => (exp, value)
+    }
+  }
+
+  private def extractResource(conjunct: ast.Exp, frameId: String,
+                              combineMap: Map[ValueEntry, Seq[ValueEntry]],
+                              assignMap: Map[ValueEntry, Seq[ValueEntry]],
+                              acc: Map[ast.Exp, ModelEntry]): Map[ast.Exp, ModelEntry] = conjunct match {
+    case ast.FieldAccessPredicate(fa, _) =>
+      val value = detInsideValue(assignMap, frameId)
+      // an unresolved frame id (e.g. the snapshot of a nested resource) does not denote a field value
+      acc + (fa -> (if (value.startsWith("T@U!val!") || value.startsWith("(T@U!val!")) ConstantEntry("#undefined") else ConstantEntry(value)))
+    case ast.Implies(guard, inner) =>
+      if (evalExp(guard, acc)) collectInsideValues(inner, frameId, combineMap, assignMap, acc) else acc
+    case ast.CondExp(cond, thn, els) =>
+      if (evalExp(cond, acc)) collectInsideValues(thn, frameId, combineMap, assignMap, acc)
+      else collectInsideValues(els, frameId, combineMap, assignMap, acc)
+    case _ => acc // nested predicate, magic wand or quantified permission: not decomposed
+  }
+
+  /** True if `e` mentions any resource (an accessibility predicate or a magic wand). */
+  private def containsResource(e: ast.Exp): Boolean =
+    e.deepCollect { case _: ast.AccessPredicate => (); case _: ast.MagicWand => () }.nonEmpty
+
+  /** The `n` frame leaves of a right-nested `CombineFrames` tree rooted at `frameId`. */
+  private def frameLeaves(frameId: String, combineMap: Map[ValueEntry, Seq[ValueEntry]], n: Int): Seq[String] = {
+    if (n <= 1) Seq(frameId)
+    else combineMap.get(ConstantEntry(frameId)) match {
+      case Some(pair) if pair.length == 2 => pair.head.toString +: frameLeaves(pair(1).toString, combineMap, n - 1)
+      case _ => Seq(frameId) // frame not combined as expected: stop without crashing
     }
   }
 
@@ -863,34 +879,11 @@ object CarbonRawCounterexample {
     case _ => false
   }
 
-  def insPredToBody(body: ast.Exp, insPred: Seq[String]): Seq[(ast.Exp, String)] = {
-    if (insPred.isEmpty) {
-      Seq()
-    } else if (insPred.length == 1) {
-      Seq((body, insPred.head))
-    } else {
-      if (body.subExps.length == 2) {
-        Seq((body.subExps.head, insPred.head)) ++ insPredToBody(body.subExps(1), insPred.tail)
-      } else {
-        Seq()
-      }
-    }
-  }
-
   def detInsideValue(framesAssign: Map[ValueEntry, Seq[ValueEntry]], entry: String): String = {
     if (framesAssign.contains(ConstantEntry(entry))) {
       detInsideValue(framesAssign, framesAssign.get(ConstantEntry(entry)).get(0).toString)
     } else {
       entry
-    }
-  }
-
-  def detInsideTerm(framesCombine: Map[ValueEntry, Seq[ValueEntry]], insId: String, term: Seq[String]): Seq[String] = {
-    if (framesCombine.contains(ConstantEntry(insId))) {
-      val newterm = term ++ framesCombine.get(ConstantEntry(insId)).get.map(x => x.toString)
-      detInsideTerm(framesCombine, newterm(newterm.length-1), newterm)
-    } else {
-      term
     }
   }
 
@@ -1138,7 +1131,7 @@ object CarbonResolvedCounterexample {
   /**
     * Match heap resources to their ast node and translate all identifiers (for fields and references)
     */
-  def detHeap(opMapping: Map[Seq[String], String], basicHeap: RawHeap, program: Program, collections: Seq[CECollection], translNames: Map[String, String], model: Model): HeapCounterexample = {
+  def detHeap(opMapping: Map[Seq[String], String], basicHeap: RawHeap, program: Program, collections: Seq[CECollection], translNames: Map[String, String], model: Model, wandNames: Option[Map[MagicWandStructure.MagicWandStructure, Func]]): HeapCounterexample = {
     // Build a map from each Boogie model value-id to the Viper field or predicate it stands for, by
     // matching the model's function names against the program's field and predicate names. This lets
     // the heap entries below (which reference resources by their model value-id) be linked to their
@@ -1186,7 +1179,10 @@ object CarbonResolvedCounterexample {
         case MagicWandType | QPMagicWandType =>
           val argValues = bhe.field // TODO translNames: .map(x => translNames.getOrElse(x, x))
           for ((mw, idx) <- program.magicWandStructures.zipWithIndex) {
-            val (wandName, resource): (String, Resource) = if (idx == 0) ("wand", mw.res(program)) else ("wand_" ++ idx.toString, mw)
+            val resource: Resource = if (idx == 0) mw.res(program) else mw
+            // The Boogie name of the wand function is subject to name drift (e.g. "wand_1"), so look
+            // it up via the wand shapes rather than assuming the default "wand"/"wand_N" name.
+            val wandName = wandNames.flatMap(_.get(mw)).map(_.name.name).getOrElse(if (idx == 0) "wand" else "wand_" ++ idx.toString)
             val instances = model.entries.get(wandName).collect { case MapEntry(opts, _) => opts }.getOrElse(scala.collection.immutable.Map.empty)
             if (instances.exists(_._2.toString == bhe.reference(1))) {
               ans +:= (resource, WandResolvedEntry.fromStructure(mw, argValues, bhe.perm, bhe.het, program))
