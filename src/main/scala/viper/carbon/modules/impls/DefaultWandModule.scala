@@ -31,6 +31,10 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
   type WandShape = Func
   //This needs to be resettable, which is why "lazy val" is not used. See also: wandToShapes method
   private var lazyWandToShapes: Option[Map[MagicWandStructure.MagicWandStructure, WandShape]] = None
+
+  /** The wand shapes computed so far, or `None` if none have been computed yet. Read-only accessor
+    * used by counterexample generation, which must not force computation (unlike [[wandToShapes]]).*/
+  def currentWandShapes: Option[Map[MagicWandStructure.MagicWandStructure, WandShape]] = lazyWandToShapes
   /** CONSTANTS FOR TRANSFER START**/
 
   /* denotes amount of permission to add/remove during a specific transfer */
@@ -947,7 +951,7 @@ private def setupTransferableEntity(e: sil.Exp, permTransfer: Exp):(Transferable
 
 override def exchangeAssumesWithBoolean(stmt: Stmt,boolVar: LocalVar):Stmt = {
   stmt match {
-    case Assume(exp) =>
+    case Assume(exp, _) =>
       boolVar := (boolVar && viper.carbon.boogie.PrettyPrinter.quantifyOverFreeTypeVars(exp))
     case Seqn(statements) =>
       Seqn(statements.map(s => exchangeAssumesWithBoolean(s, boolVar)))

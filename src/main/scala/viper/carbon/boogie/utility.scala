@@ -106,7 +106,7 @@ object Nodes {
         ss match {
           case Assign(lhs, rhs) => Seq(lhs, rhs)
           case Assert(e, _) => Seq(e)
-          case Assume(e) => Seq(e)
+          case Assume(e, _) => Seq(e)
           case HavocImpl(es) => es
           case Comment(_) => Nil
           case CommentBlock(_, stmt) => Seq(stmt)

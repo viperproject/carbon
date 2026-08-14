@@ -6,7 +6,7 @@
 
 package viper.carbon
 
-import boogie.{BoogieModelTransformer, Namespace}
+import boogie.{BoogieModelTransformer, CarbonResolvedCounterexample, Namespace}
 import modules.impls._
 import viper.silver.ast.{MagicWand, Program, Quasihavoc, Quasihavocall}
 import viper.silver.utility.Paths
@@ -14,7 +14,7 @@ import viper.silver.verifier._
 import verifier.{BoogieDependency, BoogieInterface, Verifier}
 
 import java.io.{BufferedOutputStream, File, FileOutputStream, IOException}
-import viper.silver.frontend.{MissingDependencyException, NativeModel, VariablesModel}
+import viper.silver.frontend.{ResolvedModel, RawModel, MissingDependencyException, NativeModel, VariablesModel}
 import viper.silver.reporter.Reporter
 
 /**
@@ -174,12 +174,19 @@ case class CarbonVerifier(override val reporter: Reporter,
 
     // reset all modules
     allModules map (m => m.reset())
+    // Clear the error->member mapping so it does not grow unbounded across verify(...) calls in the
+    // same JVM; it is repopulated during translation below.
+    viper.carbon.boogie.ErrorMemberMapping.mapping.clear()
     heapModule.enableAllocationEncoding = config == null || !config.disableAllocEncoding.isSupplied // NOTE: config == null happens on the build server / via sbt test
 
     var transformNames = false
+    var rawCounterexample = false
+    var resolvedCounterexample = false
     if (config == null) Seq() else config.counterexample.toOption match {
       case Some(NativeModel) =>
       case Some(VariablesModel) => transformNames = true
+      case Some(RawModel) => rawCounterexample = true
+      case Some(ResolvedModel) => resolvedCounterexample = true
       case None =>
       case Some(v) => sys.error("Invalid option: " + v)
     }
@@ -242,6 +249,12 @@ case class CarbonVerifier(override val reporter: Reporter,
         result match {
           case Failure(errors) if transformNames => {
             errors.foreach(e =>  BoogieModelTransformer.transformCounterexample(e, translatedNames))
+          }
+          case Failure(errors) if rawCounterexample => {
+            errors.foreach(e => CarbonResolvedCounterexample.transformRawCounterexample(e, translatedNames, program, wandModule.currentWandShapes))
+          }
+          case Failure(errors) if resolvedCounterexample => {
+            errors.foreach(e => CarbonResolvedCounterexample.transformResolvedCounterexample(e, translatedNames, program, wandModule.currentWandShapes))
           }
           case _ => result
         }
