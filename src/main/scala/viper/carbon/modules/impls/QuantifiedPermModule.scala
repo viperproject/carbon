@@ -1058,10 +1058,6 @@ class QuantifiedPermModule(val verifier: Verifier)
     }
   }
 
-  def Locally(s: Stmt): Stmt = {
-    NondetIf(s ++ Assume(FalseLit()))
-  }
-
   /*
       translate inhaling a forall expressions
    */
