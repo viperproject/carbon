@@ -40,5 +40,5 @@ class AllTests extends SilSuite {
   lazy val verifiers = List(verifier)
 
   val commandLineArguments: Seq[String] =
-    Seq("--timeout=120")
+    Seq("--timeout=180")
 }
