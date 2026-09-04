@@ -41,7 +41,7 @@ import viper.silver.ast.utility.rewriter.Traverse
 import viper.silver.ast.Implies
 
 import scala.collection.mutable.ListBuffer
-import viper.silver.ast.utility.QuantifiedPermissions.SourceQuantifiedPermissionAssertion
+import viper.silver.ast.utility.QuantifiedPermissions.{QuantifiedPermissionAssertion, SourceQuantifiedPermissionAssertion}
 import viper.silver.verifier.errors.{ContractNotWellformed, PostconditionViolated}
 
 /**
@@ -108,6 +108,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   private val summandMask2 = LocalVarDecl(Identifier("SummandMask2"),maskType)
   private val sumMasks = Identifier("sumMask")
   private val tempMask = LocalVar(Identifier("TempMask"),maskType)
+  private val minMasks = Identifier("minMask")
 
   private val qpMaskName = Identifier("QPMask")
   private val qpMask = LocalVar(qpMaskName, maskType)
@@ -229,6 +230,20 @@ class QuantifiedPermModule(val verifier: Verifier)
           funcApp ==> (permResult === (permSummand1 + permSummand2))
         ))
     } ++ {
+      val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
+      val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
+      val args = Seq(summandMask1, summandMask2)
+      val funcApp = FuncApp(minMasks, args map (_.l), maskType)
+      val permResult = currentPermission(funcApp, obj.l, field.l)
+      val permSummand1 = currentPermission(summandMask1.l, obj.l, field.l)
+      val permSummand2 = currentPermission(summandMask2.l, obj.l, field.l)
+      Func(minMasks, args, maskType) ++
+        Axiom(Forall(
+          args ++ Seq(obj, field),
+          Seq(Trigger(permResult), Trigger(Seq(funcApp, permSummand1)), Trigger(Seq(funcApp, permSummand2))),
+          (permResult === CondExp(permSummand1 < permSummand2, permSummand1, permSummand2))
+        ))
+    } ++ {
       MaybeCommentedDecl("Function for trigger used in checks which are never triggered",
         triggerFuncs.toSeq)
     } ++ {
@@ -291,6 +306,8 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   def staticGoodMask = FuncApp(goodMaskName, LocalVar(maskName, maskType), Bool)
 
+  def goodMask(msk: Exp): Exp = FuncApp(goodMaskName, msk, Bool)
+
   private def permAdd(a: Exp, b: Exp): Exp = a + b
   private def permSub(a: Exp, b: Exp): Exp = a - b
   private def permDiv(a: Exp, b: Exp): Exp = a / b
@@ -348,6 +365,8 @@ class QuantifiedPermModule(val verifier: Verifier)
    */
   override def permissionPositive(permission: Exp, zeroOK : Boolean = false): Exp = permissionPositiveInternal(permission, None, zeroOK)
 
+  override def permissionZero(permission: Exp): Exp = permission === noPerm
+
   private def permissionPositiveInternal(permission: Exp, silPerm: Option[sil.Exp], zeroOK : Boolean = false): Exp = {
     (permission, silPerm) match {
       case (_, _) if permission == fullPerm => TrueLit()
@@ -364,11 +383,16 @@ class QuantifiedPermModule(val verifier: Verifier)
   override def sumMask(resultMask: Seq[Exp], summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp =
     FuncApp(sumMasks, resultMask++summandMask1++summandMask2,Bool)
 
+  override def minMask(summandMask1: Seq[Exp], summandMask2: Seq[Exp]): Exp =
+    FuncApp(minMasks, summandMask1 ++ summandMask2, maskType)
+
   override def containsWildCard(e: sil.Exp): Boolean = {
     e match {
       case sil.AccessPredicate(_, prm) =>
         val p = PermissionHelper.normalizePerm(prm)
         p.isInstanceOf[sil.WildcardPerm]
+      case QuantifiedPermissionAssertion(_, _, acc: sil.AccessPredicate) =>
+        conservativeIsWildcardPermission(acc.perm)
       case _ => false
     }
   }
@@ -592,8 +616,8 @@ class QuantifiedPermModule(val verifier: Verifier)
             //if the permission is a wildcard, we check that we have some permission > 0 for all locations and assume that the permission substracted is smaller than the permission held.
             val wildcardAssms:Stmt =
               if(isWildcard) {
-                (Assert(Forall(vsFresh.map(v => translateLocalVarDecl(v)), Seq(), translatedCond ==> (currentPermission(translatedRecv, translatedLocation) > noPerm)), error.dueTo(reasons.InsufficientPermission(fieldAccess))))++
-                  (Assume(Forall(vsFresh.map(v => translateLocalVarDecl(v)), Seq(), translatedCond ==> (wildcard < currentPermission(translatedRecv, translatedLocation)))))
+                Locally(Assert(Forall(vsFresh.map(v => translateLocalVarDecl(v)), Seq(), translatedCond ==> (currentPermission(translatedRecv, translatedLocation) > noPerm)), error.dueTo(reasons.InsufficientPermission(fieldAccess))))++
+                  (Assume(Forall(vsFresh.map(v => translateLocalVarDecl(v)), Seq(Trigger(currentPermission(translatedRecv, translatedLocation))), translatedCond ==> (wildcard < currentPermission(translatedRecv, translatedLocation)))))
               } else {
                 Nil
               }
@@ -645,13 +669,18 @@ class QuantifiedPermModule(val verifier: Verifier)
               CommentBlock("assume permission updates for independent locations", independentLocations) ++
               (mask := qpMask)
 
+            val inverseAssumptions: Stmt = if (assertReadPermOnly) Nil else
+              CommentBlock("assumptions for inverse of receiver " + recv.toString, Assume(invAssm1)++ Assume(invAssm2))
+
+            val checks = CommentBlock("check that the permission amount is positive", Locally(permPositive)) ++
+              CommentBlock("check if receiver " + recv.toString + " is injective", Locally(injectiveAssertion)) ++
+              CommentBlock("check if sufficient permission is held", Locally(enoughPerm))
+
             val res1 = Havoc(qpMask) ++
               MaybeComment("wild card assumptions", stmts ++
               wildcardAssms) ++
-              CommentBlock("check that the permission amount is positive", permPositive) ++
-              CommentBlock("check if receiver " + recv.toString + " is injective",injectiveAssertion) ++
-              CommentBlock("check if sufficient permission is held", enoughPerm) ++
-              CommentBlock("assumptions for inverse of receiver " + recv.toString, Assume(invAssm1)++ Assume(invAssm2)) ++
+              checks ++
+              inverseAssumptions ++
               maskUpdateStmt
 
             vsFresh.foreach(v => env.undefine(v.localVar))
@@ -765,8 +794,8 @@ class QuantifiedPermModule(val verifier: Verifier)
             //if we exhale a wildcard permission, assert that we hold some permission to all affected locations and restrict the wildcard value
             val wildcardAssms:Stmt =
               if(isWildcard) {
-                Assert(Forall(translatedLocals, Seq(), translatedCond ==> (currentPermission(translateNull, translatedResource) > noPerm)), error.dueTo(reason)) ++
-                  Assume(Forall(translatedLocals, Seq(), translatedCond ==> (wildcard < currentPermission(translateNull, translatedResource))))
+                Locally(Assert(Forall(translatedLocals, Seq(), translatedCond ==> (currentPermission(translateNull, translatedResource) > noPerm)), error.dueTo(reason))) ++
+                  Assume(Forall(translatedLocals, Seq(Trigger(currentPermission(translateNull, translatedResource))), translatedCond ==> (wildcard < currentPermission(translateNull, translatedResource))))
               } else {
                 Nil
               }
@@ -842,13 +871,18 @@ class QuantifiedPermModule(val verifier: Verifier)
               CommentBlock("assume permission updates for independent locations ", independentLocations) ++
               (mask := qpMask)
 
+            val inverseAssumptions: Stmt = if (assertReadPermOnly) Nil else
+              CommentBlock("assumptions for inverse of receiver " + accPred.toString, Assume(invAssm1)++ Assume(invAssm2))
+
+            val checks = CommentBlock("check that the permission amount is positive", Locally(permPositive)) ++
+              CommentBlock("check if receiver " + accPred.toString + " is injective", Locally(injectiveAssertion)) ++
+              CommentBlock("check if sufficient permission is held", Locally(enoughPerm))
+
             val res1 = Havoc(qpMask) ++
               MaybeComment("wildcard assumptions", stmts ++
               wildcardAssms) ++
-              CommentBlock("check that the permission amount is positive", permPositive) ++
-              CommentBlock("check if receiver " + accPred.toString + " is injective",injectiveAssertion) ++
-              CommentBlock("check if sufficient permission is held", enoughPerm) ++
-              CommentBlock("assumptions for inverse of receiver " + accPred.toString, Assume(invAssm1)++ Assume(invAssm2)) ++
+              checks ++
+              inverseAssumptions ++
               maskUpdateStmts
 
             vsFresh.foreach(vFresh => env.undefine(vFresh.localVar))
@@ -879,12 +913,31 @@ class QuantifiedPermModule(val verifier: Verifier)
     currentMaskAssignUpdate(e.rcv, e.loc, permSub(curPerm,e.transferAmount))
   }
 
+  override def transferRemoveQuant(toRemoveMask: Exp, cond: Exp): Stmt = {
+    // qpMask := mask
+    // mask := qpMask - toRemoveMask
+    Seq(
+      qpMask := mask,
+      subtractMask(qpMask, toRemoveMask, mask)
+    )
+  }
+
+  override def subtractMask(op1: Exp, op2: Exp, target: Var): Stmt = {
+    // // target := op1 - op2
+    // havoc target
+    // assume sumMask(op1, target, op2)
+    Seq(
+      Havoc(target),
+      Assume(sumMask(op1, target, op2))
+    )
+  }
+
   override def transferValid(e:TransferableEntity):Seq[(Stmt,Exp)] = {
     Nil
   }
 
   override def inhaleExp(e: sil.Exp, error: PartialVerificationError): Stmt = {
-    inhaleAux(e, Assume, error)
+    inhaleAux(e, Assume(_), error)
   }
 
   override def inhaleWandFt(w: sil.MagicWand): Stmt = {
@@ -1200,7 +1253,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
            val reas = reasons.QPAssertionNotInjective(fieldAccess)
            val err = error.dueTo(reas)
-           val injectiveAssertion = Assert(is_injective, err)
+           val injectiveAssertion = Locally(Assert(is_injective, err))
 
            val res1 = Havoc(qpMask) ++
              stmts ++
@@ -1208,7 +1261,7 @@ class QuantifiedPermModule(val verifier: Verifier)
              else Nil) ++
              CommentBlock("Define Inverse Function", Assume(invAssm1) ++
                Assume(invAssm2)) ++
-             (if (!isWildcard) MaybeComment("Check that permission expression is non-negative for all fields", permPositive) else Nil) ++
+             (if (!isWildcard) MaybeComment("Check that permission expression is non-negative for all fields", Locally(permPositive)) else Nil) ++
              CommentBlock("Assume set of fields is nonNull", nonNullAssumptions) ++
             // CommentBlock("Assume injectivity", injectiveAssumption) ++
              CommentBlock("Define permissions", Assume(Forall(obj, triggerForPermissionUpdateAxiom, condTrueLocations && condFalseLocations)) ++
@@ -1378,7 +1431,7 @@ class QuantifiedPermModule(val verifier: Verifier)
            }
            val injectTrigger = Seq(Trigger(Seq(triggerFunApp, triggerFunApp2)))
            val err = error.dueTo(reasons.QPAssertionNotInjective(accPred.loc))
-           val injectiveAssertion = Assert(Forall((translatedLocals ++ translatedLocals2), injectTrigger,injectiveCond ==> ineqExpr), err)
+           val injectiveAssertion = Locally(Assert(Forall((translatedLocals ++ translatedLocals2), injectTrigger,injectiveCond ==> ineqExpr), err))
 
 
            val res1 = Havoc(qpMask) ++
@@ -1387,7 +1440,7 @@ class QuantifiedPermModule(val verifier: Verifier)
              else Nil) ++
              CommentBlock("Define Inverse Function", Assume(invAssm1) ++
                Assume(invAssm2)) ++
-             (if (!isWildcard) (MaybeComment("Check that permission expression is non-negative for all fields", permPositive)) else Nil) ++
+             (if (!isWildcard) (MaybeComment("Check that permission expression is non-negative for all fields", Locally(permPositive))) else Nil) ++
              CommentBlock("Define updated permissions", permissionsMap) ++
              CommentBlock("Define independent locations", (independentLocations ++
              independentResource)) ++
@@ -1452,6 +1505,27 @@ class QuantifiedPermModule(val verifier: Verifier)
     if (!usingOldState) currentMaskAssignUpdate(e.rcv, e.loc, permAdd(curPerm, e.transferAmount)) else Nil
   }
 
+  override def transferAddQuant(toAddMask: Exp, cond: Exp): Stmt = {
+    if (!usingOldState) {
+      // qpMask := mask
+      // // mask := qpMask + toAddMask
+      // havoc mask
+      // assume sumMask(mask, qpMask, toAddMask)
+      Seq(
+        qpMask := mask,
+        Havoc(mask),
+        Assume(sumMask(mask, qpMask, toAddMask))
+      )
+    } else Nil
+  }
+
+  override def hasSomePerm(mask: Exp, vars: Seq[LocalVarDecl], rcv: Exp, fld: Exp): Exp = {
+    //val obj = LocalVarDecl(Identifier("o"), refType) // ref-typed variable, representing arbitrary receiver
+    //val field = LocalVarDecl(Identifier("f"), fieldType)
+    val perm = currentPermission(mask, rcv, fld)
+    Exists(vars, Trigger(perm), perm > noPerm)
+  }
+
   override def tempInitMask(rcv: Exp, loc:Exp):(Seq[Exp], Stmt) = {
     val setMaskStmt = tempMask := maskUpdate(zeroMask, rcv, loc, fullPerm)
     (tempMask, setMaskStmt)
@@ -1477,7 +1551,12 @@ class QuantifiedPermModule(val verifier: Verifier)
   def currentPermission(rcv: Exp, location: Exp): Exp = {
     currentPermission(maskExp, rcv, location)
   }
-  def currentPermission(mask: Exp, rcv: Exp, location: Exp, isPMask: Boolean = false): Exp = {
+
+  def currentPermission(mask: Exp, rcv: Exp, location: Exp): Exp = {
+    currentPermission(mask, rcv, location, false)
+  }
+
+  def currentPermission(mask: Exp, rcv: Exp, location: Exp, isPMask: Boolean): Exp = {
     if(verifier.usePolyMapsInEncoding) {
       MapSelect(mask, Seq(rcv, location))
     } else {
@@ -1658,7 +1737,7 @@ class QuantifiedPermModule(val verifier: Verifier)
    argumentDecls gives the names and types of the formal parameters (recv:Ref by default, but different for e.g. predicates under qps)
    The second function is a boolean function to represent the image of e(x) for all instances x to which permission is denoted
    */
-  private def addQPFunctions(qvars: Seq[LocalVarDecl], argumentDecls : Seq[LocalVarDecl] = LocalVarDecl(Identifier("recv"), refType)):(Seq[Func],Func,Func) = {
+  def addQPFunctions(qvars: Seq[LocalVarDecl], argumentDecls : Seq[LocalVarDecl] = LocalVarDecl(Identifier("recv"), refType)):(Seq[Func],Func,Func) = {
     val invFuns = new ListBuffer[Func]
     for (qvar <- qvars) {
       qpId = qpId+1;

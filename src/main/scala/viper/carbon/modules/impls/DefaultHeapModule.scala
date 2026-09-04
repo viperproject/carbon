@@ -446,6 +446,8 @@ class DefaultHeapModule(val verifier: Verifier)
     val pmT = predicateMaskFieldTypeOf(p)
     val varDecls = p.formalArgs map mainModule.translateLocalVarDecl
     val vars = varDecls map (_.l)
+    val predArgGetters = varDecls.map (v => Func(Identifier(f"predicate_${p.name}_arg_${v.name.name}"), Seq(LocalVarDecl(Identifier("pred"), t)), v.typ))
+    val predArgGetters2 = varDecls.map (v => Func(Identifier(f"predicate_${p.name}_arg_${v.name.name}_sm"), Seq(LocalVarDecl(Identifier("pred"), pmT)), v.typ))
     val predId:BigInt = getPredicateOrWandId(p.name)
     val f0 = FuncApp(predicate, vars, t)
     val f1 = predicateMaskField(f0)
@@ -453,6 +455,8 @@ class DefaultHeapModule(val verifier: Verifier)
     TypeDecl(predicateMetaTypeOf(p)) ++
       Func(predicate, varDecls, t) ++
       Func(pmField, varDecls, pmT) ++
+      predArgGetters ++
+      predArgGetters2 ++
       Axiom(MaybeForall(varDecls, Trigger(f1), f1 === f2)) ++
       Axiom(MaybeForall(varDecls, Trigger(f0), isPredicateField(f0))) ++
       Axiom(MaybeForall(varDecls, Trigger(f0), getPredicateOrWandId(f0) === IntLit(predId))) ++
@@ -460,21 +464,20 @@ class DefaultHeapModule(val verifier: Verifier)
       Func(predicateTriggerAnyStateIdentifier(p), Seq(LocalVarDecl(Identifier("pred"), predicateVersionFieldType())), Bool) ++
       {
         // axiom that two predicate identifiers can only be the same, if all arguments
-        // are the same (e.g., we immediatly know that valid(1) != valid(2))
+        // are the same (e.g., we immediately know that valid(1) != valid(2))
         if (vars.size == 0) Nil
         else {
-          val varDecls2 = varDecls map (
-            v => LocalVarDecl(Identifier(v.name.name + "2")(v.name.namespace), v.typ))
-          val vars2 = varDecls2 map (_.l)
-          val varsEqual = All((vars zip vars2) map {
-            case (v1, v2) => v1 === v2
-          })
-          val f0_2 = FuncApp(predicate, vars2, t)
-          val f2_2 = FuncApp(pmField, vars2, t)
-          Axiom(Forall(varDecls ++ varDecls2, Trigger(Seq(f0, f0_2)),
-            (f0 === f0_2) ==> varsEqual)) ++
-            Axiom(Forall(varDecls ++ varDecls2, Trigger(Seq(f2, f2_2)),
-              (f2 === f2_2) ==> varsEqual))
+          val argGetApply = predArgGetters map (f => FuncApp(f.name, Seq(f0), f.typ))
+          val argGetEqual = argGetApply.zip(vars).map {
+            case (get, v) => get === v
+          }
+          val argGetAxiom = Axiom(Forall(varDecls, Trigger(f0), All(argGetEqual)))
+          val argGetApply2 = predArgGetters2 map (f => FuncApp(f.name, Seq(f2), f.typ))
+          val argGetEqual2 = argGetApply2.zip(vars).map {
+            case (get, v) => get === v
+          }
+          val argGetAxiom2 = Axiom(Forall(varDecls, Trigger(f2), All(argGetEqual2)))
+          argGetAxiom ++ argGetAxiom2
         }
       }
   }
@@ -693,6 +696,23 @@ class DefaultHeapModule(val verifier: Verifier)
         Statements.EmptyStmt
     }
   }
+
+  override def addPermissionToWMaskQuant(wMaskField: Exp, takeMask: Exp): Stmt = {
+    if(usingOldState) { sys.error("Updating wand mask while using old state") }
+    // TODO: for transferred predicate instances, the locations in the predicates' footprints
+    // (i.e., their secondary masks) are not propagated to the wand mask here, in contrast to
+    // the non-quantified case in addPermissionToWMask.
+    val newPMask = LocalVar(Identifier("newPMask"), pmaskType)
+    val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
+    val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
+    val pm1 = lookup(wandMask(wMaskField), obj.l, field.l, true)
+    val pm2 = lookup(newPMask, obj.l, field.l, true)
+    val transferredPerm = permModule.currentPermission(takeMask, obj.l, field.l)
+    Havoc(newPMask) ++
+      Assume(Forall(Seq(obj, field), Seq(Trigger(pm2)), (pm1 || permModule.permissionPositive(transferredPerm)) ==> pm2)) ++
+      curHeapAssignUpdatePredWandMask(wMaskField, newPMask)
+  }
+
   /**
    * Adds the permissions from the body of a predicate to its permission mask.
    */

@@ -11,19 +11,34 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
-    container: gobraverifier/gobra-base:v5_z3_4.8.7 # Thank you, Gobra team
     env:
       BOOGIE_EXE: "boogie/Boogie"
+      Z3_EXE: "z3/bin/z3"
       LINUX_BOOGIE_URL: "https://github.com/viperproject/boogie-builder/releases/download/7449a7a899c02c95/boogie-linux.zip"
+      LINUX_Z3_URL: "https://github.com/Z3Prover/z3/releases/download/z3-4.16.0/z3-4.16.0-x64-glibc-2.39.zip"
     steps:
     - name: Checkout Carbon
       uses: actions/checkout@v6
       with:
         submodules: true
+    - name: Set up JDK
+      uses: actions/setup-java@v5
+      with:
+        distribution: temurin
+        java-version: '11'
+    - name: Set up sbt
+      uses: sbt/setup-sbt@v1
+    - name: Download Z3
+      run: |
+        curl --fail --silent --show-error -L ${{ env.LINUX_Z3_URL }} --output z3-linux.zip
+        unzip -q z3-linux.zip
+        rm -rf z3-linux.zip
+        mv z3-4.16.0-x64-glibc-2.39 z3
+        chmod +x ${{ env.Z3_EXE }}
     - name: Java Version
       run: java --version
     - name: Z3 Version
-      run: z3 -version
+      run: ${{ env.Z3_EXE }} -version
     - name: Create version file
       run: |
         echo "Carbon: commit $(git -C . rev-parse HEAD)" >> versions.txt
@@ -72,4 +87,4 @@ jobs:
         name: carbon-jar
         path: target/scala-2.13/carbon.jar
         retention-days: 14
-        if-no-files-found: error        
+        if-no-files-found: error
