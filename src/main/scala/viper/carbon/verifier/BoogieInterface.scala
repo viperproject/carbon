@@ -79,7 +79,7 @@ trait BoogieInterface {
     errormap = Map()
     models.clear()
     program.visit {
-      case a@Assert(exp, error) =>
+      case a@Assert(_, error) =>
         errormap += (a.id -> error)
     }
 
@@ -195,7 +195,7 @@ trait BoogieInterface {
           version_found = version
         case ErrorPattern(id) =>
           errors += id.toInt
-        case SummaryPattern(v, e) =>
+        case SummaryPattern(_, e) =>
           if(e.toInt != errors.size) unexpected(s"Found ${errors.size} errors, but there should be $e. The output was: $output")
         case "" => // ignore empty lines
         case _ =>

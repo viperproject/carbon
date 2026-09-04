@@ -6,14 +6,6 @@
 
 package viper.carbon
 
-import viper.silver.frontend.Frontend
-import viper.silver.logger.SilentLogger
-import viper.silver.reporter.{NoopReporter, StdIOReporter}
-import viper.silver.testing.SilSuite
-import viper.silver.verifier.Verifier
-
-import java.nio.file.Path
-
 /** All tests for carbon.
 
   */

@@ -25,7 +25,7 @@ class DefaultDomainModule(val verifier: Verifier) extends DomainModule with Stat
 
   def name = "Domain module"
 
-  implicit val namespace = verifier.freshNamespace("domain")
+  implicit val namespace: Namespace = verifier.freshNamespace("domain")
 
   // name for output identifier (to try to avoid clashes - should be improved for robustness (see issue #19)
   def outputName(domain: sil.Domain) : String = domain.name + "DomainType"

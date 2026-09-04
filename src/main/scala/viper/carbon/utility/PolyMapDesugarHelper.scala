@@ -19,7 +19,7 @@ case class PolyMapRep(select: Func, store: Func, axioms: Seq[Axiom])
   * @param namespace
   */
 case class PolyMapDesugarHelper(refType: Type, fieldTypeConstructor: (Int, Seq[Type] => Type), namespace: Namespace) {
-  implicit val ns = namespace
+  implicit val ns: Namespace = namespace
 
   /**
     * Creates store and select functions with corresponding axioms to desugar a Boogie map of the form

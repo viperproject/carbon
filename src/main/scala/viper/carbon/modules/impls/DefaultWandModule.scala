@@ -19,6 +19,8 @@ import viper.silver.verifier.errors.{ContractNotWellformed, PostconditionViolate
 import viper.silver.verifier.{PartialVerificationError, reasons}
 import viper.silver.{ast => sil}
 
+import scala.annotation.unused
+
 class
 DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent with DefinednessComponent{
   import verifier._
@@ -222,7 +224,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
     val StateSetup(usedState, initStmt) = createAndSetState(boolVar, "Used", false).asInstanceOf[StateSetup]
 
     //inhale left hand side to initialize hypothetical state
-    val hypName = names.createUniqueIdentifier("Ops")
+    @unused val hypName = names.createUniqueIdentifier("Ops")
     val StateSetup(hypState,hypStmt) = createAndSetState(None,"Ops")
     OPS = hypState
     UNIONState = OPS
@@ -243,11 +245,11 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
   override def translatePackage(p: sil.Package, error: PartialVerificationError, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false):Stmt = {
     val proofScript = p.proofScript
     p match {
-      case pa@sil.Package(wand, proof) =>
+      case sil.Package(wand, _) =>
         wand match {
           case w@sil.MagicWand(left,right) =>
             // saving the old variables as they would be overwritten in the case of nested magic wands
-            var oldW = currentWand
+            val oldW = currentWand
             val oldOps = OPS
 
             currentWand = w
@@ -366,7 +368,7 @@ override def exhaleExt(statesObj: List[Any], usedObj:Any, e: sil.Exp, allStateAs
   }
 }
 
-def exhaleExtExp(states: List[StateRep], used:StateRep, e: sil.Exp,allStateAssms:Exp, RHS: Boolean = false, mainError: PartialVerificationError):Stmt = {
+def exhaleExtExp(@unused states: List[StateRep], used:StateRep, e: sil.Exp,allStateAssms:Exp, @unused RHS: Boolean = false, mainError: PartialVerificationError):Stmt = {
   if(e.isPure) {
     If(allStateAssms&&used.boolVar,expModule.checkDefinedness(e,mainError, insidePackageStmt = true),Statements.EmptyStmt) ++
       Assert((allStateAssms&&used.boolVar) ==> expModule.translateExpInWand(e), mainError.dueTo(reasons.AssertionFalse(e)))
@@ -384,7 +386,7 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
   val permAmount =
     e   match {
       case sil.MagicWand(left, right) => boogieFullPerm
-      case p@sil.AccessPredicate(loc, perm) => permModule.translatePerm(perm)
+      case sil.AccessPredicate(_, perm) => permModule.translatePerm(perm)
       case _ => sys.error("only transfer of access predicates and magic wands supported")
     }
 
@@ -413,20 +415,20 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
     //store the permission to be transferred into a separate variable
 
 
-    val (cond, accPred) = e match {
+    val (cond, accPred) = (e: @unchecked) match {
       case QuantifiedPermissionAssertion(_, cond, accPred) => (cond, accPred)
     }
 
     val (permAmount, args, resource, resAcc, formals) =
-      accPred match {
+      (accPred: @unchecked) match {
         case w@sil.MagicWand(_, _) =>
           val subExps = w.subexpressionsToEvaluate(mainModule.verifier.program)
           val formals = subExps.zipWithIndex.map { case (arg, i) => sil.LocalVarDecl(s"arg_$i", arg.typ)() }
           (sil.FullPerm()(), subExps, w.structure(mainModule.verifier.program), w, formals)
-        case p@sil.AccessPredicate(loc, perm) => loc match {
+        case sil.AccessPredicate(loc, perm) => (loc: @unchecked) match {
           case sil.FieldAccess(rcv, field) =>
             (perm, Seq(rcv), field, loc, Seq(sil.LocalVarDecl("rcv", sil.Ref)()))
-          case pa@sil.PredicateAccess(args, predName) =>
+          case sil.PredicateAccess(args, predName) =>
             val predicate = program.findPredicate(predName)
             (perm, args, predicate, loc, predicate.formalArgs)
         }
@@ -511,7 +513,7 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
 
     //Assume map update for affected locations
     val (generalReceiver, generalLocation) = accPred match {
-      case fap@sil.FieldAccessPredicate(fa@sil.FieldAccess(_, _), _) =>
+      case sil.FieldAccessPredicate(fa@sil.FieldAccess(_, _), _) =>
         val formalFieldAccess = fa.copy(rcv = freshFormalVars.head)(fa.pos, fa.info, fa.errT)
         (expModule.translateExp(freshFormalVars.head), heapModule.translateResource(formalFieldAccess))
       case pa: sil.PredicateAccessPredicate =>
@@ -535,9 +537,8 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
     //Assume no change for independent locations: different predicate/wand or different resource type
     val obj = LocalVarDecl(Identifier("o")(transferNamespace), heapModule.refType)
     val field = LocalVarDecl(Identifier("f")(transferNamespace), heapModule.fieldType)
-    val fieldVar = LocalVar(Identifier("f")(transferNamespace), heapModule.fieldType)
     val isRightFieldType = ((fldp: Exp) => accPred match {
-      case sil.FieldAccessPredicate(sil.FieldAccess(rcv, fld), _) =>
+      case sil.FieldAccessPredicate(sil.FieldAccess(rcv, _), _) =>
         (fldp === translatedResource)
       case sil.PredicateAccessPredicate(sil.PredicateAccess(_, predname), _) =>
         (heapModule.isPredicateField(fldp) && (heapModule.getPredicateOrWandId(fldp) === IntLit(heapModule.getPredicateOrWandId(predname))))
@@ -601,18 +602,18 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
       CommentBlock("assume permission for independent locations ", independentLocations)
 
 
-    val transferEntity = e match {
-      case QuantifiedPermissionAssertion(_, cond, ap) =>
+    val transferEntity = (e: @unchecked) match {
+      case QuantifiedPermissionAssertion(_, _, ap) =>
         ap match {
           case fa@sil.FieldAccessPredicate(loc, _) =>
-            val rcv = expModule.translateExpInWand(loc.rcv)
+            @unused val rcv = expModule.translateExpInWand(loc.rcv)
             QuantifiedTransferableFieldAccessPred(freshFormalBoogieVars, translatedCond, translatedReceiver, translatedResource, translatedPerms, fa)
 
           case p@sil.PredicateAccessPredicate(loc, _) =>
             QuantifiedTransferablePredAccessPred(freshFormalBoogieVars, translatedCond, translatedReceiver, translatedResource, translatedPerms, p)
 
           case w: sil.MagicWand =>
-            val wandRep = getWandRepresentation(w)
+            @unused val wandRep = getWandRepresentation(w)
             //GP: maybe should store holes of wand first in local variables
             QuantifiedTransferableWand(freshFormalBoogieVars, translatedCond, translatedReceiver, translatedResource, translatedPerms, w)
         }
@@ -642,7 +643,7 @@ def transferMain(states: List[StateRep], used:StateRep, e: sil.Exp, allStateAssm
 /*
  * Precondition: current state is set to the used state
   */
-private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEntity, allStateAssms: Exp, mainError: PartialVerificationError, havocHeap: Boolean = true):Stmt = {
+private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEntity, allStateAssms: Exp, mainError: PartialVerificationError, havocHeap: Boolean):Stmt = {
   states match {
     case (top :: xs) =>
       //Compute all values needed from top state
@@ -659,8 +660,6 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
         (generateStmtCheck(components flatMap (_.transferValid(e)), boolTransferTop))
       val minStmt = If(neededLocal <= curpermLocal,
         transferAmountLocal := neededLocal, transferAmountLocal := curpermLocal)
-
-      val nofractionsStmt = (transferAmountLocal := RealLit(1.0))
 
       val curPermTop = permModule.currentPermission(e.rcv, e.loc)
       val removeFromTop = heapModule.beginExhale ++
@@ -732,8 +731,8 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
   }
 }
 
-  private def transferAccQuant(states: List[StateRep], used:StateRep, e: TransferableEntity, hasSomePerm: Exp => Exp, allStateAssms: Exp, mainError: PartialVerificationError, havocHeap: Boolean = true):Stmt = {
-    val resFieldType = e match {
+  private def transferAccQuant(states: List[StateRep], used:StateRep, e: TransferableEntity, hasSomePerm: Exp => Exp, allStateAssms: Exp, mainError: PartialVerificationError, havocHeap: Boolean):Stmt = {
+    @unused val resFieldType = (e: @unchecked) match {
       case qf: QuantifiedTransferableFieldAccessPred =>
         val t = typeModule.translateType(qf.originalSILExp.asInstanceOf[sil.FieldAccessPredicate].loc.field.typ)
         heapModule.fieldTypeOf(t)
@@ -798,7 +797,6 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
           case _ => Nil
         }
 
-        val translatedResource = e.loc
 
 
         //transfer from top to used state
@@ -926,7 +924,7 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
  *         in the Boogie program before the any translation concerning the TransferableEntity can be used
  */
 private def setupTransferableEntity(e: sil.Exp, permTransfer: Exp):(TransferableEntity,Stmt) = {
-  e match {
+  (e: @unchecked) match {
     case fa@sil.FieldAccessPredicate(loc, _) =>
       val assignStmt = rcvLocal := expModule.translateExpInWand(loc.rcv)
       val evalLoc = heapModule.translateResource(loc)
@@ -1050,12 +1048,12 @@ case class PackageSetup(hypState: StateRep, usedState: StateRep, initStmt: Stmt)
     }
   }
 
-  def applyWand(w: sil.MagicWand, error: PartialVerificationError, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), inWand: Boolean = false):Stmt = {
+  def applyWand(w: sil.MagicWand, error: PartialVerificationError, statesStack: List[Any] = null, @unused allStateAssms: Exp = TrueLit(), inWand: Boolean = false):Stmt = {
     /** we first exhale without havocing heap locations to avoid the incompleteness issue which would otherwise
       * occur when the left and right hand side mention common heap locations.
       */
     val lhsID = wandModule.getNewLhsID() // identifier for the lhs of the wand to be referred to later when 'old(lhs)' is used
-    val defineLHS = stmtModule.translateStmt(sil.Label("lhs"+lhsID, Nil)(w.pos, w.info))
+    @unused val defineLHS = stmtModule.translateStmt(sil.Label("lhs"+lhsID, Nil)(w.pos, w.info))
     wandModule.pushToActiveWandsStack(lhsID)
 
     val ret = CommentBlock("check if wand is held and remove an instance",exhaleModule.exhaleSingleWithoutDefinedness(w, error, false, insidePackageStmt = inWand, statesStackForPackageStmt = statesStack)) ++
@@ -1102,7 +1100,7 @@ case class PackageSetup(hypState: StateRep, usedState: StateRep, initStmt: Stmt)
     */
   override def partialCheckDefinedness(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean, definednessStateOpt: Option[DefinednessState]): (() => Stmt, () => Stmt) = {
     e match {
-      case a@sil.Applying(wand, exp) =>
+      case sil.Applying(wand, _) =>
         tmpStateId += 1
         val tmpStateName = if (tmpStateId == 0) "Applying" else s"Applying$tmpStateId"
         val (stmt, state) = stateModule.freshTempState(tmpStateName)

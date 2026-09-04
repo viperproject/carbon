@@ -21,7 +21,7 @@ object Carbon extends CarbonFrontend(StdIOReporter("carbon_reporter"), ViperStdO
     val submitter = new FileProgramSubmitter(this)
     submitter.setArgs(args)
 
-    execute(args)
+    execute(args.toIndexedSeq)
     specifyAppExitCode()
 
     submitter.submit()
