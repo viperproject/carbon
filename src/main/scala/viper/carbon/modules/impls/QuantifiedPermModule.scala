@@ -712,11 +712,15 @@ class QuantifiedPermModule(val verifier: Verifier)
               CommentBlock("assume permission updates for independent locations", independentLocations) ++
               (mask := qpMask)
 
+            val kInductionTransfer: Stmt = if (assertReadPermOnly || isWildcard) Statements.EmptyStmt else
+              kInductionQP(Seq(obj), condInv && permGt(permInv, noPerm) && rangeFunApp, obj.l, translatedLocation, permInv,
+                field.l !== translatedLocation, error.dueTo(reasons.InsufficientPermission(fieldAccess)), Assume(invAssm1) ++ Assume(invAssm2))
             val res1 = Havoc(qpMask) ++
               MaybeComment("wild card assumptions", stmts ++
               wildcardAssms) ++
               CommentBlock("check that the permission amount is positive", permPositive) ++
               CommentBlock("check if receiver " + recv.toString + " is injective",injectiveAssertion) ++
+              kInductionTransfer ++
               CommentBlock("check if sufficient permission is held", enoughPerm) ++
               CommentBlock("assumptions for inverse of receiver " + recv.toString, Assume(invAssm1)++ Assume(invAssm2)) ++
               maskUpdateStmt
@@ -909,11 +913,15 @@ class QuantifiedPermModule(val verifier: Verifier)
               CommentBlock("assume permission updates for independent locations ", independentLocations) ++
               (mask := qpMask)
 
+            val kInductionTransfer: Stmt = if (assertReadPermOnly || isWildcard) Statements.EmptyStmt else
+              kInductionQP(freshFormalBoogieDecls, condInv && permGt(permInv, noPerm) && rangeFunApp, translateNull, general_location, permInv,
+                (obj.l !== translateNull) || isDifferentFieldType || hasWrongId, error.dueTo(reason), Assume(invAssm1) ++ Assume(invAssm2))
             val res1 = Havoc(qpMask) ++
               MaybeComment("wildcard assumptions", stmts ++
               wildcardAssms) ++
               CommentBlock("check that the permission amount is positive", permPositive) ++
               CommentBlock("check if receiver " + accPred.toString + " is injective",injectiveAssertion) ++
+              kInductionTransfer ++
               CommentBlock("check if sufficient permission is held", enoughPerm) ++
               CommentBlock("assumptions for inverse of receiver " + accPred.toString, Assume(invAssm1)++ Assume(invAssm2)) ++
               maskUpdateStmts
@@ -1704,6 +1712,69 @@ class QuantifiedPermModule(val verifier: Verifier)
     val bvs = vars map translateLocalVar
     Havoc(bvs) ++
       (bvs map (v => Assume((v > noPerm) && (v < fullPerm))))
+  }
+
+  /** k-induction for the exhale of a quantified permission assertion (see also assertCurrentPermGe for single
+    * locations): in the transferring phase of the innermost loop, permissions that are missing in the current mask
+    * are transferred pointwise from the enclosing loop heaps (kInductionTransferMasks; the last one has to provide
+    * whatever is still missing, which is asserted); in the assuming phase, the current mask is topped up to the
+    * needed amount (conjured). The current mask is updated in place (if it is a temporary copy, the original loop
+    * mask is updated as well). The caller then performs the usual exhale. Nothing is generated otherwise.
+    *
+    * @param locVars     variables ranging over the affected locations (the receiver for fields, the formal
+    *                    arguments for predicates and wands), in terms of which the following are expressed
+    * @param inRange     whether the location is affected by the quantified assertion (via the inverse functions)
+    * @param rcv, loc    Boogie receiver and location of the affected location
+    * @param needed      permission amount needed for the location (via the inverse functions)
+    * @param independent condition over the variables `o: Ref` and `f: Field` (Boogie names "o" and "f") stating
+    *                    that the location (o, f) is definitely not affected
+    * @param inverseAssumptions the definitions of the inverse functions, assumed before the transfer
+    */
+  private def kInductionQP(locVars: Seq[LocalVarDecl], inRange: Exp, rcv: Exp, loc: Exp, needed: Exp, independent: Exp,
+                           ve: VerificationError, inverseAssumptions: Stmt): Stmt = {
+    val phase = kInductedLoops.headOption.map(_.phase)
+    if (phase.isEmpty || phase.get == KInductionPhases.Checking) return Nil
+
+    val obj = LocalVarDecl(Identifier("o"), refType)
+    val fld = LocalVarDecl(Identifier("f"), fieldType)
+    def perm(m: Exp, r: Exp, l: Exp): Exp = currentPermission(m, r, l)
+    val cur = perm(mask, rcv, loc)
+    val missing = CondExp(needed > cur, needed - cur, noPerm)
+
+    /* Pointwise update of the given masks: at affected locations, mask_i := newValue_i (an expression over the
+     * masks before the update); unchanged everywhere else. */
+    def update(updates: Seq[(Var, Exp)]): Stmt = {
+      val temps = updates.indices.map(i => LocalVar(Identifier(s"kIndTransferMask$i"), maskType))
+      val trig = Seq(Trigger(perm(temps.head, rcv, loc)))
+      val trigOF = Seq(Trigger(perm(temps.head, obj.l, fld.l)))
+      val inRangeUpdates = (updates zip temps).map { case ((_, newValue), tmp) => perm(tmp, rcv, loc) === newValue }.reduce[Exp](_ && _)
+      val unchangedInRange = (updates zip temps).map { case ((m, _), tmp) => perm(tmp, rcv, loc) === perm(m, rcv, loc) }.reduce[Exp](_ && _)
+      val unchangedElsewhere = (updates zip temps).map { case ((m, _), tmp) => perm(tmp, obj.l, fld.l) === perm(m, obj.l, fld.l) }.reduce[Exp](_ && _)
+      (temps map (t => Havoc(t): Stmt)) ++
+        Assume(Forall(locVars, trig, inRange ==> inRangeUpdates)) ++
+        Assume(Forall(locVars, trig, inRange.not ==> unchangedInRange)) ++
+        Assume(Forall(Seq(obj, fld), trigOF, independent ==> unchangedElsewhere)) ++
+        ((updates zip temps) map { case ((m, _), tmp) => (m := tmp): Stmt })
+    }
+    def alsoOriginal(delta: Exp): Seq[(Var, Exp)] =
+      if (mask != originalMask) Seq((originalMask, perm(originalMask, rcv, loc) + delta)) else Nil
+
+    if (phase.get == KInductionPhases.Assuming) {
+      MaybeCommentBlock("k-induction: conjure the quantified permissions that are missing",
+        inverseAssumptions ++ update(Seq((mask, cur + missing)) ++ alsoOriginal(missing)))
+    } else {
+      val transferMasks = kInductionTransferMasks
+      val transfers = transferMasks.zipWithIndex map { case (outerMask, i) =>
+        val isLast = i == transferMasks.length - 1
+        val outerCur = perm(outerMask, rcv, loc)
+        val missingNow = CondExp(needed > cur, needed - cur, noPerm) // w.r.t. the current mask before this step
+        val take = if (isLast) missingNow else CondExp(missingNow <= outerCur, missingNow, outerCur)
+        (if (isLast) Assert(Forall(locVars, Seq(Trigger(perm(outerMask, rcv, loc))), inRange ==> (outerCur >= missingNow)), ve) else Nil: Stmt) ++
+          update(Seq((mask, cur + take), (outerMask, outerCur - take)) ++ alsoOriginal(take))
+      }
+      MaybeCommentBlock("k-induction: transfer the quantified permissions that are missing from the enclosing loop heaps",
+        inverseAssumptions ++ transfers.flatten)
+    }
   }
 
   /** Asserts that the current mask holds at least `amount` permission to `fa`. k-induction: if the innermost loop

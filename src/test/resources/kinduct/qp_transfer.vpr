@@ -1,0 +1,51 @@
+// Quantified permissions inside k-inducted loops: the exhale of a quantified
+// assertion transfers the missing permissions from the enclosing heap.
+
+field f: Int
+
+method havocBool() returns (b: Bool)
+
+// Exhale half of every r.f and inhale it back in each iteration.
+method qpExhaleInhale(s: Set[Ref])
+  requires forall r: Ref :: r in s ==> acc(r.f)
+{
+  var b: Bool := true
+  while (b)
+  {
+    exhale forall r: Ref :: r in s ==> acc(r.f, 1/2)
+    inhale forall r: Ref :: r in s ==> acc(r.f, 1/2)
+    b := havocBool()
+  }
+  assert forall r: Ref :: r in s ==> acc(r.f)
+}
+
+// Exhaling everything but inhaling only half back: the second iteration lacks permission.
+method qpExhaleTooMuch(s: Set[Ref])
+  requires forall r: Ref :: r in s ==> acc(r.f)
+{
+  var b: Bool := true
+  while (b)
+  {
+    //:: ExpectedOutput(exhale.failed:insufficient.permission)
+    exhale forall r: Ref :: r in s ==> acc(r.f)
+    inhale forall r: Ref :: r in s ==> acc(r.f, 1/2)
+    b := havocBool()
+  }
+}
+
+// Reading through a quantified permission held outside the loop, then writing after it.
+method qpReadThenWrite(s: Set[Ref], x: Ref)
+  requires forall r: Ref :: r in s ==> acc(r.f)
+  requires x in s && x.f == 3
+{
+  var b: Bool := true
+  var t: Int := 0
+  while (b)
+  {
+    t := t + x.f
+    b := havocBool()
+  }
+  assert x.f == 3
+  x.f := 4
+  assert forall r: Ref :: r in s ==> acc(r.f)
+}
