@@ -31,10 +31,13 @@ class DefaultDomainModule(val verifier: Verifier) extends DomainModule with Stat
   def outputName(domain: sil.Domain) : String = domain.name + "DomainType"
 
   override def translateDomain(domain: sil.Domain): Seq[Decl] = {
+    val prevState = stateModule.state
+    stateModule.replaceState(stateModule.pureState)
     val fs = domain.functions.filter(f => f.interpretation.isEmpty) flatMap translateDomainFunction
     val as = domain.axioms flatMap translateDomainAxiom
     val ts = CommentedDecl(s"The type for domain ${domain.name}",
       TypeDecl(NamedType(this.outputName(domain) , domain.typVars map (tv => TypeVar(tv.name)))), size = 1)
+    stateModule.replaceState(prevState)
     CommentedDecl(s"Translation of domain ${domain.name}", ts ++ fs ++ as, nLines = 2)
   }
 

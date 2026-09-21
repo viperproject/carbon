@@ -5,11 +5,12 @@
 // Copyright (c) 2011-2025 ETH Zurich.
 
 package viper.carbon
+class CarbonSIFTests extends AllTests {
+  override def testDirectories: Seq[String] = Vector(
+    "sif"
+  )
 
-import viper.silver.reporter.StdIOReporter
-import viper.silver.testing.BackendTypeTest
-import viper.silver.verifier.Verifier
+  override val commandLineArguments: Seq[String] =
+    Seq("--plugin=viper.silver.plugin.sif.SIFPlugin")
 
-class CarbonBackendTypeTest extends BackendTypeTest {
-  override val verifier: Verifier = CarbonVerifier(StdIOReporter())
 }

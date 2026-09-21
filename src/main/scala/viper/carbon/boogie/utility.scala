@@ -25,7 +25,6 @@ object Statements {
     s match {
       case If(_, thn, els) => Seq(s) ++ children(thn) ++ children(els)
       case NondetIf(thn, els) => Seq(s) ++ children(thn) ++ children(els)
-      case NondetWhile(bod) => Seq(s) ++ children(bod)
       case Seqn(ss) => ss flatMap children
       case CommentBlock(_, stmt) => Seq(stmt)
       case _ => List(s)
@@ -107,14 +106,13 @@ object Nodes {
         ss match {
           case Assign(lhs, rhs) => Seq(lhs, rhs)
           case Assert(e, _) => Seq(e)
-          case Assume(e) => Seq(e)
+          case Assume(e, _) => Seq(e)
           case HavocImpl(es) => es
           case Comment(_) => Nil
           case CommentBlock(_, stmt) => Seq(stmt)
           case Seqn(s) => s
           case If(cond, thn, els) => Seq(cond, thn, els)
           case NondetIf(thn, els) => Seq(thn, els)
-          case NondetWhile(bod) => Seq(bod)
           case Label(_) => Nil
           case Goto(_) => Nil
           case LocalVarWhereDecl(_, where) => Seq(where)

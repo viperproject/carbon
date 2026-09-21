@@ -149,12 +149,9 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
         else space <> "else" <+> showBlock(els)
       }
     }
-    def showWhile(cond: Cont, bod: Stmt): Cont = {
-      text("while") <+> "(" <> cond <> ")" <+> showBlock(bod)
-    }
     s match {
-      case Assume(e) =>
-        text("assume") <+> show(quantifyOverFreeTypeVars(e)) <> char (';')
+      case Assume(e, atts) =>
+        text("assume") <+> (if (atts.isEmpty) nil else showAttributes(atts) <> space) <> show(quantifyOverFreeTypeVars(e)) <> char (';')
       case a@Assert(e, error) =>
         text("assert") <+>
           "{:msg" <+> "\"  " <> showError(error, a.id) <> "\"}" <> line <>
@@ -172,8 +169,6 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
         showIf(show(cond), thn, els)
       case NondetIf(thn, els) =>
         showIf("*", thn, els)
-      case NondetWhile(bod) =>
-        showWhile("*", bod)
       case Comment(c) =>
         text("//") <+> c
       case CommentBlock(c, stmt) =>
@@ -188,7 +183,7 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
   }
 
   def showError(error: VerificationError, id: Int) = {
-    s"${error.readableMessage} [$id]"
+    s"${error.readableMessage.replaceAll("\"", "'")} [$id]"
   }
 
   def showBlock(stmt: Stmt) = {

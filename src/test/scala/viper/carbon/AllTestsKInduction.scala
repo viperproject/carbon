@@ -6,21 +6,20 @@
 
 package viper.carbon
 
-import viper.silver.testing.SilSuite
-import viper.silver.verifier.Verifier
 import viper.silver.frontend.Frontend
-import java.nio.file.Path
-
 import viper.silver.logger.SilentLogger
 import viper.silver.reporter.{NoopReporter, StdIOReporter}
+import viper.silver.testing.SilSuite
+import viper.silver.verifier.Verifier
+
+import java.nio.file.Path
 
 /** All tests for carbon.
 
   */
-class AllTests extends SilSuite {
+class AllTestsKInduction extends SilSuite {
   override def testDirectories: Seq[String] = Vector(
-    "local", "all", "quantifiedpermissions", "quantifiedpredicates", "quantifiedcombinations",
-    "wands", "examples", "termination", "refute", "quasihavoc"
+    "kinduct"
   )
 
   override def frontend(verifier: Verifier, files: Seq[Path]): Frontend = {
@@ -40,5 +39,5 @@ class AllTests extends SilSuite {
   lazy val verifiers = List(verifier)
 
   val commandLineArguments: Seq[String] =
-    Seq()
+    Seq("--enableKInduction")
 }

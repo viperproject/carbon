@@ -7,7 +7,7 @@
 package viper.carbon.modules.impls
 
 import viper.carbon.modules.{StatelessComponent, StmtModule}
-import viper.carbon.modules.components.{CarbonStateComponent, DefinednessComponent, DefinednessState, SimpleStmtComponent}
+import viper.carbon.modules.components.{DefinednessComponent, DefinednessState, SimpleStmtComponent}
 import viper.silver.ast.utility.Expressions.{whenExhaling, whenInhaling}
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
@@ -43,6 +43,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
 
   private val lblNamespace = verifier.freshNamespace("stmt.lbl")
   var lblVarsNamespace = verifier.freshNamespace("var.lbl")
+  private val tmpVarsNamespace = verifier.freshNamespace("stmt.tmpvar")
   override def labelNamespace = lblNamespace
 
   def name = "Statement module"
@@ -118,12 +119,11 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
     stmt match {
       case assign@sil.LocalVarAssign(lhs, rhs) =>
         checkDefinedness(lhs, errors.AssignmentFailed(assign), insidePackageStmt = insidePackageStmt) ++
-          checkDefinedness(rhs, errors.AssignmentFailed(assign), insidePackageStmt = insidePackageStmt) ++ {
-          if (insidePackageStmt)
-            Assign(translateExpInWand(lhs), translateExpInWand(rhs))
-          else
-            Assign(translateExp(lhs), translateExp(rhs))
-        }
+          checkDefinedness(rhs, errors.AssignmentFailed(assign), insidePackageStmt = insidePackageStmt) ++
+        {if(insidePackageStmt)
+          Assign(translateExpInWand(lhs), translateExpInWand(rhs))
+        else
+          Assign(translateExp(lhs), translateExp(rhs))}
       case assign@sil.FieldAssign(lhs, rhs) =>
         checkDefinedness(lhs.rcv, errors.AssignmentFailed(assign)) ++
           checkDefinedness(rhs, errors.AssignmentFailed(assign))
@@ -179,11 +179,11 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
             (args(i), Nil: Stmt, None)
           }
         })
-        val neededRenamings: Seq[(sil.AbstractLocalVar, sil.Exp)] = actualArgs.filter((_._3.isDefined)).map(element => (element._1.asInstanceOf[sil.LocalVar], element._3.get))
+        val neededRenamings : Seq[(sil.AbstractLocalVar, sil.Exp)] = actualArgs.filter((_._3.isDefined)).map(element => (element._1.asInstanceOf[sil.LocalVar],element._3.get))
         val removingTriggers: (errors.ErrorNode => errors.ErrorNode) =
-          ((n: errors.ErrorNode) => n.transform { case q: sil.Forall => q.copy(triggers = Nil)(q.pos, q.info, q.errT) })
-        val renamingArguments: (errors.ErrorNode => errors.ErrorNode) = ((n: errors.ErrorNode) => removingTriggers(n).transform({
-          case e: sil.Exp => Expressions.instantiateVariables[sil.Exp](e, neededRenamings map (_._1), neededRenamings map (_._2))
+          ((n: errors.ErrorNode) => n.transform{case q: sil.Forall => q.copy(triggers = Nil)(q.pos, q.info, q.errT)})
+        val renamingArguments : (errors.ErrorNode => errors.ErrorNode) = ((n:errors.ErrorNode) => removingTriggers(n).transform({
+          case e:sil.Exp => Expressions.instantiateVariables[sil.Exp](e,neededRenamings map (_._1), neededRenamings map (_._2))
         }))
 
         val pres = method.pres map (e => Expressions.instantiateVariables(e, method.formalArgs ++ method.formalReturns, (actualArgs map (_._1)) ++ targets, mainModule.env.allDefinedNames(program)))
@@ -192,24 +192,30 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           (targets map (e => checkDefinedness(e, errors.CallFailed(mc), insidePackageStmt = insidePackageStmt))) ++
           (args map (e => checkDefinedness(e, errors.CallFailed(mc), insidePackageStmt = insidePackageStmt))) ++
           (actualArgs map (_._2)) ++
-          Havoc((targets map translateExp).asInstanceOf[Seq[Var]]) ++
           MaybeCommentBlock("Exhaling precondition", executeUnfoldings(pres, (pre => errors.PreconditionInCallFalse(mc).withReasonNodeTransformed(renamingArguments))) ++
-            exhaleWithoutDefinedness(pres map (e => (e, errors.PreconditionInCallFalse(mc).withReasonNodeTransformed(renamingArguments))), statesStackForPackageStmt = statesStack, insidePackageStmt = insidePackageStmt)) ++ {
-          stateModule.replaceOldState(preCallState)
-          val res = MaybeCommentBlock("Inhaling postcondition",
-            inhale(posts map (e => (e, errors.CallFailed(mc).withReasonNodeTransformed(renamingArguments))), addDefinednessChecks = false, statesStack, insidePackageStmt) ++
-            executeUnfoldings(posts, (post => errors.Internal(post).withReasonNodeTransformed(renamingArguments))))
-          stateModule.replaceOldState(oldState)
-          toUndefine map mainModule.env.undefine
-          res
-        }
+            exhaleWithoutDefinedness(pres map (e => (e, errors.PreconditionInCallFalse(mc).withReasonNodeTransformed(renamingArguments))), statesStackForPackageStmt = statesStack, insidePackageStmt = insidePackageStmt)) ++
+          MaybeCommentBlock("Havocing target variables", Havoc((targets map translateExp).asInstanceOf[Seq[Var]])) ++
+          {
+            stateModule.replaceOldState(preCallState)
+            val res = MaybeCommentBlock("Inhaling postcondition",
+              inhale(posts map (e => (e, errors.CallFailed(mc).withReasonNodeTransformed(renamingArguments))), addDefinednessChecks = false, statesStack, insidePackageStmt) ++
+              executeUnfoldings(posts, (post => errors.Internal(post).withReasonNodeTransformed(renamingArguments))))
+            stateModule.replaceOldState(oldState)
+            toUndefine map mainModule.env.undefine
+            res
+          }
         res
       case sil.While(_, _, _) =>
         //handled by LoopModule
         Nil
       case i@sil.If(cond, thn, els) =>
+        val condTr = if(allStateAssms == TrueLit()) { translateExpInWand(cond) } else { allStateAssms ==> translateExpInWand(cond) }
+        val condTempVar = LocalVar(Identifier("condition")(tmpVarsNamespace), Bool)
         checkDefinedness(cond, errors.IfFailed(cond), insidePackageStmt = insidePackageStmt) ++
-        If((allStateAssms) ==> translateExpInWand(cond),
+        // Assign the condition to a temp var s.t. it's safe to optimize away the following if it's empty without
+        // losing triggering expressions in the if-condition (see Carbon issue #420).
+        Assign(condTempVar, condTr) ++
+        If(condTempVar,
           translateStmt(thn, statesStack, allStateAssms, insidePackageStmt),
           translateStmt(els, statesStack, allStateAssms, insidePackageStmt))
       case sil.Label(name, _) => {

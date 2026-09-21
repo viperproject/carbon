@@ -1,0 +1,59 @@
+field val: Int
+
+method square(n: Int) returns (res: Ref)
+  requires n >= 0
+  ensures acc(res.val) && res.val == n * n
+{
+    var i: Int := 0;
+    res := new(val);
+    res.val := 0
+
+    // Outer loop: repeats n times
+    while (i < n)
+        invariant 0 <= i && i <= n
+        invariant res.val == i * n
+    {
+        var j: Int := 0;
+
+        // Inner loop: increments result directly
+        while (j < n)
+            invariant 0 <= j && j <= n
+            invariant res.val == i * n + j
+        {
+            res.val := res.val + 1;
+            j := j + 1;
+        }
+
+        // At this point, result == (i+1) * n
+        i := i + 1;
+    }
+}
+
+method square2(n: Int) returns (res: Ref)
+  requires n >= 0
+  ensures acc(res.val) && res.val == n * n
+{
+    var i: Int := 0;
+    //res := new(val);
+    //res.val := 0
+
+    // Outer loop: repeats n times
+    while (i < n)
+        invariant 0 <= i && i <= n
+        invariant res.val == i * n  // should fail in some way on entry
+    {
+        var j: Int := 0;
+
+        // Inner loop: increments result directly
+        while (j < n)
+            invariant 0 <= j && j <= n
+            invariant res.val == i * n + j
+        {
+            res.val := res.val + 1;
+            j := j + 1;
+        }
+
+        // At this point, result == (i+1) * n
+        i := i + 1;
+    }
+}

@@ -23,7 +23,7 @@ sealed trait Node {
   /**
    * Optimize a program or expression
    */
-  lazy val optimize: Node = Optimizer.optimize(this)
+  lazy val optimized: Node = Optimizer.optimize(this)
 
   /**
    * Applies the function `f` to the node and the results of the subnodes.
@@ -236,7 +236,7 @@ case object Div extends ProdOp("/")
 case object Mod extends ProdOp("mod")
 case object LtCmp extends RelOp("<")
 //case object LeCmp extends RelOp("?" or "<=") // removed non ASCII character alternative (can't display/edit)
-case object LeCmp extends RelOp("<=") 
+case object LeCmp extends RelOp("<=")
 case object GtCmp extends RelOp(">")
 case object GeCmp extends RelOp(">=")// removed non ASCII character alternative (can't display/edit)
 case object EqCmp extends RelOp("==")
@@ -261,6 +261,13 @@ object MaybeForall {
   def apply(vars: Seq[LocalVarDecl], triggers: Seq[Trigger], exp: Exp) = {
     if (vars.isEmpty) exp
     else Forall(vars, triggers, exp)
+  }
+}
+
+object MaybeExists {
+  def apply(vars: Seq[LocalVarDecl], triggers: Seq[Trigger], exp: Exp) = {
+    if (vars.isEmpty) exp
+    else Exists(vars, triggers, exp)
   }
 }
 case class Exists(vars: Seq[LocalVarDecl], triggers: Seq[Trigger], exp: Exp, weight: Option[Int] = None) extends QuantifiedExp
@@ -307,14 +314,18 @@ sealed trait Stmt extends Node {
 case class Lbl(name: Identifier)
 case class Goto(dests: Seq[Lbl]) extends Stmt
 case class Label(lbl: Lbl) extends Stmt
-case class Assume(exp: Exp) extends Stmt
+case class Assume(exp: Exp, attributes: Map[String, String] = Map.empty) extends Stmt
 case class AssertImpl(exp: Exp, error: VerificationError) extends Stmt {
   var id = AssertIds.next // Used for mapping errors in the output back to VerificationErrors
 }
 object ErrorMemberMapping {
-  // The "weak" hash map is necessary to avoid leaking memory.
-  // See issue https://github.com/viperproject/carbon/issues/444
-  val mapping = mutable.WeakHashMap[VerificationError, Member]()
+  // Maps a verification error to the member it originates from, so that counterexample generation
+  // can recover the member for an error. Keyed by the error's readable message rather than by the
+  // VerificationError instance, because the instance that reaches counterexample generation (after
+  // the error has been round-tripped through Boogie) is not the one recorded here. As a consequence
+  // entries are not evicted (unlike the former WeakHashMap keyed by the error object), but their
+  // number is bounded by the number of asserts. See https://github.com/viperproject/carbon/issues/444
+  val mapping = mutable.HashMap[String, Member]()
   var currentMember : Member = null
 }
 object Assert {
@@ -322,7 +333,7 @@ object Assert {
     if (error == null) Statements.EmptyStmt
     else {
       if (ErrorMemberMapping.currentMember != null) {
-        ErrorMemberMapping.mapping.update(error, ErrorMemberMapping.currentMember)
+        ErrorMemberMapping.mapping.update(error.readableMessage(true, true), ErrorMemberMapping.currentMember)
       }
       AssertImpl(exp, error)
     }
@@ -348,8 +359,6 @@ case class If(cond: Exp, thn: Stmt, els: Stmt) extends Stmt
 case class Seqn(stmts: Seq[Stmt]) extends Stmt
 /** A non-deterministic if statement. */
 case class NondetIf(thn: Stmt, els: Stmt = Statements.EmptyStmt) extends Stmt
-/** A non-deterministic while statement. */
-case class NondetWhile(bod: Stmt) extends Stmt
 /**
  * Something like a 'declaration' of a local variable that allows to specify a where
  * clause.  However, local variables do not need to be declared if no where clause
@@ -360,8 +369,8 @@ case class LocalVarWhereDecl(name: Identifier, where: Exp) extends Stmt
 case class Comment(s: String) extends Stmt
 object MaybeComment {
   def apply(s: String, stmt: Stmt) = {
-    if (stmt.optimize.asInstanceOf[Stmt].children.isEmpty) Statements.EmptyStmt
-    else Seqn(Comment(s) :: stmt.optimize.asInstanceOf[Stmt] :: Nil)
+    if (stmt.optimized.asInstanceOf[Stmt].children.isEmpty) Statements.EmptyStmt
+    else Seqn(Comment(s) :: stmt.optimized.asInstanceOf[Stmt] :: Nil)
   }
 }
 /**
@@ -371,8 +380,8 @@ object MaybeComment {
 case class CommentBlock(s: String, stmt: Stmt) extends Stmt
 object MaybeCommentBlock {
   def apply(s: String, stmt: Stmt) = {
-    if (stmt.optimize.asInstanceOf[Stmt].children.isEmpty) Statements.EmptyStmt
-    else CommentBlock(s, stmt.optimize.asInstanceOf[Stmt])
+    if (stmt.optimized.asInstanceOf[Stmt].children.isEmpty) Statements.EmptyStmt
+    else CommentBlock(s, stmt.optimized.asInstanceOf[Stmt])
   }
 }
 
@@ -381,7 +390,7 @@ object MaybeCommentBlock {
  */
 object MaybeStmt {
   def apply(isEmpty: Stmt, maybe: Stmt): Stmt = {
-    if (isEmpty.optimize.asInstanceOf[Stmt].children.isEmpty) Statements.EmptyStmt
+    if (isEmpty.optimized.asInstanceOf[Stmt].children.isEmpty) Statements.EmptyStmt
     else Seqn(Seq(isEmpty, maybe))
   }
 }

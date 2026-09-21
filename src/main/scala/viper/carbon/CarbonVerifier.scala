@@ -6,7 +6,7 @@
 
 package viper.carbon
 
-import boogie.{BoogieModelTransformer, Namespace}
+import boogie.{BoogieModelTransformer, CarbonResolvedCounterexample, Namespace}
 import modules.impls._
 import viper.silver.ast.{MagicWand, Program, Quasihavoc, Quasihavocall}
 import viper.silver.utility.Paths
@@ -14,7 +14,7 @@ import viper.silver.verifier._
 import verifier.{BoogieDependency, BoogieInterface, Verifier}
 
 import java.io.{BufferedOutputStream, File, FileOutputStream, IOException}
-import viper.silver.frontend.{MissingDependencyException, NativeModel, VariablesModel}
+import viper.silver.frontend.{ResolvedModel, RawModel, MissingDependencyException, NativeModel, VariablesModel}
 import viper.silver.reporter.Reporter
 
 /**
@@ -72,9 +72,6 @@ case class CarbonVerifier(override val reporter: Reporter,
   /** The default location for Boogie (the environment variable ${BOOGIE_EXE}). */
   lazy val boogieDefault: String = new File(Paths.resolveEnvVars("${BOOGIE_EXE}")).getAbsolutePath
 
-  /** The default location for Corral (the environment variable ${CORRAL_EXE}). */
-  lazy val corralDefault: String = new File(Paths.resolveEnvVars("${CORRAL_EXE}")).getAbsolutePath
-
   /** The default location for Z3 (the environment variable ${Z3_EXE}). */
   lazy val z3Default: String = new File(Paths.resolveEnvVars("${Z3_EXE}")).getAbsolutePath
 
@@ -85,11 +82,6 @@ case class CarbonVerifier(override val reporter: Reporter,
     case None => boogieDefault
   } else boogieDefault
 
-  def corralPath = if (config != null) config.corralExecutable.toOption match {
-    case Some(path) => new File(path).getAbsolutePath
-    case None => corralDefault
-  } else corralDefault
-
   /** The (resolved) path where Z3 is supposed to be located. */
   def z3Path = if (config != null) config.Z3executable.toOption match {
     case Some(path) => {new File(path).getAbsolutePath}
@@ -97,6 +89,12 @@ case class CarbonVerifier(override val reporter: Reporter,
   } else z3Default
 
   def assumeInjectivityOnInhale = if (config != null) config.assumeInjectivityOnInhale.toOption match {
+    case Some(b) => b
+    case None => false
+  }
+  else false
+
+  def respectFunctionPrecPermAmounts: Boolean = if (config != null) config.respectFunctionPrePermAmounts.toOption match {
     case Some(b) => b
     case None => false
   }
@@ -176,14 +174,21 @@ case class CarbonVerifier(override val reporter: Reporter,
 
     // reset all modules
     allModules map (m => m.reset())
+    // Clear the error->member mapping so it does not grow unbounded across verify(...) calls in the
+    // same JVM; it is repopulated during translation below.
+    viper.carbon.boogie.ErrorMemberMapping.mapping.clear()
     heapModule.enableAllocationEncoding = config == null || !config.disableAllocEncoding.isSupplied // NOTE: config == null happens on the build server / via sbt test
     loopModule.enableKInduction = config != null && config.enableKInduction.isSupplied
     permModule.enableKInduction = config != null && config.enableKInduction.isSupplied
 
     var transformNames = false
+    var rawCounterexample = false
+    var resolvedCounterexample = false
     if (config == null) Seq() else config.counterexample.toOption match {
       case Some(NativeModel) =>
       case Some(VariablesModel) => transformNames = true
+      case Some(RawModel) => rawCounterexample = true
+      case Some(ResolvedModel) => resolvedCounterexample = true
       case None =>
       case Some(v) => sys.error("Invalid option: " + v)
     }
@@ -221,6 +226,8 @@ case class CarbonVerifier(override val reporter: Reporter,
       }
     }
 
+    var timeout: Option[Int] = None
+
     if(config != null)
     {
       config.boogieOut.toOption match {
@@ -232,9 +239,10 @@ case class CarbonVerifier(override val reporter: Reporter,
           stream.close()
         case None =>
       }
+      timeout = config.timeout.toOption
     }
 
-    invokeBoogie(_translated, options) match {
+    invokeBoogie(_translated, options, timeout) match {
       case (version,result) =>
         if (version!=null) { dependencies.foreach(_ match {
           case b:BoogieDependency => b.version = version
@@ -243,6 +251,12 @@ case class CarbonVerifier(override val reporter: Reporter,
         result match {
           case Failure(errors) if transformNames => {
             errors.foreach(e =>  BoogieModelTransformer.transformCounterexample(e, translatedNames))
+          }
+          case Failure(errors) if rawCounterexample => {
+            errors.foreach(e => CarbonResolvedCounterexample.transformRawCounterexample(e, translatedNames, program, wandModule.currentWandShapes))
+          }
+          case Failure(errors) if resolvedCounterexample => {
+            errors.foreach(e => CarbonResolvedCounterexample.transformResolvedCounterexample(e, translatedNames, program, wandModule.currentWandShapes))
           }
           case _ => result
         }

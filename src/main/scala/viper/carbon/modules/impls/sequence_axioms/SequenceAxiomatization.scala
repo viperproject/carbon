@@ -31,6 +31,8 @@ object SequenceAxiomatization {
                 | // diff 13 implemented, for now (may reduce completeness, but there's a known matching loop when the first drop amount is 0); another option would be to add !=0 as an explicit condition
                 | // diff 14 implemented: eliminate index over take/drop for trivial cases (to avoid matching loops when e.g. s[i..] == s is known)
                 | // diff 16 implemented: remove general cases of equality-learning between take/drop/append subsequences; only allow when take/drop are at top level (this affects linkedlists test case)
+                | // diff 17: removing a potential matching loop where more than one axiom applies to a Seq#Take(Seq#Append(s,t),n) term
+                | // diff 18: trying missing axioms for Take/Drop of at least full length
                 |// START BASICS
                 |type Seq T;
                 |
@@ -189,9 +191,10 @@ object SequenceAxiomatization {
                 |  { Seq#Take(Seq#Append(s,t),n) } //{Seq#Append(s,t), Seq#Take(s,n)} // diff 16: temporarily dropped general case of these
                 |  0 < n && n <= Seq#Length(s) ==> Seq#Take(Seq#Append(s,t),n) == Seq#Take(s,n));
                 |
+                |// diff 17: added a conjunct on the lhs of the implication
                 |axiom (forall<T> s: Seq T, t: Seq T, n:int ::
                 |  { Seq#Take(Seq#Append(s,t),n) }
-                |  n > 0 && n > Seq#Length(s) ==> Seq#Add(Seq#Sub(n,Seq#Length(s)),Seq#Length(s)) == n && Seq#Take(Seq#Append(s,t),n) == Seq#Append(s,Seq#Take(t,Seq#Sub(n,Seq#Length(s)))));
+                |  n > 0 && n > Seq#Length(s) && n < Seq#Length(Seq#Append(s,t)) ==> Seq#Add(Seq#Sub(n,Seq#Length(s)),Seq#Length(s)) == n && Seq#Take(Seq#Append(s,t),n) == Seq#Append(s,Seq#Take(t,Seq#Sub(n,Seq#Length(s)))));
                 |
                 |// diff 16: temporarily dropped general case of these
                 |//axiom (forall<T> s: Seq T, t: Seq T, m:int ::
@@ -216,6 +219,11 @@ object SequenceAxiomatization {
                 |        n <= 0 ==> Seq#Drop(s, n) == s); // (diff 1: try changing n==0 to n<=0 (should be ok))
                 |axiom (forall<T> s: Seq T, n: int :: { Seq#Take(s, n) } // ** NEW
                 |        n <= 0 ==> Seq#Take(s, n) == Seq#Empty());  // (diff 1: try changing n==0 to n<=0 (should be ok))
+                |// diff 18: Symmetrical additional axioms about common things
+                |axiom (forall<T> s: Seq T, n: int :: { Seq#Take(s, n) } // ** NEW
+                |        n >= Seq#Length(s) ==> Seq#Take(s, n) == s); // (diff 18: match diff 1 axioms above)
+                |axiom (forall<T> s: Seq T, n: int :: { Seq#Take(s, n) } // ** NEW
+                |        n >= Seq#Length(s) ==> Seq#Drop(s, n) == Seq#Empty());  // (diff 18: match diff 1 axioms above)
                 |// diff 13: remove this?
                 |//axiom (forall<T> s: Seq T, m, n: int :: { Seq#Drop(Seq#Drop(s, m), n) } // ** NEW - AS: could have bad triggering behaviour?
                 |//        0 <= m && 0 <= n && m+n <= Seq#Length(s) ==>

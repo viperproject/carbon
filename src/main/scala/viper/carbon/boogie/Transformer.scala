@@ -48,14 +48,13 @@ object Transformer {
           ss match {
             case Assign(lhs, rhs) => Assign(go(lhs), go(rhs))
             case Assert(e, error) => Assert(go(e), error)
-            case Assume(e) => Assume(go(e))
+            case Assume(e, atts) => Assume(go(e), atts)
             case HavocImpl(es) => HavocImpl(es map go)
             case Comment(_) => parent
             case CommentBlock(s, stmt) => CommentBlock(s, go(stmt))
             case Seqn(s) => Seqn(s map go)
             case If(cond, thn, els) => If(go(cond), go(thn), go(els))
             case NondetIf(thn, els) => NondetIf(go(thn), go(els))
-            case NondetWhile(bod) => NondetWhile(go(bod))
             case Label(_) => parent
             case Goto(_) => parent
             case LocalVarWhereDecl(idn, where) => LocalVarWhereDecl(idn, go(where))
@@ -150,7 +149,7 @@ object DuplicatingTransformer {
           ss match {
             case Assign(lhs, rhs) => for {lhsResult <- go(lhs); rhsResult <- go(rhs)} yield Assign(lhsResult, rhsResult)
             case Assert(e, error) => go(e) map (Assert(_, error))
-            case Assume(e) => go(e) map (Assume(_))
+            case Assume(e, atts) => go(e) map (Assume(_, atts))
             case HavocImpl(es) => goSeq(es) map (HavocImpl(_))
             case Comment(_) => Seq(parent)
             case CommentBlock(s, stmt) => go(stmt) map (CommentBlock(s, _))
@@ -161,9 +160,6 @@ object DuplicatingTransformer {
             case NondetIf(thn, els) =>
               for {thnResult <- go(thn); elsResult <- go(els)} yield
                 (NondetIf(thnResult, elsResult))
-            case NondetWhile(bod) =>
-              for {bodResult <- go(bod)} yield
-                (NondetWhile(bodResult))
             case Label(_) => Seq(parent)
             case Goto(_) => Seq(parent)
             case LocalVarWhereDecl(idn, where) => go(where) map (LocalVarWhereDecl(idn, _))
