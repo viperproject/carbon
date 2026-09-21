@@ -178,16 +178,23 @@ trait PermModule extends Module with CarbonStateComponent {
 
   def validateTriggers(vars:Seq[LocalVarDecl], triggers:Seq[Trigger]):Seq[Trigger]
 
-  /* k-induction */
-  def pushOuterMask(m: LocalVar): Unit
-  def popOuterMask(): LocalVar
-
-  def pushReadPermVar(m: LocalVar): Unit
-
-  def popReadPermVar(): LocalVar
-
+  /* k-induction (see DefaultLoopModule.handleWhileKInduct). The module keeps a stack of the loops that are currently
+   * being translated, innermost first, each with the mask of the context outside the loop (the frame candidate),
+   * the loop's read permission variable and the phase the loop is currently in. */
+  def kInductionPushLoop(outerMask: LocalVar, readVar: LocalVar): Unit
+  def kInductionSetPhase(phase: KInductionPhases.Phase): Unit
+  def kInductionPopLoop(): Unit
   def currentKInductedLoops(): Int
+  /** True iff the innermost k-inducted loop is in its transferring phase */
+  def kInductionTransferring: Boolean
+  /** The masks (of enclosing loop heaps, innermost first) permissions may be transferred from, see QuantifiedPermModule */
+  def kInductionTransferMasks: Seq[LocalVar]
+  def havocMask(): Stmt
 
-  def havocMask() : Stmt
+}
 
+/** The phases of a loop that is verified using k-induction. */
+object KInductionPhases extends Enumeration {
+  type Phase = Value
+  val Transferring, Assuming, Checking = Value
 }

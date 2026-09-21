@@ -39,5 +39,5 @@ class AllTestsKInduction extends SilSuite {
   lazy val verifiers = List(verifier)
 
   val commandLineArguments: Seq[String] =
-    Seq("--enableKInduction")
+    Seq("--enableKInduction=1", "--timeout", "120")
 }

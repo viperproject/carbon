@@ -1,0 +1,58 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// goto out of a k-inducted loop is not supported yet in Carbon: the loop heap is not merged back into
+// the frame on that exit.
+
+field f: Int
+
+method test20a(x: Ref, y: Ref) returns (n: Int)
+  requires acc(x.f)
+  //:: UnexpectedOutput(postcondition.violated:insufficient.permission, /carbon/issue/000/)
+  ensures  n == 42 ==> acc(y.f)
+  //:: UnexpectedOutput(postcondition.violated:insufficient.permission, /carbon/issue/000/)
+  ensures  acc(x.f) && x.f == old(x.f)
+{
+  while (n != 0)
+    invariant acc(x.f, 1/2)
+  {
+    n := n - 1
+
+    if (n == 42) {
+      inhale acc(y.f)
+      goto brk
+    }
+  }
+
+  label brk
+
+  if (n == 0) {
+    //:: ExpectedOutput(assert.failed:assertion.false)
+    assert perm(y.f) == none
+  }
+}
+
+method test20b(x: Ref, y: Ref) returns (n: Int)
+  requires acc(x.f) && x != y
+  //:: UnexpectedOutput(postcondition.violated:insufficient.permission, /carbon/issue/000/)
+  ensures  n == 42 ==> acc(y.f)
+  //:: UnexpectedOutput(postcondition.violated:insufficient.permission, /carbon/issue/000/)
+  ensures  acc(x.f) && x.f == old(x.f)
+{
+  while (n != 0)
+    invariant acc(x.f, 1/2)
+  {
+    n := n - 1
+
+    if (n == 42) {
+      inhale acc(y.f)
+      goto brk
+    }
+  }
+
+  label brk
+
+  if (n == 0) {
+    assert perm(y.f) == none
+  }
+}

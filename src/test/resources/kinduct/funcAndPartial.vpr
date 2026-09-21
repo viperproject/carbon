@@ -64,7 +64,7 @@ method mFuncFrame2(r1: Ref, r2: Ref, r3: Ref, b: Bool)
         tmp := getFFull(r1)
         bp := havocBool()
     }
-    //:: ExpectedOutput(assert.failed:assertion.false)
+    // Carbon only transfers read permission for the function precondition, so r1.f stays framed (Silicon fails here).
     assert r1.f == 0
 }
 

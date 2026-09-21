@@ -143,10 +143,14 @@ method sumIter3(root: Ref) returns (res: Int)
         //invariant list(cur) --* list(root)
         //invariant res + len(cur) == old(len(root))
     {
+        // The package below moves list(cur) into the wand's footprint, so the next
+        // iteration's unfold has no permission (the checking iteration reports it).
+        //:: ExpectedOutput(unfold.failed:insufficient.permission)
         unfold list(cur)
         res := res + 1
         var tmp: Ref := cur
         cur := cur.next
+        // Carbon also reports that, in the generalised iteration, folding list(tmp) does not yield list(root).
         //:: ExpectedOutput(package.failed:insufficient.permission)
         package list(cur) --* list(root) {
             fold list(tmp)
@@ -214,6 +218,8 @@ method sumIter5(root: Ref) returns (res: Int)
         }
     }
 
+    // No wand was ever packaged before the loop; Carbon reports this on the exit after zero iterations.
+    //:: ExpectedOutput(apply.failed:wand.not.found)
     apply list(cur) --* list(root)
 }
 

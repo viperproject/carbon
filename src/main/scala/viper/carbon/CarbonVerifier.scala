@@ -178,8 +178,8 @@ case class CarbonVerifier(override val reporter: Reporter,
     // same JVM; it is repopulated during translation below.
     viper.carbon.boogie.ErrorMemberMapping.mapping.clear()
     heapModule.enableAllocationEncoding = config == null || !config.disableAllocEncoding.isSupplied // NOTE: config == null happens on the build server / via sbt test
-    loopModule.enableKInduction = config != null && config.enableKInduction.isSupplied
-    permModule.enableKInduction = config != null && config.enableKInduction.isSupplied
+    loopModule.kInductionK = if (config != null) config.enableKInduction.toOption.getOrElse(0) else 0
+    permModule.enableKInduction = loopModule.kInductionK > 0
 
     var transformNames = false
     var rawCounterexample = false

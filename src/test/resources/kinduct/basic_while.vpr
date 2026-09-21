@@ -134,7 +134,8 @@ method t11(r: Ref) returns ()
     var j: Int := 2
 
     while (j < 3)
-        //:: ExpectedOutput(invariant.not.established:insufficient.permission)
+        //:: ExpectedOutput(not.wellformed:insufficient.permission)
+        //:: ExpectedOutput(invariant.not.established:assertion.false)
         invariant r != null && r.f == 2
     {
         j := j+1

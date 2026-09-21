@@ -310,7 +310,7 @@ method mRead(r: Ref, p: Perm)
     tmp := 0
     while (b)
     {
-        tmp := tmp + r.f   /// MARCO25: actually failing!!!!
+        tmp := tmp + r.f
         tmp := tmp + r.f
         b := havocBool()
     }
@@ -342,16 +342,15 @@ method mRead3(r: Ref, p: Perm)
     var tmp: Int
     tmp := 0
     var before: Int
-    before := r.f  // MARCO25: actually failing?? wtf!!!
+    before := r.f
     while (b)
     {
         tmp := tmp + r.f
         tmp := tmp + r.f
         b := havocBool()
     }
-    assert before == r.f  // MARCO25: actually failing
-    assert perm(r.f) >= p
-    assert perm(r.f) == p  // MARCO25: actually failing
+    assert before == r.f
+    assert perm(r.f) == p
 }
 
 method mRead4(r: Ref, p: Perm)
@@ -363,14 +362,14 @@ method mRead4(r: Ref, p: Perm)
     var tmp: Int
     tmp := 0
     var before: Int
-    before := r.f   // MARCO25: actually failing! wtf
+    before := r.f
     while (b)
     {
         tmp := tmp + r.f
         tmp := tmp + r.f
         b := havocBool()
     }
-    assert before == r.f   // MARCO25: actually failing
+    assert before == r.f
     //:: ExpectedOutput(assert.failed:assertion.false)
     assert perm(r.f) > p
 }

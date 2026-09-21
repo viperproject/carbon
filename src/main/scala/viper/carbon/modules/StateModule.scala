@@ -185,7 +185,10 @@ trait StateModule extends Module with ComponentRegistry[CarbonStateComponent] wi
   /**
     * Representation of state used in wandModule. Pair of stateSnapshot and boolean variable carrying assumptions about this state.
     */
-  case class StateRep(state: StateSnapshot, boolVar: LocalVar)
+  case class StateRep(state: StateSnapshot, boolVar: LocalVar, kInductionOuter: Boolean = false)
+  /* kInductionOuter: the state is the loop heap of an enclosing loop (k-induction), appended to a package's state
+   * stack so that permissions can be transferred from it; it shares the heap with the current state, so the heap
+   * must not be havoced when permissions are removed from it. */
 
   case class StateSetup(usedState: StateRep, initStmt: Stmt)
 }

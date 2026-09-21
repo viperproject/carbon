@@ -11,7 +11,7 @@ import viper.carbon.modules._
 import viper.carbon.verifier.Verifier
 import viper.carbon.boogie._
 import viper.carbon.boogie.Implicits._
-import viper.carbon.modules.components.{DefinednessComponent, DefinednessState, StmtComponent}
+import viper.carbon.modules.components.{CarbonStateComponent, DefinednessComponent, DefinednessState, StmtComponent}
 import viper.silver.ast.utility.Expressions
 import viper.silver.ast.utility.QuantifiedPermissions.QuantifiedPermissionAssertion
 import viper.silver.ast.{MagicWand, MagicWandStructure}
@@ -258,17 +258,29 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
             val PackageSetup(opsState, usedState, initStmt) = packageInit(wand, None, error)
             val curStateBool = LocalVar(Identifier(names.createUniqueIdentifier("boolCur"))(transferNamespace),Bool)
 
+            /* k-induction: if the innermost loop is in its transferring phase, permissions may also be taken
+             * from the enclosing loop heaps (in the order given by the permission module); they share the heap
+             * with the current state and only differ in their mask. */
+            val kInductionStates: List[StateRep] =
+              if (inWand || !permModule.kInductionTransferring) Nil
+              else permModule.kInductionTransferMasks.toList.map(outerMask => {
+                val snapshot = currentState.asInstanceOf[(java.util.Map[CarbonStateComponent, Seq[Var]], Boolean, Boolean)]
+                val mapping = new java.util.IdentityHashMap[CarbonStateComponent, Seq[Var]](snapshot._1)
+                mapping.put(permModule, Seq(outerMask))
+                val outerState = (mapping, snapshot._2, snapshot._3).asInstanceOf[stateModule.StateSnapshot]
+                StateRep(outerState, LocalVar(Identifier(names.createUniqueIdentifier("boolKInd"))(transferNamespace), Bool), kInductionOuter = true)
+              })
             val newStatesStack =
               if(inWand)
                 statesStack.asInstanceOf[List[StateRep]]
               else
-                StateRep(currentState, curStateBool) :: Nil
+                StateRep(currentState, curStateBool) :: kInductionStates
 
 
             val locals = proofScript.scopedDecls.collect {case l: sil.LocalVarDecl => l}
             locals map (v => mainModule.env.define(v.localVar)) // add local variables to environment
 
-            val stmt = initStmt++(curStateBool := TrueLit()) ++
+            val stmt = initStmt++(curStateBool := TrueLit()) ++ (kInductionStates map (st => st.boolVar := TrueLit())) ++
               MaybeCommentBlock("Assumptions about local variables", locals map (a => mainModule.allAssumptionsAboutValue(a.typ, mainModule.translateLocalVarDecl(a), true))) ++
               translatePackageBody(newStatesStack, opsState, proofScript.ss , right, opsState.boolVar && allStateAssms, error)
 
@@ -320,7 +332,7 @@ DefaultWandModule(val verifier: Verifier) extends WandModule with StmtComponent 
   def exec(states: List[StateRep], ops: StateRep, e:sil.Exp, allStateAssms: Exp, mainError: PartialVerificationError):Stmt = {
     e match {
       case sil.Let(letVarDecl, exp, body) =>
-        val StateRep(_,bOps) = ops
+        val bOps = ops.boolVar
         val translatedExp = expModule.translateExp(exp) // expression to bind "v" to, evaluated in ops state
         val v = mainModule.env.makeUniquelyNamed(letVarDecl) // choose a fresh "v" binder
         mainModule.env.define(v.localVar)
@@ -647,7 +659,7 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
     case (top :: xs) =>
       //Compute all values needed from top state
       stateModule.replaceState(top.state)
-      val isOriginalState: Boolean = xs.isEmpty
+      val isOriginalState: Boolean = xs.forall(_.kInductionOuter) && !top.kInductionOuter
 
       val topHeap = heapModule.currentHeap
       val equateLHS:Option[Exp] = e match {
@@ -672,7 +684,10 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
           }
          }
         ( //if original state then don't need to guard assumptions
-          if(isOriginalState) {
+          if (top.kInductionOuter) {
+            // k-induction: the enclosing loop heap shares the heap with the current state; no havoc
+            top.boolVar := top.boolVar && stateModule.currentGoodState
+          } else if(isOriginalState) {
             heapModule.endExhale ++
               stateModule.assumeGoodState
           } else if(top != OPS || havocHeap){
@@ -748,7 +763,7 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
       case (top :: xs) =>
         //Compute all values needed from top state
         stateModule.replaceState(top.state)
-        val isOriginalState: Boolean = xs.isEmpty
+        val isOriginalState: Boolean = xs.forall(_.kInductionOuter) && !top.kInductionOuter
 
         val topHeap = heapModule.currentHeap
 
@@ -768,7 +783,10 @@ private def transferAcc(states: List[StateRep], used:StateRep, e: TransferableEn
           }
           }
         ( //if original state then don't need to guard assumptions
-          if(isOriginalState) {
+          if (top.kInductionOuter) {
+            // k-induction: the enclosing loop heap shares the heap with the current state; no havoc
+            top.boolVar := top.boolVar && stateModule.currentGoodState
+          } else if(isOriginalState) {
             heapModule.endExhale ++
               stateModule.assumeGoodState
           } else if(top != OPS || havocHeap){
