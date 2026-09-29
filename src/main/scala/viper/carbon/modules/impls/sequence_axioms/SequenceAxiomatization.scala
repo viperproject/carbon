@@ -34,6 +34,7 @@ object SequenceAxiomatization {
                 | // diff 17: removing a potential matching loop where more than one axiom applies to a Seq#Take(Seq#Append(s,t),n) term
                 | // diff 18: trying missing axioms for Take/Drop of at least full length
                 | // diff 19: removing a potential matching loop by making lhs of implication more explicit
+                | // diff 20: breaking the matching loops between the two Seq#Drop index axioms, and between the two Seq#Append index axioms, by normalising Seq#Add/Seq#Sub round trips unconditionally
                 |// START BASICS
                 |type Seq T;
                 |
@@ -70,6 +71,17 @@ object SequenceAxiomatization {
                 |axiom (forall i: int, j: int :: {Seq#Add(i,j)} Seq#Add(i,j) == i + j);
                 |function Seq#Sub(int, int) : int;
                 |axiom (forall i: int, j: int :: {Seq#Sub(i,j)} Seq#Sub(i,j) == i - j);
+                |// (diff 20) Round-trip normalisation, needed to keep e-matching from running away.
+                |// The Seq#Drop index axioms below build Seq#Index(Seq#Drop(s,n), Seq#Sub(i,n)) from
+                |// Seq#Index(s,i) and then Seq#Index(s, Seq#Add(Seq#Sub(i,n),n)) back from that, so
+                |// without these axioms every round wraps on one more Seq#Add(Seq#Sub(..)) layer and
+                |// the term never becomes congruent to the one it came from; the equalities that would
+                |// collapse it sit under those axioms' range guards, and Seq#Add/Seq#Sub's defining
+                |// axioms only close it via arithmetic, too late to keep up. The "reverse triggering"
+                |// Seq#Append index axioms loop the same way. These two cannot loop themselves: each
+                |// trigger is the term the axiom rewrites, and the body introduces no new term.
+                |axiom (forall i: int, j: int :: {Seq#Add(Seq#Sub(i,j),j)} Seq#Add(Seq#Sub(i,j),j) == i);
+                |axiom (forall i: int, j: int :: {Seq#Sub(Seq#Add(i,j),j)} Seq#Sub(Seq#Add(i,j),j) == i);
                 |
                 |// (diff 3 (old))
                 |//axiom (forall<T> s0: Seq T, s1: Seq T, n: int :: { Seq#Index(Seq#Append(s0,s1), n) } // {:weight 25} // AS: dropped weight
