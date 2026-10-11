@@ -7,7 +7,7 @@
 package viper.carbon.modules.impls
 
 import viper.carbon.modules._
-import viper.carbon.modules.components.{DefinednessComponent, InhaleComponent, SimpleStmtComponent}
+import viper.carbon.modules.components.{DefinednessComponent, SimpleStmtComponent}
 import viper.silver.ast.utility.Expressions
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
@@ -15,7 +15,8 @@ import viper.carbon.boogie.Implicits._
 import viper.carbon.verifier.Verifier
 import viper.carbon.utility.{PolyMapDesugarHelper, PolyMapRep}
 import viper.silver.ast.utility.QuantifiedPermissions.QuantifiedPermissionAssertion
-import viper.silver.verifier.PartialVerificationError
+
+import scala.annotation.unused
 
 /**
  * The default implementation of a [[viper.carbon.modules.HeapModule]].
@@ -33,7 +34,7 @@ class DefaultHeapModule(val verifier: Verifier)
   import mainModule._
 
   def name = "Heap module"
-  implicit val heapNamespace = verifier.freshNamespace("heap")
+  implicit val heapNamespace: Namespace = verifier.freshNamespace("heap")
   val fieldNamespace = verifier.freshNamespace("heap.fields")
   // a fresh namespace for every axiom
   def axiomNamespace = verifier.freshNamespace("heap.axiom")
@@ -78,8 +79,6 @@ class DefaultHeapModule(val verifier: Verifier)
   private val exhaleHeapName = Identifier("ExhaleHeap")
   private val exhaleHeap = LocalVar(exhaleHeapName, heapTyp)
   private val originalHeap = GlobalVar(heapName, heapTyp)
-  private val qpHeapName = Identifier("QPHeap")
-  private val qpHeap = LocalVar(qpHeapName, heapTyp)
   private var heap: Var = originalHeap
   private def heapVar: Var = {assert (!usingOldState); heap}
   private def heapExp: Exp = if (usingPureState) dummyHeap else heap
@@ -109,12 +108,12 @@ class DefaultHeapModule(val verifier: Verifier)
 
   override def preamble = {
     val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
-    val obj2 = LocalVarDecl(Identifier("o2")(axiomNamespace), refType)
+    @unused val obj2 = LocalVarDecl(Identifier("o2")(axiomNamespace), refType)
     val refField = LocalVarDecl(Identifier("f")(axiomNamespace), fieldTypeOf(refType))
     val obj_refField = lookup(LocalVar(heapName, heapTyp), obj.l, refField.l)
     val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
-    val field2 = LocalVarDecl(Identifier("f2")(axiomNamespace), NamedType(fieldTypeName, Seq(TypeVar("A2"), TypeVar("B2"))))
-    val predField = LocalVarDecl(Identifier("pm_f")(axiomNamespace),
+    @unused val field2 = LocalVarDecl(Identifier("f2")(axiomNamespace), NamedType(fieldTypeName, Seq(TypeVar("A2"), TypeVar("B2"))))
+    @unused val predField = LocalVarDecl(Identifier("pm_f")(axiomNamespace),
       predicateVersionFieldType("C"))
     val useSumOfStatesAxioms = loopModule.sumOfStatesAxiomRequired
 
@@ -569,7 +568,7 @@ class DefaultHeapModule(val verifier: Verifier)
     f match {
       case sil.FieldAccess(rcv, _) => (translateExp(rcv), translateResource(f))
       case sil.PredicateAccess(_, _) => (nullLit, translateResource(f))
-      case w: sil.MagicWand => (nullLit, translateResource(f))
+      case _: sil.MagicWand => (nullLit, translateResource(f))
     }
 
   override def currentHeapAssignUpdate(f: sil.LocationAccess, newVal: Exp): Stmt = {
@@ -581,7 +580,7 @@ class DefaultHeapModule(val verifier: Verifier)
     heap := heapUpdate(heap, rcv, field, newVal)
   }
 
-  private def heapUpdateLoc(heap: Exp, f: sil.LocationAccess, newVal: Exp, isPMask: Boolean = false): Exp = {
+  private def heapUpdateLoc(heap: Exp, f: sil.LocationAccess, newVal: Exp, isPMask: Boolean): Exp = {
     val (rcvExp, fieldExp) = rcvAndFieldExp(f)
     heapUpdate(heap, rcvExp, fieldExp, newVal, isPMask)
   }
@@ -633,7 +632,7 @@ class DefaultHeapModule(val verifier: Verifier)
               t =>
                 Assume(validReference(t))
             })
-          case sil.Fold(sil.PredicateAccessPredicate(loc, perm)) => // AS: this should really be taken care of in the FuncPredModule (and factored out to share code with unfolding case, if possible)
+          case sil.Fold(sil.PredicateAccessPredicate(loc, _)) => // AS: this should really be taken care of in the FuncPredModule (and factored out to share code with unfolding case, if possible)
             if(usingOldState) sys.error("heap module: fold is executed while using old state")
             stmt ++ ({val newVersion = LocalVar(Identifier("freshVersion"), funcPredModule.predicateVersionType)
               val resetPredicateInfo : Stmt =
@@ -680,9 +679,9 @@ class DefaultHeapModule(val verifier: Verifier)
   override def addPermissionToWMask(wMaskField: Exp, e: sil.Exp): Stmt = {
     if(usingOldState) { sys.error("Updating wand mask while using old state") }
     e match {
-      case sil.FieldAccessPredicate(loc, perm) =>
+      case sil.FieldAccessPredicate(loc, _) =>
         curHeapAssignUpdatePredWandMask(wMaskField, heapUpdateLoc(wandMask(wMaskField), loc, TrueLit(), true))
-      case sil.PredicateAccessPredicate(loc, perm) =>
+      case sil.PredicateAccessPredicate(loc, _) =>
         val newPMask = LocalVar(Identifier("newPMask"), pmaskType)
         val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
         val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
@@ -753,9 +752,9 @@ class DefaultHeapModule(val verifier: Verifier)
             curHeapAssignUpdatePredWandMask(pmask.maskField, newPMask)
         vsFresh.foreach(vFresh => env.undefine(vFresh.localVar))
         res
-      case sil.FieldAccessPredicate(loc, perm) =>
+      case sil.FieldAccessPredicate(loc, _) =>
         curHeapAssignUpdatePredWandMask(pmask.maskField, heapUpdateLoc(pmask.mask, loc, TrueLit(), true))
-      case sil.PredicateAccessPredicate(loc, perm) =>
+      case sil.PredicateAccessPredicate(loc, _) =>
         val newPMask = LocalVar(Identifier("newPMask"), pmaskType)
         val obj = LocalVarDecl(Identifier("o")(axiomNamespace), refType)
         val field = LocalVarDecl(Identifier("f")(axiomNamespace), fieldType)
@@ -835,7 +834,7 @@ class DefaultHeapModule(val verifier: Verifier)
    * Reset the state of this module so that it can be used for new program. This method is called
    * after verifier gets a new program.
    */
-  override def reset = {
+  override def reset(): Unit = {
     PredIdMap = Map()
     NextPredicateId = 0
     heap = originalHeap

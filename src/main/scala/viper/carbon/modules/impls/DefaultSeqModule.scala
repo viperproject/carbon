@@ -34,7 +34,7 @@ class DefaultSeqModule(val verifier: Verifier)
   private var used = false
 
   def name = "Sequence module"
-  implicit val namespace = verifier.freshNamespace("seq")
+  implicit val namespace: Namespace = verifier.freshNamespace("seq")
 
   override def preamble = {
     if (used) {
@@ -62,7 +62,7 @@ class DefaultSeqModule(val verifier: Verifier)
           case Nil => sys.error("did not expect empty sequence")
           case a :: Nil =>
             FuncApp(Identifier("Seq#Singleton"), t(a), typ)
-          case a :: as =>
+          case _ :: _ =>
             translateSeqExp(s.desugared) // desugar into appends and singletons
         }
       case sil.RangeSeq(low, high) =>
@@ -77,7 +77,7 @@ class DefaultSeqModule(val verifier: Verifier)
         FuncApp(Identifier("Seq#Drop"), List(t(seq), t(n)), typ)
       case sil.SeqContains(elem, seq) =>
         FuncApp(Identifier("Seq#Contains"), List(t(seq), t(elem)), typ)
-      case sexp@sil.SeqUpdate(seq, idx, elem) =>
+      case sexp@sil.SeqUpdate(_, _, _) =>
       {
         // translate as (s[..i] ++ ([i] ++ s[i+1..])) (NOTE: this assumes i is in the range, which is not yet checked)
         t(sexp.desugaredAssumingIndexInRange)

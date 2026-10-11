@@ -10,6 +10,8 @@ import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.silver.ast.LocalVar
 
+import scala.annotation.unused
+
 /**
  * Contributes to the translation of one or several statements.
  */
@@ -35,5 +37,5 @@ trait StmtComponent extends Component {
   /**
    * This method is called when translating a "fresh" statement, and by default does nothing
    */
-  def freshReads(fb: Seq[LocalVar]): Stmt = Statements.EmptyStmt
+  def freshReads(@unused fb: Seq[LocalVar]): Stmt = Statements.EmptyStmt
 }

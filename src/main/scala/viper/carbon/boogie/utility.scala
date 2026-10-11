@@ -154,13 +154,13 @@ object Nodes {
       case Some(ee) => ee
       case None =>
         exp match {
-          case IntLit(i) => exp
-          case BoolLit(b) => exp
-          case RealLit(b) => exp
+          case IntLit(_) => exp
+          case BoolLit(_) => exp
+          case RealLit(_) => exp
           case RealConv(exp) => RealConv(func(exp))
-          case LocalVar(n, tt) => exp
-          case GlobalVar(n, tt) => exp
-          case Const(i) => exp
+          case LocalVar(_, _) => exp
+          case GlobalVar(_, _) => exp
+          case Const(_) => exp
           case MapSelect(map, idxs) => MapSelect(func(map), idxs map func)
           case MapUpdate(map, idxs, value) => MapUpdate(func(map), idxs map func, func(value))
           case Old(e) => Old(func(e))

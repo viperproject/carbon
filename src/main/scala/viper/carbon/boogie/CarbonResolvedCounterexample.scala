@@ -11,7 +11,9 @@ import scala.collection.immutable._
 import viper.carbon.verifier.FailureContextImpl
 import viper.silver.verifier._
 import viper.silver.ast
-import viper.silver.ast.{Field, Member, Predicate, Resource}
+import viper.silver.ast.{Member, Predicate, Resource}
+
+import scala.annotation.unused
 import viper.silver.verifier.{AbstractError, ApplicationEntry, ConstantEntry, MapEntry, Model, ModelEntry, UnspecifiedEntry, ValueEntry, VerificationError}
 import viper.silver.ast.{Declaration, MagicWandStructure, Program, Type}
 
@@ -172,7 +174,7 @@ object CarbonRawCounterexample {
         }
       } else if (opName == "Seq#Empty") {
         if (opValues.isInstanceOf[MapEntry]) {
-          for ((k, v) <- opValues.asInstanceOf[MapEntry].options) {
+          for ((_, v) <- opValues.asInstanceOf[MapEntry].options) {
             res += (v.toString -> Seq())
           }
         }
@@ -265,7 +267,7 @@ object CarbonRawCounterexample {
     for ((opName, opValues) <- model.entries) {
       if (opName == "Set#Empty") {
         if (opValues.isInstanceOf[MapEntry]) {
-          for ((k, v) <- opValues.asInstanceOf[MapEntry].options) {
+          for ((_, v) <- opValues.asInstanceOf[MapEntry].options) {
             res += (v.toString -> Set())
           }
         } else if (opValues.isInstanceOf[ConstantEntry] && opValues.asInstanceOf[ConstantEntry].value != "false" && opValues.asInstanceOf[ConstantEntry].value != "true") {
@@ -390,7 +392,7 @@ object CarbonRawCounterexample {
     for ((opName, opValues) <- model.entries) {
       if (opName == "MultiSet#Empty") {
         if (opValues.isInstanceOf[MapEntry]) {
-          for ((k, v) <- opValues.asInstanceOf[MapEntry].options) {
+          for ((_, v) <- opValues.asInstanceOf[MapEntry].options) {
             res += (v.toString -> Map[String, Int]())
           }
         } else if (opValues.isInstanceOf[ConstantEntry] && opValues.asInstanceOf[ConstantEntry].value != "false" && opValues.asInstanceOf[ConstantEntry].value != "true") {
@@ -862,7 +864,8 @@ object CarbonRawCounterexample {
 
   /** True if `e` mentions any resource (an accessibility predicate or a magic wand). */
   private def containsResource(e: ast.Exp): Boolean =
-    e.deepCollect { case _: ast.AccessPredicate => (); case _: ast.MagicWand => () }.nonEmpty
+    // note: MagicWand extends AccessPredicate, so wands are covered by this case too
+    e.deepCollect { case _: ast.AccessPredicate => () }.nonEmpty
 
   /** The `n` frame leaves of a right-nested `CombineFrames` tree rooted at `frameId`. */
   private def frameLeaves(frameId: String, combineMap: Map[ValueEntry, Seq[ValueEntry]], n: Int): Seq[String] = {
@@ -1027,7 +1030,7 @@ object CarbonRawCounterexample {
   /**
     * Determine all the inputs and outputs combinations of a function occruing the counterexample model.
     */
-  def detFunction(model: Model, func: ast.FuncLike, genmap: scala.collection.immutable.Map[ast.TypeVar, ast.Type], heapInst: Seq[(String, String)], program: ast.Program, hd: Boolean, boogieNames: Map[String, String]): BasicFunctionEntry = {
+  def detFunction(model: Model, func: ast.FuncLike, @unused genmap: scala.collection.immutable.Map[ast.TypeVar, ast.Type], heapInst: Seq[(String, String)], @unused program: ast.Program, hd: Boolean, boogieNames: Map[String, String]): BasicFunctionEntry = {
     val fname = func.name
     val resTyp: ast.Type = func.typ
     val argTyp: Seq[ast.Type] = func.formalArgs.map(x => x.typ)
@@ -1131,7 +1134,7 @@ object CarbonResolvedCounterexample {
   /**
     * Match heap resources to their ast node and translate all identifiers (for fields and references)
     */
-  def detHeap(opMapping: Map[Seq[String], String], basicHeap: RawHeap, program: Program, collections: Seq[CECollection], translNames: Map[String, String], model: Model, wandNames: Option[Map[MagicWandStructure.MagicWandStructure, Func]]): HeapCounterexample = {
+  def detHeap(opMapping: Map[Seq[String], String], basicHeap: RawHeap, program: Program, collections: Seq[CECollection], @unused translNames: Map[String, String], model: Model, wandNames: Option[Map[MagicWandStructure.MagicWandStructure, Func]]): HeapCounterexample = {
     // Build a map from each Boogie model value-id to the Viper field or predicate it stands for, by
     // matching the model's function names against the program's field and predicate names. This lets
     // the heap entries below (which reference resources by their model value-id) be linked to their

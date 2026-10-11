@@ -59,5 +59,5 @@ trait Module extends LifetimeComponent with StatefulComponent with viper.carbon.
  * Trait to extend in modules which promise *not* to require a reset method
  */
 trait StatelessComponent {
-  final def reset = { }
+  final def reset(): Unit = { }
 }

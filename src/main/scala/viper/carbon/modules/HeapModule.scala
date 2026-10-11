@@ -9,8 +9,6 @@ package viper.carbon.modules
 import viper.silver.{ast => sil}
 import viper.carbon.boogie._
 import viper.carbon.modules.components.CarbonStateComponent
-import viper.carbon.utility.PolyMapDesugarHelper
-import viper.silver.ast.{LocationAccess, MagicWand}
 
 /**
  * A module for translating heap expressions (access, updating) and determining

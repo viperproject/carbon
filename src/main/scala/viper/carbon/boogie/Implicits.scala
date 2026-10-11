@@ -14,8 +14,8 @@ import language.implicitConversions
  */
 object Implicits {
   implicit def lift[T](t: T): Seq[T] = Seq(t)
-  implicit def liftStmt(ss: Seq[Stmt]) = Seqn(ss)
-  implicit def liftSeq(ss: Seq[Exp]) = new BoolSeq(ss)
+  implicit def liftStmt(ss: Seq[Stmt]): Seqn = Seqn(ss)
+  implicit def liftSeq(ss: Seq[Exp]): BoolSeq = new BoolSeq(ss)
 
   /**
    * Adds methods to turn a sequence of expressions into their conjunction or disjunction.

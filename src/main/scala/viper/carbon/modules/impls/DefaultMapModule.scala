@@ -23,7 +23,7 @@ class DefaultMapModule(val verifier: Verifier) extends MapModule with Definednes
   /** The name of this module. */
   override def name: String = "Map module"
 
-  implicit val namespace = verifier.freshNamespace("map")
+  implicit val namespace: Namespace = verifier.freshNamespace("map")
 
   /** Have maps been used so far (to determine if we need to include the set axiomatisation in the prelude). */
   private var used = false

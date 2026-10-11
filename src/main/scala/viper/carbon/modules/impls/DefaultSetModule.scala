@@ -32,7 +32,7 @@ class DefaultSetModule(val verifier: Verifier)
   private var used = false
 
   def name = "Set module"
-  implicit val namespace = verifier.freshNamespace("set")
+  implicit val namespace: Namespace = verifier.freshNamespace("set")
 
   //override def freeAssumptions(e: sil.Exp): Stmt = {
   //  e match {

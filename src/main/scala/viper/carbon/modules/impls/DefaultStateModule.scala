@@ -25,7 +25,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
 
   private val isGoodState = "state"
 
-  implicit val stateNamespace = verifier.freshNamespace("state")
+  implicit val stateNamespace: Namespace = verifier.freshNamespace("state")
 
   private var captureStateCounter = 0
 
@@ -56,7 +56,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
     }
   }
 
-  override def reset : Unit = {
+  override def reset(): Unit = {
     curOldState = null
     curState = null
     //usingOldState = false
@@ -231,9 +231,9 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
 
   override def getCopyState:StateSnapshot = {
     val currentCopy = new StateComponentMapping()
-    val s = for (c <- components) yield {
-                currentCopy.put(c, c.currentStateVars)
-            }
+    for (c <- components) {
+      currentCopy.put(c, c.currentStateVars)
+    }
     (currentCopy, usingOldState, usingPureState)
   }
 }
