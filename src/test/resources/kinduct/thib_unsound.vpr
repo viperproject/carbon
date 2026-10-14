@@ -1,0 +1,15 @@
+field f: Int
+
+method m(x: Ref)
+  requires acc(x.f)
+  //:: ExpectedOutput(postcondition.violated:assertion.false)
+  ensures false
+{
+  var b: Bool := true
+  while (b) {
+    while (b) {
+      b := false
+      x.f := x.f + 1
+    }
+  }
+}

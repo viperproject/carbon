@@ -1828,7 +1828,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         }
         mask = innerMask
 
-        val diffAssign = diffVar := (diffVar - currentPermMask)
+        val diffAssign = diffVar := (amount - currentPermMask)
         val assertEnough = if (outerMask == transferMasks.last)
           Assert(permGe(currentPermOuter, diffVar), ve)
         else
