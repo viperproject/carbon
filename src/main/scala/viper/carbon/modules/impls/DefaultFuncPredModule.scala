@@ -1052,15 +1052,15 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     unfoldInfo = acc
     val stmt = Assert(permModule.isStrictlyPositivePerm(acc.perm), error.dueTo(NonPositivePermission(acc.perm))) ++
       Assume(predicateTrigger(heapModule.currentStateExps, acc.loc)) ++
+      (if(exhaleUnfoldedPredicate)
+          exhaleSingleWithoutDefinedness(acc, error, havocHeap = false, statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
+      else Nil) ++ inhale(Seq((Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program, env.allDefinedNames(program)).get,acc.perm), error)), addDefinednessChecks = false, statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt) ++
       {
         val location = acc.loc
         val predicate = verifier.program.findPredicate(location.predicateName)
         val translatedArgs = location.args map translateExp
-        Assume(translateResourceAccess(location) === getPredicateFrame(predicate,translatedArgs)._1)
-      } ++
-      (if(exhaleUnfoldedPredicate)
-          exhaleSingleWithoutDefinedness(acc, error, havocHeap = false, statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
-      else Nil) ++ inhale(Seq((Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program, env.allDefinedNames(program)).get,acc.perm), error)), addDefinednessChecks = false, statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
+        Assume(translateResourceAccess(location) === getPredicateFrame(predicate, translatedArgs)._1)
+      }
     unfoldInfo = oldUnfoldInfo
     duringUnfold = oldDuringUnfold
     duringFold = oldDuringFold
