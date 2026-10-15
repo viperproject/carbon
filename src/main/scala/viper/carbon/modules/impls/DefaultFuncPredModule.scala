@@ -1052,12 +1052,6 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     unfoldInfo = acc
     val stmt = Assert(permModule.isStrictlyPositivePerm(acc.perm), error.dueTo(NonPositivePermission(acc.perm))) ++
       Assume(predicateTrigger(heapModule.currentStateExps, acc.loc)) ++
-      {
-        val location = acc.loc
-        val predicate = verifier.program.findPredicate(location.predicateName)
-        val translatedArgs = location.args map translateExp
-        Assume(translateResourceAccess(location) === getPredicateFrame(predicate,translatedArgs)._1)
-      } ++
       (if(exhaleUnfoldedPredicate)
           exhaleSingleWithoutDefinedness(acc, error, havocHeap = false, statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
       else Nil) ++ inhale(Seq((Permissions.multiplyExpByPerm(acc.loc.predicateBody(verifier.program, env.allDefinedNames(program)).get,acc.perm), error)), addDefinednessChecks = false, statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
@@ -1121,14 +1115,17 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
 
           (before, after)
       }
-      case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(args, predicateName), _) if duringUnfold =>
-        val oldVersion = LocalVar(Identifier("oldVersion"), predicateVersionType)
+      case sil.PredicateAccessPredicate(loc@sil.PredicateAccess(args, predicateName), _) if duringUnfold =>
         val newVersion = LocalVar(Identifier("newVersion"), predicateVersionType)
-        val stmt: Stmt = if (exhaleTmpStateId >= 0 || duringUnfolding) Nil else //(oldVersion := curVersion) ++
+        val snapshotStmt: Stmt = {
+          val predicate = verifier.program.findPredicate(predicateName)
+          val translatedArgs = args map translateExp
+          Assume(translateResourceAccess(loc) === getPredicateFrame(predicate, translatedArgs)._1)
+        }
+        val stmt : Stmt = (if (exhaleTmpStateId >= 0 || duringUnfolding) Nil else
            Havoc(Seq(newVersion)) ++
-              //          Assume(oldVersion < newVersion) ++ // this only made sense with integer versions. In the new model, we even want to allow the possibility of the new version being equal to the old
-              currentHeapAssignUpdate(loc, newVersion)
-        ( () => MaybeCommentBlock("Update version of predicate",
+              currentHeapAssignUpdate(loc, newVersion))
+        ( () => MaybeCommentBlock("Connect predicate snapshot to body", snapshotStmt) ++ MaybeCommentBlock("Update version of predicate",
           If(UnExp(Not,hasDirectPerm(loc)), stmt, Nil)), () => Nil)
       case pap@sil.PredicateAccessPredicate(loc@sil.PredicateAccess(_, _), _) if duringFold =>
         ( () => MaybeCommentBlock("Record predicate instance information",
