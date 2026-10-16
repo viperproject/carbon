@@ -122,6 +122,12 @@ class CarbonConfig(args: Seq[String]) extends SilFrontendConfig(args, "Carbon") 
     noshort = true
   )
 
+  val kInductionExitIterations = opt[Int]("kInductionExitIterations",
+    descr = "With k-induction: number of assumed iterations (0..k+1) after the havoc on the path that sets up the state after the loop (default: k; k+1 is as precise as the checking iteration)",
+    default = None,
+    noshort = true
+  )
+
   val desugarPolymorphicMaps = opt[Boolean]("desugarPolymorphicMaps",
     descr = "Do not use polymorphic maps in the Boogie encoding and instead desugar them (default: false).",
     default = Some(false),

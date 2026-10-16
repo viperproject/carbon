@@ -60,6 +60,8 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
   private var usedLoopDetectorOnce = false;
   private var useLoopDetector = false
   var kInductionK = 0
+  /** Number of assumed iterations on the path that sets up the post-loop state; negative means k */
+  var kInductionExitIterations = -1
 
 
   override def start() = {
@@ -493,10 +495,12 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
     *   - k iterations are executed one after the other (transferring phase): permissions the body needs and the
     *     loop mask does not hold are transferred from the frame candidate (see QuantifiedPermModule.assertCurrentPermGe);
     *     after each of them the loop may exit (concrete exits);
-    *   - the loop's written variables, the heap and the mask are havoced, and k iterations are executed with all
-    *     checks turned into assumptions (assuming phase); the loop cannot exit here;
-    *   - one more iteration is executed and checked normally in the loop heap (checking phase); afterwards the loop
-    *     exits (generalised exit), knowing that the frame candidate's locations are unchanged.
+    *   - on a separate path from loop entry (step case), the loop's written variables, the heap and the mask are
+    *     havoced, k iterations are executed with all checks turned into assumptions (assuming phase), and one more
+    *     iteration is executed and checked normally in the loop heap (checking phase); the path is then cut off;
+    *   - after the k-th transferring iteration (exit replay), the state is havoced again, knowing that the frame
+    *     candidate's locations are unchanged, j <= k + 1 iterations (option kInductionExitIterations, default k) are
+    *     executed with all checks assumed, and the loop exits (generalised exit).
     * Whatever the loop mask holds at an exit is added back to the frame candidate.
     *
     * Loop invariants are asserted (transferring, checking) or assumed (assuming) at every loop head, keeping their
@@ -541,7 +545,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
     val assumeAllChecks: Stmt => Stmt = (stmt: Stmt) => stmt.transform { case Assert(e, _) => Assume(e) }()
     /* The body is translated 2k+1 times; Boogie labels (and gotos to them) must be unique per copy. */
     var bodyCopies = 0
-    def translateBody(comment: String): Stmt = {
+    def translateBody(comment: String, cutExits: Boolean = false): Stmt = {
       bodyCopies += 1
       val suffix = s"_kind${depth}_$bodyCopies"
       val translated = stmtModule.translateStmt(body)
@@ -558,8 +562,12 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
       }
       val definedLabels: Set[Lbl] = collectLabels(translated).toSet
       def rename(l: Lbl): Lbl = if (definedLabels.contains(l)) Lbl(Identifier(l.name.name + suffix)(l.name.namespace)) else l
+      /* In the step case (cutExits), gotos out of the loop must not escape the path's cut-off: such paths end. */
       val renamed = translated.transform {
         case Label(l) => Label(rename(l))
+        case Goto(dests) if cutExits =>
+          val inside = dests filter definedLabels.contains
+          if (inside.isEmpty) Assume(FalseLit()) else Goto(inside map rename)
         case Goto(dests) => Goto(dests map rename)
       }()
       MaybeCommentBlock(comment, renamed)
@@ -580,28 +588,45 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
     val transferringIterations = (1 to k) map (i =>
       guardCheck ++ translateBody(s"Loop body, transferring phase, iteration $i") ++ checkInvariant(errors.LoopInvariantNotPreserved))
 
-    /* Assuming phase: havoc, then k iterations with all checks assumed */
+    /* Assuming phase: havoc, then iterations with all checks assumed */
     permModule.kInductionSetPhase(KInductionPhases.Assuming)
-    val havocState = MaybeCommentBlock("Havoc loop written variables (except locals), heap and mask",
+    def havocState(withFrame: Boolean): Stmt = MaybeCommentBlock("Havoc loop written variables (except locals), heap and mask",
       Havoc((writtenVars map translateExp).asInstanceOf[Seq[Var]]) ++
         (writtenVars map (v => mainModule.allAssumptionsAboutValue(v.typ, mainModule.translateLocalVarSig(v.typ, v), false))) ++
-        heapModule.resetBoogieState ++ permModule.resetBoogieState ++ stateModule.assumeGoodState ++ framedInformation)
-    val assumingIterations = (1 to k) map (i =>
-      assumeAllChecks(checkInvariant(errors.LoopInvariantNotPreserved) ++ guardCheck ++ translateBody(s"Loop body, assuming phase, iteration $i")))
+        heapModule.resetBoogieState ++ permModule.resetBoogieState ++ stateModule.assumeGoodState ++
+        (if (withFrame) framedInformation else Nil))
+    def assumingIterations(n: Int, comment: String, cutExits: Boolean): Seq[Stmt] = (1 to n) map (i =>
+      assumeAllChecks(checkInvariant(errors.LoopInvariantNotPreserved) ++ guardCheck ++ translateBody(s"Loop body, $comment, iteration $i", cutExits)))
+    val stepAssumingIterations = assumingIterations(k, "assuming phase", cutExits = true)
 
-    /* Checking phase: one more iteration, checked, followed by the generalised exit */
+    /* Checking phase: one more iteration, checked */
     permModule.kInductionSetPhase(KInductionPhases.Checking)
     val checkingIteration =
       assumeAllChecks(checkInvariant(errors.LoopInvariantNotPreserved)) ++ guardCheck ++
-        translateBody("Loop body, checking phase") ++ checkInvariant(errors.LoopInvariantNotPreserved) ++
-        exit
+        translateBody("Loop body, checking phase", cutExits = true) ++ checkInvariant(errors.LoopInvariantNotPreserved)
+
+    /* Exit replay: havoc again and execute j <= k + 1 iterations with all checks assumed, then the generalised exit.
+     * This only sets up the post-loop state; the checks were done by the step case. The exit covers executions
+     * with at least j iterations, so j = k + 1 is as precise as exiting after the checking iteration; smaller j
+     * is cheaper but loses precision (e.g. for loops that run exactly k times). */
+    permModule.kInductionSetPhase(KInductionPhases.Assuming)
+    val j = if (kInductionExitIterations < 0) k else kInductionExitIterations min (k + 1)
+    val exitReplay = havocState(true) ++ assumingIterations(j, "exit replay", cutExits = false).flatten ++
+      assumeAllChecks(checkInvariant(errors.LoopInvariantNotPreserved)) ++ exit
 
     permModule.kInductionPopLoop()
 
+    /* Step case, checked on a separate path from loop entry and then cut off: it does not depend on the transferring
+     * phase. Without the frame candidate reduced by the transferring phase, the frame is not assumed (only weakens
+     * the check). Keeping it off the transferring path keeps the transferring phase's terms out of its context. */
+    val stepCase = MaybeCommentBlock("k-induction step case (checked, path cut off afterwards)",
+      havocState(false) ++ stepAssumingIterations.flatten ++ checkingIteration ++ Assume(FalseLit()))
+
     /* Nest the iterations: before the first and after each transferring iteration the loop may exit
-     * (concrete exits); after the k-th one the induction part follows. */
-    val inductionPart: Stmt = havocState ++ assumingIterations.flatten ++ checkingIteration
-    val iterations = NondetIf(transferringIterations.foldRight(inductionPart)((iteration, rest) => iteration ++ NondetIf(rest, exit)), exit)
+     * (concrete exits); after the k-th one the exit replay sets up the generalised exit. The frame to add back
+     * after the loop depends on the transferring path, so the exit replay has to stay on it. */
+    val iterations = NondetIf(stepCase, Nil) ++
+      NondetIf(transferringIterations.foldRight(exitReplay)((iteration, rest) => iteration ++ NondetIf(rest, exit)), exit)
 
     val exitLoop = MaybeCommentBlock("Add the loop heap's permissions back to the frame",
       storePostLoopState ++ permModule.havocMask() ++ Assume(permModule.sumMask(permModule.currentMask, postLoopMask, preLoopMask)) ++ stateModule.assumeGoodState)
