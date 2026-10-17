@@ -200,7 +200,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     duringUnfold = false
     duringUnfolding = false
     duringUnfoldingExtraUnfold = false
-    unfoldInfo = null
+    unfoldInfo = None
     exhaleTmpStateId = -1
     extraUnfolding = false
     functionFrames = FrameInfos()
@@ -1027,7 +1027,7 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
   private var duringUnfold = false
   private var duringUnfolding = false
   private var duringUnfoldingExtraUnfold = false // are we executing an extra unfold, to reflect the meaning of inhaling or exhaling an unfolding expression?
-  private var unfoldInfo: sil.PredicateAccessPredicate = null
+  private var unfoldInfo: Option[(sil.PredicateAccessPredicate, Exp)] = None
   override def translateUnfold(unfold: sil.Unfold, statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt = {
     unfold match {
       case sil.Unfold(acc@sil.PredicateAccessPredicate(pa@sil.PredicateAccess(_, _), perm)) =>
@@ -1049,8 +1049,11 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     duringFold = false
     duringUnfold = true
     duringUnfolding = isUnfolding
-    unfoldInfo = acc
-    val stmt = Assert(permModule.isStrictlyPositivePerm(acc.perm), error.dueTo(NonPositivePermission(acc.perm))) ++
+    val preVersion = LocalVar(Identifier("preUnfoldVersion"), predicateVersionType)
+    unfoldInfo = Some(acc, preVersion) //translateExp(acc.loc))
+
+    val stmt = (preVersion := translateExp(acc.loc)) ++
+      Assert(permModule.isStrictlyPositivePerm(acc.perm), error.dueTo(NonPositivePermission(acc.perm))) ++
       Assume(predicateTrigger(heapModule.currentStateExps, acc.loc)) ++
       (if(exhaleUnfoldedPredicate)
           exhaleSingleWithoutDefinedness(acc, error, havocHeap = false, statesStackForPackageStmt = statesStackForPackageStmt, insidePackageStmt = insidePackageStmt)
@@ -1139,10 +1142,18 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     frameType
   }
 
+// these alternatives could probably be simplified with some default values
   private def insidePredicate(p1: sil.PredicateAccessPredicate, p2: sil.PredicateAccessPredicate): Stmt = {
-    Assume(FuncApp(insidePredicateName,Seq(translateLocation(verifier.program.findPredicate(p1.loc.predicateName), p1.loc.args.map(translateExp(_))),translateExp(p1.loc),translateLocation(verifier.program.findPredicate(p2.loc.predicateName), p2.loc.args.map(translateExp(_))),translateExp(p2.loc)),
+    insidePredicate(p1, translateExp(p1.loc), p2)
+  }
+  private def insidePredicate(p1: sil.PredicateAccessPredicate, p1Version: Exp, p2: sil.PredicateAccessPredicate): Stmt = {
+    insidePredicate(translateLocation(verifier.program.findPredicate(p1.loc.predicateName), p1.loc.args.map(translateExp)), p1Version, p2)
+  }
+  private def insidePredicate(p1Loc: Exp, p1Version: Exp, p2: sil.PredicateAccessPredicate): Stmt = {
+    Assume(FuncApp(insidePredicateName, Seq(p1Loc, p1Version, translateLocation(verifier.program.findPredicate(p2.loc.predicateName), p2.loc.args.map(translateExp)), translateExp(p2.loc)),
       Bool))
   }
+
 
   var exhaleTmpStateId = -1
   var extraUnfolding = false
@@ -1178,7 +1189,10 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
           r
         } else Nil
         MaybeCommentBlock("Extra unfolding of predicate",
-          res ++ (if (duringUnfold) insidePredicate(unfoldInfo, pap) else Nil))
+          res ++ (if (duringUnfold) {
+            val (pred,vers) = unfoldInfo.get;
+            insidePredicate(pred, vers, pap)}
+            else Nil))
       case _ => Nil
     }
   }
