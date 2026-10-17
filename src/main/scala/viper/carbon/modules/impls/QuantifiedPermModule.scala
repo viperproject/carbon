@@ -1745,8 +1745,9 @@ class QuantifiedPermModule(val verifier: Verifier)
      * masks before the update); unchanged everywhere else. */
     def update(updates: Seq[(Var, Exp)]): Stmt = {
       val temps = updates.indices.map(i => LocalVar(Identifier(s"kIndTransferMask$i"), maskType))
-      val trig = Seq(Trigger(perm(temps.head, rcv, loc)))
-      val trigOF = Seq(Trigger(perm(temps.head, obj.l, fld.l)))
+      /* One trigger per updated mask: later code may mention only one of them (e.g. the loop mask, not the copy) */
+      val trig = temps.map(tmp => Trigger(perm(tmp, rcv, loc)))
+      val trigOF = temps.map(tmp => Trigger(perm(tmp, obj.l, fld.l)))
       val inRangeUpdates = (updates zip temps).map { case ((_, newValue), tmp) => perm(tmp, rcv, loc) === newValue }.reduce[Exp](_ && _)
       val unchangedInRange = (updates zip temps).map { case ((m, _), tmp) => perm(tmp, rcv, loc) === perm(m, rcv, loc) }.reduce[Exp](_ && _)
       val unchangedElsewhere = (updates zip temps).map { case ((m, _), tmp) => perm(tmp, obj.l, fld.l) === perm(m, obj.l, fld.l) }.reduce[Exp](_ && _)
