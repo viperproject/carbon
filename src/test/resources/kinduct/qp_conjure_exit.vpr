@@ -1,0 +1,35 @@
+// Quantified permissions conjured in the assumed iterations of the exit replay must
+// reach the post-loop state (the updated loop mask needs its own trigger).
+
+field val: Int
+
+method growing() returns (res: Seq[Ref])
+  ensures forall e: Ref :: e in res ==> acc(e.val)
+{
+  res := Seq[Ref]()
+  var i: Int := 0
+  while (i < 10)
+    invariant forall e: Ref :: e in res ==> acc(e.val)
+  {
+    var c: Ref
+    c := new(val)
+    res := res ++ Seq(c)
+    i := i + 1
+  }
+}
+
+method growingWrong() returns (res: Seq[Ref])
+  ensures forall e: Ref :: e in res ==> acc(e.val)
+{
+  res := Seq[Ref]()
+  var i: Int := 0
+  while (i < 10)
+    //:: ExpectedOutput(invariant.not.preserved:insufficient.permission)
+    invariant forall e: Ref :: e in res ==> acc(e.val)
+  {
+    var c: Ref
+    c := new()
+    res := res ++ Seq(c)
+    i := i + 1
+  }
+}
