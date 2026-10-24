@@ -437,12 +437,19 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
           } else {
             val renamed = Expressions.renameVariables(e, orig_vars.map(_.localVar), bound_vars.map(_.localVar))
             /* k-induction: the quantifier's triggers, for the assumption that replaces the check (see handleQuantifiedLocals) */
-            lazy val triggers: Seq[Trigger] = if (!permModule.kInductionAssuming || !e.isPure) Nil else
+            lazy val triggers: Seq[Trigger] = if (!permModule.kInductionAssuming || !e.isPure) Nil else {
+              /* the translated quantifier has its own bound variables: map them to those of the definedness check */
+              def ours(vs: Seq[LocalVarDecl], ts: Seq[Trigger]): Seq[Trigger] =
+                if (vs.length != bound_vars.length) Nil else {
+                  val m: Map[Exp, Exp] = (vs.map(_.l: Exp) zip bound_vars.map(v => translateLocalVar(v.localVar): Exp)).toMap
+                  ts map (t => Trigger(t.exps map (_.transform({ case x if m.contains(x) => Some(m(x)) }))))
+                }
               scala.util.Try(translateExp(renamed)).toOption match {
-                case Some(Forall(_, ts, _, _, _)) => ts
-                case Some(Exists(_, ts, _, _)) => ts
+                case Some(Forall(vs, ts, _, _, _)) => ours(vs, ts)
+                case Some(Exists(vs, ts, _, _)) => ours(vs, ts)
                 case _ => Nil
               }
+            }
             handleQuantifiedLocals(bound_vars, translate(renamed, definednessStateOpt), triggers)
           }
           bound_vars map (v => env.undefine(v.localVar))
@@ -535,7 +542,8 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       checksAsAssumption(checks) match {
         case Some(TrueLit()) => return Nil
         case Some(wp) =>
-          val trigs = triggers map (t => Transformer.transform(t, renameVars)())
+          def mentionsAll(t: Trigger) = decls.forall(d => { var found = false; t.visit { case x: LocalVar if x == d.l => found = true }; found })
+          val trigs = triggers map (t => Transformer.transform(t, renameVars)()) filter mentionsAll
           return MaybeComment("k-induction: assume the definedness checks of the quantifier (assuming phase)",
             Assume(Forall(decls, trigs, wp)))
         case None => // not supported: keep the check in its branch (the assumptions are lost)
