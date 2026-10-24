@@ -496,12 +496,15 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
     *     loop mask does not hold are transferred from the frame candidate (see QuantifiedPermModule.assertCurrentPermGe);
     *     after each of them the loop may exit (concrete exits);
     *   - on a separate path from loop entry (step case), the loop's written variables, the heap and the mask are
-    *     havoced, k iterations are executed with all checks turned into assumptions (assuming phase), and one more
-    *     iteration is executed and checked normally in the loop heap (checking phase); the path is then cut off;
+    *     havoced, k iterations are executed with all checks turned into assumptions (assuming phase; in particular,
+    *     the permissions the body needs are assumed to be held by the havoced mask), and one more iteration is
+    *     executed and checked normally in the loop heap (checking phase); the path is then cut off;
     *   - after the k-th transferring iteration (exit replay), the state is havoced again, knowing that the frame
     *     candidate's locations are unchanged, j <= k + 1 iterations (option kInductionExitIterations, default k) are
     *     executed with all checks assumed, and the loop exits (generalised exit).
-    * Whatever the loop mask holds at an exit is added back to the frame candidate.
+    * Whatever the loop mask holds at an exit is added back to the frame candidate. (After the exit replay, the
+    * havoced mask may hold more than the loop actually has, but nothing beyond what the assumed checks require
+    * can be proved about it.)
     *
     * Loop invariants are asserted (transferring, checking) or assumed (assuming) at every loop head, keeping their
     * permissions in the loop heap. Reads of locations the loop heap has no permission to transfer the loop's read
@@ -593,7 +596,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
     def havocState(withFrame: Boolean): Stmt = MaybeCommentBlock("Havoc loop written variables (except locals), heap and mask",
       Havoc((writtenVars map translateExp).asInstanceOf[Seq[Var]]) ++
         (writtenVars map (v => mainModule.allAssumptionsAboutValue(v.typ, mainModule.translateLocalVarSig(v.typ, v), false))) ++
-        heapModule.resetBoogieState ++ permModule.resetBoogieState ++ stateModule.assumeGoodState ++
+        heapModule.resetBoogieState ++ permModule.havocMask() ++ stateModule.assumeGoodState ++
         (if (withFrame) framedInformation else Nil))
     def assumingIterations(n: Int, comment: String, cutExits: Boolean): Seq[Stmt] = (1 to n) map (i =>
       assumeAllChecks(checkInvariant(errors.LoopInvariantNotPreserved) ++ guardCheck ++ translateBody(s"Loop body, $comment, iteration $i", cutExits)))

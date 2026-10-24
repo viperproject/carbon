@@ -145,8 +145,8 @@ class QuantifiedPermModule(val verifier: Verifier)
     * from it is an exhale performed by the loop owning that heap, in that loop's current phase. If the owner is
     * transferring itself, the remainder is passed on to the next heap; otherwise the remainder must be provided
     * by this heap (Checking, and the method heap), or is assumed to be provided (Assuming: the code generated for
-    * the body of a loop in its assuming phase has all asserts turned into assumptions, which conjures the
-    * permission), so the sequence ends there. */
+    * the body of a loop in its assuming phase has all asserts turned into assumptions about its havoced mask),
+    * so the sequence ends there. */
   override def kInductionTransferMasks: Seq[LocalVar] = {
     val result = new ListBuffer[LocalVar]()
     var i = 0
@@ -160,6 +160,7 @@ class QuantifiedPermModule(val verifier: Verifier)
     result.toSeq
   }
   override def kInductionTransferring: Boolean = kInductedLoops.nonEmpty && kInductedLoops.head.phase == KInductionPhases.Transferring
+  override def kInductionAssuming: Boolean = kInductedLoops.exists(_.phase == KInductionPhases.Assuming)
 
   private val readMaskName = Identifier("readMask")
   private val updateMaskName = Identifier("updMask")
@@ -1717,9 +1718,10 @@ class QuantifiedPermModule(val verifier: Verifier)
   /** k-induction for the exhale of a quantified permission assertion (see also assertCurrentPermGe for single
     * locations): in the transferring phase of the innermost loop, permissions that are missing in the current mask
     * are transferred pointwise from the enclosing loop heaps (kInductionTransferMasks; the last one has to provide
-    * whatever is still missing, which is asserted); in the assuming phase, the current mask is topped up to the
-    * needed amount (conjured). The current mask is updated in place (if it is a temporary copy, the original loop
-    * mask is updated as well). The caller then performs the usual exhale. Nothing is generated otherwise.
+    * whatever is still missing, which is asserted). The current mask is updated in place (if it is a temporary
+    * copy, the original loop mask is updated as well). The caller then performs the usual exhale. Nothing is
+    * generated otherwise (in the assuming phase, the usual exhale's checks become assumptions about the havoced
+    * loop mask).
     *
     * @param locVars     variables ranging over the affected locations (the receiver for fields, the formal
     *                    arguments for predicates and wands), in terms of which the following are expressed
@@ -1733,13 +1735,12 @@ class QuantifiedPermModule(val verifier: Verifier)
   private def kInductionQP(locVars: Seq[LocalVarDecl], inRange: Exp, rcv: Exp, loc: Exp, needed: Exp, independent: Exp,
                            ve: VerificationError, inverseAssumptions: Stmt): Stmt = {
     val phase = kInductedLoops.headOption.map(_.phase)
-    if (phase.isEmpty || phase.get == KInductionPhases.Checking) return Nil
+    if (!phase.contains(KInductionPhases.Transferring)) return Nil
 
     val obj = LocalVarDecl(Identifier("o"), refType)
     val fld = LocalVarDecl(Identifier("f"), fieldType)
     def perm(m: Exp, r: Exp, l: Exp): Exp = currentPermission(m, r, l)
     val cur = perm(mask, rcv, loc)
-    val missing = CondExp(needed > cur, needed - cur, noPerm)
 
     /* Pointwise update of the given masks: at affected locations, mask_i := newValue_i (an expression over the
      * masks before the update); unchanged everywhere else. */
@@ -1760,10 +1761,7 @@ class QuantifiedPermModule(val verifier: Verifier)
     def alsoOriginal(delta: Exp): Seq[(Var, Exp)] =
       if (mask != originalMask) Seq((originalMask, perm(originalMask, rcv, loc) + delta)) else Nil
 
-    if (phase.get == KInductionPhases.Assuming) {
-      MaybeCommentBlock("k-induction: conjure the quantified permissions that are missing",
-        inverseAssumptions ++ update(Seq((mask, cur + missing)) ++ alsoOriginal(missing)))
-    } else {
+    {
       val transferMasks = kInductionTransferMasks
       val transfers = transferMasks.zipWithIndex map { case (outerMask, i) =>
         val isLast = i == transferMasks.length - 1
@@ -1783,23 +1781,9 @@ class QuantifiedPermModule(val verifier: Verifier)
     * heaps (see kInductionTransferMasks), i.e. the shortfall is deducted from those masks and added to the
     * current one (and, if the current mask is a temporary copy, to the original loop mask as well, so that the
     * transfer persists after e.g. an assert). In the assuming and checking phases the plain assertion is generated
-    * (in the assuming phase it is turned into an assumption by the loop module). */
+    * (in the assuming phase it is turned into an assumption about the havoced loop mask by the loop module). */
   private def assertCurrentPermGe(fa: sil.ResourceAccess, amount: Exp, forField: Boolean, ve: VerificationError): Stmt = {
-    if (kInductedLoops.nonEmpty && kInductedLoops.head.phase == KInductionPhases.Assuming) {
-      /* Conjure the minimal amount needed: top the current permission up to `amount` (the loop mask is empty at
-       * the start of the assuming phase). If the current mask is a temporary copy, the original loop mask is
-       * credited as well, so that the conjured permission persists. */
-      val currentPermMask = currentPermission(fa)
-      val innerMask = mask
-      val topUpOriginal: Stmt = if (innerMask != originalMask) {
-        mask = originalMask
-        val currentPermOriginal = currentPermission(fa)
-        mask = innerMask
-        currentPermOriginal := currentPermOriginal + (amount - currentPermMask)
-      } else Nil
-      MaybeCommentBlock("k-induction: conjure the permission that is missing",
-        If(permGt(amount, currentPermMask), topUpOriginal ++ (currentPermMask := amount), Nil))
-    } else if (!kInductionTransferring) {
+    if (!kInductionTransferring) {
       Assert(permGe(currentPermission(fa), amount, forField), ve)
     } else {
       /*
@@ -1847,17 +1831,15 @@ class QuantifiedPermModule(val verifier: Verifier)
   /** Asserts that the current mask holds some permission to `fa` (read access). k-induction: in the transferring
     * phase of the innermost loop, if the current mask has no permission, the loop's read permission variable is
     * constrained to be less than the permission held by the closest enclosing loop heap that has some, and that
-    * amount is transferred; in the assuming phase, the read permission variable's amount is asserted (and turned
-    * into an assumption by the loop module, i.e. conjured); in the checking phase the plain check is generated. */
+    * amount is transferred; in the assuming and checking phases the plain check is generated (in the assuming
+    * phase it is turned into an assumption by the loop module). */
   private def assertSomePerm(fa: sil.LocationAccess, ve: VerificationError, definednessStateOpt: Option[DefinednessState]): Stmt = {
     val hasDirectPermExp = definednessStateOpt.fold(hasDirectPerm(fa))(defState => hasDirectPerm(fa, defState.setDefState))
     kInductedLoops.headOption match {
       case None =>
         Assert(hasDirectPermExp, ve)
-      case Some(loop) if loop.phase == KInductionPhases.Checking =>
+      case Some(loop) if loop.phase != KInductionPhases.Transferring =>
         Assert(hasDirectPermExp, ve)
-      case Some(loop) if loop.phase == KInductionPhases.Assuming =>
-        assertCurrentPermGe(fa, loop.readVar, false, ve)
       case Some(loop) =>
         val readVar = loop.readVar
         val innerMask = mask

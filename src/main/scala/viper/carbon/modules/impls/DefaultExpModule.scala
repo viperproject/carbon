@@ -435,7 +435,15 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
 
             handleQuantifiedLocals(bound_vars, If(filter, translate(eAsForallRef, definednessStateOpt), Nil))
           } else {
-            handleQuantifiedLocals(bound_vars, translate(Expressions.renameVariables(e, orig_vars.map(_.localVar), bound_vars.map(_.localVar)), definednessStateOpt))
+            val renamed = Expressions.renameVariables(e, orig_vars.map(_.localVar), bound_vars.map(_.localVar))
+            /* k-induction: the quantifier's triggers, for the assumption that replaces the check (see handleQuantifiedLocals) */
+            lazy val triggers: Seq[Trigger] = if (!permModule.kInductionAssuming || !e.isPure) Nil else
+              scala.util.Try(translateExp(renamed)).toOption match {
+                case Some(Forall(_, ts, _, _, _)) => ts
+                case Some(Exists(_, ts, _, _)) => ts
+                case _ => Nil
+              }
+            handleQuantifiedLocals(bound_vars, translate(renamed, definednessStateOpt), triggers)
           }
           bound_vars map (v => env.undefine(v.localVar))
           res
@@ -498,7 +506,9 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
     NondetIf(lhs ++ defineLHS ++ rhs ++ Assume(FalseLit()))
   }
 
-  def handleQuantifiedLocals(vars: Seq[sil.LocalVarDecl], res: Stmt): Stmt = {
+  /** k-induction: `triggers` (over the translated variables `vars`) are used for the assumption that replaces the
+    * check in an assuming phase. */
+  def handleQuantifiedLocals(vars: Seq[sil.LocalVarDecl], res: Stmt, triggers: => Seq[Trigger] = Nil): Stmt = {
     // introduce local variables for the variables in quantifications. we do this by first check
     // definedness without worrying about missing variable declarations, and then replace all of them
     // with fresh variables.
@@ -507,7 +517,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       // we use a fresh namespace to make sure we get fresh variables
       Identifier(x.name)(namespace)
       ))
-    NondetIf(Seqn(Seq(Transformer.transform(res, {
+    val renameVars: PartialFunction[Node, Node] = {
       case v@LocalVar(name, _) =>
         newVars.find(x => (name == x._1.name)) match {
           case None => v // no change
@@ -515,7 +525,75 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
             // use the new variable
             LocalVar(xb, x.typ)
         }
-    })(),Assume(FalseLit()))))
+    }
+    val checks = Transformer.transform(res, renameVars)()
+    /* k-induction: in an assuming phase, all checks become assumptions; but assumptions in the branch below would be
+     * lost, since the branch is cut off. Hence the branch's checks are assumed on the main path instead, for all
+     * values of the quantified variables: forall vars :: wp(checks, true). */
+    if (permModule.kInductionAssuming) {
+      val decls = newVars map { case (x, xb) => LocalVarDecl(xb, x.typ) }
+      checksAsAssumption(checks) match {
+        case Some(TrueLit()) => return Nil
+        case Some(wp) =>
+          val trigs = triggers map (t => Transformer.transform(t, renameVars)())
+          return MaybeComment("k-induction: assume the definedness checks of the quantifier (assuming phase)",
+            Assume(Forall(decls, trigs, wp)))
+        case None => // not supported: keep the check in its branch (the assumptions are lost)
+      }
+    }
+    NondetIf(Seqn(Seq(checks, Assume(FalseLit()))))
+  }
+
+  /** The weakest precondition wp(s, true) of a structured statement, where asserts are conjoined (i.e. the condition
+    * under which none of the asserts in `s` fails). None if `s` contains unsupported statements (gotos, labels) or
+    * the result gets too large. */
+  private def checksAsAssumption(s: Stmt): Option[Exp] = {
+    val maxSize = 20000
+    var size = 0
+    case object TooLarge extends Exception
+    def count(e: Exp): Exp = {
+      size += 1
+      if (size > maxSize) throw TooLarge
+      e
+    }
+    def and(a: Exp, b: Exp): Exp = (a, b) match {
+      case (TrueLit(), _) => b
+      case (_, TrueLit()) => a
+      case _ => count(a && b)
+    }
+    def imp(a: Exp, b: Exp): Exp = (a, b) match {
+      case (TrueLit(), _) => b
+      case (_, TrueLit()) => TrueLit()
+      case _ => count(a ==> b)
+    }
+    def subst(q: Exp, v: Var, by: Exp): Exp = q match {
+      case TrueLit() => q
+      case _ => q.transform({ case o: Old => Some(o) /* Boogie's old refers to the procedure's pre-state */ case `v` => Some(by) })
+    }
+    def mentions(q: Exp, v: Var): Boolean = {
+      var found = false
+      q.visit { case `v` => found = true }
+      found
+    }
+    var havocId = 0
+    def wp(s: Stmt, q: Exp): Exp = s match {
+      case Seqn(ss) => ss.foldRight(q)(wp)
+      case CommentBlock(_, s1) => wp(s1, q)
+      case Comment(_) => q
+      case Assert(e, _) => and(e, q)
+      case Assume(e, _) => imp(e, q)
+      case Assign(v: Var, rhs) => subst(q, v, rhs)
+      case Assign(MapSelect(m: Var, idxs), rhs) => subst(q, m, MapUpdate(m, idxs, rhs))
+      case HavocImpl(vars) => vars.foldLeft(q)((q1, v) => if (!mentions(q1, v)) q1 else {
+        havocId += 1
+        val fresh = LocalVar(Identifier(s"${v.name.name}_wp$havocId")(verifier.freshNamespace("exp.wp")), v.typ)
+        Forall(Seq(LocalVarDecl(fresh.name, fresh.typ)), Nil, subst(q1, v, fresh))
+      })
+      case If(c, thn, els) => and(imp(c, wp(thn, q)), imp(UnExp(Not, c), wp(els, q)))
+      case NondetIf(thn, els) => and(wp(thn, q), wp(els, q))
+      case _ => throw TooLarge // unsupported
+    }
+    try Some(wp(s, TrueLit())) catch { case TooLarge => None }
   }
 
   override def allFreeAssumptions(e: sil.Exp): Stmt = {

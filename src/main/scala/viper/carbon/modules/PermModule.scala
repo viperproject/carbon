@@ -187,6 +187,9 @@ trait PermModule extends Module with CarbonStateComponent {
   def currentKInductedLoops(): Int
   /** True iff the innermost k-inducted loop is in its transferring phase */
   def kInductionTransferring: Boolean
+  /** True iff some k-inducted loop that is currently being translated is in its assuming phase, i.e. all checks
+    * generated now will be turned into assumptions (about a havoced loop state) */
+  def kInductionAssuming: Boolean
   /** The masks (of enclosing loop heaps, innermost first) permissions may be transferred from, see QuantifiedPermModule */
   def kInductionTransferMasks: Seq[LocalVar]
   def havocMask(): Stmt
