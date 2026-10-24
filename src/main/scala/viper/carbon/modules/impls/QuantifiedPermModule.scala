@@ -1838,8 +1838,12 @@ class QuantifiedPermModule(val verifier: Verifier)
     kInductedLoops.headOption match {
       case None =>
         Assert(hasDirectPermExp, ve)
-      case Some(loop) if loop.phase != KInductionPhases.Transferring =>
+      case Some(loop) if loop.phase == KInductionPhases.Checking =>
         Assert(hasDirectPermExp, ve)
+      case Some(loop) if loop.phase == KInductionPhases.Assuming =>
+        /* the transferring phase takes the read permission variable's amount for reads, so (as in standard
+         * Carbon's check, but with that amount) at least that amount is assumed to be held */
+        Assert(permGe(currentPermission(fa), loop.readVar), ve)
       case Some(loop) =>
         val readVar = loop.readVar
         val innerMask = mask
