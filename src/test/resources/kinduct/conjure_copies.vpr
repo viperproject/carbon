@@ -1,0 +1,27 @@
+// k-induction (Carbon): the permission that is conjured (assuming phase) or transferred (transferring phase) into a
+// temporary copy of the state must be credited to all copies of the loop's state made in that phase, not only to the
+// loop mask. Below, the well-definedness state of the exhale is a copy of the loop mask taken before acc(x.f) is
+// conjured (transferred) into the loop mask; the read permission get's precondition needs is then conjured
+// (transferred) once more, from a copy of that well-definedness state. Conjured twice, the loop mask holds more than
+// full permission to x.f after the inhale, which made the step case vacuous; transferred twice, the frame does not
+// have enough.
+
+field f: Int
+
+function get(x: Ref): Int
+  requires acc(x.f)
+{ x.f }
+
+method m(x: Ref)
+  requires acc(x.f)
+{
+  var i: Int := 0
+  while (i < 10)
+    //:: ExpectedOutput(invariant.not.preserved:assertion.false)
+    invariant i <= 1
+  {
+    exhale acc(x.f) && get(x) == get(x)
+    inhale acc(x.f)
+    i := i + 1
+  }
+}
