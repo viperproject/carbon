@@ -65,6 +65,13 @@ trait CarbonStateComponent extends Component {
   def restoreState(previousState: Seq[Var]): Unit
 
   /**
+   * Called when the variables of a temporary state are initialised: with the expressions they are set to
+   * (`Some(exps)`, a copy of the state those expressions denote), or `None` if they start out unrelated to any
+   * other state (empty, or not initialised by the state module).
+   */
+  def tempStateInitialised(tmpState: Seq[Var], from: Option[Seq[Exp]]): Unit = {}
+
+  /**
    * Are we currently using an "old" state? Note: this is mainly as documentation that the states passed to other methods above will need wrapping in "olD2 when *used*, if we are currently using an old state. This method would typically be implemented by querying the corresponding StateModule
    *
    * Note in particular that variable passed in via "replaceState" above will typically need wrapping in old(.) if this is set to true

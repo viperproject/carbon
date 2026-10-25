@@ -148,6 +148,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
       val tmpExps = c.freshTempState(name)
       val curExps = c.currentStateExps // note: this will wrap them in "Old" as necessary for correct initialisation
       val stmt: Stmt = if (discardCurrent) Nil else (tmpExps zip curExps) map (x => (x._1 := x._2))
+      c.tempStateInitialised(tmpExps, if (discardCurrent || initialise) None else Some(curExps))
       previousState._1.put(c, c.currentStateVars) // reconstruct information from previous state (this is logically similar to a clone of what curState used to represent)
       curState.put(c, tmpExps) // repopulate current state
       c.restoreState(tmpExps)
@@ -169,6 +170,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
 
     for (c <- components) yield {
       val tmpExps = c.freshTempState(name)
+      c.tempStateInitialised(tmpExps, None)
       freshState.put(c, tmpExps)
     }
 
@@ -177,6 +179,7 @@ class DefaultStateModule(val verifier: Verifier) extends StateModule {
 
   override def initToCurrentStmt(snapshot: StateSnapshot) : Stmt = {
     for (e <- snapshot._1.entrySet().asScala.toSeq) yield {
+      e.getKey.tempStateInitialised(e.getValue, Some(e.getKey.currentStateExps))
       val s: Stmt = (e.getValue zip e.getKey.currentStateExps) map (x => x._1 := x._2)
       s
     }
