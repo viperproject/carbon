@@ -26,4 +26,8 @@ lazy val carbon = (project in file("."))
         assembly / assemblyJarName := "carbon.jar",             // JAR filename
         assembly / mainClass := Some("viper.carbon.Carbon"),    // Define JAR's entry point
         assembly / test := {},                                  // Prevent testing before packaging
+        assembly / assemblyMergeStrategy := {
+            case x if x.endsWith("module-info.class") => MergeStrategy.concat
+            case x => (assembly / assemblyMergeStrategy).value(x)
+        }
     )
