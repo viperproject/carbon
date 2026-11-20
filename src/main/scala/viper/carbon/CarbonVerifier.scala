@@ -174,6 +174,9 @@ case class CarbonVerifier(override val reporter: Reporter,
 
     // reset all modules
     allModules map (m => m.reset())
+    // Forget the Boogie names chosen for previous programs, so that the output for this program does not depend
+    // on previously verified programs (e.g. in the test suite).
+    viper.carbon.boogie.PrettyPrinter.reset()
     // Clear the error->member mapping so it does not grow unbounded across verify(...) calls in the
     // same JVM; it is repopulated during translation below.
     viper.carbon.boogie.ErrorMemberMapping.mapping.clear()
