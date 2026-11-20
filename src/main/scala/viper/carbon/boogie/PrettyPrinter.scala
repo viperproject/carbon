@@ -21,7 +21,7 @@ object PrettyPrinter {
   private val idnMap = collection.mutable.HashMap[Identifier, String]()
 
   /** BoogieNameGenerator instance. */
-  private val names = new BoogieNameGenerator()
+  private var names = new BoogieNameGenerator()
 
   /**
     * The current mapping from unique Boogie names to the original identifiers (inverse mapping of idnMap,
@@ -31,6 +31,13 @@ object PrettyPrinter {
 
   def pretty(n: Node): String = {
     new PrettyPrinter(n).pretty
+  }
+
+  /** Forget all names chosen so far, so that the output for a program does not depend on earlier programs. */
+  def reset(): Unit = {
+    idnMap.clear()
+    backMap.clear()
+    names = new BoogieNameGenerator()
   }
 
   def quantifyOverFreeTypeVars(exp: Exp): Exp = {
