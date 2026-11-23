@@ -104,9 +104,12 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       val v = env.makeUniquelyNamed(lvardecl) // choose a fresh "v" binder
         env.define(v.localVar)
         val translatedBody = translateExp(Expressions.instantiateVariables(body, Seq(lvardecl), Seq(v.localVar), env.allDefinedNames(program))) // translate body with "v" in place of bound variable
-      val substitutedBody = translatedBody.replace(env.get(v.localVar), translatedExp) // now replace all "v"s with expression. Doing this after translation avoids constructs such as heap-dependant expressions getting reevaluated after substitution in the wrong heaps (e.g. if substituted into an "old" expression).
+        // Bind "v" by a Boogie let rather than substituting the expression for it: the expression is evaluated where
+        // the let is (not, e.g., in the heap of an "old" expression in the body), and substituting would duplicate it
+        // for each occurrence of "v", which makes the translation of chains of lets exponentially large.
+        val letExp = LetExp(translateLocalVarDecl(v), translatedExp, translatedBody)
         env.undefine(v.localVar)
-        substitutedBody
+        letExp
       case sil.CondExp(cond, thn, els) =>
         CondExp(translateExp(cond), translateExp(thn), translateExp(els))
       case q@sil.Exists(vars, triggers, exp) => {
