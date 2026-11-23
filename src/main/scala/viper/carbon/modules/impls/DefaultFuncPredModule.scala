@@ -574,7 +574,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         combineFrames(computeFrameHelper(e0,renaming,name,args), computeFrameHelper(e1,renaming,name,args))
       case sil.CondExp(con, thn, els) =>
         frameFragment(CondExp(translateExp(renaming(con)), computeFrameHelper(thn,renaming,name,args), computeFrameHelper(els,renaming,name,args)))
-      // Pure lets have an empty frame (next case); instantiating them takes exponential time for chains of lets.
+      // A let with a pure body falls through to the next case (empty frame) without being instantiated, which takes
+      // exponential time for chains of lets.
       case sil.Let(varDeclared,boundTo,inBody) if !inBody.isPure =>
         computeFrameHelper(Expressions.instantiateVariables(inBody,varDeclared,boundTo, env.allDefinedNames(program)),renaming,name,args)
       case e if e.isPure =>

@@ -424,7 +424,8 @@ class PrettyPrinter(n: Node) extends BracketPrettyPrinter {
       case CondExp(cond, e1, e2) =>
         parens(text("if") <+> show(cond) <+> "then" <+> show(e1) <+> "else" <+> show(e2))
       case LetExp(v, exp, body) =>
-        // Boogie infers the type of v; it does not accept a type annotation here.
+        // Boogie infers the type of v; it does not accept a type annotation here. The body is not indented, since
+        // that would make the output for a chain of n lets quadratic in n.
         parens(text("var") <+> ident2doc(v.name) <+> ":=" <+> show(exp) <> ";" <> line <> show(body))
       case _: PrettyUnaryExpression | _: PrettyBinaryExpression => {
         e match {

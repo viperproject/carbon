@@ -66,7 +66,7 @@ case class Environment(verifier: Verifier, member: sil.Node) {
 
   /**
    * Defines a local variable in this environment for a given Viper variable, and returns the corresponding
-   * Boogie variable (in the given namespace).
+   * Boogie variable, in `namespace` (by default the namespace of Viper variables).
    */
   def define(variable: sil.LocalVar, namespace: Namespace = verifier.mainModule.silVarNamespace): LocalVar = {
     currentMapping.get(variable) match {

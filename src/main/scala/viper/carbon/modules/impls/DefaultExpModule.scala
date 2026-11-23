@@ -102,13 +102,14 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       case sil.Let(lvardecl, exp, body) =>
         val translatedExp = translateExp(exp) // expression to bind "v" to
       val v = env.makeUniquelyNamed(lvardecl) // choose a fresh "v" binder
-        // In a fresh namespace, "v" differs from every other Boogie variable, so substituting into the let expression
-        // (e.g. arguments for parameters when instantiating a cached frame elsewhere) cannot capture variables.
+        // In its own namespace, "v" differs from every other Boogie variable. Substituting into the translated let
+        // therefore cannot capture variables, as when DefaultFuncPredModule.getFrame instantiates a cached frame
+        // with the arguments of a use.
         env.define(v.localVar, verifier.freshNamespace("let"))
         val translatedBody = translateExp(Expressions.instantiateVariables(body, Seq(lvardecl), Seq(v.localVar), env.allDefinedNames(program))) // translate body with "v" in place of bound variable
-        // Bind "v" by a Boogie let rather than substituting the expression for it: the expression is evaluated where
-        // the let is (not, e.g., in the heap of an "old" expression in the body), and substituting would duplicate it
-        // for each occurrence of "v", which makes the translation of chains of lets exponentially large.
+        // Bind "v" with a Boogie let: the expression is evaluated where the let is (not, e.g., in the heap of an "old"
+        // expression in the body), and it is not duplicated for each occurrence of "v" (which would make chains of
+        // lets exponentially large).
         val letExp = LetExp(translateLocalVarDecl(v), translatedExp, translatedBody)
         env.undefine(v.localVar)
         letExp

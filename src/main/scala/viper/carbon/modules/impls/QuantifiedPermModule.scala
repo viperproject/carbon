@@ -1016,9 +1016,9 @@ class QuantifiedPermModule(val verifier: Verifier)
     }
   }
 
-  /* Triggers built from translated expressions can contain lets (from Viper lets), which the solver expands. The
-   * following functions therefore describe an expression with its lets expanded, but without expanding them, since that
-   * takes exponential time for chains of lets.
+  /* Trigger candidates built from translated expressions can contain Boogie lets (from Viper lets), which Boogie and
+   * Z3 accept. The following functions compute properties of an expression as if its lets were inlined, without
+   * inlining them (that would take exponential time for chains of lets).
    */
 
   /** The names of the variables in n, after expanding its lets. */
@@ -1078,9 +1078,8 @@ class QuantifiedPermModule(val verifier: Verifier)
         validType = false
       }
     }
-    //occurring LocalVars
     val occurringVars = exps.flatMap(containedVars(_)).toSet
-    var containsVars = (vars.map(x => occurringVars.contains(x.name))).reduce((var1, var2) => var1 && var2)
+    val containsVars = (vars.map(x => occurringVars.contains(x.name))).reduce((var1, var2) => var1 && var2)
     validType && containsVars
   }
 
