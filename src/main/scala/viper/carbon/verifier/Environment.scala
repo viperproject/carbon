@@ -7,7 +7,7 @@
 package viper.carbon.verifier
 
 import viper.silver.{ast => sil}
-import viper.carbon.boogie.{BoogieNameGenerator, Identifier, LocalVar}
+import viper.carbon.boogie.{BoogieNameGenerator, Identifier, LocalVar, Namespace}
 
 /**
  * An environment that assigns unique names to Viper variables;  in SIL, loops can have
@@ -66,15 +66,15 @@ case class Environment(verifier: Verifier, member: sil.Node) {
 
   /**
    * Defines a local variable in this environment for a given Viper variable, and returns the corresponding
-   * Boogie variable.
+   * Boogie variable (in the given namespace).
    */
-  def define(variable: sil.LocalVar): LocalVar = {
+  def define(variable: sil.LocalVar, namespace: Namespace = verifier.mainModule.silVarNamespace): LocalVar = {
     currentMapping.get(variable) match {
       case Some(t) =>
         sys.error(s"Internal Error: variable $variable is already defined.")
       case None =>
         val name = uniqueName(variable.name)
-        val bvar = LocalVar(Identifier(name)(verifier.mainModule.silVarNamespace), verifier.typeModule.translateType(variable.typ))
+        val bvar = LocalVar(Identifier(name)(namespace), verifier.typeModule.translateType(variable.typ))
         currentMapping.put(variable, bvar)
         allUsedNames.update(variable.name, name)
         bvar
