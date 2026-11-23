@@ -581,7 +581,7 @@ class QuantifiedPermModule(val verifier: Verifier)
             val recvTrigger = Trigger(Seq(translatedRecv))
 
             lazy val candidateTriggers : Seq[Trigger] = if (validateTrigger(translatedLocals,recvTrigger).isEmpty) // if we can't use the receiver, maybe we can use H[recv,field] etc..
-              validateTriggers(translatedLocals,Seq(Trigger(Seq(translateLocationAccess(translatedRecv, translatedLocation))),Trigger(Seq(currentPermission(qpMask,translatedRecv , translatedLocation))))) else Seq(recvTrigger)
+              validateTriggers(translatedLocals,Seq(Trigger(Seq(translateLocationAccess(translatedRecv, translatedLocation))),Trigger(Seq(currentPermission(qpMask,translatedRecv , translatedLocation))))) else validateTrigger(translatedLocals, recvTrigger)
 
             val providedTriggers : Seq[Trigger] = validateTriggers(translatedLocals, translatedTriggers)
 
@@ -1081,12 +1081,19 @@ class QuantifiedPermModule(val verifier: Verifier)
       filter invalid Trigger
    */
   def validateTrigger(vars:Seq[LocalVarDecl], trigger:Trigger): Seq[Trigger] = {
+    // Triggers built from translated expressions can contain lets, which are not permitted in triggers; with the lets
+    // inlined, they match the same terms.
+    val exps = trigger.exps map inlineLets
     //any trigger expression only LocalVar -> invalid
-    if (validTrigger(vars, trigger.exps))  {
-      Seq(trigger)
+    if (validTrigger(vars, exps))  {
+      Seq(Trigger(exps))
     } else {
       Seq()
     }
+  }
+
+  private def inlineLets(exp: Exp): Exp = exp.transform {
+    case LetExp(v, e, body) => Some(inlineLets(body.replace(LocalVar(v.name, v.typ), e)))
   }
 
   /*
@@ -1164,7 +1171,7 @@ class QuantifiedPermModule(val verifier: Verifier)
            val recvTrigger = Trigger(Seq(translatedRecv))
 
            lazy val candidateTriggers: Seq[Trigger] = if (validateTrigger(translatedLocals, recvTrigger).isEmpty) // if we can't use the receiver, maybe we can use H[recv,field] etc..
-             validateTriggers(translatedLocals, Seq(Trigger(Seq(translateLocationAccess(translatedRecv, translatedLocation))), Trigger(Seq(currentPermission(qpMask, translatedRecv, translatedLocation))))) else Seq(recvTrigger)
+             validateTriggers(translatedLocals, Seq(Trigger(Seq(translateLocationAccess(translatedRecv, translatedLocation))), Trigger(Seq(currentPermission(qpMask, translatedRecv, translatedLocation))))) else validateTrigger(translatedLocals, recvTrigger)
 
            val providedTriggers: Seq[Trigger] = validateTriggers(translatedLocals, translatedTriggers)
 
