@@ -22,6 +22,7 @@ import viper.silver.verifier.{TypecheckerWarning, errors}
 import viper.carbon.verifier.Verifier
 import viper.silver.ast.Quasihavoc
 import viper.silver.ast.utility.rewriter.Traverse
+import viper.silver.ast.utility.Triggers.TriggerGeneration
 import viper.silver.reporter.{Reporter, WarningsDuringTypechecking, QuantifierChosenTriggersMessage}
 
 import scala.collection.mutable
@@ -53,11 +54,13 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
 
   override def translate(p: sil.Program, reporter: Reporter): (Program, Map[String, Map[String, String]]) = {
 
+    /* Knows the program, so that triggers respect annotations of the called members (e.g. `@noAutoTrigger()`) */
+    val triggerGeneration = new TriggerGeneration(Some(p))
     verifier.replaceProgram(
       p.transform(
         {
           case f: sil.Forall => {
-            val res = f.autoTrigger
+            val res = f.autoTriggerWith(triggerGeneration)
             if (res.triggers.isEmpty) {
               reporter.report(WarningsDuringTypechecking(Seq(TypecheckerWarning("No triggers provided or inferred for quantifier.", res.pos))))
             }
@@ -65,7 +68,7 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
             res
           }
           case e: sil.Exists => {
-            val res = e.autoTrigger
+            val res = e.autoTriggerWith(triggerGeneration)
             if (res.triggers.isEmpty) {
               reporter.report(WarningsDuringTypechecking(Seq(TypecheckerWarning("No triggers provided or inferred for quantifier.", res.pos))))
             }
