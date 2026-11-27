@@ -68,7 +68,7 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
   }
 
   override def initializeMethod(m: sil.Method): sil.Method = {
-    reset()
+    resetMethodState()
 
     //only run the loop detector if the loop body has goto statements
     val hasGotos =
@@ -615,7 +615,14 @@ class DefaultLoopModule(val verifier: Verifier) extends LoopModule with StmtComp
 
   override def name: String = "Loop module"
 
+  /** Resets all state; called once per program. */
   override def reset(): Unit = {
+    resetMethodState()
+    usedLoopDetectorOnce = false
+  }
+
+  /** Resets the state that is tracked per method; called at the start of every method. */
+  private def resetMethodState(): Unit = {
     frames = Map.empty
     nodeToLoopInfoOutput = Map.empty
     nodeToCondLoopInfoOutput = Map.empty
