@@ -38,12 +38,11 @@ class DefaultMainModule(val verifier: Verifier) extends MainModule with Stateles
   import heapModule._
   import funcPredModule._
   import domainModule._
-  import expModule._
 
   def name = "Main module"
 
   override val silVarNamespace = verifier.freshNamespace("main.silver")
-  implicit val mainNamespace = verifier.freshNamespace("main")
+  implicit val mainNamespace: Namespace = verifier.freshNamespace("main")
 
   override def translateLocalVarSig(typ:sil.Type, v:sil.LocalVar): LocalVarDecl = {
     val t: Type = translateType(typ)

@@ -1,7 +1,5 @@
 package viper.carbon.modules.impls
 
-import viper.carbon.modules.StateModule
-
 object LabelHelper {
 
   /**

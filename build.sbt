@@ -17,6 +17,9 @@ lazy val carbon = (project in file("."))
         organization := "viper",
         version := "1.0-SNAPSHOT",
 
+        // Compilation settings
+        scalacOptions += "-Xfatal-warnings",    // Treat warnings as errors to guarantee code quality in future changes
+
         // Fork test to a different JVM than SBT's, avoiding SBT's classpath interfering with
         // classpath used by Scala's reflection.
         Test / fork := true,

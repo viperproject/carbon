@@ -73,7 +73,7 @@ class QuantifiedPermModule(val verifier: Verifier)
     wandModule.register(this)
   }
 
-  implicit val namespace = verifier.freshNamespace("perm")
+  implicit val namespace: Namespace = verifier.freshNamespace("perm")
   private val axiomNamespace = verifier.freshNamespace("perm.axiom")
   private val permTypeName = "Perm"
   private val maskTypeName = "MaskType"
@@ -93,9 +93,6 @@ class QuantifiedPermModule(val verifier: Verifier)
   private val noPerm = Const(noPermName)
   private val fullPermName = Identifier("FullPerm")
   private val fullPerm = Const(fullPermName)
-  private val permAddName = Identifier("PermAdd")
-  private val permSubName = Identifier("PermSub")
-  private val permDivName = Identifier("PermDiv")
   private val permConstructName = Identifier("Perm")
   private val goodMaskName = Identifier("GoodMask")
   private val hasDirectPermName = Identifier("HasDirectPerm")
@@ -280,7 +277,7 @@ class QuantifiedPermModule(val verifier: Verifier)
     (maskVar := zeroMask)
   }
 
-  override def reset = {
+  override def reset(): Unit = {
     mask = originalMask
     qpId = 0
     inverseFuncs = new ListBuffer[Func]();
@@ -327,7 +324,7 @@ class QuantifiedPermModule(val verifier: Verifier)
    * Can a location on a given receiver be read?
    */
   private def hasDirectPerm(mask: Exp, obj: Exp, loc: Exp): Exp =
-    FuncApp(hasDirectPermName, Seq(maskExp, obj, loc), Bool)
+    FuncApp(hasDirectPermName, Seq(mask, obj, loc), Bool)
 
   private def hasDirectPerm(obj: Exp, loc: Exp): Exp = hasDirectPerm(maskExp, obj, loc)
 
@@ -370,9 +367,9 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   override def permissionZero(permission: Exp): Exp = permission === noPerm
 
-  private def permissionPositiveInternal(permission: Exp, silPerm: Option[sil.Exp] = None, zeroOK : Boolean = false): Exp = {
+  private def permissionPositiveInternal(permission: Exp, silPerm: Option[sil.Exp], zeroOK : Boolean = false): Exp = {
     (permission, silPerm) match {
-      case (x, _) if permission == fullPerm => TrueLit()
+      case (_, _) if permission == fullPerm => TrueLit()
       case (_, Some(sil.FullPerm())) => TrueLit()
       case (_, Some(sil.WildcardPerm())) => TrueLit()
       case (_, Some(sil.NoPerm())) => if (zeroOK) TrueLit() else FalseLit()
@@ -391,7 +388,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   override def containsWildCard(e: sil.Exp): Boolean = {
     e match {
-      case sil.AccessPredicate(loc, prm) =>
+      case sil.AccessPredicate(_, prm) =>
         val p = PermissionHelper.normalizePerm(prm)
         p.isInstanceOf[sil.WildcardPerm]
       case QuantifiedPermissionAssertion(_, _, acc: sil.AccessPredicate) =>
@@ -451,7 +448,7 @@ class QuantifiedPermModule(val verifier: Verifier)
           Assert(sufficientPermExp, error.dueTo(reasons.MagicWandChunkNotFound(w))) ++
           (if (!usingOldState && !assertReadPermOnly) currentMaskAssignUpdate(translateNull, wandRep, permSub(curPerm, fullPerm)) else Nil)
 
-      case fa@sil.Forall(v, cond, expr) =>
+      case fa@sil.Forall(_, _, _) =>
 
         if (fa.isPure) {
           Nil
@@ -498,7 +495,6 @@ class QuantifiedPermModule(val verifier: Verifier)
         def renaming[E <: sil.Exp] = (e:E) => Expressions.renameVariables(e, v.localVar, newV.localVar)
 
         //translate components
-        val translatedLocal = translateLocalVarDecl(newV)
         val translatedCond = translateExp(renaming(cond))
         val translatedRcv = translateExp(renaming(fieldAccess.rcv))
         val translatedLocation = translateResource(renaming(fieldAccess))
@@ -694,9 +690,9 @@ class QuantifiedPermModule(val verifier: Verifier)
           case accPred: sil.AccessPredicate =>
             // alpha renaming, to avoid clashes in context, use vFresh instead of v
             val vsFresh = vs.map(v => env.makeUniquelyNamed(v))
-            val vsFreshBoogie = vsFresh.map(vFresh => env.define(vFresh.localVar))
+            vsFresh.foreach(vFresh => env.define(vFresh.localVar))
             // create fresh variables for the formal arguments of the predicate/wand definition
-            val (formals, args) = accPred match {
+            val (formals, args) = (accPred: @unchecked) match {
               case sil.PredicateAccessPredicate(sil.PredicateAccess(args, predname), _) =>
                 val predicate = program.findPredicate(predname)
                 (predicate.formalArgs, args)
@@ -788,7 +784,7 @@ class QuantifiedPermModule(val verifier: Verifier)
                 (currentPermission(translateNull, translatedResource) >= translatedPerms)
               }
 
-            val reason = accPred match {
+            val reason = (accPred: @unchecked) match {
               case sil.PredicateAccessPredicate(loc, _) => reasons.InsufficientPermission(loc)
               case w: sil.MagicWand => reasons.MagicWandChunkNotFound(w)
             }
@@ -805,7 +801,7 @@ class QuantifiedPermModule(val verifier: Verifier)
               }
 
             //Assume map update for affected locations
-            val general_location = accPred match {
+            val general_location = (accPred: @unchecked) match {
               case pa: sil.PredicateAccessPredicate =>
                 val formalPredicate = new PredicateAccess(freshFormalVars, pa.loc.predicateName)(pa.loc.pos, pa.loc.info, pa.loc.errT)
                 val general_location = translateResource(formalPredicate)
@@ -823,7 +819,7 @@ class QuantifiedPermModule(val verifier: Verifier)
             val obj = LocalVarDecl(Identifier("o"), refType)
             val field = LocalVarDecl(Identifier("f"), fieldType)
             val fieldVar = LocalVar(Identifier("f"), fieldType)
-            val (isDifferentFieldType, hasWrongId) = accPred match {
+            val (isDifferentFieldType, hasWrongId) = (accPred: @unchecked) match {
               case sil.PredicateAccessPredicate(PredicateAccess(_, predname), _) =>
                 (isPredicateField(fieldVar).not, (getPredicateOrWandId(fieldVar) !== IntLit(getPredicateOrWandId(predname))))
               case w: sil.MagicWand =>
@@ -913,7 +909,6 @@ class QuantifiedPermModule(val verifier: Verifier)
 * I haven't yet found a nice way of avoiding the code duplication
 */
   override def transferRemove(e:TransferableEntity, cond:Exp): Stmt = {
-    val permVar = LocalVar(Identifier("perm"), permType)
     val curPerm = currentPermission(e.rcv,e.loc)
     currentMaskAssignUpdate(e.rcv, e.loc, permSub(curPerm,e.transferAmount))
   }
@@ -1073,7 +1068,7 @@ class QuantifiedPermModule(val verifier: Verifier)
       //map occurring LocalVars
       containVars(expr)
     }
-    var containsVars = (vars.map(x => varMap.contains(x.name))).reduce((var1, var2) => var1 && var2)
+    val containsVars = (vars.map(x => varMap.contains(x.name))).reduce((var1, var2) => var1 && var2)
     validType && containsVars
   }
 
@@ -1110,7 +1105,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
        val res = expr match {
          //Quantified Field Permission
-         case accPred@sil.FieldAccessPredicate(fieldAccess@sil.FieldAccess(recv, f), _) =>
+         case accPred@sil.FieldAccessPredicate(fieldAccess@sil.FieldAccess(recv, _), _) =>
            val perms = accPred.perm
            // alpha renaming, to avoid clashes in context, use vFresh instead of v
            var isWildcard = false
@@ -1257,7 +1252,7 @@ class QuantifiedPermModule(val verifier: Verifier)
            val is_injective = Forall(translatedLocals ++ v2s, validateTriggers(translatedLocals ++ v2s, Seq(Trigger(Seq(triggerFunApp2)))), (notEquals && translatedCond && translatedCond2 && permGt(translatedPerms, noPerm) && permGt(translatedPerms2, noPerm)) ==> (translatedRecv !== translatedRecv2))
 
            val reas = reasons.QPAssertionNotInjective(fieldAccess)
-           var err = error.dueTo(reas)
+           val err = error.dueTo(reas)
            val injectiveAssertion = Locally(Assert(is_injective, err))
 
            val res1 = Havoc(qpMask) ++
@@ -1282,7 +1277,7 @@ class QuantifiedPermModule(val verifier: Verifier)
            val vsFresh = vs.map(v => env.makeUniquelyNamed(v))
            vsFresh.map(vFresh => env.define(vFresh.localVar))
            // create fresh variables for the formal arguments of the predicate definition
-           val (formals, args) = accPred match {
+           val (formals, args) = (accPred: @unchecked) match {
              case sil.PredicateAccessPredicate(sil.PredicateAccess(args, predname), _) =>
                val predicate = program.findPredicate(predname)
                (predicate.formalArgs, args)
@@ -1351,7 +1346,7 @@ class QuantifiedPermModule(val verifier: Verifier)
            val invAssm2 = MaybeForall(freshFormalBoogieDecls, Trigger(invFunApps), ((condInv && permGt(permInv, noPerm)) && rangeFunApp) ==> conjoinedInverseAssumptions)
 
            //define arguments needed to describe map updates
-           val general_location = accPred match {
+           val general_location = (accPred: @unchecked) match {
              case pa: sil.PredicateAccessPredicate =>
                val formalPredicate = new PredicateAccess(freshFormalVars, pa.loc.predicateName)(pa.loc.pos, pa.loc.info, pa.loc.errT)
                val general_location = translateResource(formalPredicate)
@@ -1394,7 +1389,7 @@ class QuantifiedPermModule(val verifier: Verifier)
            val field = LocalVarDecl(Identifier("f"), fieldType)
            val fieldVar = LocalVar(Identifier("f"), fieldType)
 
-           val (isDifferentFieldType, hasWrongId) = accPred match {
+           val (isDifferentFieldType, hasWrongId) = (accPred: @unchecked) match {
               case sil.PredicateAccessPredicate(PredicateAccess(_, predname), _) =>
                 (isPredicateField(fieldVar).not, (getPredicateOrWandId(fieldVar) !== IntLit(getPredicateOrWandId(predname)) ))
               case w: sil.MagicWand =>
@@ -1477,18 +1472,18 @@ class QuantifiedPermModule(val verifier: Verifier)
   //renamed Localvariable and Condition
   def getMapping(v: sil.LocalVarDecl, cond:sil.Exp, expr:sil.Exp): Seq[Exp] = {
     val res = expr match {
-      case SourceQuantifiedPermissionAssertion(forall, Implies(cond, expr))  =>
+      case SourceQuantifiedPermissionAssertion(_, Implies(_, _))  =>
         Nil
-      case sil.FieldAccessPredicate(fa@sil.FieldAccess(rcvr, f), gain) =>
+      case sil.FieldAccessPredicate(sil.FieldAccess(_, _), _) =>
         Nil
-      case predAccPred@sil.PredicateAccessPredicate(PredicateAccess(args, predname), perm) =>
+      case sil.PredicateAccessPredicate(PredicateAccess(args, _), _) =>
         Nil
-      case sil.And(e0, e1) =>
+      case sil.And(_, _) =>
         Nil
-      case sil.Implies(e0, e1) =>
+      case sil.Implies(_, _) =>
         //e0 must be pure
         Nil
-      case sil.Or(e0, e1) =>
+      case sil.Or(_, _) =>
         //e0 must be pure
         Nil
       case _ => Nil
@@ -1579,11 +1574,6 @@ class QuantifiedPermModule(val verifier: Verifier)
 
   private def currentMaskAssignUpdate(rcv: Exp, field: Exp, newPerm: Exp) : Stmt = {
     mask := maskUpdate(mask, rcv, field, newPerm)
-  }
-
-  private def maskUpdate(mask: Exp, loc: LocationAccess, newPerm: Exp) : Exp = {
-    val (rcv, field) = rcvAndFieldExp(loc)
-    maskUpdate(mask, rcv, field, newPerm)
   }
 
   private def maskUpdate(mask: Exp, rcv: Exp, field: Exp, newPerm: Exp) : Exp = {
@@ -1680,7 +1670,7 @@ class QuantifiedPermModule(val verifier: Verifier)
   override def handleStmt(s: sil.Stmt, statesStack: List[Any] = null, allStateAssms: Exp = TrueLit(), insidePackageStmt: Boolean = false) : (Seqn => Seqn) = {
     stmts =>
       s match {
-        case n@sil.NewStmt(target, fields) =>
+        case sil.NewStmt(target, fields) =>
           stmts ++ (for (field <- fields) yield {
             currentMaskAssignUpdate(sil.FieldAccess(target, field)(), currentPermission(sil.FieldAccess(target, field)()) + fullPerm)
           })
@@ -1722,9 +1712,9 @@ class QuantifiedPermModule(val verifier: Verifier)
         case fa@sil.LocationAccess(_) =>
           val hasDirectPermExp = definednessStateOpt.fold(hasDirectPerm(fa))(defState => hasDirectPerm(fa, defState.setDefState))
           Assert(hasDirectPermExp, error.dueTo(reasons.InsufficientPermission(fa)))
-        case sil.PermDiv(a, b) =>
+        case sil.PermDiv(_, b) =>
           Assert(translateExp(b) !== IntLit(0), error.dueTo(reasons.DivisionByZero(b)))
-        case sil.PermPermDiv(a, b) =>
+        case sil.PermPermDiv(_, b) =>
           Assert(translatePerm(b) !== RealLit(0.0), error.dueTo(reasons.DivisionByZero(b)))
         case _ => Nil
       }
@@ -1780,7 +1770,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         case sil.WildcardPerm() => TrueLit()
         case sil.EpsilonPerm() =>  sys.error("epsilon permissions are not supported by this permission module")
         case x: sil.LocalVar if isAbstractRead(x) => TrueLit()
-        case sil.CurrentPerm(loc) => backup()
+        case sil.CurrentPerm(_) => backup()
         case sil.FractionalPerm(left, right) =>
           val (l, r) = (translateExp(left), translateExp(right))
           ((l > IntLit(0)) && (r > IntLit(0))) || ((l < IntLit(0)) && (r < IntLit(0)))
@@ -1791,7 +1781,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         case sil.PermSub(left, right) => backup()
         case sil.PermMul(a, b) =>
           (isStrictlyPositivePerm(a) && isStrictlyPositivePerm(b)) || (isStrictlyNegativePerm(a) && isStrictlyNegativePerm(b))
-        case sil.PermDiv(a, b) =>
+        case sil.PermDiv(a, _) =>
           isStrictlyPositivePerm(a) // note: b should be ruled out from being non-positive
         case sil.PermPermDiv(a, b) =>
           (isStrictlyPositivePerm(a) && isStrictlyPositivePerm(b)) ||
@@ -1813,7 +1803,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         case sil.WildcardPerm() => true
         case sil.EpsilonPerm() =>  sys.error("epsilon permissions are not supported by this permission module")
         case x: sil.LocalVar if isAbstractRead(x) => true
-        case sil.CurrentPerm(loc) => false // conservative
+        case sil.CurrentPerm(_) => false // conservative
         case sil.FractionalPerm(sil.IntLit(m), sil.IntLit(n)) =>
           m > 0 && n > 0 || m < 0 && n < 0
         case sil.FractionalPerm(left, right) => false // conservative
@@ -1824,14 +1814,14 @@ class QuantifiedPermModule(val verifier: Verifier)
         case sil.PermSub(left, right) => false // conservative
         case sil.PermMul(a, b) =>
           (conservativeStaticIsStrictlyPositivePerm(a) && conservativeStaticIsStrictlyPositivePerm(b)) || (conservativeStaticIsStrictlyNegativePerm(a) && conservativeStaticIsStrictlyNegativePerm(b))
-        case sil.PermDiv(a, b) =>
+        case sil.PermDiv(a, _) =>
           conservativeStaticIsStrictlyPositivePerm(a) // note: b should be guaranteed ruled out from being non-positive
         case sil.PermPermDiv(a, b) =>
           (conservativeStaticIsStrictlyPositivePerm(a) && conservativeStaticIsStrictlyPositivePerm(b)) ||
             (conservativeStaticIsStrictlyNegativePerm(a) && conservativeStaticIsStrictlyNegativePerm(b))
         case sil.IntPermMul(sil.IntLit(n), b) =>
           n > 0 && conservativeStaticIsStrictlyPositivePerm(b) || n < 0 && conservativeStaticIsStrictlyNegativePerm(b)
-        case sil.IntPermMul(a, b) => false // conservative
+        case sil.IntPermMul(_, _) => false // conservative
         case sil.CondExp(cond, thn, els) => // conservative
           conservativeStaticIsStrictlyPositivePerm(thn) && conservativeStaticIsStrictlyPositivePerm(els)
         case _ => false // conservative?
@@ -1845,8 +1835,8 @@ class QuantifiedPermModule(val verifier: Verifier)
         case sil.FullPerm() => false
         case sil.WildcardPerm() => false
         case sil.EpsilonPerm() =>  sys.error("epsilon permissions are not supported by this permission module")
-        case x: sil.LocalVar => false // conservative
-        case sil.CurrentPerm(loc) => false // conservative
+        case _: sil.LocalVar => false // conservative
+        case sil.CurrentPerm(_) => false // conservative
         case sil.FractionalPerm(sil.IntLit(m), sil.IntLit(n)) =>
           m > 0 && n < 0 || m < 0 && n > 0
         case sil.FractionalPerm(left, right) => false // conservative
@@ -1857,14 +1847,14 @@ class QuantifiedPermModule(val verifier: Verifier)
         case sil.PermSub(left, right) => false // conservative
         case sil.PermMul(a, b) =>
           (conservativeStaticIsStrictlyPositivePerm(a) && conservativeStaticIsStrictlyNegativePerm(b)) || (conservativeStaticIsStrictlyNegativePerm(a) && conservativeStaticIsStrictlyPositivePerm(b))
-        case sil.PermDiv(a, b) =>
+        case sil.PermDiv(a, _) =>
           conservativeStaticIsStrictlyNegativePerm(a) // note: b should be guaranteed ruled out from being non-positive
         case sil.PermPermDiv(a, b) =>
           (conservativeStaticIsStrictlyNegativePerm(a) && conservativeStaticIsStrictlyPositivePerm(b)) ||
             (conservativeStaticIsStrictlyPositivePerm(a) && conservativeStaticIsStrictlyNegativePerm(b))
         case sil.IntPermMul(sil.IntLit(n), b) =>
           n > 0 && conservativeStaticIsStrictlyNegativePerm(b) || n < 0 && conservativeStaticIsStrictlyPositivePerm(b)
-        case sil.IntPermMul(a, b) => false // conservative
+        case sil.IntPermMul(_, _) => false // conservative
         case sil.CondExp(cond, thn, els) => // conservative
           conservativeStaticIsStrictlyNegativePerm(thn) && conservativeStaticIsStrictlyNegativePerm(els)
         case _ => false // conservative?
@@ -1882,7 +1872,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         case sil.WildcardPerm() => FalseLit()
         case sil.EpsilonPerm() =>  sys.error("epsilon permissions are not supported by this permission module")
         case x: sil.LocalVar if isAbstractRead(x) => FalseLit()
-        case sil.CurrentPerm(loc) => backup()
+        case sil.CurrentPerm(_) => backup()
         case sil.FractionalPerm(left, right) =>
           val (l, r) = (translateExp(left), translateExp(right))
           ((l < IntLit(0)) && (r > IntLit(0))) || ((l > IntLit(0)) && (r < IntLit(0)))
@@ -1893,7 +1883,7 @@ class QuantifiedPermModule(val verifier: Verifier)
         case sil.PermSub(left, right) => backup()
         case sil.PermMul(a, b) =>
           (isStrictlyPositivePerm(a) && isStrictlyNegativePerm(b)) || (isStrictlyNegativePerm(a) && isStrictlyPositivePerm(b))
-        case sil.PermDiv(a, b) =>
+        case sil.PermDiv(a, _) =>
           isStrictlyNegativePerm(a) // note: b should be guaranteed ruled out from being non-positive
         case sil.PermPermDiv(a, b) =>
           (isStrictlyNegativePerm(a) && isStrictlyPositivePerm(b)) ||
@@ -1935,7 +1925,7 @@ class QuantifiedPermModule(val verifier: Verifier)
           isFixedPerm(left)
         case sil.PermPermDiv(left, right) =>
           isFixedPerm(left) && isFixedPerm(right)
-        case sil.IntPermMul(a, b) =>
+        case sil.IntPermMul(_, b) =>
           isFixedPerm(b)
         case sil.CondExp(cond, thn, els) =>
           isFixedPerm(thn) && isFixedPerm(els) // note: this doesn't take account of condition (due to being a syntactic check) - in theory could be overly-restrictive
@@ -2007,7 +1997,7 @@ class QuantifiedPermModule(val verifier: Verifier)
 
         // move integer permission multiplications all the way to the inside
         val e3 = e2c.transform({
-          case x@sil.IntPermMul(a, sil.PermAdd(b, c)) => done = false
+          case sil.IntPermMul(a, sil.PermAdd(b, c)) => done = false
             sil.PermAdd(sil.IntPermMul(a, b)(), sil.IntPermMul(a, c)())()
           case sil.IntPermMul(a, sil.PermMul(b, c)) => done = false
             sil.PermMul(b, sil.IntPermMul(a, c)())()

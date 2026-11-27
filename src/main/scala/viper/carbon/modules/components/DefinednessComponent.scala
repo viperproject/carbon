@@ -10,6 +10,8 @@ import viper.carbon.boogie.{Statements, Stmt}
 import viper.silver.{ast => sil}
 import viper.silver.verifier.PartialVerificationError
 
+import scala.annotation.unused
+
 /**
  * Takes care of determining whether expressions are well-formed.
  */
@@ -18,7 +20,7 @@ trait DefinednessComponent extends Component {
   /**
    * Free assumptions about an expression.
    */
-  def freeAssumptions(e: sil.Exp): Stmt = Statements.EmptyStmt
+  def freeAssumptions(@unused e: sil.Exp): Stmt = Statements.EmptyStmt
 
   /**
     * Well-definedness check for `e` itself (not its subnodes). This check is invoked *before* invoking the
@@ -30,15 +32,17 @@ trait DefinednessComponent extends Component {
     * definedness check should be made, otherwise these checks should be done in the currently active state.
     * Expressions should be evaluated in the currently active state.
    */
-  def simplePartialCheckDefinednessBefore(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
-                                          definednessStateOpt: Option[DefinednessState]): Stmt = Statements.EmptyStmt
+  def simplePartialCheckDefinednessBefore(@unused e: sil.Exp, @unused error: PartialVerificationError,
+                                          @unused makeChecks: Boolean,
+                                          @unused definednessStateOpt: Option[DefinednessState]): Stmt = Statements.EmptyStmt
 
   /**
     * Same as [[simplePartialCheckDefinednessBefore]], except that this well-definedness check is invoked and emitted
     * *after* the well-definedness checks of `e`'s subnodes are invoked and emitted.
     */
-  def simplePartialCheckDefinednessAfter(e: sil.Exp, error: PartialVerificationError, makeChecks: Boolean,
-                                         definednessStateOpt: Option[DefinednessState]): Stmt = Statements.EmptyStmt
+  def simplePartialCheckDefinednessAfter(@unused e: sil.Exp, @unused error: PartialVerificationError,
+                                         @unused makeChecks: Boolean,
+                                         @unused definednessStateOpt: Option[DefinednessState]): Stmt = Statements.EmptyStmt
 
   /**
    * Proof obligations for a given expression.  The first part of the result is used before

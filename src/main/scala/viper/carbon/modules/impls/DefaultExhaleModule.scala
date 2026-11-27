@@ -23,14 +23,13 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
 
   import verifier._
   import expModule._
-  import permModule._
   import heapModule._
   import mainModule._
   import stateModule._
 
   def name = "Exhale module"
 
-  override def reset = { }
+  override def reset(): Unit = { }
 
   override def start(): Unit = {
     register(this)
@@ -111,7 +110,7 @@ class DefaultExhaleModule(val verifier: Verifier) extends ExhaleModule {
     *                  Access to the current state is needed during translation of an exhale during packaging a wand
    */
   private def exhaleConnective(e: sil.Exp, error: PartialVerificationError, definednessCheckData: DefinednessCheckData,
-                               havocHeap: Boolean = true, statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false,
+                               havocHeap: Boolean, statesStackForPackageStmt: List[Any], insidePackageStmt: Boolean,
                                isAssert: Boolean, currentStateForPackage: StateRep): Stmt = {
 
     e match {

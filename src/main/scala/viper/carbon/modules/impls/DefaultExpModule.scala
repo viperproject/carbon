@@ -13,8 +13,9 @@ import viper.carbon.verifier.Verifier
 import viper.silver.verifier.{PartialVerificationError, reasons}
 import viper.carbon.boogie.Implicits._
 import viper.carbon.modules.components.{DefinednessComponent, DefinednessState}
-import viper.silver.ast.{LocationAccess, MagicWand, PredicateAccess, Ref}
 import viper.silver.ast.utility.Expressions
+
+import scala.annotation.unused
 
 /**
  * The default implementation of [[viper.carbon.modules.ExpModule]].
@@ -480,7 +481,7 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
     * checks self-framedness of both sides of wand
     * GP: maybe should "MagicWandNotWellFormed" error
     */
-  private def checkDefinednessWand(e: sil.MagicWand, error: PartialVerificationError, makeChecks: Boolean): Stmt = {
+  private def checkDefinednessWand(e: sil.MagicWand, error: PartialVerificationError, @unused makeChecks: Boolean): Stmt = {
     val (initStmtLHS, curState): (Stmt, stateModule.StateSnapshot) = stateModule.freshEmptyState("WandDefLHS", true)
     val defStateLHS = stateModule.state
     val (initStmtRHS, _): (Stmt, stateModule.StateSnapshot) = stateModule.freshEmptyState("WandDefRHS", true)

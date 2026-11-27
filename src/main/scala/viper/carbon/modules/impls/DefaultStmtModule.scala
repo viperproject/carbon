@@ -127,8 +127,8 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
       case assign@sil.FieldAssign(lhs, rhs) =>
         checkDefinedness(lhs.rcv, errors.AssignmentFailed(assign)) ++
           checkDefinedness(rhs, errors.AssignmentFailed(assign))
-      case fold@sil.Fold(e) => sys.error("Internal error: translation of fold statement cannot be handled by simpleHandleStmt code; found:" + fold.toString())
-      case unfold@sil.Unfold(e) =>
+      case fold@sil.Fold(_) => sys.error("Internal error: translation of fold statement cannot be handled by simpleHandleStmt code; found:" + fold.toString())
+      case unfold@sil.Unfold(_) =>
         translateUnfold(unfold, statesStack, insidePackageStmt)
       case inh@sil.Inhale(e) =>
         inhaleWithDefinednessCheck(whenInhaling(e), errors.InhaleFailed(inh), statesStack, insidePackageStmt)
@@ -192,7 +192,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
           (targets map (e => checkDefinedness(e, errors.CallFailed(mc), insidePackageStmt = insidePackageStmt))) ++
           (args map (e => checkDefinedness(e, errors.CallFailed(mc), insidePackageStmt = insidePackageStmt))) ++
           (actualArgs map (_._2)) ++
-          MaybeCommentBlock("Exhaling precondition", executeUnfoldings(pres, (pre => errors.PreconditionInCallFalse(mc).withReasonNodeTransformed(renamingArguments))) ++
+          MaybeCommentBlock("Exhaling precondition", executeUnfoldings(pres, (_ => errors.PreconditionInCallFalse(mc).withReasonNodeTransformed(renamingArguments))) ++
             exhaleWithoutDefinedness(pres map (e => (e, errors.PreconditionInCallFalse(mc).withReasonNodeTransformed(renamingArguments))), statesStackForPackageStmt = statesStack, insidePackageStmt = insidePackageStmt)) ++
           MaybeCommentBlock("Havocing target variables", Havoc((targets map translateExp).asInstanceOf[Seq[Var]])) ++
           {
@@ -208,7 +208,7 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
       case sil.While(_, _, _) =>
         //handled by LoopModule
         Nil
-      case i@sil.If(cond, thn, els) =>
+      case sil.If(cond, thn, els) =>
         val condTr = if(allStateAssms == TrueLit()) { translateExpInWand(cond) } else { allStateAssms ==> translateExpInWand(cond) }
         val condTempVar = LocalVar(Identifier("condition")(tmpVarsNamespace), Bool)
         checkDefinedness(cond, errors.IfFailed(cond), insidePackageStmt = insidePackageStmt) ++
@@ -231,11 +231,11 @@ class DefaultStmtModule(val verifier: Verifier) extends StmtModule with SimpleSt
       case sil.Goto(_) =>
         /* Handled by loop module, since the loop module decides whether the goto should be translated as a goto. */
         Nil
-      case pa@sil.Package(wand, proof) => {
+      case pa@sil.Package(wand, _) => {
         checkDefinedness(wand, errors.MagicWandNotWellformed(wand), insidePackageStmt = insidePackageStmt)
         translatePackage(pa, errors.PackageFailed(pa), statesStack, allStateAssms, insidePackageStmt)
       }
-      case a@sil.Apply(wand) =>
+      case a@sil.Apply(_) =>
         translateApply(a, errors.ApplyFailed(a), statesStack, allStateAssms, insidePackageStmt)
       case _ =>
         Nil

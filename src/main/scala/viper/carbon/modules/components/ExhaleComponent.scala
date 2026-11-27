@@ -10,6 +10,8 @@ import viper.carbon.boogie.{Statements, Stmt}
 import viper.silver.{ast => sil}
 import viper.silver.verifier.PartialVerificationError
 
+import scala.annotation.unused
+
 /**
  * Takes care of exhaling one or several kinds of expressions.
 
@@ -19,7 +21,8 @@ trait ExhaleComponent extends Component {
   /**
    * Exhale a single expression.
    */
-  def exhaleExp(e: sil.Exp, error: PartialVerificationError, definednessStateOpt: Option[DefinednessState]): Stmt = Statements.EmptyStmt
+  def exhaleExp(@unused e: sil.Exp, @unused error: PartialVerificationError,
+                @unused definednessStateOpt: Option[DefinednessState]): Stmt = Statements.EmptyStmt
 
   /**
     */

@@ -63,7 +63,7 @@ class DefaultInhaleModule(val verifier: Verifier) extends InhaleModule with Stat
    * Inhales Viper expression connectives (such as logical and/or) and forwards the
    * translation of other expressions to the inhale components.
    */
-  private def inhaleConnective(e: sil.Exp, error: PartialVerificationError, addDefinednessChecks: Boolean, statesStackForPackageStmt: List[Any] = null, insidePackageStmt: Boolean = false): Stmt = {
+  private def inhaleConnective(e: sil.Exp, error: PartialVerificationError, addDefinednessChecks: Boolean, statesStackForPackageStmt: List[Any], insidePackageStmt: Boolean): Stmt = {
 
     def maybeDefCheck(eDef: sil.Exp) : Stmt = { if(addDefinednessChecks) checkDefinedness(eDef, error, insidePackageStmt = insidePackageStmt) else Statements.EmptyStmt }
 

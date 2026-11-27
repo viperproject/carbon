@@ -6,22 +6,20 @@
 
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
-import viper.carbon.boogie.PrettyPrinter
-import viper.carbon.verifier.Environment
 import viper.carbon.CarbonVerifier
-import viper.silver.ast.{Add, AnonymousDomainAxiom, Domain, DomainFunc, DomainFuncApp, EqCmp, Exists, Forall, Int, IntLit, LocalVar, LocalVarDecl, Method, Program, Seqn, Trigger, TrueLit, WeightedQuantifier}
+import viper.silver.ast.{Add, AnonymousDomainAxiom, Domain, DomainFunc, DomainFuncApp, EqCmp, Forall, Int, IntLit, LocalVar, LocalVarDecl, Method, Program, Seqn, Trigger, WeightedQuantifier}
 import viper.silver.reporter.NoopReporter
 import viper.silver.verifier.{Failure, Success}
 
 class CarbonQuantifierWeightTests extends AnyFunSuite with BeforeAndAfterAll {
   val carbon: CarbonVerifier = CarbonVerifier(NoopReporter)
 
-  override def beforeAll() {
+  override def beforeAll(): Unit = {
     carbon.parseCommandLine(Seq("dummy.vpr"))
     carbon.start()
   }
 
-  override def afterAll() {
+  override def afterAll(): Unit = {
     carbon.stop()
   }
 
