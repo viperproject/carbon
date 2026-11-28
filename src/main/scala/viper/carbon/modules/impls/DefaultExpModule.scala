@@ -102,11 +102,17 @@ class DefaultExpModule(val verifier: Verifier) extends ExpModule with Definednes
       case sil.Let(lvardecl, exp, body) =>
         val translatedExp = translateExp(exp) // expression to bind "v" to
       val v = env.makeUniquelyNamed(lvardecl) // choose a fresh "v" binder
-        env.define(v.localVar)
+        // In its own namespace, "v" differs from every other Boogie variable. Substituting into the translated let
+        // therefore cannot capture variables, as when DefaultFuncPredModule.getFrame instantiates a cached frame
+        // with the arguments of a use.
+        env.define(v.localVar, verifier.freshNamespace("let"))
         val translatedBody = translateExp(Expressions.instantiateVariables(body, Seq(lvardecl), Seq(v.localVar), env.allDefinedNames(program))) // translate body with "v" in place of bound variable
-      val substitutedBody = translatedBody.replace(env.get(v.localVar), translatedExp) // now replace all "v"s with expression. Doing this after translation avoids constructs such as heap-dependant expressions getting reevaluated after substitution in the wrong heaps (e.g. if substituted into an "old" expression).
+        // Bind "v" with a Boogie let: the expression is evaluated where the let is (not, e.g., in the heap of an "old"
+        // expression in the body), and it is not duplicated for each occurrence of "v" (which would make chains of
+        // lets exponentially large).
+        val letExp = LetExp(translateLocalVarDecl(v), translatedExp, translatedBody)
         env.undefine(v.localVar)
-        substitutedBody
+        letExp
       case sil.CondExp(cond, thn, els) =>
         CondExp(translateExp(cond), translateExp(thn), translateExp(els))
       case q@sil.Exists(vars, triggers, exp) => {

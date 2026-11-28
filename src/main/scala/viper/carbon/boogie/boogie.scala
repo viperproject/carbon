@@ -274,6 +274,8 @@ case class Exists(vars: Seq[LocalVarDecl], triggers: Seq[Trigger], exp: Exp, wei
 case class Trigger(exps: Seq[Exp]) extends Node
 
 case class CondExp(cond: Exp, thn: Exp, els: Exp) extends Exp
+/** The let expression `(var v := exp; body)`, which binds `v` in `body`. */
+case class LetExp(v: LocalVarDecl, exp: Exp, body: Exp) extends Exp
 case class Old(exp: Exp) extends Exp
 
 //sealed abstract class Var(val name: Identifier, val typ: Type) extends Exp

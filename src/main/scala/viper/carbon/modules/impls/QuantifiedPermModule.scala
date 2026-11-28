@@ -1016,16 +1016,23 @@ class QuantifiedPermModule(val verifier: Verifier)
     }
   }
 
-  var varMap:Map[Identifier,Boolean] = Map()
+  /* Trigger candidates built from translated expressions can contain Boogie lets (from Viper lets), which Boogie and
+   * Z3 accept. The following functions compute properties of an expression as if its lets were inlined, without
+   * inlining them (that would take exponential time for chains of lets).
+   */
 
-  def containVars(n:Node): Unit = {
-    if (n.isInstanceOf[Var]) {
-      varMap+= (n.asInstanceOf[Var].name -> true)
-    }
+  /** The names of the variables in n, after expanding its lets. */
+  def containedVars(n: Node, lets: Map[Identifier, Set[Identifier]] = Map()): Set[Identifier] = n match {
+    case LetExp(v, e, body) => containedVars(body, lets + (v.name -> containedVars(e, lets)))
+    case x: Var => lets.getOrElse(x.name, Set(x.name))
+    case _ => n.subnodes.flatMap(containedVars(_, lets)).toSet
+  }
 
-    for (sub <- n.subnodes ) {
-      containVars(sub)
-    }
+  /** Whether exp is a local variable, after expanding its lets. */
+  def isLocalVar(exp: Exp, lets: Map[Identifier, Boolean] = Map()): Boolean = exp match {
+    case LetExp(v, e, body) => isLocalVar(body, lets + (v.name -> isLocalVar(e, lets)))
+    case LocalVar(name, _) => lets.getOrElse(name, true)
+    case _ => false
   }
 
   /*
@@ -1044,6 +1051,7 @@ class QuantifiedPermModule(val verifier: Verifier)
       case MapSelect(_, idxs) => idxs.map(validTriggerTypes).reduce((b1, b2) => b1 && b2)
       case MapUpdate(_, idxs, value) => idxs.map(validTriggerTypes).reduce((b1, b2) => b1 && b2) && validTriggerTypes(value)
       case FuncApp(_, args, _) => if (args.isEmpty) false else args.map(validTriggerTypes).reduce((b1, b2) => b1 && b2)
+      case LetExp(_, e, body) => validTriggerTypes(e) && validTriggerTypes(body)
       /* BinExp should be refined to Add, Sub, Mul, Div, Mod. user-triggers will not be allowed invalid types.
          other triggers should not be generated.
       */
@@ -1059,21 +1067,19 @@ class QuantifiedPermModule(val verifier: Verifier)
 
    */
   def validTrigger(vars:Seq[LocalVarDecl], exps:Seq[Exp]) : Boolean = {
-    varMap = Map()
     //Main-Node
     var validType = true
     for (expr <- exps) {
       //not only LocalVar
-      if (expr.isInstanceOf[LocalVar]) {
+      if (isLocalVar(expr)) {
         validType = false;
       }
       if (!validTriggerTypes(expr)) {
         validType = false
       }
-      //map occurring LocalVars
-      containVars(expr)
     }
-    var containsVars = (vars.map(x => varMap.contains(x.name))).reduce((var1, var2) => var1 && var2)
+    val occurringVars = exps.flatMap(containedVars(_)).toSet
+    val containsVars = (vars.map(x => occurringVars.contains(x.name))).reduce((var1, var2) => var1 && var2)
     validType && containsVars
   }
 
