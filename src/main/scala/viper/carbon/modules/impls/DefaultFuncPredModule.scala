@@ -508,7 +508,8 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
         freshParams map (lv => env.define(lv))
         val freshBoogies = freshParamDeclarations map translateLocalVarDecl
         val renaming = ((e:sil.Exp) => Expressions.instantiateVariables(e,formalArgs,freshParams, env.allDefinedNames(program)))
-        val (frame, declarations) = computeFrame(assertions, renaming, name, freshBoogies)
+        val (computedFrame, declarations) = computeFrame(assertions, renaming, name, freshBoogies)
+        val frame = renameBoundVariables(computedFrame)
         info.put(name, (frame, frameState, freshBoogies, declarations))
         freshParams map (lv => env.undefine(lv))
         stateModule.replaceState(state) // go back to the original state
@@ -537,6 +538,30 @@ with DefinednessComponent with ExhaleComponent with InhaleComponent {
     }
   }
 
+
+  /** Renames the variables bound in a frame into fresh namespaces.
+    *
+    * getFrame caches a frame and instantiates it for each use by substituting the use's arguments for
+    * the frame's parameters. That substitution does not avoid capture: with
+    * `predicate P(x: Ref) { (exists y: Ref :: y != x) ==> acc(x.f) }`, instantiating the frame for
+    * P(y) would turn `y != x` into `y != y`. Identifiers are compared by name and namespace, so a
+    * bound variable in a fresh namespace differs from every variable of an argument.
+    */
+  private def renameBoundVariables(e: Exp): Exp = e.transform {
+    case q: QuantifiedExp =>
+      val namespace = verifier.freshNamespace("frame")
+      val renamed = q.vars map (v => v -> LocalVar(Identifier(v.name.name)(namespace), v.typ))
+      val renaming: Map[LocalVar, LocalVar] = renamed.map { case (v, r) => v.l -> r }.toMap
+      // Rename nested quantifiers first: one that rebinds a name of q.vars then binds a fresh
+      // identifier, which `renaming` leaves alone
+      def rename(e: Exp): Exp = renameBoundVariables(e).transform { case v: LocalVar => renaming.get(v) }
+      val renamedVars = renamed map { case (v, r) => LocalVarDecl(r.name, v.typ, v.where map rename) }
+      def renameTrigger(t: Trigger) = Trigger(t.exps map rename)
+      Some(q match {
+        case f: Forall => f.copy(vars = renamedVars, triggers = f.triggers map renameTrigger, exp = rename(f.exp))
+        case e: Exists => e.copy(vars = renamedVars, triggers = e.triggers map renameTrigger, exp = rename(e.exp))
+      })
+  }
 
   private def computeFrame(conjuncts: Seq[sil.Exp], renaming : sil.Exp => sil.Exp, functionName: String, args:Seq[LocalVarDecl]): (Exp, Seq[(Func, sil.Forall)]) = {
     (conjuncts match {

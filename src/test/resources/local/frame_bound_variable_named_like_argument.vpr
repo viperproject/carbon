@@ -1,0 +1,40 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// A variable bound in the frame of a predicate must not capture an argument with the same name:
+// here, the frame of P(y) depends on y.f, so the result of get(y) can change.
+
+field f: Int
+
+predicate P(x: Ref) { (exists y: Ref :: y != x) ==> acc(x.f) }
+
+function get(x: Ref): Int
+  requires P(x)
+
+method predicateFrame(y: Ref)
+  requires y != null && P(y) // With y != null, null shows that the condition of P holds
+{
+  var a: Int := get(y)
+  unfold P(y)
+  y.f := y.f + 1
+  fold P(y)
+  //:: ExpectedOutput(assert.failed:assertion.false)
+  assert get(y) == a
+}
+
+// Nested quantifiers: the variables bound by both quantifiers must be renamed
+predicate Q(x: Ref) { (exists y: Ref :: (exists z: Ref :: y != x && z != y)) ==> acc(x.f) }
+
+function getQ(x: Ref): Int
+  requires Q(x)
+
+method nestedQuantifiersInFrame(y: Ref)
+  requires y != null && Q(y)
+{
+  var a: Int := getQ(y)
+  unfold Q(y)
+  y.f := y.f + 1
+  fold Q(y)
+  //:: ExpectedOutput(assert.failed:assertion.false)
+  assert getQ(y) == a
+}
